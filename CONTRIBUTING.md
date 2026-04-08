@@ -4,11 +4,9 @@ Thanks for considering a contribution to Axint. This guide will get you oriented
 
 ## Before You Start
 
-1. **Sign the CLA.** Every contributor must sign the [Contributor License Agreement](CLA.md) before their first PR is merged. This is a one-time step — our CLA bot will guide you through it on your first pull request.
+1. **Open an issue first for large changes.** Bug fixes and new templates can go straight to a PR. But if you're changing the compiler, validator, type system, or MCP server architecture, open an issue or discussion first so we can align on the approach before you invest time.
 
-2. **Open an issue first for large changes.** Bug fixes and new templates can go straight to a PR. But if you're changing the compiler, validator, type system, or MCP server architecture, open an issue or discussion first so we can align on the approach before you invest time.
-
-3. **Check existing issues.** Browse [open issues](https://github.com/AgenticEmpire/axint/issues) — especially those labeled `good first issue` — to find work that's ready to pick up.
+2. **Check existing issues.** Browse [open issues](https://github.com/agenticempire/axint/issues) — especially those labeled `good first issue` — to find work that's ready to pick up.
 
 ## Architecture Overview
 
@@ -24,7 +22,7 @@ src/
 │   ├── types.ts         # IR types, Swift type mappings, diagnostics
 │   └── index.ts         # Barrel export
 ├── sdk/
-│   └── index.ts         # @axint/sdk — defineIntent() API and param helpers
+│   └── index.ts         # defineIntent() API and param helpers (exported from `axint`)
 ├── mcp/
 │   ├── server.ts        # MCP server with axint_compile & axint_validate tools
 │   └── index.ts         # Entry point (also serves as axint-mcp binary)
@@ -82,7 +80,7 @@ If you're interested in contributing to Axint Cloud, reach out at hello@axint.ai
 
 ```bash
 # Clone the repo
-git clone https://github.com/AgenticEmpire/axint.git
+git clone https://github.com/agenticempire/axint.git
 cd axint
 
 # Install dependencies
@@ -130,7 +128,7 @@ export const yourTemplate: IntentTemplate = {
   description: "What this template does",
   category: "productivity", // e.g., "productivity", "media", "smart-home"
   source: `
-import { defineIntent, param } from "@axint/sdk";
+import { defineIntent, param } from "axint";
 
 export default defineIntent({
   name: "YourIntent",

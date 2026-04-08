@@ -14,9 +14,9 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 - **SDK**: `defineIntent()` API with type-safe `param.string()`, `param.number()`, `param.boolean()`, `param.date()`, `param.duration()`, `param.url()` helpers
 - **Validation**: 12 diagnostic codes (AX001–AX005 parser, AX100–AX106 IR, AX200–AX202 Swift) with actionable suggestions
 - **Security**: `escapeSwiftString()` prevents code injection in generated Swift string literals
-- **Testing**: 80+ tests covering parser, generator, validator, compiler, types, security edge cases, and injection resistance
+- **Testing**: 117 tests at 98%+ coverage — parser, generator, validator, compiler, types, SDK, templates, security edge cases, and injection resistance
 - **CI/CD**: GitHub Actions with typecheck, lint, test, build, and CLI verification
-- Apache 2.0 license, CLA, Code of Conduct, Security Policy, Contributing Guide
+- Apache 2.0 license, Code of Conduct, Security Policy, Contributing Guide
 
 ### Technical Details
 
@@ -25,4 +25,4 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 - tsup for builds with separate CLI/MCP/library entry points
 - Vitest with snapshot testing and V8 coverage
 
-[0.1.0]: https://github.com/AgenticEmpire/axint/releases/tag/v0.1.0
+[0.1.0]: https://github.com/agenticempire/axint/releases/tag/v0.1.0
