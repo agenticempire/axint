@@ -1,0 +1,81 @@
+{
+  "name": "@axint/monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The open-source compiler that transforms AI agent definitions into native Apple App Intents. TypeScript in, Swift out.",
+  "author": "Agentic Empire <hello@axint.ai>",
+  "license": "Apache-2.0",
+  "homepage": "https://axint.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AgenticEmpire/axint.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AgenticEmpire/axint/issues"
+  },
+  "keywords": [
+    "compiler",
+    "apple-intents",
+    "app-intents",
+    "swift",
+    "siri",
+    "shortcuts",
+    "ai-agents",
+    "mcp",
+    "code-generation",
+    "typescript",
+    "developer-tools"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "axint": "./dist/cli/index.js"
+  },
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/core/index.js",
+      "types": "./dist/core/index.d.ts"
+    },
+    "./sdk": {
+      "import": "./dist/sdk/index.js",
+      "types": "./dist/sdk/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/ tests/",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.5.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.9.0",
+    "commander": "^13.1.0",
+    "handlebars": "^4.7.8",
+    "ts-morph": "^25.0.0"
+  }
+}
