@@ -37,3 +37,4 @@ npm-debug.log*
 
 # tsup temp files
 tsup.config.bundled_*
+tests/.tmp-compiler-tests/
