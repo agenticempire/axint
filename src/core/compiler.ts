@@ -11,7 +11,6 @@
  */
 
 import { readFileSync } from "node:fs";
-import { basename } from "node:path";
 import { parseIntentSource } from "./parser.js";
 import { generateSwift } from "./generator.js";
 import { validateIntent, validateSwiftSource } from "./validator.js";
@@ -36,7 +35,7 @@ export function compileFile(
   let source: string;
   try {
     source = readFileSync(filePath, "utf-8");
-  } catch (err) {
+  } catch (_err) {
     return {
       success: false,
       diagnostics: [

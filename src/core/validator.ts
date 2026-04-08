@@ -7,6 +7,12 @@
 
 import type { Diagnostic, IRIntent } from "./types.js";
 
+/** Apple-recommended maximum parameters per intent for usability */
+const MAX_PARAMETERS = 10;
+
+/** Maximum title length before Siri may truncate display */
+const MAX_TITLE_LENGTH = 60;
+
 /**
  * Validate an IR intent for App Intents framework compliance.
  */
@@ -71,22 +77,23 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
   }
 
   // Rule: Max 10 parameters per intent (App Intents recommendation)
-  if (intent.parameters.length > 10) {
+  if (intent.parameters.length > MAX_PARAMETERS) {
     diagnostics.push({
       code: "AX105",
       severity: "warning",
-      message: `Intent has ${intent.parameters.length} parameters. Apple recommends 10 or fewer for usability.`,
+      message: `Intent has ${intent.parameters.length} parameters. Apple recommends ${MAX_PARAMETERS} or fewer for usability.`,
       file: intent.sourceFile,
-      suggestion: "Consider splitting into multiple intents or grouping parameters into an entity",
+      suggestion:
+        "Consider splitting into multiple intents or grouping parameters into an entity",
     });
   }
 
   // Rule: Title should not exceed 60 characters (Siri display constraint)
-  if (intent.title && intent.title.length > 60) {
+  if (intent.title && intent.title.length > MAX_TITLE_LENGTH) {
     diagnostics.push({
       code: "AX106",
       severity: "warning",
-      message: `Intent title is ${intent.title.length} characters. Siri display may truncate titles over 60 characters.`,
+      message: `Intent title is ${intent.title.length} characters. Siri display may truncate titles over ${MAX_TITLE_LENGTH} characters.`,
       file: intent.sourceFile,
     });
   }

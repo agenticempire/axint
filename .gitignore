@@ -32,3 +32,8 @@ npm-debug.log*
 
 # Generated Swift output (keep examples, ignore user output)
 *.generated.swift
+*.swift
+!examples/*.swift
+
+# tsup temp files
+tsup.config.bundled_*

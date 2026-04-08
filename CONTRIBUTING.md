@@ -17,25 +17,21 @@ Understanding the project structure will save you time:
 ```
 src/
 ├── core/
-│   ├── compiler.ts      # TypeScript → Swift AST transformation
-│   ├── validator.ts      # Validates generated Swift against Apple API constraints
-│   ├── types.ts          # Intent type system (param types, return types, mappings)
-│   └── codegen.ts        # Swift code generation from AST
+│   ├── parser.ts        # Extracts defineIntent() calls → IR
+│   ├── generator.ts     # Transforms IR → Swift App Intent source
+│   ├── validator.ts     # Validates IR and generated Swift (AX001–AX202)
+│   ├── compiler.ts      # Orchestrates the full pipeline
+│   ├── types.ts         # IR types, Swift type mappings, diagnostics
+│   └── index.ts         # Barrel export
+├── sdk/
+│   └── index.ts         # @axint/sdk — defineIntent() API and param helpers
 ├── mcp/
-│   ├── server.ts         # MCP server entry point
-│   ├── tools/
-│   │   ├── scaffold.ts   # axint_scaffold — generate from natural language
-│   │   ├── compile.ts    # axint_compile — TS → Swift
-│   │   ├── validate.ts   # axint_validate — check correctness
-│   │   └── templates.ts  # axint_templates — list available templates
-│   └── index.ts
+│   ├── server.ts        # MCP server with axint_compile & axint_validate tools
+│   └── index.ts         # Entry point (also serves as axint-mcp binary)
 ├── templates/
-│   ├── calendar.ts       # Calendar/reminders intent template
-│   ├── messaging.ts      # Messaging intent template
-│   └── ...               # More templates welcome!
+│   └── index.ts         # Intent template registry (templates welcome!)
 └── cli/
-    ├── index.ts          # CLI entry point
-    └── commands/         # init, compile, validate subcommands
+    └── index.ts         # CLI entry — compile and validate commands
 ```
 
 **Key data flow:**
@@ -43,11 +39,13 @@ src/
 ```
 TypeScript Intent Definition
         ↓
-   core/compiler.ts    — parses and transforms to intermediate AST
+   core/parser.ts      — extracts defineIntent() call → Intermediate Representation (IR)
         ↓
-   core/validator.ts   — checks against Apple API constraints
+   core/validator.ts   — checks IR against Apple API constraints
         ↓
-   core/codegen.ts     — generates Swift source
+   core/generator.ts   — generates Swift App Intent source
+        ↓
+   core/validator.ts   — validates generated Swift (import, conformance, perform)
         ↓
    Swift App Intent
 ```
@@ -97,10 +95,7 @@ npm test
 npm run build
 
 # Run the CLI locally
-npm run dev -- compile src/intents/example.ts
-
-# Run the MCP server locally
-npm run dev -- mcp serve
+npm run dev -- compile examples/calendar-assistant.ts --stdout
 ```
 
 ## Pull Request Process
@@ -127,24 +122,32 @@ Templates are the easiest way to contribute. Here's the pattern:
 
 ```typescript
 // src/templates/your-template.ts
-import { IntentTemplate } from "../core/types";
+import type { IntentTemplate } from "../templates/index";
 
 export const yourTemplate: IntentTemplate = {
   id: "your-template",
   name: "Your Template Name",
   description: "What this template does",
-  category: "category", // e.g., "productivity", "media", "smart-home"
-  params: [
-    // Define the parameters this intent accepts
-  ],
-  scaffoldHints: [
-    // Natural language descriptions that should trigger this template
-    // Used by axint_scaffold to match user intent to template
-  ],
+  category: "productivity", // e.g., "productivity", "media", "smart-home"
+  source: `
+import { defineIntent, param } from "@axint/sdk";
+
+export default defineIntent({
+  name: "YourIntent",
+  title: "Your Intent Title",
+  description: "What this intent does",
+  params: {
+    // Define parameters here
+  },
+  perform: async (params) => {
+    return { success: true };
+  },
+});
+  `.trim(),
 };
 ```
 
-Then add a test in `tests/templates/your-template.test.ts` and register it in `src/templates/index.ts`.
+Then register it in `src/templates/index.ts` by adding it to the `templates` array.
 
 ## Code of Conduct
 

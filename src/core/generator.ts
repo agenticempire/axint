@@ -9,6 +9,19 @@ import type { IRIntent, IRParameter, IRType } from "./types.js";
 import { irTypeToSwift } from "./types.js";
 
 /**
+ * Escape a string for safe interpolation into Swift string literals.
+ * Prevents code injection via user-controlled titles/descriptions.
+ */
+export function escapeSwiftString(s: string): string {
+  return s
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
+}
+
+/**
  * Generate a Swift App Intent source file from an IR intent.
  */
 export function generateSwift(intent: IRIntent): string {
@@ -27,10 +40,10 @@ export function generateSwift(intent: IRIntent): string {
 
   // Static metadata
   lines.push(
-    `    static let title: LocalizedStringResource = "${intent.title}"`
+    `    static let title: LocalizedStringResource = "${escapeSwiftString(intent.title)}"`
   );
   lines.push(
-    `    static let description: IntentDescription = IntentDescription("${intent.description}")`
+    `    static let description: IntentDescription = IntentDescription("${escapeSwiftString(intent.description)}")`
   );
   lines.push(``);
 
@@ -48,9 +61,7 @@ export function generateSwift(intent: IRIntent): string {
   lines.push(`        // TODO: Implement your intent logic here`);
 
   if (intent.parameters.length > 0) {
-    const paramList = intent.parameters
-      .map((p) => `"${p.name}": ${p.name}`)
-      .join(", ");
+    const paramList = intent.parameters.map((p) => `"${p.name}": ${p.name}`).join(", ");
     lines.push(`        // Available parameters: ${paramList}`);
   }
 
@@ -70,9 +81,9 @@ function generateParameter(param: IRParameter): string {
 
   // Build @Parameter decorator
   const attrs: string[] = [];
-  attrs.push(`title: "${param.title}"`);
+  attrs.push(`title: "${escapeSwiftString(param.title)}"`);
   if (param.description) {
-    attrs.push(`description: "${param.description}"`);
+    attrs.push(`description: "${escapeSwiftString(param.description)}"`);
   }
 
   const decorator = `    @Parameter(${attrs.join(", ")})`;
@@ -91,9 +102,12 @@ function generateParameter(param: IRParameter): string {
   return lines.join("\n");
 }
 
-function formatSwiftDefault(value: unknown, type: IRType): string {
-  if (typeof value === "string") return `"${value}"`;
-  if (typeof value === "number") return `${value}`;
+function formatSwiftDefault(value: unknown, _type: IRType): string {
+  if (typeof value === "string") return `"${escapeSwiftString(value)}"`;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return `0`; // Guard against NaN/Infinity
+    return `${value}`;
+  }
   if (typeof value === "boolean") return value ? "true" : "false";
-  return `${value}`;
+  return `"${escapeSwiftString(String(value))}"`; // Safe fallback
 }
