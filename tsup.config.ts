@@ -1,12 +1,11 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig([
-  // Core, SDK, and MCP packages
+  // Core and SDK packages (library — no shebang)
   {
     entry: {
       "core/index": "src/core/index.ts",
       "sdk/index": "src/sdk/index.ts",
-      "mcp/index": "src/mcp/index.ts",
     },
     format: ["esm"],
     dts: true,
@@ -15,13 +14,27 @@ export default defineConfig([
     clean: true,
     target: "node22",
   },
-  // CLI (needs shebang banner)
+  // CLI (needs shebang banner, no DTS)
   {
     entry: {
       "cli/index": "src/cli/index.ts",
     },
     format: ["esm"],
     dts: false,
+    splitting: false,
+    sourcemap: true,
+    target: "node22",
+    banner: {
+      js: "#!/usr/bin/env node",
+    },
+  },
+  // MCP server (needs shebang for axint-mcp binary + DTS for library use)
+  {
+    entry: {
+      "mcp/index": "src/mcp/index.ts",
+    },
+    format: ["esm"],
+    dts: true,
     splitting: false,
     sourcemap: true,
     target: "node22",

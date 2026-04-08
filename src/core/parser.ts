@@ -10,16 +10,7 @@
  */
 
 import type { IRIntent, IRParameter, IRType, IRPrimitiveType } from "./types.js";
-
-/** Supported param.* type names */
-const PARAM_TYPE_SET = new Set<string>([
-  "string",
-  "number",
-  "boolean",
-  "date",
-  "duration",
-  "url",
-]);
+import { PARAM_TYPES } from "./types.js";
 
 /**
  * Parse a TypeScript source file containing a defineIntent() call
@@ -30,9 +21,7 @@ export function parseIntentSource(
   filePath: string = "<stdin>"
 ): IRIntent {
   // Extract the object literal passed to defineIntent({...})
-  const defineMatch = source.match(
-    /defineIntent\s*\(\s*\{([\s\S]*)\}\s*\)\s*;?\s*$/m
-  );
+  const defineMatch = source.match(/defineIntent\s*\(\s*\{([\s\S]*)\}\s*\)\s*;?\s*$/m);
   if (!defineMatch) {
     throw new ParserError(
       "AX001",
@@ -100,11 +89,11 @@ export function parseIntentSource(
 function extractStringField(
   body: string,
   field: string,
-  required: boolean = true
+  _required: boolean = true
 ): string | null {
   // Match: fieldName: "value" — handle each quote type separately to allow
   // the other quote types inside the string (e.g., apostrophes in double-quoted strings)
-  const doubleQuoteRegex = new RegExp(`${field}\\s*:\\s*"([^"]*)"` );
+  const doubleQuoteRegex = new RegExp(`${field}\\s*:\\s*"([^"]*)"`);
   const singleQuoteRegex = new RegExp(`${field}\\s*:\\s*'([^']*)'`);
   const backtickRegex = new RegExp(`${field}\\s*:\\s*\`([^\`]*)\``);
 
@@ -124,32 +113,48 @@ function extractParams(body: string, filePath: string): IRParameter[] {
   const params: IRParameter[] = [];
 
   // Match each param: param.type("description", { ...config })
-  const paramRegex =
-    /(\w+)\s*:\s*param\.(\w+)\s*\(\s*["'`]([^"'`]*)["'`](?:\s*,\s*\{([^}]*)\})?\s*\)/g;
+  // Use separate regexes per quote type to handle apostrophes/quotes inside strings
+  const paramRegexDouble =
+    /(\w+)\s*:\s*param\.(\w+)\s*\(\s*"([^"]*)"(?:\s*,\s*\{([^}]*)\})?\s*\)/g;
+  const paramRegexSingle =
+    /(\w+)\s*:\s*param\.(\w+)\s*\(\s*'([^']*)'(?:\s*,\s*\{([^}]*)\})?\s*\)/g;
+  const paramRegexBacktick =
+    /(\w+)\s*:\s*param\.(\w+)\s*\(\s*`([^`]*)`(?:\s*,\s*\{([^}]*)\})?\s*\)/g;
 
-  let match: RegExpExecArray | null;
-  while ((match = paramRegex.exec(paramsBody)) !== null) {
+  // Collect matches from all three quote types
+  const allMatches: { index: number; match: RegExpExecArray }[] = [];
+  for (const regex of [paramRegexDouble, paramRegexSingle, paramRegexBacktick]) {
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(paramsBody)) !== null) {
+      allMatches.push({ index: m.index, match: m });
+    }
+  }
+  // Sort by position so params are in source order
+  allMatches.sort((a, b) => a.index - b.index);
+
+  for (const { match } of allMatches) {
     const [, paramName, typeName, desc, configStr] = match;
 
-    if (!PARAM_TYPE_SET.has(typeName)) {
+    if (!PARAM_TYPES.has(typeName as IRPrimitiveType)) {
       throw new ParserError(
         "AX005",
         `Unknown param type: param.${typeName}`,
         filePath,
         undefined,
-        `Supported types: ${[...PARAM_TYPE_SET].join(", ")}`
+        `Supported types: ${[...PARAM_TYPES].join(", ")}`
       );
     }
 
-    const isOptional = configStr
-      ? /required\s*:\s*false/.test(configStr)
-      : false;
+    const isOptional = configStr ? /required\s*:\s*false/.test(configStr) : false;
 
     const defaultMatch = configStr?.match(/default\s*:\s*(.+?)(?:,|\s*$)/);
     const defaultValue = defaultMatch ? parseDefault(defaultMatch[1].trim()) : undefined;
 
     const irType: IRType = isOptional
-      ? { kind: "optional", innerType: { kind: "primitive", value: typeName as IRPrimitiveType } }
+      ? {
+          kind: "optional",
+          innerType: { kind: "primitive", value: typeName as IRPrimitiveType },
+        }
       : { kind: "primitive", value: typeName as IRPrimitiveType };
 
     params.push({

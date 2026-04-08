@@ -26,9 +26,14 @@ jobs:
           cache: "npm"
 
       - run: npm ci
+      - run: npm audit --audit-level=moderate || true
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
       - run: npm run build
 
       - name: Verify CLI works
-        run: node dist/cli/index.js --version
+        run: |
+          OUTPUT=$(node dist/cli/index.js --version)
+          [ -n "$OUTPUT" ] || exit 1
+          echo "CLI version: $OUTPUT"
