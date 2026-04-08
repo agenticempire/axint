@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -35,8 +36,7 @@ jobs:
           echo "CLI version: $OUTPUT"
 
       - name: Publish to npm
-        run: npm publish --access public
-        continue-on-error: true
+        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -45,7 +45,7 @@ jobs:
         with:
           generate_release_notes: true
           body: |
-            See [CHANGELOG.md](https://github.com/AgenticEmpire/axint/blob/main/CHANGELOG.md) for details.
+            See [CHANGELOG.md](https://github.com/agenticempire/axint/blob/main/CHANGELOG.md) for details.
 
             ```bash
             npm install -g axint

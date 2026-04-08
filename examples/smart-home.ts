@@ -3,7 +3,7 @@
  *
  * Demonstrates: number defaults, boolean params, multiple param types
  */
-import { defineIntent, param } from "@axint/sdk";
+import { defineIntent, param } from "axint";
 
 export default defineIntent({
   name: "SetLights",
