@@ -1,0 +1,65 @@
+name: New Intent Template
+description: Propose or contribute a new App Intent template
+title: "[Template]: "
+labels: ["template", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Intent templates are the easiest way to contribute to Axint. Describe the template you'd like to add.
+
+  - type: input
+    id: name
+    attributes:
+      label: Template Name
+      placeholder: "e.g., Smart Home Light Control"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Productivity (calendar, reminders, notes)
+        - Communication (messaging, email, calls)
+        - Media (music, podcasts, video)
+        - Smart Home (lights, thermostat, locks)
+        - Health (workouts, health data)
+        - Navigation (maps, directions)
+        - Finance (payments, transactions)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What would this intent do? What parameters would it accept?
+      placeholder: |
+        This template would let agents control smart home lights.
+        Parameters: room (string), brightness (0-100), color (hex string)
+        Example: "Turn the living room lights to 50% warm white"
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example Usage
+      description: Show how a user/agent might invoke this intent.
+      placeholder: |
+        "Hey Siri, dim the bedroom lights to 30%"
+        "Set the kitchen lights to blue"
+
+  - type: dropdown
+    id: willingness
+    attributes:
+      label: Would you like to implement this?
+      options:
+        - "Yes — I'll submit a PR"
+        - "Maybe — I'd need guidance on the template pattern"
+        - "No — just suggesting"
+    validations:
+      required: true

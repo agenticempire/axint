@@ -1,0 +1,46 @@
+name: RFC (Request for Comments)
+description: Propose a significant feature or design change
+title: "[RFC] "
+labels: ["rfc", "discussion"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: "## RFC — Request for Comments\nFor major features, design decisions, or breaking changes."
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: "Summary"
+      description: "One paragraph overview"
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: "Motivation"
+      description: "Why is this needed? What problem does it solve?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: design
+    attributes:
+      label: "Proposed Design"
+      description: "How would this work? Pseudocode, diagrams, or API examples welcome."
+    validations:
+      required: true
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: "Trade-offs & Alternatives"
+      description: "What are the downsides? What alternatives did you consider?"
+
+  - type: textarea
+    id: migration
+    attributes:
+      label: "Migration Path"
+      description: "How do we handle existing code and users?"
