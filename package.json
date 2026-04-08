@@ -1,6 +1,6 @@
 {
   "name": "axint",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "The open-source compiler that transforms AI agent definitions into native Apple App Intents. TypeScript in, Swift out.",
   "author": "Agentic Empire <hello@axint.ai>",
