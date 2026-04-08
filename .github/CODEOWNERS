@@ -1,0 +1,21 @@
+# Axint Code Owners
+# These owners will be requested for review on PRs touching their areas.
+
+# Root maintainers — review everything
+* @nima-nejat
+
+# Core compiler
+/src/core/ @nima-nejat
+
+# MCP server
+/src/mcp/ @nima-nejat
+
+# CLI
+/src/cli/ @nima-nejat
+
+# Documentation
+/docs/ @nima-nejat
+*.md @nima-nejat
+
+# CI/CD
+/.github/ @nima-nejat
