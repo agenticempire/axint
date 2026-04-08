@@ -82,6 +82,22 @@ export interface Diagnostic {
   suggestion?: string;
 }
 
+// ─── Param Type Registry ─────────────────────────────────────────────
+
+/**
+ * Canonical set of supported param types.
+ * Single source of truth — parser, SDK, and docs all derive from this.
+ * To add a new type: add it to IRPrimitiveType, PARAM_TYPES, and SWIFT_TYPE_MAP.
+ */
+export const PARAM_TYPES: ReadonlySet<IRPrimitiveType> = new Set<IRPrimitiveType>([
+  "string",
+  "number",
+  "boolean",
+  "date",
+  "duration",
+  "url",
+]);
+
 // ─── Swift Type Mapping ──────────────────────────────────────────────
 
 export const SWIFT_TYPE_MAP: Record<IRPrimitiveType, string> = {

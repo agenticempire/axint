@@ -15,11 +15,18 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { compileSource } from "../core/compiler.js";
+
+// Read version from package.json so it stays in sync
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
 
 export async function startMCPServer(): Promise<void> {
   const server = new Server(
-    { name: "axint", version: "0.1.0" },
+    { name: "axint", version: pkg.version },
     { capabilities: { tools: {} } }
   );
 
@@ -36,8 +43,7 @@ export async function startMCPServer(): Promise<void> {
           properties: {
             source: {
               type: "string",
-              description:
-                "TypeScript source code containing a defineIntent() call",
+              description: "TypeScript source code containing a defineIntent() call",
             },
             fileName: {
               type: "string",
@@ -57,8 +63,7 @@ export async function startMCPServer(): Promise<void> {
           properties: {
             source: {
               type: "string",
-              description:
-                "TypeScript source code containing a defineIntent() call",
+              description: "TypeScript source code containing a defineIntent() call",
             },
           },
           required: ["source"],
@@ -114,11 +119,12 @@ export async function startMCPServer(): Promise<void> {
 
       try {
         const result = compileSource(source, "<validate>");
-        const text = result.diagnostics.length > 0
-          ? result.diagnostics
-              .map((d) => `[${d.code}] ${d.severity}: ${d.message}`)
-              .join("\n")
-          : "Valid intent definition. No issues found.";
+        const text =
+          result.diagnostics.length > 0
+            ? result.diagnostics
+                .map((d) => `[${d.code}] ${d.severity}: ${d.message}`)
+                .join("\n")
+            : "Valid intent definition. No issues found.";
 
         return {
           content: [{ type: "text" as const, text }],
