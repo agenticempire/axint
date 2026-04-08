@@ -35,6 +35,7 @@ jobs:
           echo "CLI version: $OUTPUT"
 
       - name: Publish to npm
+        if: env.NODE_AUTH_TOKEN != ''
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
