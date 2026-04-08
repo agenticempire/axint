@@ -3,7 +3,7 @@
  *
  * Demonstrates: date params, duration, URL, optional fields
  */
-import { defineIntent, param } from "@axint/sdk";
+import { defineIntent, param } from "axint";
 
 export default defineIntent({
   name: "LogHealthMetric",

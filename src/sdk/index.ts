@@ -1,9 +1,9 @@
 /**
- * @axint/sdk — Decorators and types for defining Apple App Intents
+ * axint — Decorators and types for defining Apple App Intents
  *
  * @example
  * ```typescript
- * import { defineIntent, param } from "@axint/sdk";
+ * import { defineIntent, param } from "axint";
  *
  * export default defineIntent({
  *   name: "CreateEvent",

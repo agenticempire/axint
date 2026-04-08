@@ -19,7 +19,7 @@ error[AX001]: No defineIntent() call found in src/intents/my-intent.ts
 **Fix:** Make sure your file calls `defineIntent()`:
 
 ```typescript
-import { defineIntent, param } from "@axint/sdk";
+import { defineIntent, param } from "axint";
 export default defineIntent({ /* ... */ });
 ```
 
@@ -106,4 +106,4 @@ These errors validate the generated Swift code (you shouldn't see these unless t
 
 ### AX202 — Missing `perform()` function
 
-If you encounter AX200–AX202, please [file a bug](https://github.com/AgenticEmpire/axint/issues/new).
+If you encounter AX200–AX202, please [file a bug](https://github.com/agenticempire/axint/issues/new).
