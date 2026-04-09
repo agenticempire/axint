@@ -10,7 +10,9 @@
 /** Primitive types supported by App Intents */
 export type IRPrimitiveType =
   | "string"
-  | "number"
+  | "int"
+  | "double"
+  | "float"
   | "boolean"
   | "date"
   | "duration"
@@ -44,6 +46,12 @@ export interface IRIntent {
   parameters: IRParameter[];
   returnType: IRType;
   sourceFile: string;
+  /** Entitlements required by this intent (e.g., "com.apple.developer.siri") */
+  entitlements?: string[];
+  /** Info.plist keys required by this intent (e.g., "NSCalendarsUsageDescription") */
+  infoPlistKeys?: Record<string, string>;
+  /** Whether the intent should be exposed to Spotlight indexing */
+  isDiscoverable?: boolean;
 }
 
 // ─── Compiler Types ──────────────────────────────────────────────────
@@ -54,7 +62,13 @@ export interface CompilerOptions {
   /** Whether to run validation after generation */
   validate?: boolean;
   /** Target iOS/macOS version */
-  target?: "ios16" | "ios17" | "ios18" | "macos13" | "macos14" | "macos15";
+  target?: "ios16" | "ios17" | "ios18" | "ios26" | "macos13" | "macos14" | "macos15" | "macos26";
+  /** Whether to emit an Info.plist fragment alongside the Swift file */
+  emitInfoPlist?: boolean;
+  /** Whether to emit an entitlements fragment alongside the Swift file */
+  emitEntitlements?: boolean;
+  /** Whether to run swift-format on the output (requires swift-format on PATH) */
+  format?: boolean;
 }
 
 export interface CompilerOutput {
@@ -62,6 +76,10 @@ export interface CompilerOutput {
   outputPath: string;
   /** The generated Swift source code */
   swiftCode: string;
+  /** Info.plist fragment (if emitInfoPlist is true) */
+  infoPlistFragment?: string;
+  /** Entitlements fragment (if emitEntitlements is true) */
+  entitlementsFragment?: string;
   /** The intermediate representation */
   ir: IRIntent;
   /** Validation diagnostics */
@@ -91,18 +109,30 @@ export interface Diagnostic {
  */
 export const PARAM_TYPES: ReadonlySet<IRPrimitiveType> = new Set<IRPrimitiveType>([
   "string",
-  "number",
+  "int",
+  "double",
+  "float",
   "boolean",
   "date",
   "duration",
   "url",
 ]);
 
+/**
+ * Legacy alias: "number" → "int" for backwards compatibility with v0.1.x files.
+ * Parser will accept "number" and rewrite it to "int" with a deprecation warning.
+ */
+export const LEGACY_PARAM_ALIASES: Record<string, IRPrimitiveType> = {
+  number: "int",
+};
+
 // ─── Swift Type Mapping ──────────────────────────────────────────────
 
 export const SWIFT_TYPE_MAP: Record<IRPrimitiveType, string> = {
   string: "String",
-  number: "Int",
+  int: "Int",
+  double: "Double",
+  float: "Float",
   boolean: "Bool",
   date: "Date",
   duration: "Measurement<UnitDuration>",

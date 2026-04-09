@@ -6,6 +6,7 @@ exports[`compileSource > snapshot: full pipeline output 1`] = `
 // Do not edit manually. Re-run \`axint compile\` to regenerate.
 
 import AppIntents
+import Foundation
 
 struct SendMessageIntent: AppIntent {
     static let title: LocalizedStringResource = "Send Message"
@@ -18,10 +19,10 @@ struct SendMessageIntent: AppIntent {
     var body: String
 
 
-    func perform() async throws -> some IntentResult {
-        // TODO: Implement your intent logic here
-        // Available parameters: "recipient": recipient, "body": body
-        return .result()
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        // TODO: Implement your intent logic here.
+        // Parameters available: \\(recipient), \\(body)
+        return .result(value: "")
     }
 }
 "

@@ -1,6 +1,11 @@
 /**
  * axint — Decorators and types for defining Apple App Intents
  *
+ * The canonical way to define an App Intent in TypeScript. The axint
+ * compiler parses files written against this SDK and emits a native
+ * Swift `AppIntent` struct (plus optional Info.plist and entitlements
+ * fragments) suitable for dropping into an Xcode project.
+ *
  * @example
  * ```typescript
  * import { defineIntent, param } from "axint";
@@ -9,12 +14,19 @@
  *   name: "CreateEvent",
  *   title: "Create Calendar Event",
  *   description: "Creates a new event in the user's calendar",
+ *   domain: "productivity",
+ *   entitlements: ["com.apple.developer.siri"],
+ *   infoPlistKeys: {
+ *     NSCalendarsUsageDescription: "Axint needs calendar access to create events.",
+ *   },
  *   params: {
  *     title: param.string("Event title"),
  *     date: param.date("Event date"),
+ *     durationMinutes: param.int("Duration in minutes", { default: 30 }),
+ *     allDay: param.boolean("Is all-day event", { required: false }),
  *   },
  *   perform: async ({ title, date }) => {
- *     return { success: true };
+ *     return { success: true, id: "evt_123" };
  *   },
  * });
  * ```
@@ -22,23 +34,7 @@
  * @packageDocumentation
  */
 
-// ─── Intent Definition ───────────────────────────────────────────────
-
-/** Configuration for an App Intent's metadata. */
-export interface IntentConfig {
-  /** Display name shown in Siri and Shortcuts (max 60 chars recommended). */
-  title: string;
-  /** Human-readable description of what this intent does. */
-  description: string;
-  /**
-   * Apple App Intent Domain for categorization.
-   * Common values: "messaging", "productivity", "finance", "health",
-   * "commerce", "media", "navigation", "smart-home"
-   */
-  domain?: string;
-  /** Siri/Shortcuts category for discoverability. */
-  category?: string;
-}
+// ─── Shared Config ───────────────────────────────────────────────────
 
 /** Configuration for a single parameter. */
 export interface ParamConfig {
@@ -55,16 +51,44 @@ export interface ParamConfig {
   required?: boolean;
 }
 
+type ParamFactory<T extends string> = (
+  description: string,
+  config?: Partial<ParamConfig>
+) => { type: T; description: string } & Partial<ParamConfig>;
+
+function make<T extends string>(type: T): ParamFactory<T> {
+  return (description, config) => ({
+    type,
+    description,
+    ...config,
+  });
+}
+
 // ─── Parameter Type Helpers ──────────────────────────────────────────
 
 /**
  * Parameter type helpers for defining intent parameters.
  *
+ * Each helper maps directly to a Swift App Intents type:
+ *
+ * | Helper            | Swift type                    |
+ * |-------------------|-------------------------------|
+ * | `param.string`    | `String`                      |
+ * | `param.int`       | `Int`                         |
+ * | `param.double`    | `Double`                      |
+ * | `param.float`     | `Float`                       |
+ * | `param.boolean`   | `Bool`                        |
+ * | `param.date`      | `Date`                        |
+ * | `param.duration`  | `Measurement<UnitDuration>`   |
+ * | `param.url`       | `URL`                         |
+ * | `param.number` *  | `Int` *(deprecated alias)*    |
+ *
  * @example
  * ```typescript
  * params: {
  *   name: param.string("User's name"),
- *   count: param.number("How many", { default: 1 }),
+ *   age: param.int("Age in years"),
+ *   height: param.double("Height in meters"),
  *   notify: param.boolean("Send notification", { required: false }),
  *   when: param.date("Scheduled date"),
  *   length: param.duration("How long"),
@@ -74,45 +98,31 @@ export interface ParamConfig {
  */
 export const param = {
   /** String parameter → Swift `String` */
-  string: (description: string, config?: Partial<ParamConfig>) => ({
-    type: "string" as const,
-    description,
-    ...config,
-  }),
-  /** Number parameter → Swift `Int` */
-  number: (description: string, config?: Partial<ParamConfig>) => ({
-    type: "number" as const,
-    description,
-    ...config,
-  }),
+  string: make("string"),
+  /** 64-bit signed integer → Swift `Int` */
+  int: make("int"),
+  /** Double-precision float → Swift `Double` */
+  double: make("double"),
+  /** Single-precision float → Swift `Float` */
+  float: make("float"),
   /** Boolean parameter → Swift `Bool` */
-  boolean: (description: string, config?: Partial<ParamConfig>) => ({
-    type: "boolean" as const,
-    description,
-    ...config,
-  }),
+  boolean: make("boolean"),
   /** Date parameter → Swift `Date` */
-  date: (description: string, config?: Partial<ParamConfig>) => ({
-    type: "date" as const,
-    description,
-    ...config,
-  }),
+  date: make("date"),
   /** Duration parameter → Swift `Measurement<UnitDuration>` */
-  duration: (description: string, config?: Partial<ParamConfig>) => ({
-    type: "duration" as const,
-    description,
-    ...config,
-  }),
+  duration: make("duration"),
   /** URL parameter → Swift `URL` */
-  url: (description: string, config?: Partial<ParamConfig>) => ({
-    type: "url" as const,
-    description,
-    ...config,
-  }),
-  // array() planned for v0.2.0 — requires parser support for element type extraction
+  url: make("url"),
+  /**
+   * @deprecated Use `param.int` (or `param.double` / `param.float`) for
+   * explicit Swift numeric fidelity. `param.number` is kept as an alias
+   * for `param.int` to preserve v0.1.x compatibility and will be removed
+   * in v1.0.0.
+   */
+  number: make("number"),
 };
 
-// ─── Intent Definition Function ──────────────────────────────────────
+// ─── Intent Definition ───────────────────────────────────────────────
 
 /** The full intent definition including name, metadata, params, and perform function. */
 export interface IntentDefinition<
@@ -124,10 +134,28 @@ export interface IntentDefinition<
   title: string;
   /** Human-readable description of what this intent does. */
   description: string;
-  /** Apple App Intent Domain (e.g., "productivity", "messaging"). */
+  /**
+   * Apple App Intent Domain for categorization.
+   * Common values: "messaging", "productivity", "finance", "health",
+   * "commerce", "media", "navigation", "smart-home"
+   */
   domain?: string;
   /** Siri/Shortcuts category for discoverability. */
   category?: string;
+  /**
+   * Entitlements required by this intent.
+   * Example: `["com.apple.developer.siri", "com.apple.developer.healthkit"]`
+   * The compiler can emit a matching `.entitlements` fragment.
+   */
+  entitlements?: string[];
+  /**
+   * Info.plist keys required by this intent, mapped to their usage
+   * description strings.
+   * Example: `{ NSCalendarsUsageDescription: "We need calendar access" }`
+   */
+  infoPlistKeys?: Record<string, string>;
+  /** Whether the intent should be exposed to Spotlight indexing. */
+  isDiscoverable?: boolean;
   /** Parameter definitions using `param.*` helpers. */
   params: TParams;
   /**
