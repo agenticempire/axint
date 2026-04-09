@@ -36,8 +36,10 @@ describe("compileSource", () => {
     expect(result.output!.outputPath).toBe("SendMessageIntent.swift");
   });
 
-  it("throws for source without defineIntent()", () => {
-    expect(() => compileSource("const x = 42;", "bad.ts")).toThrow();
+  it("returns a diagnostic for source without defineIntent()", () => {
+    const result = compileSource("const x = 42;", "bad.ts");
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "AX001")).toBe(true);
   });
 
   it("fails for non-PascalCase intent name", () => {

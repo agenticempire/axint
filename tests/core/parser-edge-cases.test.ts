@@ -125,7 +125,7 @@ defineIntent({
 });
 
 describe("parser — all supported param types", () => {
-  it("parses all 6 param types", () => {
+  it("parses every canonical param type", () => {
     const source = `
 defineIntent({
   name: "AllTypes",
@@ -133,7 +133,9 @@ defineIntent({
   description: "Uses every param type",
   params: {
     s: param.string("A string"),
-    n: param.number("A number"),
+    i: param.int("An integer"),
+    dbl: param.double("A double"),
+    flt: param.float("A float"),
     b: param.boolean("A boolean"),
     d: param.date("A date"),
     dur: param.duration("A duration"),
@@ -143,10 +145,35 @@ defineIntent({
 });
 `;
     const ir = parseIntentSource(source, "test.ts");
-    expect(ir.parameters).toHaveLength(6);
+    expect(ir.parameters).toHaveLength(8);
     expect(
       ir.parameters.map((p) => (p.type.kind === "primitive" ? p.type.value : ""))
-    ).toEqual(["string", "number", "boolean", "date", "duration", "url"]);
+    ).toEqual([
+      "string",
+      "int",
+      "double",
+      "float",
+      "boolean",
+      "date",
+      "duration",
+      "url",
+    ]);
+  });
+
+  it("rewrites legacy param.number to int via the alias table", () => {
+    const source = `
+defineIntent({
+  name: "Legacy",
+  title: "Legacy",
+  description: "Uses deprecated param.number",
+  params: {
+    count: param.number("A count"),
+  },
+  perform: async () => {},
+});
+`;
+    const ir = parseIntentSource(source, "test.ts");
+    expect(ir.parameters[0].type).toEqual({ kind: "primitive", value: "int" });
   });
 });
 
@@ -182,7 +209,7 @@ defineIntent({
       const pe = err as ParserError;
       expect(pe.code).toBe("AX005");
       expect(pe.suggestion).toContain("string");
-      expect(pe.suggestion).toContain("number");
+      expect(pe.suggestion).toContain("int");
     }
   });
 

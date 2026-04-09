@@ -98,6 +98,49 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
     });
   }
 
+  // Rule: Parameter names must be unique within an intent
+  const seen = new Set<string>();
+  for (const param of intent.parameters) {
+    if (seen.has(param.name)) {
+      diagnostics.push({
+        code: "AX107",
+        severity: "error",
+        message: `Duplicate parameter name "${param.name}"`,
+        file: intent.sourceFile,
+        suggestion: "Each parameter in a single intent must have a unique name",
+      });
+    }
+    seen.add(param.name);
+  }
+
+  // Rule: Entitlement strings must look like reverse-DNS identifiers
+  for (const ent of intent.entitlements ?? []) {
+    if (!/^[a-zA-Z0-9._-]+$/.test(ent) || !ent.includes(".")) {
+      diagnostics.push({
+        code: "AX108",
+        severity: "warning",
+        message: `Entitlement "${ent}" does not look like a valid reverse-DNS identifier`,
+        file: intent.sourceFile,
+        suggestion:
+          'Use reverse-DNS, e.g., "com.apple.developer.siri" or "com.apple.security.app-sandbox"',
+      });
+    }
+  }
+
+  // Rule: Info.plist keys must start with "NS" or other known prefixes
+  for (const key of Object.keys(intent.infoPlistKeys ?? {})) {
+    if (!/^(NS|UI|LS|CF|CA|CK)[A-Za-z0-9]+$/.test(key)) {
+      diagnostics.push({
+        code: "AX109",
+        severity: "warning",
+        message: `Info.plist key "${key}" does not match Apple's usual naming conventions`,
+        file: intent.sourceFile,
+        suggestion:
+          'Apple keys generally start with "NS" (e.g., "NSCalendarsUsageDescription")',
+      });
+    }
+  }
+
   return diagnostics;
 }
 

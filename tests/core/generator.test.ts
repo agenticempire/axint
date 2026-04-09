@@ -57,7 +57,7 @@ const OPTIONAL_PARAMS_INTENT: IRIntent = {
     },
     {
       name: "priority",
-      type: { kind: "primitive", value: "number" },
+      type: { kind: "primitive", value: "int" },
       title: "Priority",
       description: "Priority level",
       isOptional: false,
@@ -112,10 +112,12 @@ describe("generateSwift", () => {
     expect(swift).toContain("var recipient: String");
   });
 
-  it("generates perform() function", () => {
+  it("generates perform() function with return-value-aware signature", () => {
     const swift = generateSwift(SIMPLE_INTENT);
-    expect(swift).toContain("func perform() async throws -> some IntentResult");
-    expect(swift).toContain("return .result()");
+    expect(swift).toContain(
+      "func perform() async throws -> some IntentResult & ReturnsValue<String>"
+    );
+    expect(swift).toContain('return .result(value: "")');
   });
 
   it("handles default values in Swift output", () => {

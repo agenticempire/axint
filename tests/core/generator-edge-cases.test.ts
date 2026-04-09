@@ -28,7 +28,7 @@ describe("generateSwift — default value edge cases", () => {
         parameters: [
           {
             name: "count",
-            type: { kind: "primitive", value: "number" },
+            type: { kind: "primitive", value: "int" },
             title: "Count",
             description: "A count",
             isOptional: false,
@@ -46,7 +46,7 @@ describe("generateSwift — default value edge cases", () => {
         parameters: [
           {
             name: "limit",
-            type: { kind: "primitive", value: "number" },
+            type: { kind: "primitive", value: "int" },
             title: "Limit",
             description: "A limit",
             isOptional: false,
@@ -117,7 +117,9 @@ describe("generateSwift — default value edge cases", () => {
 describe("generateSwift — all Swift type mappings", () => {
   const typeTests: { irType: string; swiftType: string }[] = [
     { irType: "string", swiftType: "String" },
-    { irType: "number", swiftType: "Int" },
+    { irType: "int", swiftType: "Int" },
+    { irType: "double", swiftType: "Double" },
+    { irType: "float", swiftType: "Float" },
     { irType: "boolean", swiftType: "Bool" },
     { irType: "date", swiftType: "Date" },
     { irType: "duration", swiftType: "Measurement<UnitDuration>" },
@@ -130,7 +132,15 @@ describe("generateSwift — all Swift type mappings", () => {
         name: "value",
         type: {
           kind: "primitive",
-          value: irType as "string" | "number" | "boolean" | "date" | "duration" | "url",
+          value: irType as
+            | "string"
+            | "int"
+            | "double"
+            | "float"
+            | "boolean"
+            | "date"
+            | "duration"
+            | "url",
         },
         title: "Value",
         description: `A ${irType}`,
@@ -169,7 +179,7 @@ describe("generateSwift — structure", () => {
           },
           {
             name: "age",
-            type: { kind: "primitive", value: "number" },
+            type: { kind: "primitive", value: "int" },
             title: "Age",
             description: "User age",
             isOptional: false,
@@ -177,12 +187,13 @@ describe("generateSwift — structure", () => {
         ],
       })
     );
-    expect(swift).toContain('"name": name');
-    expect(swift).toContain('"age": age');
+    expect(swift).toContain("Parameters available");
+    expect(swift).toContain("\\(name)");
+    expect(swift).toContain("\\(age)");
   });
 
   it("omits param comment when no parameters", () => {
     const swift = generateSwift(makeIntent({ parameters: [] }));
-    expect(swift).not.toContain("Available parameters");
+    expect(swift).not.toContain("Parameters available");
   });
 });
