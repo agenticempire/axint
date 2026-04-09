@@ -1,79 +1,76 @@
 <p align="center">
-  <img src="docs/assets/axint-logo.svg" alt="Axint — The open-source compiler that transforms AI agent definitions into native Apple App Intents" width="120" />
+  <img src="docs/assets/logo.svg" alt="Axint" width="96" height="96" />
 </p>
 
 <h1 align="center">Axint</h1>
 
 <p align="center">
-  <strong>The open-source compiler that transforms AI agent definitions into native Apple App Intents. TypeScript in, Swift out.</strong>
+  <strong>Write an App Intent in TypeScript, ship it to Siri.</strong>
+</p>
+
+<p align="center">
+  The open-source compiler that turns one <code>defineIntent()</code> call into two agent surfaces:<br>
+  a native Swift App Intent for Siri — <em>and</em> an MCP tool for Claude, Cursor, and Windsurf.
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/axint"><img src="https://img.shields.io/npm/v/axint?color=f05138&label=npm" alt="npm" /></a>
+  <a href="https://github.com/agenticempire/axint/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License" /></a>
+  <a href="https://github.com/agenticempire/axint/actions"><img src="https://img.shields.io/badge/tests-124%20passing-brightgreen" alt="Tests" /></a>
+  <a href="https://axint.ai"><img src="https://img.shields.io/badge/playground-axint.ai-7c3aed" alt="Playground" /></a>
 </p>
 
 <p align="center">
   <a href="https://axint.ai">Website</a> ·
+  <a href="https://axint.ai/#playground">Playground</a> ·
   <a href="#quick-start">Quick Start</a> ·
-  <a href="docs/">Documentation</a> ·
-  <a href="docs/ERRORS.md">Error Codes</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/agenticempire/axint/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/agenticempire/axint/ci.yml?branch=main&label=CI" alt="CI" /></a>
-  <a href="https://www.npmjs.com/package/axint"><img src="https://img.shields.io/npm/v/axint.svg?color=cb3837" alt="npm" /></a>
-  <a href="https://www.npmjs.com/package/axint"><img src="https://img.shields.io/npm/dm/axint.svg?color=cb3837" alt="Downloads" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/coverage-98%25-brightgreen" alt="Coverage" />
-  <img src="https://img.shields.io/badge/tests-117%20passing-brightgreen" alt="Tests" />
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.7-3178c6" alt="TypeScript" /></a>
-  <a href="https://github.com/agenticempire/axint"><img src="https://img.shields.io/github/stars/agenticempire/axint?style=social" alt="GitHub Stars" /></a>
-</p>
-
-<p align="center">
-  <em>If you build AI agents and want them to work natively on Apple devices — this is for you.</em>
+  <a href="#mcp-server">MCP Server</a> ·
+  <a href="https://github.com/agenticempire/axint/discussions">Discussions</a>
 </p>
 
 ---
 
-<!-- TODO: Replace with actual GIF once generated with scripts/generate-demo.sh -->
-<!-- <p align="center"><img src="docs/assets/axint-demo.gif" alt="Axint demo: TypeScript → CLI → Swift" width="700" /></p> -->
+## The picks and shovels of Agent Siri
 
-## What is Axint?
+WWDC 2026 is weeks away. Apple is fusing **Model Context Protocol with App Intents** on iOS 26.1 and macOS Tahoe 26.1 — Agent Siri runs a 3B-parameter on-device model that invokes App Intents as tools. Every App Intent you ship today automatically becomes an MCP-addressable capability tomorrow.
 
-Apple is opening Siri, Shortcuts, and App Intents to third-party agents. But there's no clean way to get from an AI agent's TypeScript definition to a native Swift App Intent that actually runs on-device.
-
-**Axint is that bridge.**
+Axint is the fastest path from an AI coding tool to a shipped App Intent. **One TypeScript definition. Two agent surfaces. Zero Swift required.**
 
 ```
-TypeScript Agent Definition  →  Axint  →  Native Swift App Intent
+┌──────────────────────────────┐
+│  defineIntent({ ... })       │   one TypeScript source
+└──────────────┬───────────────┘
+               │  axint compile
+       ┌───────┴────────┐
+       ▼                ▼
+┌─────────────┐   ┌──────────────┐
+│ .swift      │   │ MCP tool     │
+│ .plist      │   │ (Claude,     │
+│ .entitl.    │   │  Cursor,     │
+│             │   │  Windsurf)   │
+└─────────────┘   └──────────────┘
+   Siri, Shortcuts,      Your AI
+   Spotlight, Agent      coding agent
+   Siri, Apple Intel.
 ```
 
-Define what your agent can do in TypeScript. Axint compiles it into production-ready Swift with proper `@Parameter` decorators, `AppIntent` conformance, type marshaling, and Siri/Shortcuts metadata — ready to ship.
+---
 
-## Why We Built Axint
+## Why Axint v0.2.0
 
-We were building AI agents that needed to run natively on Apple devices. The App Intents framework is powerful, but writing Swift boilerplate for every agent action is slow, error-prone, and disconnected from the TypeScript where agent logic actually lives. We wanted one source of truth — define the intent once in TypeScript, get production Swift automatically. Axint is the tool we wished existed.
+- **Real TypeScript AST parser.** Not regex. Uses the TypeScript compiler API, same as `tsc`, so you get full type fidelity and proper diagnostics with line/column spans.
+- **Native type fidelity.** `int → Int`, `double → Double`, `float → Float`, `date → Date`, `url → URL`, `duration → Measurement<UnitDuration>`, `optional<T> → T?`. Default values and optionality are preserved end-to-end.
+- **Return-type-aware `perform()` signatures.** Every generated intent is a drop-in tool for Agent Siri and Shortcuts.
+- **Info.plist and .entitlements emit.** Axint writes the `NSAppIntentsDomains` plist fragment and the App Intents entitlement XML alongside your `.swift` file. Drop all three into Xcode and ship.
+- **MCP-native.** A bundled `axint-mcp` server exposes `axint_scaffold`, `axint_compile`, and `axint_validate` to any MCP client. Your AI coding agent can read your project, draft a TypeScript intent, compile it, and open a PR — without a human touching Xcode.
+- **Rust-grade diagnostics.** 16 diagnostic codes (`AX001`–`AX202`) with fix suggestions and color-coded output.
+- **Sub-millisecond compile.** A typical intent compiles in under a millisecond. The [axint.ai playground](https://axint.ai/#playground) runs the full compiler in your browser with zero server round-trip.
+- **124 tests.** Parser, validator, generator, and emit paths — all covered.
+- **Apache 2.0, no CLA.** Fork it, extend it, ship it.
 
-## Why Axint?
+---
 
-- **Write once, target Apple.** Define intents in TypeScript. Get native Swift that passes App Store review.
-- **MCP-native.** Ships as an MCP server. AI coding tools (Claude Code, Cursor, Windsurf) call Axint automatically — your users never read docs.
-- **Validation built in.** Catches broken type marshaling, missing `@Parameter` wrappers, non-PascalCase names, and 10+ other common mistakes with clear error codes and fix suggestions.
-- **Open source.** Apache 2.0. Fork it, extend it, contribute back.
-
-## Axint vs. Hand-Written Swift
-
-| | Axint | Hand-Written Swift |
-|---|---|---|
-| **Lines of code** | 12 lines of TypeScript | 30+ lines of boilerplate Swift |
-| **Time to first intent** | 30 seconds | 10–15 minutes |
-| **Type marshaling** | Automatic (`param.date()` → `Date`) | Manual (easy to mistype) |
-| **Validation** | 12 checks with fix suggestions | None (find bugs at runtime) |
-| **AI-tool integration** | Built-in MCP server | Manual setup |
-| **Siri metadata** | Auto-generated | Hand-written |
-| **Refactoring** | Change TS, recompile | Change Swift in every file |
-
-> **Requirements:** Node.js 22+ · macOS / Linux / Windows
-
-## Quick Start
+## Quick start
 
 ```bash
 # Install globally
@@ -81,30 +78,17 @@ npm install -g axint
 
 # Or use without installing
 npx axint compile my-intent.ts --stdout
-
-# Compile a TypeScript intent → Swift App Intent
-axint compile my-intent.ts --stdout
-
-# Output to a directory
-axint compile my-intent.ts --out ios/Intents/
-
-# Validate without generating
-axint validate my-intent.ts
-
-# Machine-readable JSON output
-axint compile my-intent.ts --json
 ```
 
-### Define an Intent
+Create `my-intent.ts`:
 
 ```typescript
-// intents/calendar.ts
 import { defineIntent, param } from "axint";
 
 export default defineIntent({
   name: "CreateEvent",
   title: "Create Calendar Event",
-  description: "Creates a new event in the user's calendar",
+  description: "Creates a new event in the user's calendar.",
   domain: "productivity",
   params: {
     title: param.string("Event title"),
@@ -113,12 +97,29 @@ export default defineIntent({
     location: param.string("Location", { required: false }),
   },
   perform: async ({ title, date, duration, location }) => {
-    return { success: true, eventId: "..." };
+    return { success: true };
   },
 });
 ```
 
-### Compiled Output
+Compile it:
+
+```bash
+axint compile my-intent.ts --out ios/Intents/
+```
+
+You get three files ready to drop into Xcode:
+
+```
+ios/Intents/
+├── CreateEventIntent.swift            # AppIntent struct
+├── CreateEventIntent.plist.fragment.xml   # NSAppIntentsDomains
+└── CreateEventIntent.entitlements.fragment.xml  # App Intents entitlement
+```
+
+---
+
+## Compiled Swift output
 
 ```swift
 // CreateEventIntent.swift
@@ -126,46 +127,53 @@ export default defineIntent({
 // Do not edit manually. Re-run `axint compile` to regenerate.
 
 import AppIntents
+import Foundation
 
 struct CreateEventIntent: AppIntent {
     static let title: LocalizedStringResource = "Create Calendar Event"
-    static let description: IntentDescription = IntentDescription("Creates a new event in the user's calendar")
+    static let description: IntentDescription = IntentDescription("Creates a new event in the user's calendar.")
 
-    @Parameter(title: "Title", description: "Event title")
+    @Parameter(title: "Event title")
     var title: String
 
-    @Parameter(title: "Date", description: "Event date")
+    @Parameter(title: "Event date")
     var date: Date
 
-    @Parameter(title: "Duration", description: "Event duration")
-    var duration: Measurement<UnitDuration> = "1h"
+    @Parameter(title: "Event duration")
+    var duration: Measurement<UnitDuration> = .init(value: 1, unit: .hours)
 
-    @Parameter(title: "Location", description: "Location")
+    @Parameter(title: "Location")
     var location: String?
 
-    func perform() async throws -> some IntentResult {
-        // TODO: Implement your intent logic here
-        return .result()
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        // TODO: Implement your intent logic here.
+        // Parameters available: \(title), \(date), \(duration), \(location)
+        return .result(value: "")
     }
 }
 ```
 
-### Try It Locally
+---
 
-```bash
-git clone https://github.com/agenticempire/axint.git
-cd axint && npm install && npm run build
-node dist/cli/index.js compile examples/calendar-assistant.ts --stdout
-```
+## How Axint works
 
-## Use with AI Coding Tools (MCP)
+Four passes. Zero Xcode.
 
-Axint ships as an MCP server. When a developer tells their AI assistant "build me a Siri action," the AI calls Axint automatically:
+1. **Parse** — TypeScript `defineIntent({ ... })` calls are parsed with the real TypeScript compiler API (not regex) into a typed intermediate representation.
+2. **Validate** — 16 diagnostic codes (`AX001`–`AX202`) catch invalid App Intent shapes before Swift ever sees them. Return-type inference and default-value sanity checks included.
+3. **Generate** — Idiomatic Swift is emitted: `AppIntent` conformance, `@Parameter` decorators, `LocalizedStringResource` titles, return-type-aware `perform()`.
+4. **Emit** — An Info.plist XML fragment (for `NSAppIntentsDomains`) and a `.entitlements` XML fragment (for the App Intents entitlement) are written alongside the Swift file.
+
+---
+
+## MCP server
+
+Axint ships with `axint-mcp`, a Model Context Protocol server that exposes the compiler to any MCP-compatible LLM client — Claude Desktop, Claude Code, Cursor, Windsurf, and others.
 
 ```json
-// Add to your MCP config (~/.config/claude/mcp.json)
+// ~/.config/claude/mcp.json or equivalent
 {
-  "servers": {
+  "mcpServers": {
     "axint": {
       "command": "axint-mcp",
       "args": []
@@ -174,100 +182,138 @@ Axint ships as an MCP server. When a developer tells their AI assistant "build m
 }
 ```
 
-**Available MCP tools:**
+Three tools are exposed:
 
-| Tool | Description |
-|------|-------------|
-| `axint_compile` | Compile TypeScript intent source → Swift App Intent |
-| `axint_validate` | Validate an intent definition and get diagnostics |
+| Tool              | What it does                                                               |
+| ----------------- | -------------------------------------------------------------------------- |
+| `axint_scaffold`  | Generates a TypeScript intent from a natural-language description          |
+| `axint_compile`   | Runs the full pipeline and returns `.swift` + `.plist` + `.entitlements`   |
+| `axint_validate`  | Dry-run validation with line/column diagnostics                            |
 
-## Supported Types
+Once connected, your AI coding agent can read a Swift project, draft an intent, compile it, and open a PR — without a human touching Xcode.
 
-| TypeScript | Swift | Example |
-|---|---|---|
-| `param.string()` | `String` | `param.string("Event title")` |
-| `param.number()` | `Int` | `param.number("Count", { default: 5 })` |
-| `param.boolean()` | `Bool` | `param.boolean("Notify", { required: false })` |
-| `param.date()` | `Date` | `param.date("When")` |
-| `param.duration()` | `Measurement<UnitDuration>` | `param.duration("How long")` |
-| `param.url()` | `URL` | `param.url("Link")` |
+---
 
-## Error Diagnostics
+## Supported Swift type mappings
 
-Axint provides developer-friendly error messages inspired by the Rust compiler:
+| TypeScript            | Swift                            | Default value support |
+| --------------------- | -------------------------------- | --------------------- |
+| `string`              | `String`                         | ✓                     |
+| `int`                 | `Int`                            | ✓                     |
+| `double`              | `Double`                         | ✓                     |
+| `float`               | `Float`                          | ✓                     |
+| `boolean`             | `Bool`                           | ✓                     |
+| `date`                | `Date`                           | —                     |
+| `duration`            | `Measurement<UnitDuration>`      | ✓ (e.g. `"1h"`)       |
+| `url`                 | `URL`                            | —                     |
+| `optional<T>`         | `T?`                             | ✓                     |
+
+---
+
+## Axint vs. hand-written Swift
+
+|                       | Axint                           | Hand-written Swift              |
+| --------------------- | ------------------------------- | ------------------------------- |
+| Lines of code         | 12 lines of TypeScript          | 30+ lines of Swift boilerplate  |
+| Time to first intent  | ~30 seconds                     | 10–15 minutes                   |
+| Type marshaling       | Automatic                       | Manual (easy to mistype)        |
+| Info.plist fragment   | Emitted                         | Hand-written                    |
+| Entitlements fragment | Emitted                         | Hand-written                    |
+| Validation            | 16 diagnostic codes             | Runtime bugs                    |
+| MCP integration       | Built-in server                 | Manual setup                    |
+| Refactoring           | Change TS, recompile            | Change Swift in every file      |
+
+---
+
+## Diagnostics
+
+Rust-grade error messages with fix suggestions:
 
 ```
-  error[AX100]: Intent name "sendMessage" must be PascalCase (e.g., "CreateEvent")
-    --> src/intents/messaging.ts
-    = help: Rename to "SendMessage"
+error[AX100]: Intent name "sendMessage" must be PascalCase
+  --> src/intents/messaging.ts:5:9
+   |
+ 5 |   name: "sendMessage",
+   |         ^^^^^^^^^^^^^
+   = help: rename to "SendMessage"
 
-  warning[AX105]: Intent has 12 parameters. Apple recommends 10 or fewer.
-    --> src/intents/complex.ts
-    = help: Consider splitting into multiple intents
+warning[AX105]: Intent has 12 parameters. Apple recommends 10 or fewer.
+  --> src/intents/complex.ts:3:1
+   = help: consider splitting into multiple intents
 ```
 
-See [docs/ERRORS.md](docs/ERRORS.md) for the full error code reference.
+See [`docs/ERRORS.md`](docs/ERRORS.md) for the full reference.
 
-## Project Structure
+---
+
+## Try it in your browser
+
+No install required: **[axint.ai/#playground](https://axint.ai/#playground)** runs the entire compiler in-browser — parser, validator, generator, and emit — with zero server round-trip.
+
+---
+
+## Requirements
+
+- **Node.js 22+**
+- Any OS: macOS, Linux, Windows
+- Xcode 15+ (only if you want to ship the generated Swift to an Apple platform)
+- Target platforms: iOS 17+, iPadOS 17+, macOS 14+; Agent Siri requires iOS 26.1+ / macOS Tahoe 26.1+
+
+---
+
+## Project structure
 
 ```
 axint/
 ├── src/
-│   ├── core/          # Parser, generator, validator, compiler, IR types
-│   ├── sdk/           # defineIntent() API and param helpers (exported from `axint`)
-│   ├── mcp/           # MCP server (axint_compile, axint_validate)
-│   ├── cli/           # CLI tool (Commander.js)
-│   └── templates/     # Intent template registry
-├── tests/             # Vitest tests (117 tests · 98% coverage)
-├── examples/          # Example intent definitions
-├── scripts/           # Build and demo scripts
-└── docs/
-    ├── ERRORS.md      # Full error code reference
-    └── assets/        # Logo, demo GIF
+│   ├── core/        # Parser, validator, generator, compiler, emitter, IR
+│   ├── sdk/         # defineIntent() API and param helpers
+│   ├── mcp/         # MCP server (scaffold, compile, validate)
+│   ├── cli/         # axint CLI (Commander.js)
+│   └── templates/   # Intent template registry
+├── tests/           # 124 vitest tests
+├── examples/        # Example intent definitions
+└── docs/            # Error reference, contributing, assets
 ```
 
-## Roadmap
-
-- [x] Core type system and IR (Intermediate Representation)
-- [x] Parser: extract `defineIntent()` calls from TypeScript source
-- [x] Swift code generator with `@Parameter` decorators and `AppIntent` conformance
-- [x] Validator with error codes (AX001–AX202) and fix suggestions
-- [x] CLI: `axint compile` and `axint validate` with `--json` output
-- [x] MCP server: `axint_compile` and `axint_validate` tools
-- [x] 117 tests with snapshot testing and security coverage (98%+)
-- [x] Release workflow with automated npm publish
-- [ ] App Intent template library (messaging, productivity, health, commerce)
-- [ ] GitHub Template Repo (`axint-starter`) for 30-second onboarding
-- [ ] Xcode integration and live preview
-- [ ] `--watch` mode for iterative development
-- [ ] Axint Cloud (hosted compilation — no Mac or Xcode required)
-
-## Troubleshooting
-
-**"No defineIntent() call found"** — Make sure your file contains `defineIntent({...})`. The parser looks for this exact function call. See error code [AX001](docs/ERRORS.md#ax001--no-defineintent-call-found).
-
-**"Intent name must be PascalCase"** — Swift structs use PascalCase (e.g., `CreateEvent`, not `createEvent`). Axint appends `Intent` automatically, so `CreateEvent` becomes `CreateEventIntent.swift`.
-
-**`npm run test:coverage` fails** — Run `npm install` to ensure `@vitest/coverage-v8` is installed.
-
-**Global install permission issues** — Use `npx axint` instead, or install locally: `npm install axint --save-dev`
+---
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+We review PRs within 48 hours. Good places to start:
 
-**Good places to start:**
-- Browse [issues labeled `good first issue`](https://github.com/agenticempire/axint/labels/good%20first%20issue)
-- Add a new intent template for a common use case
-- Improve documentation or add examples
+- Browse issues labeled [`good first issue`](https://github.com/agenticempire/axint/issues?q=is%3Aissue+label%3A%22good+first+issue%22)
+- Add an intent template for a common use case (messaging, health, commerce)
+- Improve diagnostics with better fix suggestions
+- Help wanted on the Xcode live-preview watch mode
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Apache 2.0, no CLA.
+
+---
+
+## Roadmap
+
+See [`ROADMAP.md`](ROADMAP.md) for the full plan. Highlights:
+
+- [x] Real TypeScript AST parser (v0.2.0)
+- [x] Info.plist and `.entitlements` emit (v0.2.0)
+- [x] Return-type-aware `perform()` (v0.2.0)
+- [x] MCP scaffold tool (v0.2.0)
+- [x] 124-test suite with snapshot coverage (v0.2.0)
+- [ ] Intent template library (v0.3.0)
+- [ ] `--watch` mode for live Swift preview
+- [ ] Xcode build plugin
+- [ ] GitHub template repo (`axint-starter`)
+- [ ] Axint Cloud (hosted compilation)
+
+---
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE) for details.
+[Apache 2.0](LICENSE) — fork it, extend it, ship it. No CLA.
 
 ---
 
 <p align="center">
-  Built by <a href="https://agenticempire.com">Agentic Empire</a><br/>
-  <a href="https://axint.ai">axint.ai</a>
+  Built by <a href="https://agenticempire.co">Agentic Empire</a> · <a href="https://axint.ai">axint.ai</a>
 </p>
