@@ -5,7 +5,9 @@ import type { IRType } from "../../src/core/types.js";
 describe("SWIFT_TYPE_MAP", () => {
   it("maps all primitive types", () => {
     expect(SWIFT_TYPE_MAP.string).toBe("String");
-    expect(SWIFT_TYPE_MAP.number).toBe("Int");
+    expect(SWIFT_TYPE_MAP.int).toBe("Int");
+    expect(SWIFT_TYPE_MAP.double).toBe("Double");
+    expect(SWIFT_TYPE_MAP.float).toBe("Float");
     expect(SWIFT_TYPE_MAP.boolean).toBe("Bool");
     expect(SWIFT_TYPE_MAP.date).toBe("Date");
     expect(SWIFT_TYPE_MAP.duration).toBe("Measurement<UnitDuration>");
@@ -16,7 +18,9 @@ describe("SWIFT_TYPE_MAP", () => {
 describe("irTypeToSwift", () => {
   it("converts primitive types", () => {
     expect(irTypeToSwift({ kind: "primitive", value: "string" })).toBe("String");
-    expect(irTypeToSwift({ kind: "primitive", value: "number" })).toBe("Int");
+    expect(irTypeToSwift({ kind: "primitive", value: "int" })).toBe("Int");
+    expect(irTypeToSwift({ kind: "primitive", value: "double" })).toBe("Double");
+    expect(irTypeToSwift({ kind: "primitive", value: "float" })).toBe("Float");
     expect(irTypeToSwift({ kind: "primitive", value: "boolean" })).toBe("Bool");
     expect(irTypeToSwift({ kind: "primitive", value: "date" })).toBe("Date");
     expect(irTypeToSwift({ kind: "primitive", value: "url" })).toBe("URL");
@@ -33,7 +37,7 @@ describe("irTypeToSwift", () => {
   it("converts optional types", () => {
     const optionalType: IRType = {
       kind: "optional",
-      innerType: { kind: "primitive", value: "number" },
+      innerType: { kind: "primitive", value: "int" },
     };
     expect(irTypeToSwift(optionalType)).toBe("Int?");
   });

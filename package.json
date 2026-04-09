@@ -1,6 +1,6 @@
 {
   "name": "axint",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "description": "The open-source compiler that transforms AI agent definitions into native Apple App Intents. TypeScript in, Swift out.",
   "author": "Agentic Empire <hello@axint.ai>",
@@ -85,7 +85,6 @@
     "prettier": "^3.5.0",
     "tsup": "^8.5.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0",
     "@vitest/coverage-v8": "^3.1.0",
     "husky": "^9.0.0",
     "lint-staged": "^15.0.0",
@@ -94,6 +93,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.9.0",
     "commander": "^13.1.0",
-    "handlebars": "^4.7.8"
+    "typescript": "^5.7.0"
   }
 }

@@ -44,9 +44,10 @@ describe("parseIntentSource", () => {
 
     expect(ir.parameters[2].name).toBe("duration");
     expect(ir.parameters[2].isOptional).toBe(true);
+    // param.number is a legacy alias — now resolves to int
     expect(ir.parameters[2].type).toEqual({
       kind: "optional",
-      innerType: { kind: "primitive", value: "number" },
+      innerType: { kind: "primitive", value: "int" },
     });
   });
 
