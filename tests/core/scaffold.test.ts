@@ -67,7 +67,7 @@ describe("scaffoldProject", () => {
       join(workDir, "intents", "create-event.ts"),
       "utf-8"
     );
-    expect(intentSource).toContain('from "@axintai/compiler/sdk"');
+    expect(intentSource).toContain('from "@axintai/compiler"');
     expect(intentSource).not.toContain('from "axint"');
   });
 

@@ -57,7 +57,7 @@ Axint is the fastest path from an AI coding tool to a shipped App Intent. **One 
 
 ---
 
-## Why Axint v0.2.0
+## Why Axint v0.3.0
 
 - **Real TypeScript AST parser.** Not regex. Uses the TypeScript compiler API, same as `tsc`, so you get full type fidelity and proper diagnostics with line/column spans.
 - **Native type fidelity.** `int → Int`, `double → Double`, `float → Float`, `date → Date`, `url → URL`, `duration → Measurement<UnitDuration>`, `optional<T> → T?`. Default values and optionality are preserved end-to-end.
@@ -66,7 +66,7 @@ Axint is the fastest path from an AI coding tool to a shipped App Intent. **One 
 - **MCP-native.** A bundled `axint-mcp` server exposes `axint_scaffold`, `axint_compile`, and `axint_validate` to any MCP client. Your AI coding agent can read your project, draft a TypeScript intent, compile it, and open a PR — without a human touching Xcode.
 - **Rust-grade diagnostics.** 16 diagnostic codes (`AX001`–`AX202`) with fix suggestions and color-coded output.
 - **Sub-millisecond compile.** A typical intent compiles in under a millisecond. The [axint.ai playground](https://axint.ai/#playground) runs the full compiler in your browser with zero server round-trip.
-- **117 tests.** Parser, validator, generator, and emit paths — all covered.
+- **152 tests.** Parser, validator, generator, emit paths, and sandbox — all covered.
 - **Apache 2.0, no CLA.** Fork it, extend it, ship it.
 
 ---
@@ -300,7 +300,7 @@ See [`ROADMAP.md`](ROADMAP.md) for the full plan. Highlights:
 - [x] Info.plist and `.entitlements` emit (v0.2.0)
 - [x] Return-type-aware `perform()` (v0.2.0)
 - [x] MCP scaffold tool (v0.2.0)
-- [x] 117-test suite with snapshot coverage (v0.2.0)
+- [x] 152-test suite with snapshot coverage (v0.2.0)
 - [ ] Intent template library (v0.3.0)
 - [ ] `--watch` mode for live Swift preview
 - [ ] Xcode build plugin

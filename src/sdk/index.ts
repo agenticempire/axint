@@ -8,7 +8,7 @@
  *
  * @example
  * ```typescript
- * import { defineIntent, param } from "axint";
+ * import { defineIntent, param } from "@axintai/compiler";
  *
  * export default defineIntent({
  *   name: "CreateEvent",
