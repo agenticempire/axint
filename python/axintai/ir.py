@@ -10,7 +10,7 @@ a pile of one-off generators.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal
 
 ParamType = Literal[
@@ -96,7 +96,7 @@ class IntentIR:
         return out
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "IntentIR":
+    def from_dict(cls, data: dict[str, Any]) -> IntentIR:
         params = tuple(
             IntentParameter(
                 name=p["name"],
