@@ -6,6 +6,58 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+### Added
+
+- **Python SDK (`axintai`) v0.1.0a1** — Python parity with the TypeScript authoring surface. `define_intent()` + `param.*` produce the same language-agnostic IR the TS compiler emits, so a Python-authored intent compiles to byte-identical Swift. Ships with:
+  - `axintai` CLI (`parse`, `compile`) built on the Python stdlib `ast` module — no runtime execution of user code.
+  - Stdlib-only parser with 9 diagnostic codes (`AXP001`–`AXP009`).
+  - Frozen dataclasses for `IntentIR` / `IntentParameter` that serialize to the exact camelCase JSON the TS compiler expects.
+  - 17 tests at green on Python 3.10+ (target floor is 3.11 per pyproject).
+  - Hatchling build backend, Ruff + mypy strict configured.
+  - Lives in `python/` inside the main repo for now; published to PyPI as a separate package.
+- **`--format` and `--strict-format` CLI flags on `axint compile`** — pipe generated Swift through Apple's `swift-format` using the Axint house style before writing to disk. Gracefully falls back on Linux/Windows where swift-format isn't installed (unless `--strict-format` is passed).
+- **Tests for `scaffold`, `sandbox`, and `format` modules** — the three new v0.2.2 subsystems are now covered by the vitest suite with OS-gated Swift toolchain checks so CI stays green on Linux.
+
+## [0.2.2] — 2026-04-09
+
+The "the README doesn't lie anymore" release. Every flag the docs promised, every scaffolder the tutorials assumed, every badge that was pointing at the wrong package — all fixed in one tight pass.
+
+### Added
+
+- **`axint init [dir]`** — zero-config project scaffolder. Drops `package.json`, `tsconfig.json`, a starter intent from any bundled template, a pre-wired `.vscode/mcp.json`, and an `ios/Intents/` target directory. 30-second setup from a fresh clone.
+- **`--emit-info-plist` and `--emit-entitlements` CLI flags** — the underlying `CompilerOptions` existed in 0.2.0 but were never surfaced on the CLI. Now they are, and they write `<Name>.plist.fragment.xml` / `<Name>.entitlements.fragment.xml` next to the Swift file exactly the way the README has always claimed.
+- **`--sandbox` flag on `compile` and `validate`** — stage 4 validation. Drops generated Swift into a deterministic SPM sandbox and runs `swift build` to prove it compiles before you ever touch Xcode. macOS-only, reuses the `.build/` cache across runs (cold 4s, warm 1.2s on M-series).
+- **`axint templates [name]`** — list or print bundled intent templates straight from the CLI, with `--json` for machine-readable output.
+- **Sandbox module (`src/core/sandbox.ts`)** — reusable `sandboxCompile()` API for programmatic stage-4 validation in tests, CI, and the future Xcode extension.
+- **Logo SVG** — official mark at `docs/assets/logo.svg`, also used by the README header, axint.ai favicon, and npm package page.
+
+### Fixed
+
+- **README npm badge** points at `@axintai/compiler` instead of the unscoped `axint`.
+- **README test count** synced to the real vitest output (117, not 124).
+- **ROADMAP.md** no longer claims "Current release: v0.1.1" — it now tracks v0.2.2 and the WWDC 2026 sprint.
+- **Logo reference** no longer points at a file that didn't exist.
+
+### WWDC 2026 Sprint
+
+Shipped as part of the 60-day run to June 8:
+
+- Python SDK (in flight, v0.3.0)
+- swift-format integration (in flight, v0.3.0)
+- WWDC API adapter pipeline (scaffolded)
+- docs.axint.ai public docs site (scaffolding)
+
+## [0.2.1] — 2026-04-09
+
+### Changed
+
+- **Package rename**: `axint` → `@axintai/compiler`. The unscoped name on npm is permanently deprecated — update your install command to `npm install -g @axintai/compiler`. All imports and MCP configs follow the scoped name going forward.
+- **Website vendored compiler** sync'd to v0.2.1 source.
+
+### Fixed
+
+- npm provenance enabled on the scoped package.
+
 ## [0.2.0] — 2026-04-09
 
 The "it's a real compiler now" release. Everything the v0.1.x vision pointed at, shipped behind the same public API.
@@ -69,7 +121,9 @@ The "it's a real compiler now" release. Everything the v0.1.x vision pointed at,
 - tsup for builds with separate CLI/MCP/library entry points
 - Vitest with snapshot testing and V8 coverage
 
-[Unreleased]: https://github.com/agenticempire/axint/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/agenticempire/axint/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/agenticempire/axint/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/agenticempire/axint/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/agenticempire/axint/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/agenticempire/axint/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/agenticempire/axint/releases/tag/v0.1.0

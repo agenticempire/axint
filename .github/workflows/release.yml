@@ -35,11 +35,39 @@ jobs:
           [ -n "$OUTPUT" ] || exit 1
           echo "CLI version: $OUTPUT"
 
+      # ── Publish to npm (primary registry) ────────────────────────
       - name: Publish to npm
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # ── Python SDK (publish to PyPI) ─────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python build tools
+        run: pip install build twine
+
+      - name: Run Python tests
+        working-directory: python
+        run: |
+          pip install -e '.[dev]'
+          pytest -v
+
+      - name: Build Python package
+        working-directory: python
+        run: python -m build
+
+      - name: Publish to PyPI
+        working-directory: python
+        run: twine upload dist/* --skip-existing
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+
+      # ── GitHub Release ───────────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -47,6 +75,8 @@ jobs:
           body: |
             See [CHANGELOG.md](https://github.com/agenticempire/axint/blob/main/CHANGELOG.md) for details.
 
+            **Install:**
             ```bash
-            npm install -g @axintai/compiler
+            npm install -g @axintai/compiler    # TypeScript SDK
+            pip install axintai                  # Python SDK
             ```

@@ -1,16 +1,14 @@
 """
 Command-line entry point for the Python SDK.
 
-The Python compiler is deliberately thin: it parses the Python source
-into the shared IR and then shells out to the already-published
-`@axintai/compiler` TypeScript compiler to produce Swift. This keeps a
-single source of truth for the Swift generator — the Python layer
-focuses on Python-specific parsing, diagnostics, and ergonomics.
+The Python compiler is now fully native — it parses Python source into
+the shared IR and generates Swift directly, with no Node.js dependency.
 
 Commands
 --------
-    axintai compile <file>           Parse a .py intent → IR (and optionally Swift)
+    axintai compile <file>           Parse a .py intent → Swift
     axintai parse <file>             Parse + print the IR as JSON
+    axintai validate <file>          Validate intent without generating Swift
     axintai --version                Show the SDK version
 """
 
@@ -18,13 +16,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 from . import __version__
+from .generator import (
+    generate_entitlements_fragment,
+    generate_info_plist_fragment,
+    generate_swift,
+)
 from .parser import ParserError, parse_file
+from .validator import validate_intent
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,10 +44,10 @@ def main(argv: list[str] | None = None) -> int:
     p_parse.add_argument("file", help="Path to the .py intent file")
     p_parse.add_argument("--json", action="store_true", help="Output as JSON")
 
-    # compile — shell out to @axintai/compiler for Swift emission
+    # compile — native Python → Swift
     p_compile = sub.add_parser(
         "compile",
-        help="Parse Python → IR → (shell out to the TS compiler for Swift emission)",
+        help="Compile Python intent → Swift App Intent (native, no Node.js needed)",
     )
     p_compile.add_argument("file", help="Path to the .py intent file")
     p_compile.add_argument("--out", default=".", help="Output directory for Swift")
@@ -58,6 +60,16 @@ def main(argv: list[str] | None = None) -> int:
     p_compile.add_argument(
         "--emit-entitlements", action="store_true", help="Emit entitlements fragment"
     )
+    p_compile.add_argument(
+        "--json", action="store_true", help="Output result as JSON (machine-readable)"
+    )
+
+    # validate — check intent without generating Swift
+    p_validate = sub.add_parser(
+        "validate",
+        help="Validate a Python intent definition without generating output",
+    )
+    p_validate.add_argument("file", help="Path to the .py intent file")
 
     args = parser.parse_args(argv)
 
@@ -65,6 +77,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_parse(args)
     if args.command == "compile":
         return _cmd_compile(args)
+    if args.command == "validate":
+        return _cmd_validate(args)
     parser.print_help()
     return 2
 
@@ -77,12 +91,7 @@ def _cmd_parse(args: argparse.Namespace) -> int:
     try:
         intents = parse_file(path)
     except ParserError as exc:
-        for d in exc.diagnostics:
-            print(f"  error[{d.code}]: {d.message}", file=sys.stderr)
-            if d.file:
-                print(f"    --> {d.file}:{d.line or '?'}", file=sys.stderr)
-            if d.suggestion:
-                print(f"    = help: {d.suggestion}", file=sys.stderr)
+        _print_parser_diagnostics(exc)
         return 1
 
     if args.json:
@@ -103,10 +112,7 @@ def _cmd_compile(args: argparse.Namespace) -> int:
     try:
         intents = parse_file(path)
     except ParserError as exc:
-        for d in exc.diagnostics:
-            print(f"  error[{d.code}]: {d.message}", file=sys.stderr)
-            if d.file:
-                print(f"    --> {d.file}:{d.line or '?'}", file=sys.stderr)
+        _print_parser_diagnostics(exc)
         return 1
 
     if not intents:
@@ -116,44 +122,128 @@ def _cmd_compile(args: argparse.Namespace) -> int:
         )
         return 1
 
-    # Shell out to the TS compiler using the shared IR JSON.
-    # For alpha, we support the single-intent case; multi-intent files
-    # are a v0.3.0 follow-up.
-    if len(intents) > 1:
-        print(
-            "warning: multiple intents in one file — only the first is compiled (v0.3.0 will fix this).",
-            file=sys.stderr,
-        )
-    ir = intents[0]
-    ir_json = json.dumps(ir.to_dict())
+    exit_code = 0
 
-    axint_bin = shutil.which("axint")
-    if axint_bin is None:
+    for ir in intents:
+        # Validate
+        diagnostics = validate_intent(ir)
+        has_errors = any(d.severity == "error" for d in diagnostics)
+
+        if has_errors:
+            _print_validator_diagnostics(diagnostics)
+            exit_code = 1
+            continue
+
+        # Generate Swift
+        swift_code = generate_swift(ir)
+
+        if args.json:
+            plist_frag = generate_info_plist_fragment(ir) if args.emit_info_plist else None
+            ent_frag = generate_entitlements_fragment(ir) if args.emit_entitlements else None
+            print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "name": ir.name,
+                        "swift": swift_code,
+                        "infoPlistFragment": plist_frag,
+                        "entitlementsFragment": ent_frag,
+                        "diagnostics": [
+                            {"code": d.code, "severity": d.severity, "message": d.message}
+                            for d in diagnostics
+                        ],
+                    },
+                    indent=2,
+                )
+            )
+            continue
+
+        if args.stdout:
+            print(swift_code)
+        else:
+            out_dir = Path(args.out)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            swift_path = out_dir / f"{ir.name}Intent.swift"
+            swift_path.write_text(swift_code, encoding="utf-8")
+            print(f"\033[32m✓\033[0m Compiled {ir.name} → {swift_path}")
+
+            if args.emit_info_plist:
+                frag = generate_info_plist_fragment(ir)
+                if frag:
+                    plist_path = out_dir / f"{ir.name}Intent.plist.fragment.xml"
+                    plist_path.write_text(frag, encoding="utf-8")
+                    print(f"\033[32m✓\033[0m Info.plist fragment → {plist_path}")
+
+            if args.emit_entitlements:
+                frag = generate_entitlements_fragment(ir)
+                if frag:
+                    ent_path = out_dir / f"{ir.name}Intent.entitlements.fragment.xml"
+                    ent_path.write_text(frag, encoding="utf-8")
+                    print(f"\033[32m✓\033[0m Entitlements fragment → {ent_path}")
+
+        # Print warnings
+        warnings = [d for d in diagnostics if d.severity == "warning"]
+        if warnings:
+            _print_validator_diagnostics(warnings)
+
+    return exit_code
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    path = Path(args.file)
+    if not path.exists():
+        print(f"error: file not found: {path}", file=sys.stderr)
+        return 1
+    try:
+        intents = parse_file(path)
+    except ParserError as exc:
+        _print_parser_diagnostics(exc)
+        return 1
+
+    if not intents:
         print(
-            "error: `axint` CLI not found on $PATH. Install it with `npm install -g @axintai/compiler`.",
+            "error: no `define_intent(...)` calls found in this file.",
             file=sys.stderr,
         )
         return 1
 
-    # For now we call the TS compiler directly against the .py file
-    # using a thin --ir-json bridge (the bridge itself lands in the TS
-    # compiler in v0.3.0 — this is the handshake that unblocks the
-    # cross-language pipeline). The IR is printed here so early adopters
-    # can pipe it into any downstream tool.
-    print(
-        f"\033[36m→\033[0m Parsed {ir.name} from {path.name}",
-        file=sys.stderr,
-    )
-    print(
-        f"\033[33mnote:\033[0m Python → Swift codegen bridge lands in @axintai/compiler v0.3.0.",
-        file=sys.stderr,
-    )
-    print(
-        f"\033[33mnote:\033[0m For now, the IR is printed below. Pipe it through `axint compile --ir-json -` once v0.3.0 ships.",
-        file=sys.stderr,
-    )
-    print(ir_json)
-    return 0
+    has_errors = False
+    for ir in intents:
+        diagnostics = validate_intent(ir)
+        if diagnostics:
+            _print_validator_diagnostics(diagnostics)
+        if any(d.severity == "error" for d in diagnostics):
+            has_errors = True
+        else:
+            print(f"\033[32m✓\033[0m {ir.name} — valid intent definition")
+
+    return 1 if has_errors else 0
+
+
+# ── Helpers ─────────────────────────────────────────────────────────
+
+
+def _print_parser_diagnostics(exc: ParserError) -> None:
+    for d in exc.diagnostics:
+        print(f"  error[{d.code}]: {d.message}", file=sys.stderr)
+        if d.file:
+            print(f"    --> {d.file}:{d.line or '?'}", file=sys.stderr)
+        if d.suggestion:
+            print(f"    = help: {d.suggestion}", file=sys.stderr)
+
+
+def _print_validator_diagnostics(diagnostics: list) -> None:
+    for d in diagnostics:
+        prefix = (
+            "\033[31merror\033[0m"
+            if d.severity == "error"
+            else "\033[33mwarning\033[0m"
+            if d.severity == "warning"
+            else "\033[36minfo\033[0m"
+        )
+        print(f"  {prefix}[{d.code}]: {d.message}", file=sys.stderr)
+        if hasattr(d, "suggestion") and d.suggestion:
+            print(f"    = help: {d.suggestion}", file=sys.stderr)
 
 
 if __name__ == "__main__":  # pragma: no cover

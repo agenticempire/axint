@@ -14,10 +14,11 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/axint"><img src="https://img.shields.io/npm/v/axint?color=f05138&label=npm" alt="npm" /></a>
+  <a href="https://www.npmjs.com/package/@axintai/compiler"><img src="https://img.shields.io/npm/v/@axintai/compiler?color=f05138&label=npm" alt="npm" /></a>
   <a href="https://github.com/agenticempire/axint/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License" /></a>
-  <a href="https://github.com/agenticempire/axint/actions"><img src="https://img.shields.io/badge/tests-124%20passing-brightgreen" alt="Tests" /></a>
+  <a href="https://github.com/agenticempire/axint/actions"><img src="https://img.shields.io/badge/tests-117%20passing-brightgreen" alt="Tests" /></a>
   <a href="https://axint.ai"><img src="https://img.shields.io/badge/playground-axint.ai-7c3aed" alt="Playground" /></a>
+  <a href="https://axint.ai/wwdc"><img src="https://img.shields.io/badge/WWDC%202026-60%20days-f05138" alt="WWDC 2026" /></a>
 </p>
 
 <p align="center">
@@ -65,7 +66,7 @@ Axint is the fastest path from an AI coding tool to a shipped App Intent. **One 
 - **MCP-native.** A bundled `axint-mcp` server exposes `axint_scaffold`, `axint_compile`, and `axint_validate` to any MCP client. Your AI coding agent can read your project, draft a TypeScript intent, compile it, and open a PR — without a human touching Xcode.
 - **Rust-grade diagnostics.** 16 diagnostic codes (`AX001`–`AX202`) with fix suggestions and color-coded output.
 - **Sub-millisecond compile.** A typical intent compiles in under a millisecond. The [axint.ai playground](https://axint.ai/#playground) runs the full compiler in your browser with zero server round-trip.
-- **124 tests.** Parser, validator, generator, and emit paths — all covered.
+- **117 tests.** Parser, validator, generator, and emit paths — all covered.
 - **Apache 2.0, no CLA.** Fork it, extend it, ship it.
 
 ---
@@ -271,7 +272,7 @@ axint/
 │   ├── mcp/         # MCP server (scaffold, compile, validate)
 │   ├── cli/         # axint CLI (Commander.js)
 │   └── templates/   # Intent template registry
-├── tests/           # 124 vitest tests
+├── tests/           # 117 vitest tests
 ├── examples/        # Example intent definitions
 └── docs/            # Error reference, contributing, assets
 ```
@@ -299,7 +300,7 @@ See [`ROADMAP.md`](ROADMAP.md) for the full plan. Highlights:
 - [x] Info.plist and `.entitlements` emit (v0.2.0)
 - [x] Return-type-aware `perform()` (v0.2.0)
 - [x] MCP scaffold tool (v0.2.0)
-- [x] 124-test suite with snapshot coverage (v0.2.0)
+- [x] 117-test suite with snapshot coverage (v0.2.0)
 - [ ] Intent template library (v0.3.0)
 - [ ] `--watch` mode for live Swift preview
 - [ ] Xcode build plugin

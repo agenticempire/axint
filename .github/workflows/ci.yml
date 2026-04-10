@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  # ── TypeScript Compiler ──────────────────────────────────────────
+  test-typescript:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -37,3 +38,39 @@ jobs:
           OUTPUT=$(node dist/cli/index.js --version)
           [ -n "$OUTPUT" ] || exit 1
           echo "CLI version: $OUTPUT"
+
+  # ── Python SDK ───────────────────────────────────────────────────
+  test-python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    defaults:
+      run:
+        working-directory: python
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: pip install -e '.[dev]'
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: Type check with mypy
+        run: mypy axintai
+
+      - name: Run tests
+        run: pytest -v --tb=short
+
+      - name: Verify CLI works
+        run: |
+          axintai --version
+          axintai parse examples/create_event.py --json
