@@ -5,7 +5,7 @@
  * Returns diagnostics with error codes, locations, and fix suggestions.
  */
 
-import type { Diagnostic, IRIntent } from "./types.js";
+import type { Diagnostic, IRIntent, IREntity } from "./types.js";
 
 /** Apple-recommended maximum parameters per intent for usability */
 const MAX_PARAMETERS = 10;
@@ -139,6 +139,69 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
           'Apple keys generally start with "NS" (e.g., "NSCalendarsUsageDescription")',
       });
     }
+  }
+
+  // Validate all entities
+  if (intent.entities) {
+    for (const entity of intent.entities) {
+      diagnostics.push(...validateEntity(entity, intent.sourceFile));
+    }
+  }
+
+  return diagnostics;
+}
+
+/**
+ * Validate an IREntity for App Intents framework compliance.
+ */
+export function validateEntity(entity: IREntity, sourceFile: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+
+  // Rule AX110: Entity name must be PascalCase
+  if (!entity.name || !/^[A-Z][a-zA-Z0-9]*$/.test(entity.name)) {
+    diagnostics.push({
+      code: "AX110",
+      severity: "error",
+      message: `Entity name "${entity.name}" must be PascalCase (e.g., "Task", "Playlist")`,
+      file: sourceFile,
+      suggestion: `Rename to "${toPascalCase(entity.name)}"`,
+    });
+  }
+
+  // Rule AX111: Entity must have at least one property
+  if (entity.properties.length === 0) {
+    diagnostics.push({
+      code: "AX111",
+      severity: "error",
+      message: `Entity "${entity.name}" must have at least one property`,
+      file: sourceFile,
+      suggestion: "Add properties to define the entity's structure",
+    });
+  }
+
+  // Rule AX112: Display title must reference an existing property
+  const titleProp = entity.displayRepresentation.title;
+  const propertyNames = new Set(entity.properties.map((p) => p.name));
+  if (titleProp && !propertyNames.has(titleProp)) {
+    diagnostics.push({
+      code: "AX112",
+      severity: "warning",
+      message: `Display title "${titleProp}" does not reference an existing property`,
+      file: sourceFile,
+      suggestion: `Available properties: ${[...propertyNames].join(", ")}`,
+    });
+  }
+
+  // Rule AX113: Query type must be valid
+  const validQueryTypes = ["all", "id", "string", "property"];
+  if (!validQueryTypes.includes(entity.queryType)) {
+    diagnostics.push({
+      code: "AX113",
+      severity: "error",
+      message: `Entity query type "${entity.queryType}" is not valid`,
+      file: sourceFile,
+      suggestion: `Use one of: ${validQueryTypes.join(", ")}`,
+    });
   }
 
   return diagnostics;

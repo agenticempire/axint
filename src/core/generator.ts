@@ -14,7 +14,7 @@
  * by the user (or a future axint-link command).
  */
 
-import type { IRIntent, IRParameter, IRType } from "./types.js";
+import type { IRIntent, IRParameter, IRType, IREntity } from "./types.js";
 import { irTypeToSwift } from "./types.js";
 
 // ─── String Escaping ─────────────────────────────────────────────────
@@ -49,6 +49,7 @@ export function escapeXml(s: string): string {
 
 /**
  * Generate a Swift App Intent source file from an IR intent.
+ * If entities are present, they are generated first, followed by the intent.
  */
 export function generateSwift(intent: IRIntent): string {
   const lines: string[] = [];
@@ -61,6 +62,16 @@ export function generateSwift(intent: IRIntent): string {
   lines.push(`import AppIntents`);
   lines.push(`import Foundation`);
   lines.push(``);
+
+  // Generate entities before the intent
+  if (intent.entities && intent.entities.length > 0) {
+    for (const entity of intent.entities) {
+      lines.push(generateEntity(entity));
+      lines.push(``);
+      lines.push(generateEntityQuery(entity));
+      lines.push(``);
+    }
+  }
 
   // Struct declaration
   lines.push(`struct ${intent.name}Intent: AppIntent {`);
@@ -87,7 +98,7 @@ export function generateSwift(intent: IRIntent): string {
   }
 
   // Perform function with return-type aware signature
-  const returnTypeSignature = generateReturnSignature(intent.returnType);
+  const returnTypeSignature = generateReturnSignature(intent.returnType, intent.customResultType);
   lines.push(`    func perform() async throws -> ${returnTypeSignature} {`);
   lines.push(`        // TODO: Implement your intent logic here.`);
 
@@ -96,10 +107,105 @@ export function generateSwift(intent: IRIntent): string {
     lines.push(`        // Parameters available: ${paramList}`);
   }
 
-  lines.push(generatePerformReturn(intent.returnType));
+  // Add intent donation if enabled
+  if (intent.donateOnPerform) {
+    lines.push(`        `);
+    lines.push(`        // Donate this intent to Siri and Spotlight`);
+    lines.push(`        if let result = try? await perform() {`);
+    lines.push(`            IntentDonationManager.shared.donate(self)`);
+    lines.push(`        }`);
+  }
+
+  lines.push(generatePerformReturn(intent.returnType, intent.customResultType));
   lines.push(`    }`);
   lines.push(`}`);
   lines.push(``);
+
+  return lines.join("\n");
+}
+
+// ─── Entity Generation ───────────────────────────────────────────────
+
+/**
+ * Generate an AppEntity struct from an IREntity definition.
+ */
+export function generateEntity(entity: IREntity): string {
+  const lines: string[] = [];
+
+  lines.push(`struct ${entity.name}: AppEntity {`);
+  lines.push(`    typealias DefaultQuery = ${entity.name}Query`);
+  lines.push(``);
+
+  // Properties
+  for (const prop of entity.properties) {
+    const swiftType = irTypeToSwift(prop.type);
+    lines.push(`    var ${prop.name}: ${swiftType}`);
+  }
+
+  if (entity.properties.length > 0) {
+    lines.push(``);
+  }
+
+  // Type display representation
+  lines.push(`    static let typeDisplayRepresentation: TypeDisplayRepresentation = TypeDisplayRepresentation(`);
+  lines.push(`        name: LocalizedStringResource("${escapeSwiftString(entity.name)}")`);
+  lines.push(`    )`);
+  lines.push(``);
+
+  // Display representation computed property
+  lines.push(`    var displayRepresentation: DisplayRepresentation {`);
+  const displayTitle = entity.displayRepresentation.title;
+  lines.push(`        DisplayRepresentation(`);
+  lines.push(`            title: "${escapeSwiftString(displayTitle)}",`);
+  if (entity.displayRepresentation.subtitle) {
+    lines.push(`            subtitle: "${escapeSwiftString(entity.displayRepresentation.subtitle)}",`);
+  }
+  if (entity.displayRepresentation.image) {
+    lines.push(`            image: .init(systemName: "${escapeSwiftString(entity.displayRepresentation.image)}")`);
+  }
+  lines.push(`        )`);
+  lines.push(`    }`);
+
+  lines.push(`}`);
+
+  return lines.join("\n");
+}
+
+/**
+ * Generate an EntityQuery conformance struct based on the entity's query type.
+ */
+export function generateEntityQuery(entity: IREntity): string {
+  const lines: string[] = [];
+  const queryType = entity.queryType;
+
+  lines.push(`struct ${entity.name}Query: EntityQuery {`);
+  lines.push(`    func entities(for identifiers: [${entity.name}.ID]) async throws -> [${entity.name}] {`);
+  lines.push(`        // TODO: Fetch entities by IDs`);
+  lines.push(`        return []`);
+  lines.push(`    }`);
+  lines.push(``);
+
+  // Generate appropriate query method based on queryType
+  if (queryType === "all") {
+    lines.push(`    func allEntities() async throws -> [${entity.name}] {`);
+    lines.push(`        // TODO: Return all entities`);
+    lines.push(`        return []`);
+    lines.push(`    }`);
+  } else if (queryType === "id") {
+    // ID-based query is handled by entities(for:) above
+    lines.push(`    // ID-based query is provided by the entities(for:) method above`);
+  } else if (queryType === "string") {
+    lines.push(`    func entities(matching string: String) async throws -> [${entity.name}] {`);
+    lines.push(`        // TODO: Search entities by string`);
+    lines.push(`        return []`);
+    lines.push(`    }`);
+  } else if (queryType === "property") {
+    // Property-based query requires additional configuration
+    lines.push(`    // Property-based query: implement using EntityPropertyQuery`);
+    lines.push(`    // Example: property.where { \\$0.status == "active" }`);
+  }
+
+  lines.push(`}`);
 
   return lines.join("\n");
 }
@@ -212,9 +318,13 @@ function generateParameter(param: IRParameter): string {
  * Choose the Swift return-type signature for the generated perform().
  * We map the inferred IR return type to an App Intents `IntentResult`
  * shape. For primitive return types we use `some ReturnsValue<T>`;
- * otherwise we fall back to `some IntentResult`.
+ * for custom result types we use the custom type; otherwise we fall
+ * back to `some IntentResult`.
  */
-function generateReturnSignature(type: IRType): string {
+function generateReturnSignature(type: IRType, customResultType?: string): string {
+  if (customResultType) {
+    return customResultType;
+  }
   if (type.kind === "primitive") {
     const swift = irTypeToSwift(type);
     return `some IntentResult & ReturnsValue<${swift}>`;
@@ -232,8 +342,12 @@ function generateReturnSignature(type: IRType): string {
  * primitive we return a well-typed default placeholder the user can
  * replace; otherwise we emit a plain `.result()`.
  */
-function generatePerformReturn(type: IRType): string {
+function generatePerformReturn(type: IRType, customResultType?: string): string {
   const indent = "        ";
+  if (customResultType) {
+    // For custom result types, the user must provide the implementation
+    return `${indent}// TODO: Return a ${customResultType} instance`;
+  }
   if (type.kind === "primitive") {
     return `${indent}return .result(value: ${defaultLiteralFor(type.value)})`;
   }

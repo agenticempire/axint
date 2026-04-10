@@ -1,0 +1,24 @@
+# SPM
+.build/
+*.xcodeproj
+DerivedData/
+
+# Xcode
+*.swiftpm
+xcuserdata/
+*.xcworkspace
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node (in case npm is used locally)
+node_modules/
+package-lock.json

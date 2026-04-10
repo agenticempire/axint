@@ -24,6 +24,8 @@ export type IRType =
   | { kind: "array"; elementType: IRType }
   | { kind: "optional"; innerType: IRType }
   | { kind: "entity"; entityName: string; properties: IRParameter[] }
+  | { kind: "entityQuery"; entityName: string; queryType: "all" | "id" | "string" | "property" }
+  | { kind: "dynamicOptions"; valueType: IRType; providerName: string }
   | { kind: "enum"; name: string; cases: string[] };
 
 /** A single parameter in an intent definition */
@@ -34,6 +36,27 @@ export interface IRParameter {
   description: string;
   isOptional: boolean;
   defaultValue?: unknown;
+}
+
+/**
+ * Display representation configuration for an entity.
+ * Maps which properties to show in Siri and Shortcuts UI.
+ */
+export interface DisplayRepresentation {
+  title: string;
+  subtitle?: string;
+  image?: string;
+}
+
+/**
+ * An App Entity definition for complex, domain-specific data types.
+ * Entities can be queried and used as parameter types in intents.
+ */
+export interface IREntity {
+  name: string;
+  displayRepresentation: DisplayRepresentation;
+  properties: IRParameter[];
+  queryType: "all" | "id" | "string" | "property";
 }
 
 /** The main IR node representing a compiled intent */
@@ -52,6 +75,12 @@ export interface IRIntent {
   infoPlistKeys?: Record<string, string>;
   /** Whether the intent should be exposed to Spotlight indexing */
   isDiscoverable?: boolean;
+  /** App Entities used by this intent */
+  entities?: IREntity[];
+  /** Whether to donate this intent to Spotlight/Siri when performed */
+  donateOnPerform?: boolean;
+  /** Custom result type (SwiftUI view or custom struct) to return */
+  customResultType?: string;
 }
 
 // ─── Compiler Types ──────────────────────────────────────────────────
@@ -152,6 +181,10 @@ export function irTypeToSwift(type: IRType): string {
       return `${irTypeToSwift(type.innerType)}?`;
     case "entity":
       return type.entityName;
+    case "entityQuery":
+      return `${type.entityName}Query`;
+    case "dynamicOptions":
+      return `[DynamicOptionsResult<${irTypeToSwift(type.valueType)}>]`;
     case "enum":
       return type.name;
   }

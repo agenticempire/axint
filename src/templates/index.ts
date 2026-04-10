@@ -302,6 +302,80 @@ export default defineIntent({
 `,
 };
 
+const searchTasks: IntentTemplate = {
+  id: "search-tasks",
+  name: "search-tasks",
+  title: "Search Tasks",
+  domain: "productivity",
+  category: "productivity",
+  description: "Search for tasks using EntityQuery with string-based search.",
+  source: `import { defineIntent, defineEntity, param } from "axint";
+
+defineEntity({
+  name: "Task",
+  display: {
+    title: "name",
+    subtitle: "status",
+  },
+  properties: {
+    id: param.string("Unique task identifier"),
+    name: param.string("Task name"),
+    status: param.string("Task status (todo, in-progress, done)"),
+    dueDate: param.date("Due date"),
+  },
+  query: "string",
+});
+
+export default defineIntent({
+  name: "SearchTasks",
+  title: "Search Tasks",
+  description: "Search for tasks by name or status.",
+  domain: "productivity",
+  params: {
+    query: param.string("Search query"),
+    status: param.string("Filter by status (optional)", { required: false }),
+  },
+  donateOnPerform: true,
+  perform: async ({ query, status }) => {
+    // TODO: Search your task database with the query
+    // Use status filter if provided
+    return { found: true, results: 0 };
+  },
+});
+`,
+};
+
+const dynamicPlaylist: IntentTemplate = {
+  id: "dynamic-playlist",
+  name: "dynamic-playlist",
+  title: "Dynamic Playlist",
+  domain: "media",
+  category: "media",
+  description: "Create a playlist with dynamic option suggestions powered by DynamicOptionsProvider.",
+  source: `import { defineIntent, param } from "axint";
+
+export default defineIntent({
+  name: "DynamicPlaylist",
+  title: "Create Dynamic Playlist",
+  description: "Create a playlist with dynamically suggested moods or genres.",
+  domain: "media",
+  params: {
+    name: param.string("Playlist name"),
+    mood: param.dynamicOptions(
+      "MoodProvider",
+      param.string("Mood for the playlist")
+    ),
+  },
+  customResultType: "PlaylistResultView",
+  perform: async ({ name, mood }) => {
+    // TODO: Implement playlist creation
+    // mood comes from the DynamicOptionsProvider
+    return { playlistId: "playlist_placeholder" };
+  },
+});
+`,
+};
+
 // ─── Registry ────────────────────────────────────────────────────────
 
 export const TEMPLATES: IntentTemplate[] = [
@@ -315,6 +389,8 @@ export const TEMPLATES: IntentTemplate[] = [
   logWorkout,
   setThermostat,
   placeOrder,
+  searchTasks,
+  dynamicPlaylist,
 ];
 
 /** @deprecated Use TEMPLATES. Kept for v0.1.x import compatibility. */
