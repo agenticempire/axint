@@ -135,7 +135,7 @@ export function generateEntity(entity: IREntity): string {
   const propertyNames = new Set(entity.properties.map((p) => p.name));
 
   lines.push(`struct ${entity.name}: AppEntity {`);
-  lines.push(`    typealias DefaultQuery = ${entity.name}Query`);
+  lines.push(`    static var defaultQuery = ${entity.name}Query()`);
   lines.push(``);
 
   // Apple requires AppEntity to have an id property
