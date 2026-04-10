@@ -74,7 +74,7 @@ Axint is the fastest path from an AI coding tool to a shipped App Intent. **One 
 
 ```bash
 # Install globally
-npm install -g axint
+npm install -g @axintai/compiler
 
 # Or use without installing
 npx axint compile my-intent.ts --stdout
@@ -83,7 +83,7 @@ npx axint compile my-intent.ts --stdout
 Create `my-intent.ts`:
 
 ```typescript
-import { defineIntent, param } from "axint";
+import { defineIntent, param } from "@axintai/compiler";
 
 export default defineIntent({
   name: "CreateEvent",
