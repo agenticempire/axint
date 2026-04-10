@@ -26,7 +26,7 @@ from .generator import (
     generate_swift,
 )
 from .parser import ParserError, parse_file
-from .validator import validate_intent
+from .validator import ValidatorDiagnostic, validate_intent
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -232,7 +232,7 @@ def _print_parser_diagnostics(exc: ParserError) -> None:
             print(f"    = help: {d.suggestion}", file=sys.stderr)
 
 
-def _print_validator_diagnostics(diagnostics: list) -> None:
+def _print_validator_diagnostics(diagnostics: list[ValidatorDiagnostic]) -> None:
     for d in diagnostics:
         prefix = (
             "\033[31merror\033[0m"
