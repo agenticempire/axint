@@ -34,8 +34,6 @@ export function compileFile(
   filePath: string,
   options: Partial<CompilerOptions> = {}
 ): CompileResult {
-  const diagnostics: Diagnostic[] = [];
-
   // 1. Read source
   let source: string;
   try {
