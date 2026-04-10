@@ -19,12 +19,14 @@ import type {
   IRParameter,
   IRType,
   IRPrimitiveType,
+  IREntity,
+  DisplayRepresentation,
 } from "./types.js";
 import { PARAM_TYPES, LEGACY_PARAM_ALIASES } from "./types.js";
 
 /**
- * Parse a TypeScript source file containing a defineIntent() call
- * and return the IR representation.
+ * Parse a TypeScript source file containing defineIntent() and/or
+ * defineEntity() calls and return the IR representation.
  */
 export function parseIntentSource(
   source: string,
@@ -36,6 +38,11 @@ export function parseIntentSource(
     ts.ScriptTarget.Latest,
     true, // setParentNodes
     ts.ScriptKind.TS
+  );
+
+  // Parse all entity definitions first, so they can be referenced by intents
+  const entities = findDefineEntityCalls(sourceFile).map((call) =>
+    parseEntityDefinition(call, filePath, sourceFile)
   );
 
   const defineIntentCall = findDefineIntentCall(sourceFile);
@@ -114,6 +121,14 @@ export function parseIntentSource(
   const infoPlistNode = props.get("infoPlistKeys");
   const infoPlistKeys = readStringRecord(infoPlistNode);
 
+  // Intent donation (optional boolean)
+  const donateOnPerformNode = props.get("donateOnPerform");
+  const donateOnPerform = readBooleanLiteral(donateOnPerformNode);
+
+  // Custom result type (optional string)
+  const customResultTypeNode = props.get("customResultType");
+  const customResultType = readStringLiteral(customResultTypeNode);
+
   return {
     name,
     title,
@@ -127,11 +142,17 @@ export function parseIntentSource(
     infoPlistKeys:
       Object.keys(infoPlistKeys).length > 0 ? infoPlistKeys : undefined,
     isDiscoverable: isDiscoverable ?? undefined,
+    entities: entities.length > 0 ? entities : undefined,
+    donateOnPerform: donateOnPerform ?? undefined,
+    customResultType: customResultType ?? undefined,
   };
 }
 
 // ─── AST Walkers ─────────────────────────────────────────────────────
 
+/**
+ * Find the first defineIntent() call in the AST.
+ */
 function findDefineIntentCall(
   node: ts.Node
 ): ts.CallExpression | undefined {
@@ -144,6 +165,26 @@ function findDefineIntentCall(
       n.expression.text === "defineIntent"
     ) {
       found = n;
+      return;
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return found;
+}
+
+/**
+ * Find all defineEntity() calls in the AST.
+ */
+function findDefineEntityCalls(node: ts.Node): ts.CallExpression[] {
+  const found: ts.CallExpression[] = [];
+  const visit = (n: ts.Node): void => {
+    if (
+      ts.isCallExpression(n) &&
+      ts.isIdentifier(n.expression) &&
+      n.expression.text === "defineEntity"
+    ) {
+      found.push(n);
       return;
     }
     ts.forEachChild(n, visit);
@@ -217,6 +258,105 @@ function readStringRecord(
   return rec;
 }
 
+// ─── Entity Definition Parsing ───────────────────────────────────────
+
+/**
+ * Parse a defineEntity() call into an IREntity.
+ */
+function parseEntityDefinition(
+  call: ts.CallExpression,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IREntity {
+  const arg = call.arguments[0];
+  if (!arg || !ts.isObjectLiteralExpression(arg)) {
+    throw new ParserError(
+      "AX015",
+      "defineEntity() must be called with an object literal",
+      filePath,
+      posOf(sourceFile, call),
+      "Pass an object: defineEntity({ name, display, properties, query })"
+    );
+  }
+
+  const props = propertyMap(arg);
+
+  const name = readStringLiteral(props.get("name"));
+  if (!name) {
+    throw new ParserError(
+      "AX016",
+      "Entity definition missing required field: name",
+      filePath,
+      posOf(sourceFile, arg),
+      'Add a name field: name: "Task"'
+    );
+  }
+
+  const displayNode = props.get("display");
+  if (!displayNode || !ts.isObjectLiteralExpression(displayNode)) {
+    throw new ParserError(
+      "AX017",
+      "Entity definition missing required field: display",
+      filePath,
+      posOf(sourceFile, arg),
+      'Add display field: display: { title: "name", subtitle: "status" }'
+    );
+  }
+
+  const displayProps = propertyMap(displayNode);
+  const displayRepresentation: DisplayRepresentation = {
+    title: readStringLiteral(displayProps.get("title")) || "name",
+    subtitle: readStringLiteral(displayProps.get("subtitle")) || undefined,
+    image: readStringLiteral(displayProps.get("image")) || undefined,
+  };
+
+  const propertiesNode = props.get("properties");
+  const properties = propertiesNode
+    ? extractParameters(propertiesNode, filePath, sourceFile)
+    : [];
+
+  const queryTypeNode = props.get("query");
+  const queryTypeStr = readStringLiteral(queryTypeNode);
+  const queryType = validateQueryType(queryTypeStr, filePath, sourceFile, queryTypeNode);
+
+  return {
+    name,
+    displayRepresentation,
+    properties,
+    queryType,
+  };
+}
+
+/**
+ * Validate and normalize query type string.
+ */
+function validateQueryType(
+  value: string | null,
+  filePath: string,
+  sourceFile: ts.SourceFile,
+  node: ts.Expression | undefined
+): "all" | "id" | "string" | "property" {
+  if (!value) {
+    throw new ParserError(
+      "AX018",
+      "Entity definition missing required field: query",
+      filePath,
+      node ? posOf(sourceFile, node) : undefined,
+      'Add query field: query: "string" (or "all", "id", "property")'
+    );
+  }
+  const valid = ["all", "id", "string", "property"] as const;
+  if (!valid.includes(value as any)) {
+    throw new ParserError(
+      "AX019",
+      `Invalid query type: "${value}". Must be one of: all, id, string, property`,
+      filePath,
+      node ? posOf(sourceFile, node) : undefined
+    );
+  }
+  return value as "all" | "id" | "string" | "property";
+}
+
 // ─── Parameter Extraction ────────────────────────────────────────────
 
 function extractParameters(
@@ -240,13 +380,13 @@ function extractParameters(
     const paramName = propertyKeyName(prop.name);
     if (!paramName) continue;
 
-    const { typeName, description, configObject } = extractParamCall(
+    const { typeName, description, configObject, callExpr } = extractParamCall(
       prop.initializer,
       filePath,
       sourceFile
     );
 
-    const resolvedType = resolveParamType(typeName, filePath, sourceFile, prop);
+    const resolvedType = resolveParamType(typeName, filePath, sourceFile, prop, callExpr);
 
     const isOptional = configObject
       ? readBooleanLiteral(configObject.get("required")) === false
@@ -262,9 +402,9 @@ function extractParameters(
     const irType: IRType = isOptional
       ? {
           kind: "optional",
-          innerType: { kind: "primitive", value: resolvedType },
+          innerType: resolvedType,
         }
-      : { kind: "primitive", value: resolvedType };
+      : resolvedType;
 
     params.push({
       name: paramName,
@@ -283,8 +423,13 @@ interface ParamCallInfo {
   typeName: string;
   description: string;
   configObject: Map<string, ts.Expression> | null;
+  callExpr: ts.CallExpression;
 }
 
+/**
+ * Extract param type, description, and config from a param.* call.
+ * For param.entity() and param.dynamicOptions(), the structure is different.
+ */
 function extractParamCall(
   expr: ts.Expression,
   filePath: string,
@@ -300,7 +445,7 @@ function extractParamCall(
     );
   }
 
-  // Expect: param.<type>(description, config?)
+  // Expect: param.<type>(description?, config?)
   if (
     !ts.isPropertyAccessExpression(expr.expression) ||
     !ts.isIdentifier(expr.expression.expression) ||
@@ -316,14 +461,29 @@ function extractParamCall(
   }
 
   const typeName = expr.expression.name.text;
-  const descriptionArg = expr.arguments[0];
-  const configArg = expr.arguments[1];
+
+  // For entity and dynamicOptions, the structure differs:
+  // - param.entity("EntityName", "description", config?)
+  // - param.dynamicOptions("Provider", param.string(...), "description", config?)
+  let descriptionArg: ts.Expression | undefined;
+  let configArg: ts.Expression | undefined;
+
+  if (typeName === "entity" && expr.arguments.length >= 2) {
+    descriptionArg = expr.arguments[1];
+    configArg = expr.arguments[2];
+  } else if (typeName === "dynamicOptions" && expr.arguments.length >= 3) {
+    descriptionArg = expr.arguments[2];
+    configArg = expr.arguments[3];
+  } else {
+    descriptionArg = expr.arguments[0];
+    configArg = expr.arguments[1];
+  }
 
   const description = descriptionArg ? readStringLiteral(descriptionArg) : null;
   if (description === null) {
     throw new ParserError(
       "AX008",
-      `param.${typeName}() requires a string description as the first argument`,
+      `param.${typeName}() requires a string description`,
       filePath,
       posOf(sourceFile, expr),
       `Example: param.${typeName}("Human-readable description")`
@@ -335,27 +495,95 @@ function extractParamCall(
       ? propertyMap(configArg)
       : null;
 
-  return { typeName, description, configObject };
+  return { typeName, description, configObject, callExpr: expr };
 }
 
+/**
+ * Resolve a param type name into an IRType.
+ * Supports primitives, entity references, and dynamic options.
+ */
 function resolveParamType(
   typeName: string,
   filePath: string,
   sourceFile: ts.SourceFile,
-  node: ts.Node
-): IRPrimitiveType {
+  node: ts.Node,
+  callExpr?: ts.CallExpression
+): IRType {
+  // Primitive types
   if (PARAM_TYPES.has(typeName as IRPrimitiveType)) {
-    return typeName as IRPrimitiveType;
+    return { kind: "primitive", value: typeName as IRPrimitiveType };
   }
+
+  // Legacy aliases
   if (typeName in LEGACY_PARAM_ALIASES) {
-    return LEGACY_PARAM_ALIASES[typeName];
+    return {
+      kind: "primitive",
+      value: LEGACY_PARAM_ALIASES[typeName],
+    };
   }
+
+  // Entity types: param.entity("EntityName")
+  if (typeName === "entity") {
+    if (!callExpr || callExpr.arguments.length === 0) {
+      throw new ParserError(
+        "AX020",
+        "param.entity() requires the entity name as the first argument",
+        filePath,
+        posOf(sourceFile, node),
+        'Example: param.entity("Task", "Reference an entity")'
+      );
+    }
+    const entityName = readStringLiteral(callExpr.arguments[0]);
+    if (!entityName) {
+      throw new ParserError(
+        "AX021",
+        "param.entity() requires a string entity name",
+        filePath,
+        posOf(sourceFile, node)
+      );
+    }
+    return {
+      kind: "entity",
+      entityName,
+      properties: [],
+    };
+  }
+
+  // Dynamic options: param.dynamicOptions("ProviderName", innerType)
+  if (typeName === "dynamicOptions") {
+    if (!callExpr || callExpr.arguments.length < 2) {
+      throw new ParserError(
+        "AX022",
+        "param.dynamicOptions() requires (providerName, paramType)",
+        filePath,
+        posOf(sourceFile, node),
+        'Example: param.dynamicOptions("PlaylistProvider", param.string(...))'
+      );
+    }
+    const providerName = readStringLiteral(callExpr.arguments[0]);
+    if (!providerName) {
+      throw new ParserError(
+        "AX023",
+        "param.dynamicOptions() provider name must be a string",
+        filePath,
+        posOf(sourceFile, node)
+      );
+    }
+    // TODO: Extract inner param type from the second argument
+    const valueType: IRType = { kind: "primitive", value: "string" };
+    return {
+      kind: "dynamicOptions",
+      valueType,
+      providerName,
+    };
+  }
+
   throw new ParserError(
     "AX005",
     `Unknown param type: param.${typeName}`,
     filePath,
     posOf(sourceFile, node),
-    `Supported types: ${[...PARAM_TYPES].join(", ")}`
+    `Supported types: ${[...PARAM_TYPES].join(", ")}, entity, dynamicOptions`
   );
 }
 

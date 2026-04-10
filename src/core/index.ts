@@ -2,12 +2,15 @@ export { compileFile, compileSource, compileFromIR, irFromJSON } from "./compile
 export { parseIntentSource, ParserError } from "./parser.js";
 export {
   generateSwift,
+  generateEntity,
+  generateEntityQuery,
   generateInfoPlistFragment,
   generateEntitlementsFragment,
   escapeSwiftString,
   escapeXml,
 } from "./generator.js";
-export { validateIntent, validateSwiftSource } from "./validator.js";
+export { validateIntent, validateEntity, validateSwiftSource } from "./validator.js";
+export { ejectIntent } from "./eject.js";
 export {
   irTypeToSwift,
   SWIFT_TYPE_MAP,
@@ -15,3 +18,4 @@ export {
   LEGACY_PARAM_ALIASES,
 } from "./types.js";
 export type * from "./types.js";
+export type { EjectOptions, EjectResult } from "./eject.js";

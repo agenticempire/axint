@@ -1,0 +1,76 @@
+name: WWDC API Adapter — Nightly Diff
+
+on:
+  schedule:
+    # Run nightly at 06:00 UTC (11 PM PT) during WWDC season
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: "Update the baseline snapshot instead of diffing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  wwdc-diff:
+    name: Diff App Intents Headers
+    runs-on: macos-14
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-path
+          xcrun --sdk macosx --show-sdk-version
+
+      - name: Restore snapshot cache
+        uses: actions/cache@v4
+        with:
+          path: .wwdc/snapshot.json
+          key: wwdc-snapshot-${{ runner.os }}
+          restore-keys: |
+            wwdc-snapshot-
+
+      - name: Run WWDC diff
+        if: ${{ !inputs.snapshot }}
+        run: npx tsx scripts/wwdc-diff.ts --ci
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update snapshot
+        if: ${{ inputs.snapshot }}
+        run: npx tsx scripts/wwdc-diff.ts --snapshot
+
+      - name: Save snapshot cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .wwdc/snapshot.json
+          key: wwdc-snapshot-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Upload diff report
+        if: ${{ !inputs.snapshot }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwdc-diff-report
+          path: |
+            .wwdc/diff-report.md
+            .wwdc/diff-report.json
+          if-no-files-found: ignore
