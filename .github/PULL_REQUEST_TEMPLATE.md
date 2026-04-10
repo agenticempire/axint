@@ -22,4 +22,3 @@ Closes #
 - [ ] Tests added/updated
 - [ ] Lint and type checks pass (`npm run lint && npm run typecheck`)
 - [ ] Documentation updated (if applicable)
-- [ ] CLA signed
