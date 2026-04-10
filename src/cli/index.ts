@@ -406,10 +406,7 @@ program
   .description("Eject an intent to standalone Swift with no Axint dependency")
   .argument("<file>", "Path to the TypeScript intent definition")
   .option("-o, --out <dir>", "Output directory for ejected files", ".")
-  .option(
-    "--include-tests",
-    "Generate a basic XCTest file alongside the Swift"
-  )
+  .option("--include-tests", "Generate a basic XCTest file alongside the Swift")
   .option(
     "--format",
     "Pipe generated Swift through swift-format with the Axint house style (macOS/Linux if swift-format is on $PATH)"
@@ -477,7 +474,9 @@ program
         console.log(`  \x1b[1mOutput directory:\x1b[0m ${resolve(options.out)}`);
         console.log();
         console.log(`  These files are now standalone and have no Axint dependency.`);
-        console.log(`  You can commit them to version control and use them in your project.`);
+        console.log(
+          `  You can commit them to version control and use them in your project.`
+        );
         console.log();
       } catch (err: unknown) {
         if (
@@ -547,7 +546,7 @@ program
   .action(async () => {
     const { homedir } = await import("node:os");
     const { join } = await import("node:path");
-    const { execSync } = await import("node:child_process");
+    const { spawn } = await import("node:child_process");
 
     const configDir = join(homedir(), ".axint");
     const credPath = join(configDir, "credentials.json");
@@ -588,7 +587,7 @@ program
       console.log();
       console.log(`  \x1b[2mWaiting for authorization…\x1b[0m`);
 
-      // Try to open the browser
+      // Best-effort browser open — spawn with array args to avoid shell injection
       try {
         const openCmd =
           process.platform === "darwin"
@@ -596,9 +595,9 @@ program
             : process.platform === "win32"
               ? "start"
               : "xdg-open";
-        execSync(`${openCmd} "${verification_uri}"`, { stdio: "ignore" });
+        spawn(openCmd, [verification_uri], { stdio: "ignore", detached: true }).unref();
       } catch {
-        /* browser open is best-effort */
+        // non-blocking — user can open the URL manually
       }
 
       // Poll for the token
