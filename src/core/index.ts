@@ -1,4 +1,4 @@
-export { compileFile, compileSource } from "./compiler.js";
+export { compileFile, compileSource, compileFromIR, irFromJSON } from "./compiler.js";
 export { parseIntentSource, ParserError } from "./parser.js";
 export {
   generateSwift,
