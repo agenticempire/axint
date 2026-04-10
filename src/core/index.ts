@@ -19,3 +19,8 @@ export {
 } from "./types.js";
 export type * from "./types.js";
 export type { EjectOptions, EjectResult } from "./eject.js";
+
+// Re-export SDK authoring helpers so `import { defineIntent, param } from "@axintai/compiler"`
+// works out of the box — the most common import path for new users.
+export { defineIntent, param } from "../sdk/index.js";
+export type { IntentDefinition, ParamConfig } from "../sdk/index.js";

@@ -3,7 +3,7 @@
  *
  * Demonstrates: number defaults, boolean params, multiple param types
  */
-import { defineIntent, param } from "axint";
+import { defineIntent, param } from "@axintai/compiler";
 
 export default defineIntent({
   name: "SetLights",

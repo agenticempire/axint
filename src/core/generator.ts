@@ -98,7 +98,10 @@ export function generateSwift(intent: IRIntent): string {
   }
 
   // Perform function with return-type aware signature
-  const returnTypeSignature = generateReturnSignature(intent.returnType, intent.customResultType);
+  const returnTypeSignature = generateReturnSignature(
+    intent.returnType,
+    intent.customResultType
+  );
   lines.push(`    func perform() async throws -> ${returnTypeSignature} {`);
   lines.push(`        // TODO: Implement your intent logic here.`);
 
@@ -111,9 +114,7 @@ export function generateSwift(intent: IRIntent): string {
   if (intent.donateOnPerform) {
     lines.push(`        `);
     lines.push(`        // Donate this intent to Siri and Spotlight`);
-    lines.push(`        if let result = try? await perform() {`);
-    lines.push(`            IntentDonationManager.shared.donate(self)`);
-    lines.push(`        }`);
+    lines.push(`        try? await IntentDonationManager.shared.donate(intent: self)`);
   }
 
   lines.push(generatePerformReturn(intent.returnType, intent.customResultType));
@@ -131,10 +132,17 @@ export function generateSwift(intent: IRIntent): string {
  */
 export function generateEntity(entity: IREntity): string {
   const lines: string[] = [];
+  const propertyNames = new Set(entity.properties.map((p) => p.name));
 
   lines.push(`struct ${entity.name}: AppEntity {`);
-  lines.push(`    typealias DefaultQuery = ${entity.name}Query`);
+  lines.push(`    static var defaultQuery = ${entity.name}Query()`);
   lines.push(``);
+
+  // Apple requires AppEntity to have an id property
+  const hasId = propertyNames.has("id");
+  if (!hasId) {
+    lines.push(`    var id: String`);
+  }
 
   // Properties
   for (const prop of entity.properties) {
@@ -142,26 +150,35 @@ export function generateEntity(entity: IREntity): string {
     lines.push(`    var ${prop.name}: ${swiftType}`);
   }
 
-  if (entity.properties.length > 0) {
-    lines.push(``);
-  }
+  lines.push(``);
 
   // Type display representation
-  lines.push(`    static let typeDisplayRepresentation: TypeDisplayRepresentation = TypeDisplayRepresentation(`);
-  lines.push(`        name: LocalizedStringResource("${escapeSwiftString(entity.name)}")`);
+  lines.push(
+    `    static let typeDisplayRepresentation: TypeDisplayRepresentation = TypeDisplayRepresentation(`
+  );
+  lines.push(
+    `        name: LocalizedStringResource("${escapeSwiftString(entity.name)}")`
+  );
   lines.push(`    )`);
   lines.push(``);
 
-  // Display representation computed property
+  // Display representation computed property — title/subtitle are property
+  // name references, so we emit Swift string interpolation \(propName)
   lines.push(`    var displayRepresentation: DisplayRepresentation {`);
-  const displayTitle = entity.displayRepresentation.title;
   lines.push(`        DisplayRepresentation(`);
-  lines.push(`            title: "${escapeSwiftString(displayTitle)}",`);
+  lines.push(
+    `            title: "\\(${entity.displayRepresentation.title})"${entity.displayRepresentation.subtitle || entity.displayRepresentation.image ? "," : ""}`
+  );
   if (entity.displayRepresentation.subtitle) {
-    lines.push(`            subtitle: "${escapeSwiftString(entity.displayRepresentation.subtitle)}",`);
+    const hasImage = !!entity.displayRepresentation.image;
+    lines.push(
+      `            subtitle: "\\(${entity.displayRepresentation.subtitle})"${hasImage ? "," : ""}`
+    );
   }
   if (entity.displayRepresentation.image) {
-    lines.push(`            image: .init(systemName: "${escapeSwiftString(entity.displayRepresentation.image)}")`);
+    lines.push(
+      `            image: .init(systemName: "${escapeSwiftString(entity.displayRepresentation.image)}")`
+    );
   }
   lines.push(`        )`);
   lines.push(`    }`);
@@ -179,7 +196,9 @@ export function generateEntityQuery(entity: IREntity): string {
   const queryType = entity.queryType;
 
   lines.push(`struct ${entity.name}Query: EntityQuery {`);
-  lines.push(`    func entities(for identifiers: [${entity.name}.ID]) async throws -> [${entity.name}] {`);
+  lines.push(
+    `    func entities(for identifiers: [${entity.name}.ID]) async throws -> [${entity.name}] {`
+  );
   lines.push(`        // TODO: Fetch entities by IDs`);
   lines.push(`        return []`);
   lines.push(`    }`);
@@ -195,7 +214,9 @@ export function generateEntityQuery(entity: IREntity): string {
     // ID-based query is handled by entities(for:) above
     lines.push(`    // ID-based query is provided by the entities(for:) method above`);
   } else if (queryType === "string") {
-    lines.push(`    func entities(matching string: String) async throws -> [${entity.name}] {`);
+    lines.push(
+      `    func entities(matching string: String) async throws -> [${entity.name}] {`
+    );
     lines.push(`        // TODO: Search entities by string`);
     lines.push(`        return []`);
     lines.push(`    }`);
@@ -227,9 +248,7 @@ export function generateInfoPlistFragment(intent: IRIntent): string | undefined 
 
   const lines: string[] = [];
   lines.push(`<?xml version="1.0" encoding="UTF-8"?>`);
-  lines.push(
-    `<!-- Info.plist fragment generated by Axint for ${intent.name}Intent -->`
-  );
+  lines.push(`<!-- Info.plist fragment generated by Axint for ${intent.name}Intent -->`);
   lines.push(`<!-- Merge these keys into your app's Info.plist. -->`);
   lines.push(`<plist version="1.0">`);
   lines.push(`<dict>`);
@@ -255,9 +274,7 @@ export function generateInfoPlistFragment(intent: IRIntent): string | undefined 
  * a typed value (string, array), users must edit the fragment after
  * generation — a TODO comment is emitted to flag this.
  */
-export function generateEntitlementsFragment(
-  intent: IRIntent
-): string | undefined {
+export function generateEntitlementsFragment(intent: IRIntent): string | undefined {
   const ents = intent.entitlements;
   if (!ents || ents.length === 0) return undefined;
 

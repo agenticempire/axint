@@ -135,14 +135,10 @@ export async function scaffoldProject(opts: ScaffoldOptions): Promise<ScaffoldRe
     ["node_modules", "dist", ".DS_Store", ".axint-sandbox", "*.log", ""].join("\n")
   );
 
-  // 6. The starter intent itself — pulled straight from the template library
-  //    but with the `axint` import swapped to `@axintai/compiler/sdk` so it
-  //    resolves against the scaffolded dependency.
-  const intentSource = tpl.source.replace(
-    /from "axint"/g,
-    `from "@axintai/compiler/sdk"`
-  );
-  await write(`intents/${template}.ts`, intentSource);
+  // 6. The starter intent itself — pulled straight from the template library.
+  //    Templates already use `@axintai/compiler` which resolves against the
+  //    scaffolded dependency.
+  await write(`intents/${template}.ts`, tpl.source);
 
   // 7. .vscode/mcp.json — ready to `npx axint-mcp` from Cursor/Claude Code
   await write(
