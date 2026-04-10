@@ -17,8 +17,9 @@ means `axintai compile` never imports user code.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from .ir import IntentIR, IntentParameter, ParamType
 
@@ -42,26 +43,33 @@ class IntentParameterSpec:
         )
 
 
+# Type aliases — the class below has methods named `int`, `float`, and
+# `boolean` that shadow builtins. These aliases let mypy resolve them.
+_Int = int
+_Float = float
+_Bool = bool
+
+
 class _ParamFactory:
     """Typed factories for intent parameters — mirrors the TS `param.*` API."""
 
     def string(self, description: str, *, optional: bool = False, default: str | None = None) -> IntentParameterSpec:
         return IntentParameterSpec("string", description, optional, default)
 
-    def int(self, description: str, *, optional: bool = False, default: int | None = None) -> IntentParameterSpec:
+    def int(self, description: str, *, optional: bool = False, default: _Int | None = None) -> IntentParameterSpec:
         return IntentParameterSpec("int", description, optional, default)
 
-    def double(self, description: str, *, optional: bool = False, default: float | None = None) -> IntentParameterSpec:
+    def double(self, description: str, *, optional: bool = False, default: _Float | None = None) -> IntentParameterSpec:
         return IntentParameterSpec("double", description, optional, default)
 
-    def float(self, description: str, *, optional: bool = False, default: float | None = None) -> IntentParameterSpec:
+    def float(self, description: str, *, optional: bool = False, default: _Float | None = None) -> IntentParameterSpec:
         return IntentParameterSpec("float", description, optional, default)
 
-    def number(self, description: str, *, optional: bool = False, default: int | None = None) -> IntentParameterSpec:
+    def number(self, description: str, *, optional: bool = False, default: _Int | None = None) -> IntentParameterSpec:
         """Deprecated alias for `param.int` — kept for parity with the TS SDK."""
         return IntentParameterSpec("number", description, optional, default)
 
-    def boolean(self, description: str, *, optional: bool = False, default: bool | None = None) -> IntentParameterSpec:
+    def boolean(self, description: str, *, optional: bool = False, default: _Bool | None = None) -> IntentParameterSpec:
         return IntentParameterSpec("boolean", description, optional, default)
 
     def date(self, description: str, *, optional: bool = False) -> IntentParameterSpec:

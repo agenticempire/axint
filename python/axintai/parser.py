@@ -96,13 +96,11 @@ def _is_define_intent(call: ast.Call) -> bool:
     """Detect `define_intent(...)` or `axintai.define_intent(...)` calls."""
     if isinstance(call.func, ast.Name) and call.func.id == "define_intent":
         return True
-    if (
+    return (
         isinstance(call.func, ast.Attribute)
         and call.func.attr == "define_intent"
         and isinstance(call.func.value, ast.Name)
-    ):
-        return True
-    return False
+    )
 
 
 def _ir_from_call(call: ast.Call, *, file: str | None) -> IntentIR:

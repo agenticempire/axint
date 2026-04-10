@@ -13,8 +13,7 @@ If you change one, change the other.
 
 from __future__ import annotations
 
-from .ir import IntentIR, IntentParameter, ParamType
-
+from .ir import IntentIR, IntentParameter
 
 # ── Swift Type Mapping ──────────────────────────────────────────────
 

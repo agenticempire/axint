@@ -27,10 +27,10 @@ create_event = define_intent(
 
 
 def _write_temp(content: str, suffix: str = ".py") -> Path:
-    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False)
-    tmp.write(content)
-    tmp.flush()
-    return Path(tmp.name)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False) as tmp:
+        tmp.write(content)
+        tmp.flush()
+        return Path(tmp.name)
 
 
 def test_parse_command(capsys) -> None:

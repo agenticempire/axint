@@ -11,8 +11,11 @@ function hasSwiftToolchain(): boolean {
   }
 }
 
+const IS_MACOS = process.platform === "darwin";
 const SWIFT_AVAILABLE = hasSwiftToolchain();
-const describeOnMac = SWIFT_AVAILABLE ? describe : describe.skip;
+// AppIntents framework only exists on macOS — Linux runners have Swift
+// but not the Apple frameworks, so we must check both.
+const describeOnMac = IS_MACOS && SWIFT_AVAILABLE ? describe : describe.skip;
 
 describe("sandboxCompile", () => {
   const hello = `import Foundation
