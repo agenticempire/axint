@@ -19,7 +19,15 @@ import {
   generateEntitlementsFragment,
 } from "./generator.js";
 import { validateIntent, validateSwiftSource } from "./validator.js";
-import type { CompilerOutput, CompilerOptions, Diagnostic } from "./types.js";
+import type {
+  CompilerOutput,
+  CompilerOptions,
+  Diagnostic,
+  IRIntent,
+  IRType,
+  IRParameter,
+  IRPrimitiveType,
+} from "./types.js";
 
 export interface CompileResult {
   success: boolean;
@@ -64,8 +72,6 @@ export function compileSource(
   fileName: string = "<stdin>",
   options: Partial<CompilerOptions> = {}
 ): CompileResult {
-  const diagnostics: Diagnostic[] = [];
-
   // 1. Parse → IR (catch ParserError as a diagnostic so the caller
   //    sees a clean error list instead of an uncaught exception)
   let ir;
@@ -90,7 +96,26 @@ export function compileSource(
     throw err;
   }
 
-  // 2. Validate IR
+  return compileFromIR(ir, options);
+}
+
+/**
+ * Compile from a pre-built IR (skips parsing). This is the bridge
+ * that allows any frontend language (Python, Rust, Go) to emit an
+ * IRIntent JSON and feed it directly into the Swift generator.
+ *
+ * Used by:
+ *   - `compileSource()` after its own parse step
+ *   - `axint compile --from-ir <file.json>` for cross-language pipelines
+ *   - The Python SDK's `axintai compile` command
+ */
+export function compileFromIR(
+  ir: IRIntent,
+  options: Partial<CompilerOptions> = {}
+): CompileResult {
+  const diagnostics: Diagnostic[] = [];
+
+  // 1. Validate IR
   const irDiagnostics = validateIntent(ir);
   diagnostics.push(...irDiagnostics);
 
@@ -98,10 +123,10 @@ export function compileSource(
     return { success: false, diagnostics };
   }
 
-  // 3. Generate Swift
+  // 2. Generate Swift
   const swiftCode = generateSwift(ir);
 
-  // 4. Validate generated Swift
+  // 3. Validate generated Swift
   if (options.validate !== false) {
     const swiftDiagnostics = validateSwiftSource(swiftCode);
     diagnostics.push(...swiftDiagnostics);
@@ -111,7 +136,7 @@ export function compileSource(
     }
   }
 
-  // 5. Optional fragments
+  // 4. Optional fragments
   const infoPlistFragment = options.emitInfoPlist
     ? generateInfoPlistFragment(ir)
     : undefined;
@@ -119,7 +144,7 @@ export function compileSource(
     ? generateEntitlementsFragment(ir)
     : undefined;
 
-  // 6. Build output
+  // 5. Build output
   const intentFileName = `${ir.name}Intent.swift`;
   const outputPath = options.outDir
     ? `${options.outDir}/${intentFileName}`
@@ -137,4 +162,83 @@ export function compileSource(
     },
     diagnostics,
   };
+}
+
+// ─── Cross-Language IR Bridge ───────────────────────────────────────
+
+/** Valid primitive type strings from any SDK */
+const VALID_PRIMITIVES = new Set<string>([
+  "string",
+  "int",
+  "double",
+  "float",
+  "boolean",
+  "date",
+  "duration",
+  "url",
+]);
+
+/**
+ * Parse a raw JSON object into a typed IRIntent. Accepts the flat
+ * format that the Python SDK's `IntentIR.to_dict()` produces, where
+ * parameter types are plain strings rather than `{ kind, value }` objects.
+ *
+ * This is the key function that bridges the Python → TypeScript gap.
+ */
+export function irFromJSON(data: Record<string, unknown>): IRIntent {
+  const parameters: IRParameter[] = ((data.parameters as unknown[]) ?? []).map(
+    (p: unknown) => {
+      const param = p as Record<string, unknown>;
+      return {
+        name: param.name as string,
+        type: normalizeIRType(param.type),
+        title: (param.title as string) ?? (param.description as string) ?? "",
+        description: (param.description as string) ?? "",
+        isOptional: (param.optional as boolean) ?? (param.isOptional as boolean) ?? false,
+        defaultValue: param.default ?? param.defaultValue,
+      };
+    }
+  );
+
+  return {
+    name: data.name as string,
+    title: data.title as string,
+    description: data.description as string,
+    domain: data.domain as string | undefined,
+    parameters,
+    returnType: data.returnType
+      ? normalizeIRType(data.returnType)
+      : { kind: "primitive", value: "string" },
+    sourceFile: (data.sourceFile as string) ?? undefined,
+    entitlements: (data.entitlements as string[]) ?? undefined,
+    infoPlistKeys: (data.infoPlistKeys as Record<string, string>) ?? undefined,
+    isDiscoverable: (data.isDiscoverable as boolean) ?? true,
+  };
+}
+
+/**
+ * Normalize a type value from JSON. The Python SDK sends types as
+ * plain strings ("string", "int", etc.) while the TS IR uses
+ * `{ kind: "primitive", value: "string" }`. This function handles both.
+ */
+function normalizeIRType(type: unknown): IRType {
+  if (typeof type === "string") {
+    const normalized = type === "number" ? "int" : type;
+    if (VALID_PRIMITIVES.has(normalized)) {
+      return { kind: "primitive", value: normalized as IRPrimitiveType };
+    }
+    return { kind: "primitive", value: "string" };
+  }
+  if (type && typeof type === "object") {
+    const t = type as Record<string, unknown>;
+    if (t.kind === "primitive") return type as IRType;
+    if (t.kind === "array")
+      return { kind: "array", elementType: normalizeIRType(t.elementType) };
+    if (t.kind === "optional")
+      return { kind: "optional", innerType: normalizeIRType(t.innerType) };
+    if (t.kind === "entity") return type as IRType;
+    if (t.kind === "enum") return type as IRType;
+  }
+  // Default fallback
+  return { kind: "primitive", value: "string" };
 }
