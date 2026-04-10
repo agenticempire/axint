@@ -113,9 +113,8 @@ function kebab(pascal: string): string {
  * from getting garbled by rogue newlines or tabs in a description.
  */
 function sanitize(s: string): string {
-  // eslint-disable-next-line no-control-regex
   return s
-    .replace(/[\x00-\x1f\x7f]+/g, " ")
+    .replace(/[\x00-\x1f\x7f]+/g, " ") // eslint-disable-line no-control-regex
     .replace(/\s+/g, " ")
     .trim();
 }
