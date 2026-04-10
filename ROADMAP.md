@@ -1,6 +1,6 @@
 # Axint Roadmap
 
-_Last updated: April 2026 · Current release: [v0.1.1](https://github.com/agenticempire/axint/releases)_
+_Last updated: April 2026 · Current release: [v0.2.2](https://github.com/agenticempire/axint/releases) · 60 days to WWDC 2026_
 
 Axint is the open-source compiler that turns TypeScript `defineIntent()` calls into native Apple App Intents. This roadmap tracks what's shipped, what's next, and where we need help.
 
@@ -8,31 +8,61 @@ We ship small, tight releases. Everything on this page is open for contribution 
 
 ---
 
-## Shipped in v0.1.1
+## Shipped in v0.2.2
 
-- Core type system and IR (Intermediate Representation)
-- Parser: extracts `defineIntent()` calls from TypeScript source
-- Swift code generator with `@Parameter` decorators and `AppIntent` conformance
-- Validator with 15 diagnostic codes (AX001–AX202) and fix suggestions
-- CLI: `axint compile` and `axint validate` with `--json` output
-- MCP server: `axint_compile` and `axint_validate` tools for Claude Desktop, Claude Code, Cursor, and Windsurf
-- 117 tests with snapshot testing and security coverage (98%+)
-- Release workflow with automated npm publish
-- In-browser playground on [axint.ai](https://axint.ai) (pure TypeScript, zero server round-trip)
+- **`axint init` scaffolder** — one command drops a complete Axint project with pinned deps, tsconfig, a starter intent, and an MCP config pre-wired for Cursor, Claude Code, and Windsurf.
+- **`--emit-info-plist` / `--emit-entitlements` CLI flags** — wired through to the generator, so the Quick Start in the README actually works.
+- **Stage 4 validator (`--sandbox`)** — builds generated Swift in an SPM sandbox on macOS. Gives every intent a "swift build passes" badge before it ever touches Xcode.
+- **`axint templates` command** — list and print bundled templates from the CLI without touching the MCP.
+- **Logo and brand assets** — official SVG mark in `docs/assets/`.
+
+## Shipped in v0.2.1
+
+- **Package rename**: `axint` → `@axintai/compiler` with npm provenance.
+- Vendored compiler in the website sync'd to the published package.
+
+## Shipped in v0.2.0
+
+- Real TypeScript AST parser (replaced the v0.1.x regex walker).
+- Numeric type fidelity: `param.int`, `param.double`, `param.float` → `Int`, `Double`, `Float`.
+- Return-type inference — `perform()` bodies emit `some IntentResult & ReturnsValue<T>`.
+- `emitInfoPlist` / `emitEntitlements` options on `CompilerOptions` (wired to CLI in v0.2.2).
+- `axint_scaffold`, `axint_list_templates`, `axint_template` MCP tools.
+- Ten reference templates: messaging, productivity, health, commerce, smart home.
+- Intent-level metadata (`entitlements`, `infoPlistKeys`, `isDiscoverable`).
+- New validator rules AX107–AX109; new parser diagnostics AX006–AX008.
+- `ios26` / `macos26` target options ready for WWDC.
+
+## Shipped in v0.1.x
+
+- Core type system and IR, parser, generator, validator with 12 diagnostic codes.
+- CLI (`compile`, `validate`, `--json`), MCP server (`axint_compile`, `axint_validate`).
+- 117 tests with snapshot + security coverage (98%+).
+- In-browser playground on [axint.ai](https://axint.ai).
 
 ---
 
-## In Progress
+## In Progress — WWDC 2026 sprint
 
-### Enum & entity resolvers
-Custom Swift types, query resolvers, and disambiguation flows so intents can reference app entities (contacts, playlists, workouts) with the full App Intents entity machinery.
+### Python SDK (v0.3.0)
+Python parity for `defineIntent()`: a libcst-based parser, a decorator API, and full MCP parity. The IR is already language-agnostic — Python plugs in alongside TypeScript.
 
-_Status: design → implementation · Target: v0.2.0_
+_Status: in flight · Target: v0.3.0 · ETA: April 22_
 
-### App Intent template library
-Canonical templates for the five most common intent categories: messaging, productivity, health, commerce, smart home. Each template ships as an importable TypeScript helper with a validated Swift output.
+### swift-format integration (v0.3.0)
+Pipe every generated Swift file through Apple's `swift-format` with the default style. Free credibility and alignment with Apple's own codebase.
 
-_Status: scoping · Target: v0.2.0_
+_Status: in flight · Target: v0.3.0 · ETA: April 15_
+
+### WWDC API adapter pipeline (v0.3.0)
+Nightly CI that diffs Apple's App Intents headers. The goal: a v0.3.x release within 72 hours of the WWDC 2026 keynote with every new surface area adapted.
+
+_Status: scaffolded · Target: v0.3.x · ETA: within 72h of June 8_
+
+### Public docs site — docs.axint.ai (v0.3.0)
+Astro Starlight docs with one page per concept, live playground embeds, and a searchable API reference.
+
+_Status: scaffolding · Target: v0.3.0 · ETA: May 6_
 
 ---
 

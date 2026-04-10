@@ -28,10 +28,16 @@ the same Swift generator and hits the same validator rules.
 
 from __future__ import annotations
 
-__version__ = "0.1.0a1"
+__version__ = "0.1.0"
 
+from .generator import (
+    generate_entitlements_fragment,
+    generate_info_plist_fragment,
+    generate_swift,
+)
 from .ir import AppleTarget, IntentIR, IntentParameter, ParamType
 from .sdk import Intent, IntentDefinition, define_intent, param
+from .validator import ValidatorDiagnostic, validate_intent
 
 __all__ = [
     "AppleTarget",
@@ -40,7 +46,12 @@ __all__ = [
     "IntentIR",
     "IntentParameter",
     "ParamType",
+    "ValidatorDiagnostic",
     "__version__",
     "define_intent",
+    "generate_entitlements_fragment",
+    "generate_info_plist_fragment",
+    "generate_swift",
     "param",
+    "validate_intent",
 ]

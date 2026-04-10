@@ -6,7 +6,7 @@
 
 Define Apple App Intents in Python. Ship them to Siri, Shortcuts, and Spotlight through the same open-source compiler pipeline that powers the TypeScript SDK.
 
-> **Alpha.** This is `0.1.0a1`. The authoring API (`define_intent` + `param`) is stable, the AST parser handles every core construct, and the IR is byte-compatible with the TypeScript compiler. Swift codegen is currently handled by shelling out to `@axintai/compiler` — the cross-language bridge lands in `v0.3.0`.
+The Python SDK includes a **native Swift generator** — no Node.js dependency required. Parse, validate, and compile intents entirely from Python.
 
 ## Install
 
@@ -38,35 +38,78 @@ create_event = define_intent(
 ## Compile it
 
 ```bash
-axintai parse intents/create_event.py            # print the IR
-axintai parse intents/create_event.py --json     # IR as JSON
-axintai compile intents/create_event.py          # IR → Swift (via @axintai/compiler)
+# Parse and inspect the IR
+axintai parse intents/create_event.py
+axintai parse intents/create_event.py --json
+
+# Compile Python → Swift (native, no Node.js needed)
+axintai compile intents/create_event.py --stdout
+axintai compile intents/create_event.py --out ios/Intents/
+
+# With companion fragments
+axintai compile intents/create_event.py --out ios/Intents/ --emit-info-plist --emit-entitlements
+
+# Validate without generating Swift
+axintai validate intents/create_event.py
+
+# Machine-readable output
+axintai compile intents/create_event.py --json
+```
+
+## Use it as a library
+
+```python
+from axintai import define_intent, param, generate_swift, validate_intent
+
+intent = define_intent(
+    name="SendMessage",
+    title="Send Message",
+    description="Sends a message",
+    domain="messaging",
+    params={"body": param.string("Message text")},
+)
+
+ir = intent.to_ir()
+diagnostics = validate_intent(ir)
+swift_code = generate_swift(ir)
+```
+
+## Cross-language bridge
+
+The Python SDK produces the same IR JSON as the TypeScript SDK. You can pipe it into the TypeScript compiler for additional validation:
+
+```bash
+axintai parse intent.py --json | axint compile - --from-ir --stdout
 ```
 
 ## Why Python?
 
-Every language-agnostic analysis layer in Axint — the IR, the validator, the generator — already works with a stable JSON schema. Adding Python is almost free, and it unlocks a massive population of developers who write Shortcuts but shouldn't have to learn TypeScript to do it.
+Every language-agnostic analysis layer in Axint — the IR, the validator, the generator — works with a stable JSON schema. The Python SDK implements the full pipeline natively, unlocking a massive population of developers who shouldn't have to learn TypeScript to build Siri integrations.
 
-The Python parser never runs your code. It walks the Python AST the same way the TypeScript compiler walks the TS AST, so `axintai parse` is deterministic, sandboxable, and reproducible.
+The Python parser never runs your code. It walks the Python AST the same way the TypeScript compiler walks the TS AST, so `axintai compile` is deterministic, sandboxable, and reproducible.
 
 ## Parity with the TypeScript SDK
 
-| Feature                          | TypeScript | Python     |
-|----------------------------------|------------|------------|
-| `define_intent` / `defineIntent` | ✅          | ✅          |
-| `param.string/int/double/...`    | ✅          | ✅          |
-| `entitlements`, `infoPlistKeys`  | ✅          | ✅          |
-| `isDiscoverable`                 | ✅          | ✅          |
-| Multi-intent files               | ✅          | ✅ (parse)  |
-| Swift codegen                    | ✅          | ⚠️ via TS    |
-| Return-type inference            | ✅          | 🟡 v0.3.0   |
-| MCP server                       | ✅          | 🟡 v0.3.0   |
+| Feature                          | TypeScript | Python |
+|----------------------------------|------------|--------|
+| `define_intent` / `defineIntent` | ✅          | ✅      |
+| `param.string/int/double/...`    | ✅          | ✅      |
+| `entitlements`, `infoPlistKeys`  | ✅          | ✅      |
+| `isDiscoverable`                 | ✅          | ✅      |
+| Multi-intent files               | ✅          | ✅      |
+| Swift codegen (native)           | ✅          | ✅      |
+| IR validation                    | ✅          | ✅      |
+| Info.plist fragment              | ✅          | ✅      |
+| Entitlements fragment            | ✅          | ✅      |
+| CLI (parse/compile/validate)     | ✅          | ✅      |
+| Return-type inference            | ✅          | 🟡 v0.3 |
+| MCP server                       | ✅          | 🟡 v0.3 |
 
 ## Development
 
 ```bash
 pip install -e '.[dev]'
-pytest
+pytest -v
 ruff check .
 mypy axintai
 ```
@@ -75,4 +118,4 @@ mypy axintai
 
 Apache 2.0 — see [LICENSE](../LICENSE).
 
-Part of the [Axint](https://axint.ai) project.
+Part of the [Axint](https://axint.ai) project by [Agentic Empire](https://github.com/agenticempire).
