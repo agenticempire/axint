@@ -96,6 +96,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.9.0",
     "commander": "^13.1.0",
-    "typescript": "^5.7.0"
+    "typescript": "^6.0.2"
   }
 }
