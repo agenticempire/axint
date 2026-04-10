@@ -33,7 +33,11 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  rmSync(TMP_DIR, { recursive: true, force: true });
+  try {
+    rmSync(TMP_DIR, { recursive: true, force: true });
+  } catch {
+    // cleanup is best-effort — CI runners may restrict temp dir removal
+  }
 });
 
 // ── compileFile ──────────────────────────────────────────────────────

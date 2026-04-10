@@ -1,6 +1,6 @@
 # Axint Roadmap
 
-_Last updated: April 2026 · Current release: [v0.2.2](https://github.com/agenticempire/axint/releases) · 60 days to WWDC 2026_
+_Last updated: April 2026 · Current release: [v0.3.0](https://github.com/agenticempire/axint/releases) · 60 days to WWDC 2026_
 
 Axint is the open-source compiler that turns TypeScript `defineIntent()` calls into native Apple App Intents and MCP tool servers. This roadmap tracks what's shipped, what's next, and where we need help.
 
@@ -9,6 +9,14 @@ We ship small, tight releases. Everything on this page is open for contribution 
 ---
 
 ## Shipped
+
+### v0.3.0
+
+- **Xcode SPM build plugin** (`spm-plugin/`) — `AxintPlugin` Swift Package with `BuildToolPlugin` that auto-compiles `.ts` intents during `swift build` and Xcode builds. Discovers `axint` via `npx` or `PATH`.
+- **`axint eject`** (`src/core/eject.ts`) — generates standalone Swift with zero Axint dependency. Strips regeneration markers, adds Apple documentation references. Optional XCTest scaffold generation. 12 tests.
+- **EntityQuery + DynamicOptionsProvider** — full IR support (`entityQuery`, `dynamicOptions` types, `IREntity` interface), parser (`defineEntity()`, `param.entity()`, `param.dynamicOptions()`), generator (AppEntity structs, EntityQuery conformances, intent donations), validator (rules AX110–AX114), and two new templates (`search-tasks`, `dynamic-playlist`).
+- **WWDC API adapter pipeline** (`scripts/wwdc-diff.ts`) — nightly CI scanning Apple SDK headers for API changes with priority-ranked adapter recommendations and auto GitHub issue creation on detected changes.
+- **Launch kit** (`launch/`) — HN post draft, Twitter thread, beta-tester seeding plan, Discord channel layout, pre-launch → launch-day → post-launch checklist.
 
 ### v0.2.2
 
@@ -44,41 +52,11 @@ We ship small, tight releases. Everything on this page is open for contribution 
 
 ---
 
-## Priority — v0.3.0 (Target: late May 2026)
+## Priority — v0.3.x (Target: late May 2026)
 
-These are the highest-impact features for adoption and credibility, ordered by impact. The thesis: Axint's MCP meta-layer — agents that build agents — is a network effect that compounds through the AI coding tool ecosystem. Every feature below is measured by how fast it turns that flywheel.
+Remaining v0.3.0-scope features and polish before the public launch.
 
-### 1. Xcode SPM build plugin
-
-Ship an SPM package plugin so `axint compile` runs as part of `swift build` and Xcode builds. This is the single highest-leverage feature for adoption — it eliminates the "extra step" friction and puts Axint inside the real workflow where iOS developers already live.
-
-_Status: design · Target: v0.3.0 · Impact: high_
-
-### 2. `axint eject`
-
-Generate clean, standalone Swift that no longer depends on Axint. One command produces production-ready code with no tool lock-in. This gives teams confidence to adopt — they can always walk away with their Swift intact.
-
-_Status: not started · Target: v0.3.0 · Impact: high_
-
-### 3. Complex intent support (EntityQuery, DynamicOptionsProvider)
-
-Handle the hard cases that real-world App Intents require: `EntityQuery` conformance, `DynamicOptionsProvider`, parameterized Shortcuts actions, intent donations for Spotlight, and custom result types. Simple intents got us to v0.2. Complex intents are where the real value lives — without these, developers outgrow Axint in a week.
-
-_Status: design · Target: v0.3.0 · Impact: high_
-
-### 4. WWDC API adapter pipeline
-
-Nightly CI that diffs Apple's App Intents headers. The goal: a v0.3.x release within 72 hours of the WWDC 2026 keynote with every new surface area adapted. First tool to support new WWDC APIs wins the news cycle. Must be running and tested by late May — not started in late May.
-
-_Status: scaffolded · Target: v0.3.0 (CI live by May 20) · Impact: high_
-
-### 5. Launch kit
-
-The difference between 100 stars and 1,000 stars is launch execution, not product quality. Ship the launch infrastructure alongside the product: Discord community, Hacker News launch post, Twitter/X thread, r/swift and r/programming posts, landing page conversion optimization (axint.ai → install funnel, not just a playground). Seed 10–15 influential iOS/AI developers as beta testers before the public launch.
-
-_Status: not started · Target: v0.3.0 · Impact: high_
-
-### 6. Template registry with `axint init --template`
+### 1. Template registry with `axint init --template`
 
 Expand beyond the current 10 templates to 25+. Pre-built intents for every common pattern: messaging, health, commerce, smart home, media playback, navigation, file management, search, journaling, RSS, fitness tracking, home automation scenes. `axint init --template messaging` should produce a working intent in 5 seconds.
 
