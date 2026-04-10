@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@axintai/compiler"><img src="https://img.shields.io/npm/v/@axintai/compiler?color=f05138&label=npm" alt="npm" /></a>
   <a href="https://github.com/agenticempire/axint/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License" /></a>
-  <a href="https://github.com/agenticempire/axint/actions"><img src="https://img.shields.io/badge/tests-117%20passing-brightgreen" alt="Tests" /></a>
+  <a href="https://github.com/agenticempire/axint/actions/workflows/ci.yml"><img src="https://github.com/agenticempire/axint/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://axint.ai"><img src="https://img.shields.io/badge/playground-axint.ai-7c3aed" alt="Playground" /></a>
   <a href="https://axint.ai/wwdc"><img src="https://img.shields.io/badge/WWDC%202026-60%20days-f05138" alt="WWDC 2026" /></a>
 </p>
