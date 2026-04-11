@@ -27,6 +27,19 @@ ParamType = Literal[
 
 AppleTarget = Literal["ios17", "ios18", "ios26", "macos14", "macos15", "macos26"]
 
+ViewStateKind = Literal["state", "binding", "environment", "observed"]
+WidgetFamily = Literal[
+    "systemSmall",
+    "systemMedium",
+    "systemLarge",
+    "systemExtraLarge",
+    "accessoryCircular",
+    "accessoryRectangular",
+    "accessoryInline",
+]
+WidgetRefreshPolicy = Literal["atEnd", "after", "never"]
+SceneKind = Literal["windowGroup", "window", "documentGroup", "settings"]
+
 
 def _parse_plist_keys(raw: Any) -> tuple[str, ...]:
     """Accept dict (TS format) or list (Python format) for backwards compat."""
@@ -131,6 +144,294 @@ class IntentIR:
             info_plist_keys=_parse_plist_keys(data.get("infoPlistKeys")),
             is_discoverable=data.get("isDiscoverable", True),
             return_type=data.get("returnType"),
+            source_file=data.get("sourceFile"),
+            source_line=data.get("sourceLine"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ViewPropIR:
+    """A single property (input from parent) on a SwiftUI view."""
+
+    name: str
+    type: ParamType
+    optional: bool = False
+    default: Any = None
+    description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": self.name,
+            "type": self.type,
+        }
+        if self.description:
+            out["description"] = self.description
+        if self.optional:
+            out["optional"] = True
+        if self.default is not None:
+            out["default"] = self.default
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class ViewStateIR:
+    """A single state property on a SwiftUI view."""
+
+    name: str
+    type: ParamType | Literal["array"]
+    kind: ViewStateKind = "state"
+    default: Any = None
+    element_type: str | None = None  # for array types
+    environment_key: str | None = None  # for environment bindings
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": self.name,
+            "type": self.type,
+        }
+        if self.kind != "state":
+            out["kind"] = self.kind
+        if self.element_type is not None:
+            out["elementType"] = self.element_type
+        if self.default is not None:
+            out["default"] = self.default
+        if self.environment_key is not None:
+            out["environmentKey"] = self.environment_key
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class ViewIR:
+    """Language-agnostic representation of a SwiftUI view definition."""
+
+    name: str
+    body: tuple[dict[str, Any], ...] = ()
+    props: tuple[ViewPropIR, ...] = ()
+    state: tuple[ViewStateIR, ...] = ()
+    source_file: str | None = None
+    source_line: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": self.name,
+            "body": list(self.body),
+        }
+        if self.props:
+            out["props"] = [p.to_dict() for p in self.props]
+        if self.state:
+            out["state"] = [s.to_dict() for s in self.state]
+        if self.source_file is not None:
+            out["sourceFile"] = self.source_file
+        if self.source_line is not None:
+            out["sourceLine"] = self.source_line
+        return out
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ViewIR:
+        props = tuple(
+            ViewPropIR(
+                name=p["name"],
+                type=p["type"],
+                optional=p.get("optional", False),
+                default=p.get("default"),
+                description=p.get("description", ""),
+            )
+            for p in data.get("props", [])
+        )
+        state = tuple(
+            ViewStateIR(
+                name=s["name"],
+                type=s["type"],
+                kind=s.get("kind", "state"),
+                default=s.get("default"),
+                element_type=s.get("elementType"),
+                environment_key=s.get("environmentKey"),
+            )
+            for s in data.get("state", [])
+        )
+        return cls(
+            name=data["name"],
+            body=tuple(data.get("body", [])),
+            props=props,
+            state=state,
+            source_file=data.get("sourceFile"),
+            source_line=data.get("sourceLine"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class WidgetEntryIR:
+    """A timeline entry field on a widget."""
+
+    name: str
+    type: ParamType
+    default: Any = None
+    description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": self.name,
+            "type": self.type,
+        }
+        if self.description:
+            out["description"] = self.description
+        if self.default is not None:
+            out["default"] = self.default
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class WidgetIR:
+    """Language-agnostic representation of a WidgetKit widget definition."""
+
+    name: str
+    display_name: str
+    description: str
+    families: tuple[WidgetFamily, ...] = ()
+    entry: tuple[WidgetEntryIR, ...] = ()
+    body: tuple[dict[str, Any], ...] = ()
+    refresh_interval: int | None = None
+    refresh_policy: WidgetRefreshPolicy = "atEnd"
+    source_file: str | None = None
+    source_line: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": self.name,
+            "displayName": self.display_name,
+            "description": self.description,
+            "families": list(self.families),
+            "body": list(self.body),
+        }
+        if self.entry:
+            out["entry"] = [e.to_dict() for e in self.entry]
+        if self.refresh_policy != "atEnd":
+            out["refreshPolicy"] = self.refresh_policy
+        if self.refresh_interval is not None:
+            out["refreshInterval"] = self.refresh_interval
+        if self.source_file is not None:
+            out["sourceFile"] = self.source_file
+        if self.source_line is not None:
+            out["sourceLine"] = self.source_line
+        return out
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> WidgetIR:
+        entry = tuple(
+            WidgetEntryIR(
+                name=e["name"],
+                type=e["type"],
+                default=e.get("default"),
+                description=e.get("description", ""),
+            )
+            for e in data.get("entry", [])
+        )
+        return cls(
+            name=data["name"],
+            display_name=data["displayName"],
+            description=data["description"],
+            families=tuple(data.get("families", [])),
+            entry=entry,
+            body=tuple(data.get("body", [])),
+            refresh_interval=data.get("refreshInterval"),
+            refresh_policy=data.get("refreshPolicy", "atEnd"),
+            source_file=data.get("sourceFile"),
+            source_line=data.get("sourceLine"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AppSceneIR:
+    """A single scene in an App definition."""
+
+    kind: SceneKind
+    view: str
+    title: str | None = None
+    name: str | None = None
+    platform: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "kind": self.kind,
+            "view": self.view,
+        }
+        if self.title is not None:
+            out["title"] = self.title
+        if self.name is not None:
+            out["name"] = self.name
+        if self.platform is not None:
+            out["platform"] = self.platform
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class AppStorageIR:
+    """An @AppStorage property on an App."""
+
+    name: str
+    key: str
+    type: ParamType
+    default: Any = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": self.name,
+            "key": self.key,
+            "type": self.type,
+        }
+        if self.default is not None:
+            out["default"] = self.default
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class AppIR:
+    """Language-agnostic representation of a SwiftUI App definition."""
+
+    name: str
+    scenes: tuple[AppSceneIR, ...] = ()
+    app_storage: tuple[AppStorageIR, ...] = ()
+    source_file: str | None = None
+    source_line: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": self.name,
+            "scenes": [s.to_dict() for s in self.scenes],
+        }
+        if self.app_storage:
+            out["appStorage"] = [a.to_dict() for a in self.app_storage]
+        if self.source_file is not None:
+            out["sourceFile"] = self.source_file
+        if self.source_line is not None:
+            out["sourceLine"] = self.source_line
+        return out
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AppIR:
+        scenes = tuple(
+            AppSceneIR(
+                kind=s["kind"],
+                view=s["view"],
+                title=s.get("title"),
+                name=s.get("name"),
+                platform=s.get("platform"),
+            )
+            for s in data.get("scenes", [])
+        )
+        app_storage = tuple(
+            AppStorageIR(
+                name=a["name"],
+                key=a["key"],
+                type=a["type"],
+                default=a.get("default"),
+            )
+            for a in data.get("appStorage", [])
+        )
+        return cls(
+            name=data["name"],
+            scenes=scenes,
+            app_storage=app_storage,
             source_file=data.get("sourceFile"),
             source_line=data.get("sourceLine"),
         )
