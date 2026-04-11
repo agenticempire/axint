@@ -104,7 +104,7 @@ function renderBaseLayout(title: string, content: string, showNav = true): strin
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://axint.ai">
   <meta property="og:site_name" content="Axint">
-  <meta property="og:image" content="https://axint.ai/og-image.png">
+  <meta property="og:image" content="https://registry.axint.ai/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Axint — Write an App Intent in TypeScript, ship it to Siri">
@@ -113,7 +113,7 @@ function renderBaseLayout(title: string, content: string, showNav = true): strin
   <meta name="twitter:creator" content="@agenticempire">
   <meta name="twitter:title" content="Axint — Write an App Intent in TypeScript, ship it to Siri">
   <meta name="twitter:description" content="One TypeScript defineIntent(). One Swift App Intent for Siri. One MCP tool for Claude, Cursor, and Windsurf. The picks and shovels of Agent Siri.">
-  <meta name="twitter:image" content="https://axint.ai/og-image.png">
+  <meta name="twitter:image" content="https://registry.axint.ai/og-image.png">
   <link rel="canonical" href="https://axint.ai">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
