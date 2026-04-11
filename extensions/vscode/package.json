@@ -1,0 +1,50 @@
+{
+  "name": "axint",
+  "displayName": "Axint — App Intents Compiler",
+  "version": "0.3.0",
+  "publisher": "agenticempire",
+  "description": "Compile TypeScript into native Apple App Intents. Scaffold, compile, validate, and browse templates — all from your editor.",
+  "license": "Apache-2.0",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agenticempire/axint.git"
+  },
+  "homepage": "https://axint.ai",
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "apple",
+    "app-intents",
+    "swift",
+    "siri",
+    "shortcuts",
+    "mcp",
+    "compiler"
+  ],
+  "engines": {
+    "vscode": "^1.102.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "axint.mcpServer",
+        "label": "Axint App Intents Compiler"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.102.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.25.0"
+  }
+}

@@ -10,12 +10,12 @@ struct AxintCompilePlugin: BuildToolPlugin {
             return []
         }
 
-        // Find the axint executable
-        let axintPath = try findAxintExecutable()
+        // Resolve the compiler. When axint is in PATH we call it directly;
+        // when only npx is available we invoke npx -y -p @axintai/compiler axint.
+        let (executablePath, prefixArgs) = try resolveCompiler()
 
         var commands: [Command] = []
 
-        // Scan for TypeScript files in the target
         let tsFiles = sourceTarget.sourceFiles.filter { sourceFile in
             sourceFile.path.string.hasSuffix(".ts") && !sourceFile.path.string.hasSuffix(".d.ts")
         }
@@ -24,37 +24,35 @@ struct AxintCompilePlugin: BuildToolPlugin {
             let inputPath = sourceFile.path
             let outputDirectory = context.pluginWorkDirectory.appending("compiled")
 
-            // Create the output directory structure
             try FileManager.default.createDirectory(
                 at: outputDirectory.asURL,
                 withIntermediateDirectories: true,
                 attributes: nil
             )
 
-            // Generate output filename (e.g., "intent.ts" -> "intent.swift")
             let inputFileName = inputPath.lastComponent
-            let outputFileName = inputFileName.replacingOccurrences(of: ".ts", with: ".swift")
-            let outputPath = outputDirectory.appending(outputFileName)
+            let baseName = inputFileName.replacingOccurrences(of: ".ts", with: "")
 
-            // Create the build command
+            // axint compile writes <Name>Intent.swift alongside .plist and .entitlements
+            let intentSwift = outputDirectory.appending("\(baseName)Intent.swift")
+            let intentPlist = outputDirectory.appending("\(baseName).plist")
+            let intentEntitlements = outputDirectory.appending("\(baseName).entitlements")
+
+            let compileArgs: [String] = prefixArgs + [
+                "compile",
+                inputPath.string,
+                "--out", outputDirectory.string,
+                "--emit-info-plist",
+                "--emit-entitlements",
+            ]
+
             let command = Command.buildCommand(
                 displayName: "Compiling TypeScript Intent: \(inputFileName)",
-                executable: axintPath,
-                arguments: [
-                    "compile",
-                    inputPath.string,
-                    "--out", outputDirectory.string,
-                    "--json",
-                    "--emit-info-plist",
-                    "--emit-entitlements",
-                ],
+                executable: executablePath,
+                arguments: compileArgs,
                 environment: [:],
                 inputFiles: [inputPath],
-                outputFiles: [
-                    outputPath,
-                    outputDirectory.appending("\(inputFileName).plist"),
-                    outputDirectory.appending("\(inputFileName).entitlements"),
-                ]
+                outputFiles: [intentSwift, intentPlist, intentEntitlements]
             )
 
             commands.append(command)
@@ -63,34 +61,29 @@ struct AxintCompilePlugin: BuildToolPlugin {
         return commands
     }
 
-    /// Attempts to find the axint executable in the environment.
-    /// First tries to find it via npx, then checks PATH.
-    private func findAxintExecutable() throws -> Path {
-        // Try npx first (for npm package @axintai/compiler)
-        if let npxPath = try findInPath("npx") {
-            // We'll return a custom executor that wraps npx
-            return npxPath
-        }
-
-        // Try finding axint directly in PATH
+    /// Returns (executable, prefixArgs). When `axint` is in PATH the prefix
+    /// is empty. When only `npx` is available, the prefix contains the flags
+    /// needed to install and run the @axintai/compiler package.
+    private func resolveCompiler() throws -> (Path, [String]) {
         if let axintPath = try findInPath("axint") {
-            return axintPath
+            return (axintPath, [])
         }
 
-        // If not found, throw an error with helpful instructions
+        if let npxPath = try findInPath("npx") {
+            return (npxPath, ["-y", "-p", "@axintai/compiler", "axint"])
+        }
+
         throw AxintPluginError.executableNotFound(
             """
             The 'axint' compiler was not found in your PATH.
 
-            Please install it by running:
+            Install it globally:
               npm install -g @axintai/compiler
 
-            Or, if you prefer to use npx directly (no global install):
-              1. Ensure Node.js and npm are installed
-              2. Run: npm install @axintai/compiler (in your project root)
-              3. The plugin will use npx to invoke the compiler
+            Or ensure Node.js and npx are available so the plugin can
+            fetch the compiler automatically.
 
-            For more information, visit: https://github.com/agenticempire/axint
+            More info: https://github.com/agenticempire/axint
             """
         )
     }

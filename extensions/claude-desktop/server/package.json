@@ -1,0 +1,9 @@
+{
+  "name": "axint-desktop-extension-server",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@axintai/compiler": "^0.2.2"
+  }
+}

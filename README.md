@@ -33,7 +33,7 @@
 
 ## The picks and shovels of Agent Siri
 
-WWDC 2026 is weeks away. Apple is fusing **Model Context Protocol with App Intents** on iOS 26.1 and macOS Tahoe 26.1 — Agent Siri runs a 3B-parameter on-device model that invokes App Intents as tools. Every App Intent you ship today automatically becomes an MCP-addressable capability tomorrow.
+WWDC 2026 is weeks away. Apple is expanding **App Intents as the universal action layer** across iOS 26, macOS Tahoe, and Apple Intelligence — every App Intent you ship becomes a capability that Siri, Shortcuts, Spotlight, and on-device AI agents can invoke. The surface area is growing fast.
 
 Axint is the fastest path from an AI coding tool to a shipped App Intent. **One TypeScript definition. Two agent surfaces. Zero Swift required.**
 
@@ -57,7 +57,7 @@ Axint is the fastest path from an AI coding tool to a shipped App Intent. **One 
 
 ---
 
-## Why Axint v0.3.0
+## Why Axint
 
 - **Real TypeScript AST parser.** Not regex. Uses the TypeScript compiler API, same as `tsc`, so you get full type fidelity and proper diagnostics with line/column spans.
 - **Native type fidelity.** `int → Int`, `double → Double`, `float → Float`, `date → Date`, `url → URL`, `duration → Measurement<UnitDuration>`, `optional<T> → T?`. Default values and optionality are preserved end-to-end.
@@ -77,8 +77,8 @@ Axint is the fastest path from an AI coding tool to a shipped App Intent. **One 
 # Install globally
 npm install -g @axintai/compiler
 
-# Or use without installing
-npx axint compile my-intent.ts --stdout
+# Or use without installing (runs from npm cache)
+npx -p @axintai/compiler axint compile my-intent.ts --stdout
 ```
 
 Create `my-intent.ts`:

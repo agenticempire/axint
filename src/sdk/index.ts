@@ -120,6 +120,36 @@ export const param = {
    * in v1.0.0.
    */
   number: make("number"),
+
+  /**
+   * Entity reference parameter. The entity name must match a
+   * `defineEntity()` call in the same file or project.
+   */
+  entity: (entityName: string, description: string, config?: Partial<ParamConfig>) => ({
+    type: "entity" as const,
+    entityName,
+    description,
+    ...config,
+  }),
+
+  /**
+   * Parameter with dynamic option suggestions provided at runtime
+   * by a DynamicOptionsProvider. The `providerName` maps to a
+   * generated Swift `DynamicOptionsProvider` struct.
+   */
+  dynamicOptions: (
+    providerName: string,
+    innerParam: ReturnType<ParamFactory<string>>
+  ) => {
+    const { type: innerType, description, ...rest } = innerParam;
+    return {
+      type: "dynamicOptions" as const,
+      providerName,
+      innerType,
+      description,
+      ...rest,
+    };
+  },
 };
 
 // ─── Intent Definition ───────────────────────────────────────────────
@@ -198,5 +228,39 @@ export interface IntentDefinition<
 export function defineIntent<
   TParams extends Record<string, ReturnType<(typeof param)[keyof typeof param]>>,
 >(config: IntentDefinition<TParams>): IntentDefinition<TParams> {
+  return config;
+}
+
+// ─── Entity Definition ──────────────────────────────────────────────
+
+/** Display representation mapping for an entity. */
+export interface EntityDisplay {
+  title: string;
+  subtitle?: string;
+  image?: string;
+}
+
+/** The full entity definition for generating an AppEntity struct. */
+export interface EntityDefinition {
+  /** PascalCase name for the generated Swift struct. */
+  name: string;
+  /** How the entity is displayed in Siri/Shortcuts. */
+  display: EntityDisplay;
+  /** Entity properties using `param.*` helpers. */
+  properties: Record<string, ReturnType<(typeof param)[keyof typeof param]>>;
+  /** Query type: "string" for StringQuery, "property" for PropertyQuery. */
+  query?: "string" | "property";
+}
+
+/**
+ * Define an Apple AppEntity for compilation to Swift.
+ *
+ * Generates a Swift `AppEntity` struct with `EntityQuery` conformance,
+ * display representation, and typed properties.
+ *
+ * @param config - The entity definition
+ * @returns The same config (identity function for type inference)
+ */
+export function defineEntity(config: EntityDefinition): EntityDefinition {
   return config;
 }

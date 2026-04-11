@@ -28,6 +28,17 @@ ParamType = Literal[
 AppleTarget = Literal["ios17", "ios18", "ios26", "macos14", "macos15", "macos26"]
 
 
+def _parse_plist_keys(raw: Any) -> tuple[str, ...]:
+    """Accept dict (TS format) or list (Python format) for backwards compat."""
+    if raw is None:
+        return ()
+    if isinstance(raw, dict):
+        return tuple(raw.keys())
+    if isinstance(raw, (list, tuple)):
+        return tuple(str(k) for k in raw)
+    return ()
+
+
 @dataclass(frozen=True, slots=True)
 class IntentParameter:
     """A single parameter on an App Intent."""
@@ -86,7 +97,10 @@ class IntentIR:
         if self.entitlements:
             out["entitlements"] = list(self.entitlements)
         if self.info_plist_keys:
-            out["infoPlistKeys"] = list(self.info_plist_keys)
+            # TS side expects Record<string, string> — emit as dict with
+            # usage-description values. The Python SDK currently only stores
+            # key names, so we use the key itself as the placeholder value.
+            out["infoPlistKeys"] = {k: k for k in self.info_plist_keys}
         if self.return_type is not None:
             out["returnType"] = self.return_type
         if self.source_file is not None:
@@ -114,7 +128,7 @@ class IntentIR:
             domain=data["domain"],
             parameters=params,
             entitlements=tuple(data.get("entitlements", ())),
-            info_plist_keys=tuple(data.get("infoPlistKeys", ())),
+            info_plist_keys=_parse_plist_keys(data.get("infoPlistKeys")),
             is_discoverable=data.get("isDiscoverable", True),
             return_type=data.get("returnType"),
             source_file=data.get("sourceFile"),
