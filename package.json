@@ -5,7 +5,7 @@
     "access": "public"
   },
   "type": "module",
-  "description": "The open-source compiler that transforms AI agent definitions into native Apple App Intents. TypeScript in, Swift out.",
+  "description": "Open-source compiler for Apple platforms. TypeScript/Python/JSON in, Swift out — App Intents, SwiftUI views, WidgetKit widgets.",
   "author": "Agentic Empire <hello@axint.ai>",
   "license": "Apache-2.0",
   "homepage": "https://axint.ai",
