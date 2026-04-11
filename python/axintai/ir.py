@@ -214,7 +214,7 @@ class ViewIR:
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
             "name": self.name,
-            "body": [b for b in self.body],
+            "body": list(self.body),
         }
         if self.props:
             out["props"] = [p.to_dict() for p in self.props]
@@ -301,7 +301,7 @@ class WidgetIR:
             "displayName": self.display_name,
             "description": self.description,
             "families": list(self.families),
-            "body": [b for b in self.body],
+            "body": list(self.body),
         }
         if self.entry:
             out["entry"] = [e.to_dict() for e in self.entry]

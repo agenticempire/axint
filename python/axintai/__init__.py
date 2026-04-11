@@ -35,10 +35,10 @@ from .generator import (
     generate_swift,
 )
 from .ir import (
-    AppleTarget,
     AppIR,
     AppSceneIR,
     AppStorageIR,
+    AppleTarget,
     IntentIR,
     IntentParameter,
     ParamType,
