@@ -98,14 +98,8 @@ def _infer_return_type(perform_fn: Callable[[], Any] | None) -> str | None:
             return type_map[return_hint]
         # Handle string representation (for cases where type hints use strings)
         if isinstance(return_hint, str):
-            if return_hint == "str":
-                return "string"
-            elif return_hint == "int":
-                return "int"
-            elif return_hint == "float":
-                return "double"
-            elif return_hint == "bool":
-                return "boolean"
+            str_type_map = {"str": "string", "int": "int", "float": "double", "bool": "boolean"}
+            return str_type_map.get(return_hint)
     except Exception:
         pass
     return None
