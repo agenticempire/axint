@@ -351,26 +351,20 @@ const dynamicPlaylist: IntentTemplate = {
   title: "Dynamic Playlist",
   domain: "media",
   category: "media",
-  description:
-    "Create a playlist with dynamic option suggestions powered by DynamicOptionsProvider.",
+  description: "Create a playlist by name, mood, and track count.",
   source: `import { defineIntent, param } from "@axintai/compiler";
 
 export default defineIntent({
   name: "DynamicPlaylist",
   title: "Create Dynamic Playlist",
-  description: "Create a playlist with dynamically suggested moods or genres.",
+  description: "Create a playlist with a given mood or genre.",
   domain: "media",
   params: {
     name: param.string("Playlist name"),
-    mood: param.dynamicOptions(
-      "MoodProvider",
-      param.string("Mood for the playlist")
-    ),
+    mood: param.string("Mood or genre (e.g., chill, workout, focus)"),
+    trackCount: param.int("Number of tracks", { default: 20 }),
   },
-  customResultType: "PlaylistResultView",
   perform: async ({ name, mood }) => {
-    // TODO: Implement playlist creation
-    // mood comes from the DynamicOptionsProvider
     return { playlistId: "playlist_placeholder" };
   },
 });

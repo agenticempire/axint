@@ -169,11 +169,22 @@ program
             irRaw = readFileSync(filePath, "utf-8");
           }
 
-          let irData: Record<string, unknown>;
+          let parsed: unknown;
           try {
-            irData = JSON.parse(irRaw);
+            parsed = JSON.parse(irRaw);
           } catch {
             console.error(`\x1b[31merror:\x1b[0m Invalid JSON in ${file}`);
+            process.exit(1);
+          }
+
+          // Accept both a single IR object and an array (Python SDK emits arrays)
+          const irData = Array.isArray(parsed)
+            ? (parsed[0] as Record<string, unknown>)
+            : (parsed as Record<string, unknown>);
+          if (!irData || typeof irData !== "object") {
+            console.error(
+              `\x1b[31merror:\x1b[0m Expected an IR object or array in ${file}`
+            );
             process.exit(1);
           }
 

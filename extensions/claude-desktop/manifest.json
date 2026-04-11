@@ -1,0 +1,61 @@
+{
+  "manifest_version": "0.3",
+  "name": "axint",
+  "display_name": "Axint — App Intents Compiler",
+  "version": "0.3.0",
+  "description": "Compile TypeScript into native Apple App Intents. Define once, ship to Siri, Shortcuts, and Spotlight.",
+  "long_description": "Axint is the open-source compiler that turns TypeScript defineIntent() calls into native Swift AppIntent structs. Scaffold intents from a description, compile to production-ready Swift, and validate against Apple's SDK — all from Claude Desktop.\n\nIncludes 12+ pre-built templates covering messaging, productivity, health, commerce, media, navigation, and smart home domains.",
+  "author": {
+    "name": "Agentic Empire",
+    "email": "hello@axint.ai",
+    "url": "https://axint.ai"
+  },
+  "repository": "https://github.com/agenticempire/axint",
+  "license": "Apache-2.0",
+  "icons": {
+    "light": "icon.png",
+    "dark": "icon.png"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "npx",
+      "args": ["-y", "@axintai/compiler@latest", "axint-mcp"]
+    }
+  },
+  "tools": [
+    {
+      "name": "axint_scaffold",
+      "description": "Generate a new TypeScript intent file from a name, description, and parameter list",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint_compile",
+      "description": "Compile a TypeScript intent definition into native Swift code",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint_validate",
+      "description": "Validate a TypeScript intent definition and return diagnostics",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint_list_templates",
+      "description": "List all available pre-built intent templates, optionally filtered by category",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint_template",
+      "description": "Get the full TypeScript source of a specific intent template",
+      "readOnlyHint": true
+    }
+  ],
+  "privacy_policies": [
+    {
+      "name": "Axint Privacy",
+      "url": "https://axint.ai/privacy"
+    }
+  ]
+}

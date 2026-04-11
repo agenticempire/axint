@@ -1,0 +1,23 @@
+{
+  "name": "axint",
+  "version": "0.3.0",
+  "description": "Compile TypeScript intent definitions into native Apple App Intents and MCP tool servers. Define once, ship to Siri, Shortcuts, and Spotlight.",
+  "author": {
+    "name": "Agentic Empire",
+    "email": "hello@axint.ai"
+  },
+  "homepage": "https://axint.ai",
+  "repository": "https://github.com/agenticempire/axint",
+  "license": "Apache-2.0",
+  "keywords": [
+    "apple",
+    "app-intents",
+    "swift",
+    "siri",
+    "shortcuts",
+    "compiler",
+    "mcp",
+    "code-generation"
+  ],
+  "mcpServers": ".mcp.json"
+}

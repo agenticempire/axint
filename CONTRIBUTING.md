@@ -154,7 +154,7 @@ Be respectful. Be constructive. We're building something together. Toxic behavio
 ## Questions?
 
 - **GitHub Discussions** — For architecture questions and ideas
-- **Discord** — For real-time chat with other contributors
+- **Discord** — [Join the server](https://discord.gg/axint) for real-time chat with other contributors
 - **hello@axint.ai** — For anything else
 
 ---
