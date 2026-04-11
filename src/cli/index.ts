@@ -1330,7 +1330,7 @@ program
 
       if (isDir) {
         // Watch the entire directory for .ts file changes
-        fsWatch(target, { persistent: true }, (_event, filename) => {
+        const dirWatcher = fsWatch(target, { persistent: true }, (_event, filename) => {
           if (
             filename &&
             typeof filename === "string" &&
@@ -1340,15 +1340,25 @@ program
             onFileChange(resolve(target, filename));
           }
         });
+        dirWatcher.on("error", (err) => {
+          console.error(`\x1b[31m✗\x1b[0m watcher error: ${err.message}`);
+        });
       } else {
         // Watch individual file — also watch its parent dir as a fallback
         // since some editors do atomic writes (delete + create)
         const parentDir = dirname(target);
         const targetBase = basename(target);
-        fsWatch(parentDir, { persistent: true }, (_event, filename) => {
-          if (filename === targetBase) {
-            onFileChange(target);
+        const fileWatcher = fsWatch(
+          parentDir,
+          { persistent: true },
+          (_event, filename) => {
+            if (filename === targetBase) {
+              onFileChange(target);
+            }
           }
+        );
+        fileWatcher.on("error", (err) => {
+          console.error(`\x1b[31m✗\x1b[0m watcher error: ${err.message}`);
         });
       }
 

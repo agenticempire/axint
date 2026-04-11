@@ -61,6 +61,7 @@ jobs:
         run: python -m build
 
       - name: Publish to PyPI
+        if: env.TWINE_PASSWORD != ''
         working-directory: python
         run: twine upload dist/* --skip-existing
         env:
@@ -77,6 +78,5 @@ jobs:
 
             **Install:**
             ```bash
-            npm install -g @axintai/compiler    # TypeScript SDK
-            pip install axintai                  # Python SDK
+            npm install -g @axintai/compiler
             ```
