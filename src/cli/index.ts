@@ -27,6 +27,7 @@ import {
   statSync,
 } from "node:fs";
 import { resolve, dirname, basename } from "node:path";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { compileFile, compileFromIR, irFromJSON } from "../core/compiler.js";
 import { ejectIntent } from "../core/eject.js";
@@ -1051,6 +1052,43 @@ program
 
 // ─── watch ───────────────────────────────────────────────────────────
 
+async function runSwiftBuild(projectPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    const proc = spawn("swift", ["build"], {
+      cwd: projectPath,
+      stdio: ["ignore", "inherit", "inherit"],
+    });
+
+    proc.on("close", (code) => {
+      if (code === 0) {
+        const dt = (performance.now() - t0).toFixed(0);
+        console.log();
+        console.log(`\x1b[38;5;208m─ swift build\x1b[0m`);
+        console.log(`\x1b[32m✓\x1b[0m Build succeeded \x1b[90m(${dt}ms)\x1b[0m`);
+        console.log();
+        resolve(true);
+      } else {
+        console.log();
+        console.log(`\x1b[38;5;208m─ swift build\x1b[0m`);
+        console.log(`\x1b[31m✗\x1b[0m Build failed (exit code: ${code})`);
+        console.log("\x1b[90mContinuing to watch for changes…\x1b[0m");
+        console.log();
+        resolve(false);
+      }
+    });
+
+    proc.on("error", (err) => {
+      console.log();
+      console.log(`\x1b[38;5;208m─ swift build\x1b[0m`);
+      console.error(`\x1b[31m✗\x1b[0m Error: ${err.message}`);
+      console.log("\x1b[90mContinuing to watch for changes…\x1b[0m");
+      console.log();
+      resolve(false);
+    });
+  });
+}
+
 program
   .command("watch")
   .description("Watch intent files and recompile on change")
@@ -1064,6 +1102,14 @@ program
     "--strict-format",
     "Fail if swift-format is missing or errors (implies --format)"
   )
+  .option(
+    "--swift-build",
+    "Run `swift build` in the project after successful compilation"
+  )
+  .option(
+    "--swift-project <path>",
+    "Path to the Swift project root (defaults to --out parent directory)"
+  )
   .action(
     async (
       file: string,
@@ -1074,6 +1120,8 @@ program
         emitEntitlements: boolean;
         format: boolean;
         strictFormat: boolean;
+        swiftBuild: boolean;
+        swiftProject?: string;
       }
     ) => {
       const target = resolve(file);
@@ -1099,6 +1147,9 @@ program
         }
         filesToWatch.push(target);
       }
+
+      // Determine swift project path
+      const swiftProjectPath = options.swiftProject ?? dirname(resolve(options.out));
 
       function compileOne(filePath: string): boolean {
         const t0 = performance.now();
@@ -1242,11 +1293,15 @@ program
         );
       } else {
         console.log(`\x1b[32m✓\x1b[0m ${ok} compiled — watching for changes…\n`);
+        if (options.swiftBuild) {
+          await runSwiftBuild(swiftProjectPath);
+        }
       }
 
       // Set up file watchers with debounce
       const pending = new Map<string, ReturnType<typeof setTimeout>>();
       const DEBOUNCE_MS = 150;
+      let batchInProgress = false;
 
       function onFileChange(filePath: string) {
         const existing = pending.get(filePath);
@@ -1255,10 +1310,20 @@ program
           filePath,
           setTimeout(async () => {
             pending.delete(filePath);
-            const now = new Date().toLocaleTimeString();
-            console.log(`\x1b[90m[${now}]\x1b[0m ${basename(filePath)} changed`);
-            await compileWithFormat(filePath);
-            console.log();
+            if (batchInProgress) return;
+
+            batchInProgress = true;
+            try {
+              const now = new Date().toLocaleTimeString();
+              console.log(`\x1b[90m[${now}]\x1b[0m ${basename(filePath)} changed`);
+              const compiled = await compileWithFormat(filePath);
+              console.log();
+              if (compiled && options.swiftBuild) {
+                await runSwiftBuild(swiftProjectPath);
+              }
+            } finally {
+              batchInProgress = false;
+            }
           }, DEBOUNCE_MS)
         );
       }
