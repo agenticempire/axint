@@ -73,6 +73,23 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => map[char]);
 }
 
+function renderToolCard(name: string, type: string, hint: string, url: string): string {
+  const colors: Record<string, string> = {
+    npx: '#F05138', ext: '#007ACC', config: '#a78bfa', spm: '#F05138', lua: '#86efac',
+  };
+  const color = colors[type] || '#a1a1a6';
+  return `<a href="${url}" target="_blank" rel="noopener" style="
+    display:flex;flex-direction:column;align-items:center;gap:0.5rem;
+    padding:1.25rem 1rem;border-radius:12px;text-decoration:none;
+    background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);
+    transition:all 0.25s cubic-bezier(0.4,0,0.2,1);color:#e4e4e7;
+  " onmouseover="this.style.borderColor='${color}';this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 24px rgba(0,0,0,0.3)'"
+     onmouseout="this.style.borderColor='rgba(255,255,255,0.08)';this.style.transform='none';this.style.boxShadow='none'">
+    <span style="font-weight:600;font-size:0.95rem;">${name}</span>
+    <span style="font-size:0.7rem;color:#71717a;text-align:center;line-height:1.3;">${hint}</span>
+  </a>`;
+}
+
 function renderBaseLayout(title: string, content: string, showNav = true): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -80,6 +97,24 @@ function renderBaseLayout(title: string, content: string, showNav = true): strin
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} | Axint Registry</title>
+  <meta name="description" content="Write an App Intent in TypeScript. Ship it to Siri. One defineIntent() call, one Swift App Intent out. The picks and shovels of Agent Siri.">
+  <meta name="keywords" content="axint, swift compiler, app intents, siri, agent siri, shortcuts, swiftui, widgetkit, typescript to swift, python to swift, apple developer tools, mcp, ai coding, ios 27">
+  <meta property="og:title" content="Axint — Write an App Intent in TypeScript, ship it to Siri">
+  <meta property="og:description" content="One TypeScript defineIntent(). One Swift App Intent for Siri. One MCP tool for Claude, Cursor, and Windsurf. The picks and shovels of Agent Siri.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://axint.ai">
+  <meta property="og:site_name" content="Axint">
+  <meta property="og:image" content="https://axint.ai/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Axint — Write an App Intent in TypeScript, ship it to Siri">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@agenticempire">
+  <meta name="twitter:creator" content="@agenticempire">
+  <meta name="twitter:title" content="Axint — Write an App Intent in TypeScript, ship it to Siri">
+  <meta name="twitter:description" content="One TypeScript defineIntent(). One Swift App Intent for Siri. One MCP tool for Claude, Cursor, and Windsurf. The picks and shovels of Agent Siri.">
+  <meta name="twitter:image" content="https://axint.ai/og-image.png">
+  <link rel="canonical" href="https://axint.ai">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -199,6 +234,35 @@ function renderBaseLayout(title: string, content: string, showNav = true): strin
       text-align: center;
     }
 
+    /* Screen reader only */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    /* Monaco editor lazy loading */
+    .monaco-loading {
+      display: none;
+      padding: 2rem;
+      text-align: center;
+      color: #a1a1a6;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       nav > div {
@@ -215,56 +279,74 @@ function renderBaseLayout(title: string, content: string, showNav = true): strin
       }
     }
   </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Axint",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS, iOS",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "description": "Write an App Intent in TypeScript, ship it to Siri. The open-source compiler for Apple App Intents, SwiftUI, WidgetKit, and full apps.",
+    "url": "https://axint.ai",
+    "license": "https://www.apache.org/licenses/LICENSE-2.0",
+    "version": "0.3.2",
+    "author": { "@type": "Organization", "name": "Ambition Labs", "url": "https://ambitionlabs.com" },
+    "sameAs": ["https://github.com/agenticempire/axint", "https://x.com/agenticempire"],
+    "downloadUrl": "https://www.npmjs.com/package/@axintai/compiler"
+  }
+  </script>
   ${content}
 </head>
 <body>
+  <a href="#main" class="sr-only">Skip to content</a>
   ${showNav ? `
   <nav>
     <div>
-      <a href="/" class="nav-logo">
+      <a href="/" class="nav-logo" aria-label="Axint home">
         ${AXINT_LOGO}
         <span>Axint</span>
       </a>
       <ul class="nav-links">
-        <li><a href="/">Registry</a></li>
-        <li><a href="https://github.com/agenticempire/axint" target="_blank">GitHub</a></li>
-        <li><a href="https://axint.dev" target="_blank">Docs</a></li>
-        <li><a href="https://discord.gg/axint" target="_blank">Discord</a></li>
+        <li><a href="/" aria-label="Registry home">Registry</a></li>
+        <li><a href="https://github.com/agenticempire/axint" target="_blank" aria-label="GitHub repository">GitHub</a></li>
+        <li><a href="https://axint.dev" target="_blank" aria-label="Documentation">Docs</a></li>
+        <li><a href="https://discord.gg/axint" target="_blank" aria-label="Discord community">Discord</a></li>
       </ul>
     </div>
   </nav>
   ` : ''}
-  <main>
+  <main id="main" role="main">
     ${content}
   </main>
   <footer>
     <div>
       <div>
         <h3>Product</h3>
-        <a href="/">Registry</a>
-        <a href="https://github.com/agenticempire/axint" target="_blank">GitHub</a>
-        <a href="https://github.com/agenticempire/axint/releases" target="_blank">Releases</a>
+        <a href="/" aria-label="Registry home">Registry</a>
+        <a href="https://github.com/agenticempire/axint" target="_blank" aria-label="Axint GitHub repository">GitHub</a>
+        <a href="https://github.com/agenticempire/axint/releases" target="_blank" aria-label="Release notes">Releases</a>
       </div>
       <div>
         <h3>Resources</h3>
-        <a href="https://axint.dev" target="_blank">Documentation</a>
-        <a href="https://axint.dev/guides" target="_blank">Guides</a>
-        <a href="https://axint.dev/api" target="_blank">API Reference</a>
+        <a href="https://axint.dev" target="_blank" aria-label="Axint documentation">Documentation</a>
+        <a href="https://axint.dev/guides" target="_blank" aria-label="Getting started guides">Guides</a>
+        <a href="https://axint.dev/api" target="_blank" aria-label="API reference">API Reference</a>
       </div>
       <div>
         <h3>Community</h3>
-        <a href="https://discord.gg/axint" target="_blank">Discord</a>
-        <a href="https://twitter.com/axintswift" target="_blank">Twitter</a>
-        <a href="https://github.com/agenticempire" target="_blank">GitHub Org</a>
+        <a href="https://discord.gg/axint" target="_blank" aria-label="Join Discord community">Discord</a>
+        <a href="https://x.com/agenticempire" target="_blank" aria-label="Follow on X">X</a>
+        <a href="https://github.com/agenticempire" target="_blank" aria-label="Agenticempire GitHub organization">GitHub Org</a>
       </div>
       <div>
         <h3>Company</h3>
-        <a href="https://ambitionlabs.com" target="_blank">Ambition Labs</a>
-        <a href="https://github.com/agenticempire/axint/blob/main/LICENSE" target="_blank">License</a>
+        <a href="https://ambitionlabs.com" target="_blank" aria-label="Ambition Labs website">Ambition Labs</a>
+        <a href="https://github.com/agenticempire/axint/blob/main/LICENSE" target="_blank" aria-label="Apache 2.0 License">License</a>
       </div>
     </div>
     <div class="footer-bottom">
-      <p>&copy; 2026 Ambition Labs. Axint is open source under MIT License.</p>
+      <p>&copy; 2026 Ambition Labs. Axint is open source under Apache 2.0.</p>
     </div>
   </footer>
 </body>
@@ -497,6 +579,23 @@ export function renderHomePage(packages: Package[] = []): string {
     </div>
   </section>
   ` : ''}
+
+  <section style="margin-bottom:4rem;">
+    <h2 style="font-size:2rem;font-weight:700;text-align:center;margin-bottom:0.5rem;color:#e4e4e7;">Works with every AI coding tool</h2>
+    <p style="text-align:center;color:#71717a;margin-bottom:2.5rem;font-size:0.95rem;">One MCP server. Ten integrations. Install in seconds.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;max-width:900px;margin:0 auto;">
+      ${renderToolCard('Claude Code', 'npx', '/plugin marketplace add agenticempire/axint', 'https://github.com/agenticempire/axint/tree/main/extensions/claude-code')}
+      ${renderToolCard('Claude Desktop', 'config', 'One-click .mcpb bundle', 'https://github.com/agenticempire/axint/tree/main/extensions/claude-desktop')}
+      ${renderToolCard('VS Code', 'ext', 'ext install agenticempire.axint', 'https://marketplace.visualstudio.com/items?itemName=agenticempire.axint')}
+      ${renderToolCard('Cursor', 'config', 'Settings → Tools → MCP', 'https://github.com/agenticempire/axint/tree/main/extensions/cursor')}
+      ${renderToolCard('Windsurf', 'config', 'Cascade → MCP → Axint', 'https://github.com/agenticempire/axint/tree/main/extensions/windsurf')}
+      ${renderToolCard('Codex', 'config', 'Add MCP config', 'https://github.com/agenticempire/axint/tree/main/extensions/codex')}
+      ${renderToolCard('Xcode', 'spm', 'SPM build plugin', 'https://github.com/agenticempire/axint/tree/main/extensions/xcode')}
+      ${renderToolCard('JetBrains', 'config', 'AI Assistant → MCP', 'https://github.com/agenticempire/axint/tree/main/extensions/jetbrains')}
+      ${renderToolCard('Zed', 'config', 'Context server config', 'https://github.com/agenticempire/axint/tree/main/extensions/zed')}
+      ${renderToolCard('Neovim', 'lua', 'Any MCP plugin', 'https://github.com/agenticempire/axint/tree/main/extensions/neovim')}
+    </div>
+  </section>
   `;
 
   return renderBaseLayout('Home', styles + '<div>' + content + '</div>');
@@ -995,6 +1094,37 @@ export function renderPackagePage(pkg: PackageDetail): string {
   </style>
 
   <script>
+    let monacoLoaded = false;
+
+    function loadMonacoEditor(containerId) {
+      if (monacoLoaded) return Promise.resolve();
+
+      const container = document.getElementById(containerId);
+      if (!container) return Promise.reject(new Error('Editor container not found'));
+
+      const placeholder = container.querySelector('.monaco-loading');
+      if (placeholder) {
+        placeholder.style.display = 'block';
+      }
+
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.50.0/min/vs/loader.min.js';
+        script.onload = () => {
+          require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.50.0/min/vs' } });
+          require(['vs/editor/editor.main'], () => {
+            monacoLoaded = true;
+            if (placeholder) {
+              placeholder.style.display = 'none';
+            }
+            resolve();
+          });
+        };
+        script.onerror = () => reject(new Error('Failed to load Monaco Editor'));
+        document.head.appendChild(script);
+      });
+    }
+
     function copyInstallCommand(button) {
       const code = button.previousElementSibling.textContent.trim();
       navigator.clipboard.writeText(code).then(() => {

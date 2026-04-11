@@ -36,6 +36,8 @@ function getClientIp(req: Request): string {
 // ─── Constants ─────────────────────────────────────────────────────
 
 const MAX_PUBLISH_BODY_BYTES = 10 * 1024 * 1024; // 10 MB
+const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const TOKEN_REFRESH_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days after expiry
 
 type Handler = (req: Request, env: Env, params: Record<string, string>) => Promise<Response>;
 
@@ -90,6 +92,25 @@ async function authenticate(req: Request, env: Env): Promise<string | null> {
     "SELECT user_id FROM tokens WHERE token_hash = ? AND (expires_at IS NULL OR expires_at > datetime('now'))"
   ).bind(hash).first<{ user_id: string }>();
   return row?.user_id ?? null;
+}
+
+interface TokenRow {
+  token_hash: string;
+  expires_at: string | null;
+}
+
+async function getTokenData(token: string, env: Env): Promise<TokenRow | null> {
+  const hash = await hashToken(token);
+  return await env.DB.prepare(
+    "SELECT token_hash, expires_at FROM tokens WHERE token_hash = ?"
+  ).bind(hash).first<TokenRow>();
+}
+
+function isTokenRefreshable(expiresAt: string | null): boolean {
+  if (!expiresAt) return true; // Tokens with no expiry can always be refreshed
+  const expiryTime = new Date(expiresAt).getTime();
+  const gracePeriodEnd = expiryTime + TOKEN_REFRESH_GRACE_PERIOD_MS;
+  return Date.now() < gracePeriodEnd;
 }
 
 // ─── Auth: Device Code Flow ─────────────────────────────────────────
@@ -225,6 +246,45 @@ route("POST", "/api/v1/auth/revoke-all", async (req, env) => {
     .run();
 
   return json({ revoked: true, all: true });
+});
+
+// ─── Token Refresh ─────────────────────────────────────────────────
+
+route("POST", "/api/v1/auth/refresh", async (req, env) => {
+  const auth = req.headers.get("Authorization");
+  if (!auth?.startsWith("Bearer ")) return err("missing or invalid token", 401);
+
+  const token = auth.slice(7);
+  const tokenData = await getTokenData(token, env);
+  if (!tokenData) return err("token not found", 401);
+
+  // Check if token is still refreshable (within grace period)
+  if (!isTokenRefreshable(tokenData.expires_at)) {
+    return err("token expired and is no longer refreshable", 401);
+  }
+
+  // Get user_id from token
+  const hash = await hashToken(token);
+  const tokenRow = await env.DB.prepare(
+    "SELECT user_id FROM tokens WHERE token_hash = ?"
+  ).bind(hash).first<{ user_id: string }>();
+  if (!tokenRow) return err("token not found", 401);
+
+  const userId = tokenRow.user_id;
+
+  // Generate new token with fresh expiry
+  const newToken = generateId(48);
+  const newTokenHash = await hashToken(newToken);
+  const newExpiresAt = new Date(Date.now() + TOKEN_EXPIRY_MS).toISOString();
+
+  await env.DB.prepare(
+    "INSERT INTO tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)"
+  ).bind(generateId(), userId, newTokenHash, newExpiresAt).run();
+
+  return json({
+    access_token: newToken,
+    expires_in: Math.floor(TOKEN_EXPIRY_MS / 1000),
+  });
 });
 
 // ─── Publish ────────────────────────────────────────────────────────
@@ -544,6 +604,17 @@ export default {
 
     // Frontend routes (GET only)
     if (req.method === "GET") {
+      // OG image — served from R2 or inline
+      if (url.pathname === "/og-image.png") {
+        const obj = await env.PACKAGES.get("_static/og-image.png");
+        if (obj) {
+          return new Response(obj.body, {
+            headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400" },
+          });
+        }
+        return new Response("not found", { status: 404 });
+      }
+
       // Home page
       if (url.pathname === "/") {
         const featured = await env.DB.prepare(

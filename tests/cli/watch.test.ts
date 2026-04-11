@@ -169,6 +169,9 @@ describe.skipIf(isCI)("axint watch", () => {
     // Should still reach the watching state even with compile errors
     await out.waitFor("watching for changes");
 
+    // Let the watcher fully settle before triggering a change
+    await new Promise((r) => setTimeout(r, 500));
+
     // Fix the file
     writeFileSync(intentFile, VALID_INTENT, "utf-8");
 

@@ -217,13 +217,13 @@ def _parse_param_call(
                 message=f"Parameter `{param_name}` must be a `param.<type>(...)` call",
                 file=file,
                 line=getattr(node, "lineno", None),
-                suggestion="Use one of param.string, param.int, param.boolean, param.date, param.duration, param.url.",
+                suggestion="Use one of param.string, param.int, param.boolean, param.date, param.duration, param.url, param.entity, param.enum.",
             )
         )
         return None
 
     attr = node.func.attr
-    if attr not in {
+    valid_types = {
         "string",
         "int",
         "double",
@@ -233,7 +233,10 @@ def _parse_param_call(
         "date",
         "duration",
         "url",
-    }:
+        "entity",
+        "enum",
+    }
+    if attr not in valid_types:
         diagnostics.append(
             ParserDiagnostic(
                 code="AXP006",
@@ -241,11 +244,141 @@ def _parse_param_call(
                 message=f"Unknown param type `param.{attr}` for parameter `{param_name}`",
                 file=file,
                 line=node.lineno,
-                suggestion="Valid types: string, int, double, float, boolean, date, duration, url.",
+                suggestion="Valid types: string, int, double, float, boolean, date, duration, url, entity, enum.",
             )
         )
         return None
 
+    # Handle param.entity("EntityName", "description")
+    if attr == "entity":
+        if len(node.args) < 2:
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP010",
+                    severity="error",
+                    message="param.entity() requires entity name and description",
+                    file=file,
+                    line=node.lineno,
+                    suggestion='Use: param.entity("EntityName", "description")',
+                )
+            )
+            return None
+        entity_name_node = node.args[0]
+        desc_node = node.args[1]
+        if not isinstance(entity_name_node, ast.Constant) or not isinstance(entity_name_node.value, str):
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP010",
+                    severity="error",
+                    message="param.entity() entity name must be a string literal",
+                    file=file,
+                    line=getattr(entity_name_node, "lineno", node.lineno),
+                )
+            )
+            return None
+        if not isinstance(desc_node, ast.Constant) or not isinstance(desc_node.value, str):
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP010",
+                    severity="error",
+                    message="param.entity() description must be a string literal",
+                    file=file,
+                    line=getattr(desc_node, "lineno", node.lineno),
+                )
+            )
+            return None
+        entity_name = entity_name_node.value
+        description = desc_node.value
+        optional = False
+        for kw in node.keywords:
+            if kw.arg == "optional" and isinstance(kw.value, ast.Constant):
+                optional = bool(kw.value.value)
+        return IntentParameter(
+            name=param_name,
+            type="entity",
+            description=description,
+            optional=optional,
+            default=None,
+            entity_name=entity_name,
+        )
+
+    # Handle param.enum(["case1", "case2"], "description")
+    if attr == "enum":
+        if len(node.args) < 2:
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP011",
+                    severity="error",
+                    message="param.enum() requires cases list and description",
+                    file=file,
+                    line=node.lineno,
+                    suggestion='Use: param.enum(["case1", "case2"], "description")',
+                )
+            )
+            return None
+        cases_node = node.args[0]
+        desc_node = node.args[1]
+
+        # Parse cases
+        enum_cases: list[str] = []
+        if isinstance(cases_node, (ast.List, ast.Tuple)):
+            for elt in cases_node.elts:
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                    enum_cases.append(elt.value)
+                else:
+                    diagnostics.append(
+                        ParserDiagnostic(
+                            code="AXP011",
+                            severity="error",
+                            message="param.enum() cases must be string literals",
+                            file=file,
+                            line=getattr(elt, "lineno", node.lineno),
+                        )
+                    )
+                    return None
+        else:
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP011",
+                    severity="error",
+                    message="param.enum() first argument must be a list or tuple",
+                    file=file,
+                    line=getattr(cases_node, "lineno", node.lineno),
+                )
+            )
+            return None
+
+        if not isinstance(desc_node, ast.Constant) or not isinstance(desc_node.value, str):
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP011",
+                    severity="error",
+                    message="param.enum() description must be a string literal",
+                    file=file,
+                    line=getattr(desc_node, "lineno", node.lineno),
+                )
+            )
+            return None
+        description = desc_node.value
+
+        optional = False
+        default: Any = None
+        for kw in node.keywords:
+            if kw.arg == "optional" and isinstance(kw.value, ast.Constant):
+                optional = bool(kw.value.value)
+            elif kw.arg == "default" and isinstance(kw.value, ast.Constant):
+                default = kw.value.value
+
+        return IntentParameter(
+            name=param_name,
+            type="enum",
+            description=description,
+            optional=optional,
+            default=default,
+            enum_cases=tuple(enum_cases),
+        )
+
+    # Handle primitive types and standard parameters
     description = ""
     if node.args:
         first = node.args[0]
@@ -262,13 +395,13 @@ def _parse_param_call(
                 )
             )
 
-    optional = False
-    default: Any = None
+    opt = False
+    dflt: Any = None
     for kw in node.keywords:
         if kw.arg == "optional" and isinstance(kw.value, ast.Constant):
-            optional = bool(kw.value.value)
+            opt = bool(kw.value.value)
         elif kw.arg == "default" and isinstance(kw.value, ast.Constant):
-            default = kw.value.value
+            dflt = kw.value.value
 
     # "number" is the legacy TS alias for "int" — normalize on the way in.
     param_type: ParamType = "int" if attr == "number" else attr  # type: ignore[assignment]
@@ -277,8 +410,8 @@ def _parse_param_call(
         name=param_name,
         type=param_type,
         description=description,
-        optional=optional,
-        default=default,
+        optional=opt,
+        default=dflt,
     )
 
 

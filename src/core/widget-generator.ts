@@ -142,7 +142,7 @@ function familiesArray(families: string[]): string {
   return `[${mapped.join(", ")}]`;
 }
 
-function formatLiteral(value: unknown, _type?: unknown): string {
+function formatLiteral(value: unknown, _type?: IRType): string {
   if (typeof value === "string") {
     return `"${escapeSwiftString(value)}"`;
   }
@@ -155,14 +155,25 @@ function formatLiteral(value: unknown, _type?: unknown): string {
   if (value === null) {
     return "nil";
   }
+  if (Array.isArray(value)) {
+    const elements = value.map(v => formatLiteral(v));
+    return `[${elements.join(", ")}]`;
+  }
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => `"${escapeSwiftString(k)}": ${formatLiteral(v)}`);
+    return `[${entries.join(", ")}]`;
+  }
   return "nil";
 }
 
 function getDefaultValue(value: unknown, type?: IRType): string {
   if (value !== undefined) {
-    return formatLiteral(value);
+    return formatLiteral(value, type);
   }
   if (!type) return `nil`;
+  if (type.kind === "array") return `[]`;
+  if (type.kind === "optional") return `nil`;
   const swift = irTypeToSwift(type);
   if (swift === "String") return `""`;
   if (swift === "Int") return `0`;

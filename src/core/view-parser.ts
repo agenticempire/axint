@@ -19,6 +19,15 @@ import type {
 } from "./types.js";
 import { PARAM_TYPES } from "./types.js";
 import { ParserError } from "./parser.js";
+import {
+  propertyMap,
+  propertyKeyName,
+  readStringLiteral,
+  readBooleanLiteral,
+  evaluateLiteral,
+  posOf,
+  findCallExpression,
+} from "./parser-utils.js";
 
 /**
  * Parse a TypeScript source file containing a defineView() call
@@ -33,7 +42,7 @@ export function parseViewSource(source: string, filePath: string = "<stdin>"): I
     ts.ScriptKind.TS
   );
 
-  const call = findDefineViewCall(sourceFile);
+  const call = findCallExpression(sourceFile, "defineView");
   if (!call) {
     throw new ParserError(
       "AX301",
@@ -81,30 +90,10 @@ export function parseViewSource(source: string, filePath: string = "<stdin>"): I
   };
 }
 
-// ─── AST Walkers ────────────────────────────────────────────────────
-
-function findDefineViewCall(node: ts.Node): ts.CallExpression | undefined {
-  let found: ts.CallExpression | undefined;
-  const visit = (n: ts.Node): void => {
-    if (found) return;
-    if (
-      ts.isCallExpression(n) &&
-      ts.isIdentifier(n.expression) &&
-      n.expression.text === "defineView"
-    ) {
-      found = n;
-      return;
-    }
-    ts.forEachChild(n, visit);
-  };
-  visit(node);
-  return found;
-}
-
 // ─── Prop Extraction ────────────────────────────────────────────────
 
 function extractViewProps(
-  node: ts.Expression | undefined,
+  node: ts.Node | undefined,
   filePath: string,
   sourceFile: ts.SourceFile
 ): IRViewProp[] {
@@ -151,11 +140,11 @@ function extractViewProps(
 
 interface PropCallInfo {
   typeName: string;
-  configObject: Map<string, ts.Expression> | null;
+  configObject: Map<string, ts.Node> | null;
 }
 
 function extractPropCall(
-  expr: ts.Expression,
+  expr: ts.Node,
   filePath: string,
   sourceFile: ts.SourceFile
 ): PropCallInfo {
@@ -185,7 +174,7 @@ function extractPropCall(
 // ─── State Extraction ───────────────────────────────────────────────
 
 function extractViewState(
-  node: ts.Expression | undefined,
+  node: ts.Node | undefined,
   filePath: string,
   sourceFile: ts.SourceFile
 ): IRViewState[] {
@@ -250,11 +239,11 @@ function extractViewState(
 
 interface StateCallInfo {
   typeName: string;
-  configObject: Map<string, ts.Expression> | null;
+  configObject: Map<string, ts.Node> | null;
 }
 
 function extractStateCall(
-  expr: ts.Expression,
+  expr: ts.Node,
   filePath: string,
   sourceFile: ts.SourceFile
 ): StateCallInfo {
@@ -292,7 +281,7 @@ function extractStateCall(
 // ─── Body Extraction ────────────────────────────────────────────────
 
 function extractViewBody(
-  node: ts.Expression | undefined,
+  node: ts.Node | undefined,
   filePath: string,
   sourceFile: ts.SourceFile
 ): ViewBodyNode[] {
@@ -465,63 +454,4 @@ function resolvePrimitiveType(name: string): IRType {
     return { kind: "primitive", value: name as IRPrimitiveType };
   }
   return { kind: "primitive", value: "string" };
-}
-
-function propertyMap(obj: ts.ObjectLiteralExpression): Map<string, ts.Expression> {
-  const map = new Map<string, ts.Expression>();
-  for (const p of obj.properties) {
-    if (ts.isPropertyAssignment(p)) {
-      const key = propertyKeyName(p.name);
-      if (key) map.set(key, p.initializer);
-    } else if (ts.isShorthandPropertyAssignment(p)) {
-      map.set(p.name.text, p.name);
-    }
-  }
-  return map;
-}
-
-function propertyKeyName(name: ts.PropertyName): string | undefined {
-  if (ts.isIdentifier(name)) return name.text;
-  if (ts.isStringLiteral(name)) return name.text;
-  return undefined;
-}
-
-function readStringLiteral(node: ts.Expression | undefined): string | null {
-  if (!node) return null;
-  if (ts.isStringLiteral(node)) return node.text;
-  if (ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
-  return null;
-}
-
-function readBooleanLiteral(node: ts.Expression | undefined): boolean | undefined {
-  if (!node) return undefined;
-  if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
-  if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
-  return undefined;
-}
-
-function evaluateLiteral(node: ts.Expression): unknown {
-  if (ts.isStringLiteral(node)) return node.text;
-  if (ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
-  if (ts.isNumericLiteral(node)) return Number(node.text);
-  if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
-  if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
-  if (node.kind === ts.SyntaxKind.NullKeyword) return null;
-  if (
-    ts.isPrefixUnaryExpression(node) &&
-    node.operator === ts.SyntaxKind.MinusToken &&
-    ts.isNumericLiteral(node.operand)
-  ) {
-    return -Number(node.operand.text);
-  }
-  return undefined;
-}
-
-function posOf(sourceFile: ts.SourceFile, node: ts.Node): number | undefined {
-  try {
-    const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-    return line + 1;
-  } catch {
-    return undefined;
-  }
 }

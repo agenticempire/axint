@@ -174,6 +174,19 @@ async function handleCompileFromSchema(args: SchemaCompileArgs) {
  * Handle intent schema compilation.
  */
 async function handleIntentSchema(args: SchemaCompileArgs, inputTokens: number) {
+  if (!args.name) {
+    return {
+      content: [{ type: "text" as const, text: "[AX002] error: Schema requires a 'name' field" }],
+      isError: true,
+    };
+  }
+  if (!args.title && !args.name) {
+    return {
+      content: [{ type: "text" as const, text: "[AX003] error: Schema requires a 'title' field" }],
+      isError: true,
+    };
+  }
+
   const parameters: IRParameter[] = [];
   if (args.params) {
     for (const [name, typeStr] of Object.entries(args.params)) {
@@ -215,6 +228,13 @@ async function handleIntentSchema(args: SchemaCompileArgs, inputTokens: number) 
  * Handle view schema compilation.
  */
 async function handleViewSchema(args: SchemaCompileArgs, inputTokens: number) {
+  if (!args.name) {
+    return {
+      content: [{ type: "text" as const, text: "[AX301] error: View schema requires a 'name' field" }],
+      isError: true,
+    };
+  }
+
   const props: IRViewProp[] = [];
   if (args.props) {
     for (const [name, typeStr] of Object.entries(args.props)) {
@@ -266,6 +286,19 @@ async function handleViewSchema(args: SchemaCompileArgs, inputTokens: number) {
  * Handle widget schema compilation.
  */
 async function handleWidgetSchema(args: SchemaCompileArgs, inputTokens: number) {
+  if (!args.name) {
+    return {
+      content: [{ type: "text" as const, text: "[AX402] error: Widget schema requires a 'name' field" }],
+      isError: true,
+    };
+  }
+  if (!args.displayName) {
+    return {
+      content: [{ type: "text" as const, text: "[AX403] error: Widget schema requires a 'displayName' field" }],
+      isError: true,
+    };
+  }
+
   const entries: IRWidgetEntry[] = [];
   if (args.entry) {
     for (const [name, typeStr] of Object.entries(args.entry)) {
@@ -326,6 +359,19 @@ async function handleWidgetSchema(args: SchemaCompileArgs, inputTokens: number) 
  * Handle app schema compilation.
  */
 async function handleAppSchema(args: SchemaCompileArgs, inputTokens: number) {
+  if (!args.name) {
+    return {
+      content: [{ type: "text" as const, text: "[AX502] error: App schema requires a 'name' field" }],
+      isError: true,
+    };
+  }
+  if (!args.scenes || args.scenes.length === 0) {
+    return {
+      content: [{ type: "text" as const, text: "[AX503] error: App schema requires at least one scene" }],
+      isError: true,
+    };
+  }
+
   const scenes: IRScene[] = [];
   if (args.scenes) {
     for (const s of args.scenes) {
