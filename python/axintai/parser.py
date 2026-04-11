@@ -395,13 +395,13 @@ def _parse_param_call(
                 )
             )
 
-    optional = False
-    default: Any = None
+    opt = False
+    dflt: Any = None
     for kw in node.keywords:
         if kw.arg == "optional" and isinstance(kw.value, ast.Constant):
-            optional = bool(kw.value.value)
+            opt = bool(kw.value.value)
         elif kw.arg == "default" and isinstance(kw.value, ast.Constant):
-            default = kw.value.value
+            dflt = kw.value.value
 
     # "number" is the legacy TS alias for "int" — normalize on the way in.
     param_type: ParamType = "int" if attr == "number" else attr  # type: ignore[assignment]
@@ -410,8 +410,8 @@ def _parse_param_call(
         name=param_name,
         type=param_type,
         description=description,
-        optional=optional,
-        default=default,
+        optional=opt,
+        default=dflt,
     )
 
 
