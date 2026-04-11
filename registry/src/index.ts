@@ -12,6 +12,29 @@ interface Env {
   GITHUB_CLIENT_SECRET: string;
 }
 
+// ─── Rate Limiter ──────────────────────────────────────────────────
+
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimit(key: string, maxRequests: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  entry.count++;
+  return entry.count > maxRequests;
+}
+
+function getClientIp(req: Request): string {
+  return req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+}
+
+// ─── Constants ─────────────────────────────────────────────────────
+
+const MAX_PUBLISH_BODY_BYTES = 10 * 1024 * 1024; // 10 MB
+
 type Handler = (req: Request, env: Env, params: Record<string, string>) => Promise<Response>;
 
 const routes: Array<{ method: string; pattern: RegExp; handler: Handler }> = [];
@@ -180,6 +203,12 @@ route("POST", "/api/v1/publish", async (req, env) => {
   const userId = await authenticate(req, env);
   if (!userId) return err("unauthorized", 401);
 
+  // Enforce request size limit
+  const contentLength = parseInt(req.headers.get("content-length") ?? "0");
+  if (contentLength > MAX_PUBLISH_BODY_BYTES) {
+    return err(`payload too large (max ${MAX_PUBLISH_BODY_BYTES / 1024 / 1024}MB)`, 413);
+  }
+
   const body = await req.json<{
     namespace: string;
     slug: string;
@@ -343,7 +372,14 @@ route("GET", "/api/v1/search", async (req, env) => {
   const offset = parseInt(url.searchParams.get("offset") ?? "0");
 
   let results;
+  let totalCount: number;
+
   if (q) {
+    const countRow = await env.DB.prepare(
+      "SELECT COUNT(*) as n FROM packages WHERE name LIKE ? OR slug LIKE ? OR description LIKE ?"
+    ).bind(`%${q}%`, `%${q}%`, `%${q}%`).first<{ n: number }>();
+    totalCount = countRow?.n ?? 0;
+
     results = await env.DB.prepare(
       `SELECT p.namespace, p.slug, p.name, p.description, p.latest_version, p.downloads, p.license,
               u.username as author
@@ -354,6 +390,11 @@ route("GET", "/api/v1/search", async (req, env) => {
        LIMIT ? OFFSET ?`
     ).bind(`%${q}%`, `%${q}%`, `%${q}%`, limit, offset).all();
   } else {
+    const countRow = await env.DB.prepare(
+      "SELECT COUNT(*) as n FROM packages"
+    ).first<{ n: number }>();
+    totalCount = countRow?.n ?? 0;
+
     results = await env.DB.prepare(
       `SELECT p.namespace, p.slug, p.name, p.description, p.latest_version, p.downloads, p.license,
               u.username as author
@@ -366,7 +407,7 @@ route("GET", "/api/v1/search", async (req, env) => {
 
   return json({
     results: results.results,
-    total: results.results.length,
+    total: totalCount,
   });
 });
 
@@ -422,6 +463,26 @@ export default {
     }
 
     const url = new URL(req.url);
+    const clientIp = getClientIp(req);
+
+    // Global rate limit: 120 requests/minute per IP
+    if (rateLimit(`global:${clientIp}`, 120, 60_000)) {
+      return json({ error: "rate limit exceeded" }, 429);
+    }
+
+    // Stricter limits on auth endpoints: 10 requests/minute per IP
+    if (url.pathname.startsWith("/api/v1/auth/")) {
+      if (rateLimit(`auth:${clientIp}`, 10, 60_000)) {
+        return json({ error: "rate limit exceeded" }, 429);
+      }
+    }
+
+    // Stricter limits on publish: 30 requests/hour per IP
+    if (url.pathname === "/api/v1/publish" && req.method === "POST") {
+      if (rateLimit(`publish:${clientIp}`, 30, 3_600_000)) {
+        return json({ error: "rate limit exceeded" }, 429);
+      }
+    }
 
     // API routes
     for (const r of routes) {

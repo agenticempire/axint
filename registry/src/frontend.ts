@@ -1170,8 +1170,15 @@ function sanitizeMarkdown(markdown: string): string {
   // Code blocks
   html = html.replace(/```([\s\S]+?)```/g, '<pre>$1</pre>');
 
-  // Links
-  html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" style="color: #EC4899; text-decoration: none; border-bottom: 1px solid #EC4899;">$1</a>');
+  // Links — sanitize href to block javascript: and data: schemes
+  html = html.replace(/\[(.+?)\]\((.+?)\)/g, (_match, text, href) => {
+    const trimmed = href.trim().toLowerCase();
+    if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:') || trimmed.startsWith('vbscript:')) {
+      return text; // strip the link, keep the text
+    }
+    const safeHref = escapeHtml(href.trim());
+    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" style="color: #EC4899; text-decoration: none; border-bottom: 1px solid #EC4899;">${text}</a>`;
+  });
 
   // Paragraphs
   html = html.split('\n\n').map(p => p.trim()).filter(p => p).map(p => {
