@@ -23,6 +23,9 @@ ParamType = Literal[
     "date",
     "duration",
     "url",
+    "entity",
+    "enum",
+    "dynamicOptions",
 ]
 
 AppleTarget = Literal["ios17", "ios18", "ios26", "macos14", "macos15", "macos26"]
@@ -61,6 +64,9 @@ class IntentParameter:
     description: str
     optional: bool = False
     default: Any = None
+    entity_name: str | None = None  # for param.entity("EntityName")
+    enum_cases: tuple[str, ...] | None = None  # for param.enum(["case1", "case2"])
+    provider_name: str | None = None  # for param.dynamicOptions("ProviderName")
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -72,7 +78,86 @@ class IntentParameter:
             out["optional"] = True
         if self.default is not None:
             out["default"] = self.default
+        if self.entity_name is not None:
+            out["entityName"] = self.entity_name
+        if self.enum_cases is not None:
+            out["enumCases"] = list(self.enum_cases)
+        if self.provider_name is not None:
+            out["providerName"] = self.provider_name
         return out
+
+
+@dataclass(frozen=True, slots=True)
+class DisplayRepresentationIR:
+    """Display representation configuration for an entity."""
+
+    title: str
+    subtitle: str | None = None
+    image: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"title": self.title}
+        if self.subtitle is not None:
+            out["subtitle"] = self.subtitle
+        if self.image is not None:
+            out["image"] = self.image
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class EntityIR:
+    """An App Entity definition for complex, domain-specific data types."""
+
+    name: str
+    display_representation: DisplayRepresentationIR
+    properties: tuple[IntentParameter, ...] = ()
+    query_type: str = "id"  # "id", "all", "string", "property"
+    source_file: str | None = None
+    source_line: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": self.name,
+            "displayRepresentation": self.display_representation.to_dict(),
+            "queryType": self.query_type,
+        }
+        if self.properties:
+            out["properties"] = [p.to_dict() for p in self.properties]
+        if self.source_file is not None:
+            out["sourceFile"] = self.source_file
+        if self.source_line is not None:
+            out["sourceLine"] = self.source_line
+        return out
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> EntityIR:
+        display_repr_data = data.get("displayRepresentation", {})
+        display_repr = DisplayRepresentationIR(
+            title=display_repr_data.get("title", ""),
+            subtitle=display_repr_data.get("subtitle"),
+            image=display_repr_data.get("image"),
+        )
+        props = tuple(
+            IntentParameter(
+                name=p["name"],
+                type=p["type"],
+                description=p["description"],
+                optional=p.get("optional", False),
+                default=p.get("default"),
+                entity_name=p.get("entityName"),
+                enum_cases=tuple(p["enumCases"]) if "enumCases" in p else None,
+                provider_name=p.get("providerName"),
+            )
+            for p in data.get("properties", [])
+        )
+        return cls(
+            name=data["name"],
+            display_representation=display_repr,
+            properties=props,
+            query_type=data.get("queryType", "id"),
+            source_file=data.get("sourceFile"),
+            source_line=data.get("sourceLine"),
+        )
 
 
 @dataclass(frozen=True, slots=True)

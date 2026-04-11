@@ -406,3 +406,260 @@ def test_app_ir_round_trip() -> None:
         scenes=[scene.window_group("View")],
     ).to_ir()
     assert AppIR.from_dict(ir.to_dict()) == ir
+
+
+# ─── Entity Tests ────────────────────────────────────────────────────────
+
+
+def test_define_entity_minimal() -> None:
+    from axintai import define_entity
+
+    entity = define_entity(
+        name="Task",
+        display_title="Task",
+    )
+    assert entity.name == "Task"
+    assert entity.display_title == "Task"
+    assert entity.display_subtitle is None
+    assert entity.properties == {}
+    assert entity.query_type == "id"
+
+
+def test_define_entity_full() -> None:
+    from axintai import EntityIR, define_entity, param
+
+    entity = define_entity(
+        name="Task",
+        display_title="Task",
+        display_subtitle="A task to complete",
+        display_image="checkmark.circle",
+        properties={
+            "id": param.string("Task ID"),
+            "title": param.string("Task title"),
+            "is_completed": param.boolean("Whether the task is done"),
+        },
+        query_type="id",
+    )
+    ir = entity.to_ir()
+    assert isinstance(ir, EntityIR)
+    assert ir.name == "Task"
+    assert ir.display_representation.title == "Task"
+    assert ir.display_representation.subtitle == "A task to complete"
+    assert ir.display_representation.image == "checkmark.circle"
+    assert len(ir.properties) == 3
+    assert ir.query_type == "id"
+
+
+def test_entity_ir_to_dict() -> None:
+    from axintai import define_entity, param
+
+    entity = define_entity(
+        name="Contact",
+        display_title="Contact",
+        display_subtitle="A person",
+        properties={
+            "name": param.string("Contact name"),
+            "email": param.string("Email address"),
+        },
+    )
+    d = entity.to_ir().to_dict()
+    assert d["name"] == "Contact"
+    assert d["displayRepresentation"]["title"] == "Contact"
+    assert d["displayRepresentation"]["subtitle"] == "A person"
+    assert len(d["properties"]) == 2
+    assert d["properties"][0]["name"] == "name"
+
+
+def test_entity_ir_round_trip() -> None:
+    from axintai import EntityIR, define_entity, param
+
+    ir = define_entity(
+        name="Event",
+        display_title="Event",
+        properties={"date": param.date("Event date")},
+    ).to_ir()
+    assert EntityIR.from_dict(ir.to_dict()) == ir
+
+
+# ─── Enum Parameter Tests ────────────────────────────────────────────────
+
+
+def test_param_enum_basic() -> None:
+    spec = param.enum(["red", "green", "blue"], "Color choice")
+    assert spec.type == "enum"
+    assert spec.description == "Color choice"
+    assert spec.enum_cases == ("red", "green", "blue")
+    assert spec.optional is False
+
+
+def test_param_enum_with_default() -> None:
+    spec = param.enum(["low", "medium", "high"], "Priority level", default="medium")
+    assert spec.type == "enum"
+    assert spec.default == "medium"
+
+
+def test_param_enum_optional() -> None:
+    spec = param.enum(["option1", "option2"], "An option", optional=True)
+    assert spec.optional is True
+
+
+def test_intent_with_enum_param() -> None:
+    from axintai import define_intent, param
+
+    intent = define_intent(
+        name="SetPriorityIntent",
+        title="Set Priority",
+        description="Sets the priority of a task",
+        domain="productivity",
+        params={
+            "priority": param.enum(["low", "medium", "high"], "Priority level"),
+        },
+    )
+    ir = intent.to_ir()
+    assert len(ir.parameters) == 1
+    assert ir.parameters[0].type == "enum"
+    assert ir.parameters[0].enum_cases == ("low", "medium", "high")
+
+
+# ─── Entity Parameter Tests ──────────────────────────────────────────────
+
+
+def test_param_entity() -> None:
+    spec = param.entity("Task", "The task to complete")
+    assert spec.type == "entity"
+    assert spec.entity_name == "Task"
+    assert spec.description == "The task to complete"
+    assert spec.optional is False
+
+
+def test_param_entity_optional() -> None:
+    spec = param.entity("Contact", "Optional contact reference", optional=True)
+    assert spec.optional is True
+
+
+def test_intent_with_entity_param() -> None:
+    from axintai import define_intent, param
+
+    intent = define_intent(
+        name="UpdateTaskIntent",
+        title="Update Task",
+        description="Updates a task",
+        domain="productivity",
+        params={
+            "task": param.entity("Task", "The task to update"),
+        },
+    )
+    ir = intent.to_ir()
+    assert len(ir.parameters) == 1
+    assert ir.parameters[0].type == "entity"
+    assert ir.parameters[0].entity_name == "Task"
+
+
+# ─── Return Type Inference Tests ─────────────────────────────────────────
+
+
+def test_return_type_inference_string() -> None:
+    from axintai import define_intent, param
+
+    def perform() -> str:
+        return "result"
+
+    intent = define_intent(
+        name="TestIntent",
+        title="Test",
+        description="Test return type",
+        domain="test",
+        perform=perform,
+    )
+    ir = intent.to_ir()
+    assert ir.return_type == "string"
+
+
+def test_return_type_inference_int() -> None:
+    from axintai import define_intent, param
+
+    def perform() -> int:
+        return 42
+
+    intent = define_intent(
+        name="CountIntent",
+        title="Count",
+        description="Returns a count",
+        domain="test",
+        perform=perform,
+    )
+    ir = intent.to_ir()
+    assert ir.return_type == "int"
+
+
+def test_return_type_inference_bool() -> None:
+    from axintai import define_intent, param
+
+    def perform() -> bool:
+        return True
+
+    intent = define_intent(
+        name="CheckIntent",
+        title="Check",
+        description="Returns a boolean",
+        domain="test",
+        perform=perform,
+    )
+    ir = intent.to_ir()
+    assert ir.return_type == "boolean"
+
+
+def test_return_type_inference_float() -> None:
+    from axintai import define_intent, param
+
+    def perform() -> float:
+        return 3.14
+
+    intent = define_intent(
+        name="MeasureIntent",
+        title="Measure",
+        description="Returns a measurement",
+        domain="test",
+        perform=perform,
+    )
+    ir = intent.to_ir()
+    assert ir.return_type == "double"
+
+
+def test_no_return_type_when_missing() -> None:
+    from axintai import define_intent
+
+    intent = define_intent(
+        name="VoidIntent",
+        title="Void",
+        description="No return type",
+        domain="test",
+    )
+    ir = intent.to_ir()
+    assert ir.return_type is None
+
+
+def test_intent_with_multiple_features() -> None:
+    from axintai import define_intent, param
+
+    def perform() -> str:
+        return "success"
+
+    intent = define_intent(
+        name="ComplexIntent",
+        title="Complex Operation",
+        description="Does complex things",
+        domain="productivity",
+        params={
+            "task": param.entity("Task", "The task"),
+            "priority": param.enum(["low", "high"], "Priority"),
+            "name": param.string("Name"),
+        },
+        perform=perform,
+    )
+    ir = intent.to_ir()
+    assert ir.return_type == "string"
+    assert len(ir.parameters) == 3
+    assert ir.parameters[0].type == "entity"
+    assert ir.parameters[1].type == "enum"
+    assert ir.parameters[2].type == "string"

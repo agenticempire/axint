@@ -124,6 +124,38 @@ def generate_swift(intent: IntentIR) -> str:
 
 def _generate_parameter(param: IntentParameter) -> str:
     """Generate a single @Parameter property declaration."""
+    # Handle entity types
+    if param.type == "entity" and param.entity_name:
+        swift_type = param.entity_name
+        if param.optional:
+            swift_type = f"{swift_type}?"
+        lines: list[str] = []
+        attrs: list[str] = [f'title: "{escape_swift_string(param.description)}"']
+        decorator = f"    @Parameter({', '.join(attrs)})"
+        lines.append(decorator)
+        lines.append(f"    var {param.name}: {swift_type}")
+        lines.append("")
+        return "\n".join(lines)
+
+    # Handle enum types
+    if param.type == "enum" and param.enum_cases:
+        # Generate enum type inline or reference it
+        swift_type = _generate_enum_type_name(param.name)
+        if param.optional:
+            swift_type = f"{swift_type}?"
+        lines: list[str] = []
+        attrs: list[str] = [f'title: "{escape_swift_string(param.description)}"']
+        decorator = f"    @Parameter({', '.join(attrs)})"
+        lines.append(decorator)
+        if param.default is not None:
+            default_str = _format_swift_default(param.default, param.type)
+            lines.append(f"    var {param.name}: {swift_type} = {default_str}")
+        else:
+            lines.append(f"    var {param.name}: {swift_type}")
+        lines.append("")
+        return "\n".join(lines)
+
+    # Standard primitive types
     swift_type = SWIFT_TYPE_MAP.get(param.type, "String")
     if param.optional:
         swift_type = f"{swift_type}?"
@@ -145,6 +177,13 @@ def _generate_parameter(param: IntentParameter) -> str:
     lines.append("")
 
     return "\n".join(lines)
+
+
+def _generate_enum_type_name(param_name: str) -> str:
+    """Generate a PascalCase enum type name from parameter name."""
+    # Convert snake_case to PascalCase
+    parts = param_name.split("_")
+    return "".join(p.capitalize() for p in parts) + "Option"
 
 
 def _format_swift_default(value: object, param_type: str) -> str:

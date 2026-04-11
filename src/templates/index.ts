@@ -371,6 +371,401 @@ export default defineIntent({
 `,
 };
 
+const setTimer: IntentTemplate = {
+  id: "set-timer",
+  name: "set-timer",
+  title: "Set Timer",
+  domain: "utilities",
+  category: "utilities",
+  description: "Set a timer with a duration and optional label.",
+  source: `import { defineIntent, param } from "@axintai/compiler";
+
+export default defineIntent({
+  name: "SetTimer",
+  title: "Set Timer",
+  description: "Sets a timer with a specified duration and optional label.",
+  domain: "utilities",
+  params: {
+    duration: param.duration("Timer duration"),
+    label: param.string("Timer label (optional)", { required: false }),
+  },
+  perform: async ({ duration, label }) => {
+    return { timerId: "timer_placeholder", running: true };
+  },
+});
+`,
+};
+
+const searchNotes: IntentTemplate = {
+  id: "search-notes",
+  name: "search-notes",
+  title: "Search Notes",
+  domain: "productivity",
+  category: "productivity",
+  description: "Search through notes using a query string.",
+  source: `import { defineIntent, defineEntity, param } from "@axintai/compiler";
+
+defineEntity({
+  name: "Note",
+  display: {
+    title: "title",
+    subtitle: "preview",
+  },
+  properties: {
+    id: param.string("Note identifier"),
+    title: param.string("Note title"),
+    preview: param.string("Note preview text"),
+    createdDate: param.date("Created date"),
+  },
+  query: "string",
+});
+
+export default defineIntent({
+  name: "SearchNotes",
+  title: "Search Notes",
+  description: "Searches notes by title, content, or date.",
+  domain: "productivity",
+  params: {
+    query: param.string("Search query or keywords"),
+    limit: param.int("Max results to return", { default: 10, required: false }),
+  },
+  donateOnPerform: true,
+  perform: async ({ query, limit }) => {
+    return { found: true, count: 0 };
+  },
+});
+`,
+};
+
+const createReminder: IntentTemplate = {
+  id: "create-reminder",
+  name: "create-reminder",
+  title: "Create Reminder",
+  domain: "productivity",
+  category: "productivity",
+  description: "Create a reminder with title, date, and priority level.",
+  source: `import { defineIntent, param } from "@axintai/compiler";
+
+export default defineIntent({
+  name: "CreateReminder",
+  title: "Create Reminder",
+  description: "Creates a new reminder with a due date and priority.",
+  domain: "productivity",
+  params: {
+    title: param.string("Reminder title"),
+    dueDate: param.date("Due date and time"),
+    priority: param.string("Priority level (low, medium, high)", { default: "medium" }),
+    list: param.string("Reminder list (optional)", { required: false }),
+  },
+  perform: async ({ title, dueDate, priority }) => {
+    return { reminderId: "reminder_placeholder" };
+  },
+});
+`,
+};
+
+const toggleSetting: IntentTemplate = {
+  id: "toggle-setting",
+  name: "toggle-setting",
+  title: "Toggle Setting",
+  domain: "smart-home",
+  category: "smart-home",
+  description: "Toggle a system or app setting on/off.",
+  source: `import { defineIntent, param } from "@axintai/compiler";
+
+export default defineIntent({
+  name: "ToggleSetting",
+  title: "Toggle Setting",
+  description: "Toggles a system or app setting on or off.",
+  domain: "smart-home",
+  params: {
+    setting: param.string("Setting name (e.g., wifi, bluetooth, do-not-disturb)"),
+    enabled: param.boolean("Enable or disable", { required: false }),
+  },
+  perform: async ({ setting, enabled }) => {
+    return { toggled: true };
+  },
+});
+`,
+};
+
+const shareContent: IntentTemplate = {
+  id: "share-content",
+  name: "share-content",
+  title: "Share Content",
+  domain: "messaging",
+  category: "messaging",
+  description: "Share content to a destination with an optional message.",
+  source: `import { defineIntent, param } from "@axintai/compiler";
+
+export default defineIntent({
+  name: "ShareContent",
+  title: "Share Content",
+  description: "Shares content to a destination or contact.",
+  domain: "messaging",
+  params: {
+    url: param.string("URL to share"),
+    destination: param.string("Where to share (contact, service, or platform)"),
+    message: param.string("Message to include", { required: false }),
+  },
+  perform: async ({ url, destination }) => {
+    return { shared: true };
+  },
+});
+`,
+};
+
+const navigateTo: IntentTemplate = {
+  id: "navigate-to",
+  name: "navigate-to",
+  title: "Navigate to Location",
+  domain: "navigation",
+  category: "navigation",
+  description: "Navigate to a location with optional transport mode.",
+  source: `import { defineIntent, param } from "@axintai/compiler";
+
+export default defineIntent({
+  name: "NavigateTo",
+  title: "Navigate to Location",
+  description: "Opens navigation to a specified address or location.",
+  domain: "navigation",
+  params: {
+    address: param.string("Destination address or place name"),
+    mode: param.string("Transport mode (driving, walking, transit, cycling)", {
+      default: "driving",
+    }),
+    avoidTolls: param.boolean("Avoid tolls", { required: false }),
+  },
+  perform: async ({ address, mode }) => {
+    return { navigationStarted: true };
+  },
+});
+`,
+};
+
+const playMusic: IntentTemplate = {
+  id: "play-music",
+  name: "play-music",
+  title: "Play Music",
+  domain: "media",
+  category: "media",
+  description: "Play music by track, artist, album, or playlist.",
+  source: `import { defineIntent, defineEntity, param } from "@axintai/compiler";
+
+defineEntity({
+  name: "Playlist",
+  display: {
+    title: "name",
+    subtitle: "trackCount",
+  },
+  properties: {
+    id: param.string("Playlist identifier"),
+    name: param.string("Playlist name"),
+    trackCount: param.int("Number of tracks"),
+  },
+  query: "string",
+});
+
+export default defineIntent({
+  name: "PlayMusic",
+  title: "Play Music",
+  description: "Plays music from a track, artist, album, or playlist.",
+  domain: "media",
+  params: {
+    query: param.string("Track, artist, album, or playlist name"),
+    shuffle: param.boolean("Shuffle playback", { required: false }),
+    repeat: param.string("Repeat mode (off, all, one)", { default: "off" }),
+  },
+  perform: async ({ query }) => {
+    return { playing: true };
+  },
+});
+`,
+};
+
+const scanDocument: IntentTemplate = {
+  id: "scan-document",
+  name: "scan-document",
+  title: "Scan Document",
+  domain: "productivity",
+  category: "productivity",
+  description: "Scan or process a document and save in specified format.",
+  source: `import { defineIntent, param } from "@axintai/compiler";
+
+export default defineIntent({
+  name: "ScanDocument",
+  title: "Scan Document",
+  description: "Scans or processes a document and saves it in the specified format.",
+  domain: "productivity",
+  params: {
+    source: param.string("Document source (camera, file, or URL)"),
+    format: param.string("Output format (pdf, jpg, png)", { default: "pdf" }),
+    name: param.string("Document name", { required: false }),
+  },
+  perform: async ({ source, format }) => {
+    return { documentId: "doc_placeholder", saved: true };
+  },
+});
+`,
+};
+
+const translateText: IntentTemplate = {
+  id: "translate-text",
+  name: "translate-text",
+  title: "Translate Text",
+  domain: "utilities",
+  category: "utilities",
+  description: "Translate text between languages.",
+  source: `import { defineIntent, param } from "@axintai/compiler";
+
+export default defineIntent({
+  name: "TranslateText",
+  title: "Translate Text",
+  description: "Translates text from one language to another.",
+  domain: "utilities",
+  params: {
+    text: param.string("Text to translate"),
+    targetLanguage: param.string("Target language (e.g., Spanish, French, Mandarin)"),
+    sourceLanguage: param.string("Source language", { default: "Auto-detect", required: false }),
+  },
+  perform: async ({ text, targetLanguage }) => {
+    return { translated: "", language: targetLanguage };
+  },
+});
+`,
+};
+
+const checkWeather: IntentTemplate = {
+  id: "check-weather",
+  name: "check-weather",
+  title: "Check Weather",
+  domain: "utilities",
+  category: "utilities",
+  description: "Check weather conditions for a location.",
+  source: `import { defineIntent, param } from "@axintai/compiler";
+
+export default defineIntent({
+  name: "CheckWeather",
+  title: "Check Weather",
+  description: "Retrieves weather information for a specified location.",
+  domain: "utilities",
+  params: {
+    location: param.string("City name or address"),
+    unit: param.string("Temperature unit (Fahrenheit, Celsius)", { default: "Fahrenheit" }),
+  },
+  perform: async ({ location }) => {
+    return { temperature: 72, condition: "Sunny", location: location };
+  },
+});
+`,
+};
+
+const addToCart: IntentTemplate = {
+  id: "add-to-cart",
+  name: "add-to-cart",
+  title: "Add to Cart",
+  domain: "commerce",
+  category: "commerce",
+  description: "Add an item to a shopping cart with quantity.",
+  source: `import { defineIntent, defineEntity, param } from "@axintai/compiler";
+
+defineEntity({
+  name: "Product",
+  display: {
+    title: "name",
+    subtitle: "price",
+  },
+  properties: {
+    id: param.string("Product identifier"),
+    name: param.string("Product name"),
+    price: param.string("Product price"),
+  },
+  query: "string",
+});
+
+export default defineIntent({
+  name: "AddToCart",
+  title: "Add to Cart",
+  description: "Adds an item to the shopping cart.",
+  domain: "commerce",
+  params: {
+    productId: param.string("Product identifier or name"),
+    quantity: param.int("Quantity to add", { default: 1 }),
+  },
+  perform: async ({ productId, quantity }) => {
+    return { added: true, cartSize: 0 };
+  },
+});
+`,
+};
+
+const bookAppointment: IntentTemplate = {
+  id: "book-appointment",
+  name: "book-appointment",
+  title: "Book Appointment",
+  domain: "productivity",
+  category: "productivity",
+  description: "Book an appointment with a service provider on a specific date.",
+  source: `import { defineIntent, defineEntity, param } from "@axintai/compiler";
+
+defineEntity({
+  name: "ServiceProvider",
+  display: {
+    title: "name",
+    subtitle: "service",
+  },
+  properties: {
+    id: param.string("Provider identifier"),
+    name: param.string("Provider name"),
+    service: param.string("Service type"),
+  },
+  query: "string",
+});
+
+export default defineIntent({
+  name: "BookAppointment",
+  title: "Book Appointment",
+  description: "Books an appointment with a service provider.",
+  domain: "productivity",
+  params: {
+    date: param.date("Appointment date and time"),
+    serviceType: param.string("Type of service (haircut, massage, consultation, etc.)"),
+    provider: param.string("Provider name or ID", { required: false }),
+    notes: param.string("Special requests or notes", { required: false }),
+  },
+  perform: async ({ date, serviceType }) => {
+    return { appointmentId: "appt_placeholder", confirmed: true };
+  },
+});
+`,
+};
+
+const runShortcut: IntentTemplate = {
+  id: "run-shortcut",
+  name: "run-shortcut",
+  title: "Run Shortcut",
+  domain: "utilities",
+  category: "utilities",
+  description: "Run another shortcut or automation by name.",
+  source: `import { defineIntent, param } from "@axintai/compiler";
+
+export default defineIntent({
+  name: "RunShortcut",
+  title: "Run Shortcut",
+  description: "Runs another shortcut or automation by name with optional parameters.",
+  domain: "utilities",
+  params: {
+    shortcutName: param.string("Name of the shortcut to run"),
+    parameters: param.string("Parameters to pass (JSON format)", { required: false }),
+    waitForCompletion: param.boolean("Wait for completion", { default: true }),
+  },
+  perform: async ({ shortcutName }) => {
+    return { executed: true, result: null };
+  },
+});
+`,
+};
+
 // ─── Registry ────────────────────────────────────────────────────────
 
 export const TEMPLATES: IntentTemplate[] = [
@@ -386,6 +781,19 @@ export const TEMPLATES: IntentTemplate[] = [
   placeOrder,
   searchTasks,
   dynamicPlaylist,
+  setTimer,
+  searchNotes,
+  createReminder,
+  toggleSetting,
+  shareContent,
+  navigateTo,
+  playMusic,
+  scanDocument,
+  translateText,
+  checkWeather,
+  addToCart,
+  bookAppointment,
+  runShortcut,
 ];
 
 /** @deprecated Use TEMPLATES. Kept for v0.1.x import compatibility. */

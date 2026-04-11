@@ -80,6 +80,16 @@ function renderBaseLayout(title: string, content: string, showNav = true): strin
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} | Axint Registry</title>
+  <meta name="description" content="Axint — the open-source compiler that turns TypeScript and Python definitions into native Apple App Intents, SwiftUI views, WidgetKit widgets, and full apps. Apache 2.0.">
+  <meta name="keywords" content="axint, swift compiler, app intents, siri, shortcuts, swiftui, widgetkit, typescript to swift, python to swift, apple developer tools">
+  <meta property="og:title" content="Axint — TypeScript/Python to Native Apple Code">
+  <meta property="og:description" content="Define actions in TypeScript or Python. Compile to native Swift App Intents, SwiftUI views, widgets, and apps.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://axint.ai">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Axint — The Compiler AI Coding Tools Reach For">
+  <meta name="twitter:description" content="Define actions in TypeScript or Python. Compile to native Swift for Siri, Shortcuts, and App Intents.">
+  <link rel="canonical" href="https://axint.ai">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -199,6 +209,35 @@ function renderBaseLayout(title: string, content: string, showNav = true): strin
       text-align: center;
     }
 
+    /* Screen reader only */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    /* Monaco editor lazy loading */
+    .monaco-loading {
+      display: none;
+      padding: 2rem;
+      text-align: center;
+      color: #a1a1a6;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       nav > div {
@@ -215,52 +254,66 @@ function renderBaseLayout(title: string, content: string, showNav = true): strin
       }
     }
   </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Axint",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS, iOS",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "description": "Open-source compiler that turns TypeScript and Python into native Apple code",
+    "url": "https://axint.ai",
+    "license": "https://www.apache.org/licenses/LICENSE-2.0"
+  }
+  </script>
   ${content}
 </head>
 <body>
+  <a href="#main" class="sr-only">Skip to content</a>
   ${showNav ? `
   <nav>
     <div>
-      <a href="/" class="nav-logo">
+      <a href="/" class="nav-logo" aria-label="Axint home">
         ${AXINT_LOGO}
         <span>Axint</span>
       </a>
       <ul class="nav-links">
-        <li><a href="/">Registry</a></li>
-        <li><a href="https://github.com/agenticempire/axint" target="_blank">GitHub</a></li>
-        <li><a href="https://axint.dev" target="_blank">Docs</a></li>
-        <li><a href="https://discord.gg/axint" target="_blank">Discord</a></li>
+        <li><a href="/" aria-label="Registry home">Registry</a></li>
+        <li><a href="https://github.com/agenticempire/axint" target="_blank" aria-label="GitHub repository">GitHub</a></li>
+        <li><a href="https://axint.dev" target="_blank" aria-label="Documentation">Docs</a></li>
+        <li><a href="https://discord.gg/axint" target="_blank" aria-label="Discord community">Discord</a></li>
       </ul>
     </div>
   </nav>
   ` : ''}
-  <main>
+  <main id="main" role="main">
     ${content}
   </main>
   <footer>
     <div>
       <div>
         <h3>Product</h3>
-        <a href="/">Registry</a>
-        <a href="https://github.com/agenticempire/axint" target="_blank">GitHub</a>
-        <a href="https://github.com/agenticempire/axint/releases" target="_blank">Releases</a>
+        <a href="/" aria-label="Registry home">Registry</a>
+        <a href="https://github.com/agenticempire/axint" target="_blank" aria-label="Axint GitHub repository">GitHub</a>
+        <a href="https://github.com/agenticempire/axint/releases" target="_blank" aria-label="Release notes">Releases</a>
       </div>
       <div>
         <h3>Resources</h3>
-        <a href="https://axint.dev" target="_blank">Documentation</a>
-        <a href="https://axint.dev/guides" target="_blank">Guides</a>
-        <a href="https://axint.dev/api" target="_blank">API Reference</a>
+        <a href="https://axint.dev" target="_blank" aria-label="Axint documentation">Documentation</a>
+        <a href="https://axint.dev/guides" target="_blank" aria-label="Getting started guides">Guides</a>
+        <a href="https://axint.dev/api" target="_blank" aria-label="API reference">API Reference</a>
       </div>
       <div>
         <h3>Community</h3>
-        <a href="https://discord.gg/axint" target="_blank">Discord</a>
-        <a href="https://twitter.com/axintswift" target="_blank">Twitter</a>
-        <a href="https://github.com/agenticempire" target="_blank">GitHub Org</a>
+        <a href="https://discord.gg/axint" target="_blank" aria-label="Join Discord community">Discord</a>
+        <a href="https://twitter.com/axintswift" target="_blank" aria-label="Follow on Twitter">Twitter</a>
+        <a href="https://github.com/agenticempire" target="_blank" aria-label="Agenticempire GitHub organization">GitHub Org</a>
       </div>
       <div>
         <h3>Company</h3>
-        <a href="https://ambitionlabs.com" target="_blank">Ambition Labs</a>
-        <a href="https://github.com/agenticempire/axint/blob/main/LICENSE" target="_blank">License</a>
+        <a href="https://ambitionlabs.com" target="_blank" aria-label="Ambition Labs website">Ambition Labs</a>
+        <a href="https://github.com/agenticempire/axint/blob/main/LICENSE" target="_blank" aria-label="Apache 2.0 License">License</a>
       </div>
     </div>
     <div class="footer-bottom">
@@ -995,6 +1048,37 @@ export function renderPackagePage(pkg: PackageDetail): string {
   </style>
 
   <script>
+    let monacoLoaded = false;
+
+    function loadMonacoEditor(containerId) {
+      if (monacoLoaded) return Promise.resolve();
+
+      const container = document.getElementById(containerId);
+      if (!container) return Promise.reject(new Error('Editor container not found'));
+
+      const placeholder = container.querySelector('.monaco-loading');
+      if (placeholder) {
+        placeholder.style.display = 'block';
+      }
+
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.50.0/min/vs/loader.min.js';
+        script.onload = () => {
+          require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.50.0/min/vs' } });
+          require(['vs/editor/editor.main'], () => {
+            monacoLoaded = true;
+            if (placeholder) {
+              placeholder.style.display = 'none';
+            }
+            resolve();
+          });
+        };
+        script.onerror = () => reject(new Error('Failed to load Monaco Editor'));
+        document.head.appendChild(script);
+      });
+    }
+
     function copyInstallCommand(button) {
       const code = button.previousElementSibling.textContent.trim();
       navigator.clipboard.writeText(code).then(() => {

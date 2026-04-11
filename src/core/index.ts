@@ -35,6 +35,8 @@ export { validateIntent, validateEntity, validateSwiftSource } from "./validator
 export { validateView, validateSwiftUISource } from "./view-validator.js";
 export { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
 export { validateApp, validateSwiftAppSource } from "./app-validator.js";
+export { DIAGNOSTIC_CODES, DIAGNOSTIC_COUNT, getDiagnostic, getCodesByCategory } from "./diagnostics.js";
+export type { DiagnosticInfo } from "./diagnostics.js";
 export { ejectIntent } from "./eject.js";
 export {
   irTypeToSwift,

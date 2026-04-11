@@ -10,6 +10,14 @@
 import ts from "typescript";
 import type { IRApp, IRScene, IRPrimitiveType, SceneKind } from "./types.js";
 import { ParserError } from "./parser.js";
+import {
+  propertyMap,
+  propertyKeyName,
+  readStringLiteral,
+  evaluateLiteral,
+  posOf,
+  findCallExpression,
+} from "./parser-utils.js";
 
 /**
  * Parse a TypeScript source file containing a defineApp() call
@@ -24,7 +32,7 @@ export function parseAppSource(source: string, filePath: string = "<stdin>"): IR
     ts.ScriptKind.TS
   );
 
-  const call = findDefineAppCall(sourceFile);
+  const call = findCallExpression(sourceFile, "defineApp");
   if (!call) {
     throw new ParserError(
       "AX501",
@@ -57,7 +65,8 @@ export function parseAppSource(source: string, filePath: string = "<stdin>"): IR
     );
   }
 
-  const scenesProp = findProp(arg, "scenes");
+  const argProps = propertyMap(arg);
+  const scenesProp = argProps.get("scenes");
   if (!scenesProp || !ts.isArrayLiteralExpression(scenesProp)) {
     throw new ParserError(
       "AX503",
@@ -71,7 +80,7 @@ export function parseAppSource(source: string, filePath: string = "<stdin>"): IR
   const scenes = parseScenes(scenesProp, sourceFile, filePath);
 
   // Parse optional appStorage
-  const storageProp = findProp(arg, "appStorage");
+  const storageProp = argProps.get("appStorage");
   let appStorage: IRApp["appStorage"];
   if (storageProp && ts.isObjectLiteralExpression(storageProp)) {
     appStorage = parseAppStorage(storageProp, sourceFile, filePath);
@@ -171,7 +180,7 @@ function parseAppStorage(
         const key = args.length > 0 && ts.isStringLiteral(args[0]) ? args[0].text : name;
         let defaultValue: unknown;
         if (args.length > 1) {
-          defaultValue = evalLiteral(args[1]);
+          defaultValue = evaluateLiteral(args[1]);
         }
 
         storage.push({
@@ -193,41 +202,7 @@ function isValidSceneKind(kind: string): kind is SceneKind {
 
 // ─── AST Helpers ────────────────────────────────────────────────────
 
-function findDefineAppCall(sourceFile: ts.SourceFile): ts.CallExpression | undefined {
-  let result: ts.CallExpression | undefined;
 
-  function visit(node: ts.Node) {
-    if (result) return;
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === "defineApp"
-    ) {
-      result = node;
-      return;
-    }
-    ts.forEachChild(node, visit);
-  }
-
-  ts.forEachChild(sourceFile, visit);
-  return result;
-}
-
-function findProp(
-  obj: ts.ObjectLiteralExpression,
-  name: string
-): ts.Expression | undefined {
-  for (const prop of obj.properties) {
-    if (
-      ts.isPropertyAssignment(prop) &&
-      ts.isIdentifier(prop.name) &&
-      prop.name.text === name
-    ) {
-      return prop.initializer;
-    }
-  }
-  return undefined;
-}
 
 function extractStringProp(
   obj: ts.ObjectLiteralExpression,
@@ -235,22 +210,8 @@ function extractStringProp(
   _sourceFile: ts.SourceFile,
   _filePath: string
 ): string | undefined {
-  const init = findProp(obj, name);
-  if (!init) return undefined;
-  if (ts.isStringLiteral(init) || ts.isNoSubstitutionTemplateLiteral(init)) {
-    return init.text;
-  }
-  return undefined;
+  const props = propertyMap(obj);
+  const val = props.get(name);
+  return val ? readStringLiteral(val) ?? undefined : undefined;
 }
 
-function posOf(sourceFile: ts.SourceFile, node: ts.Node): number {
-  return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
-}
-
-function evalLiteral(node: ts.Expression): unknown {
-  if (ts.isStringLiteral(node)) return node.text;
-  if (ts.isNumericLiteral(node)) return Number(node.text);
-  if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
-  if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
-  return undefined;
-}

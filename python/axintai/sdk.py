@@ -17,14 +17,17 @@ means `axintai compile` never imports user code.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, get_type_hints
 
 from .ir import (
     AppIR,
     AppSceneIR,
     AppStorageIR,
+    DisplayRepresentationIR,
+    EntityIR,
     IntentIR,
     IntentParameter,
     ParamType,
@@ -48,6 +51,9 @@ class IntentParameterSpec:
     description: str
     optional: bool = False
     default: Any = None
+    entity_name: str | None = None
+    enum_cases: tuple[str, ...] | None = None
+    provider_name: str | None = None
 
     def to_parameter(self, name: str) -> IntentParameter:
         return IntentParameter(
@@ -56,6 +62,9 @@ class IntentParameterSpec:
             description=self.description,
             optional=self.optional,
             default=self.default,
+            entity_name=self.entity_name,
+            enum_cases=self.enum_cases,
+            provider_name=self.provider_name,
         )
 
 
@@ -64,6 +73,43 @@ class IntentParameterSpec:
 _Int = int
 _Float = float
 _Bool = bool
+
+
+def _infer_return_type(perform_fn: Callable[[], Any] | None) -> str | None:
+    """
+    Infer the return type from a perform function's type annotation.
+    Returns a ParamType string or None if inference fails.
+    """
+    if perform_fn is None:
+        return None
+    try:
+        hints = get_type_hints(perform_fn)
+        return_hint = hints.get("return")
+        if return_hint is None:
+            return None
+        # Map Python type hints to ParamType
+        type_map = {
+            str: "string",
+            _Int: "int",
+            _Float: "double",
+            bool: "boolean",
+            bytes: "string",  # fallback
+        }
+        if return_hint in type_map:
+            return type_map[return_hint]
+        # Handle string representation (for cases where type hints use strings)
+        if isinstance(return_hint, str):
+            if return_hint == "str":
+                return "string"
+            elif return_hint == "int":
+                return "int"
+            elif return_hint == "float":
+                return "double"
+            elif return_hint == "bool":
+                return "boolean"
+    except Exception:
+        pass
+    return None
 
 
 class _ParamFactory:
@@ -97,6 +143,27 @@ class _ParamFactory:
     def url(self, description: str, *, optional: bool = False) -> IntentParameterSpec:
         return IntentParameterSpec("url", description, optional, None)
 
+    def entity(self, entity_name: str, description: str, *, optional: bool = False) -> IntentParameterSpec:
+        """Entity reference parameter — the entity must be defined with `define_entity()`."""
+        return IntentParameterSpec("entity", description, optional, None, entity_name=entity_name)
+
+    def enum(
+        self,
+        enum_cases: list[str] | tuple[str, ...],
+        description: str,
+        *,
+        optional: bool = False,
+        default: str | None = None,
+    ) -> IntentParameterSpec:
+        """Enum parameter with predefined cases."""
+        return IntentParameterSpec(
+            "enum",
+            description,
+            optional,
+            default,
+            enum_cases=tuple(enum_cases) if not isinstance(enum_cases, tuple) else enum_cases,
+        )
+
 
 #: Module-level factory — import as `from axintai import param` and call
 #: `param.string(...)`, `param.int(...)`, etc.
@@ -125,6 +192,7 @@ class IntentDefinition:
     is_discoverable: bool = True
 
     def to_ir(self, *, source_file: str | None = None, source_line: int | None = None) -> IntentIR:
+        return_type = _infer_return_type(self.perform)
         return IntentIR(
             name=self.name,
             title=self.title,
@@ -136,7 +204,7 @@ class IntentDefinition:
             entitlements=self.entitlements,
             info_plist_keys=self.info_plist_keys,
             is_discoverable=self.is_discoverable,
-            return_type=None,  # Python return-type inference is a v0.3.0 follow-up
+            return_type=return_type,
             source_file=source_file,
             source_line=source_line,
         )
@@ -144,6 +212,81 @@ class IntentDefinition:
 
 # Re-exported type alias so users can annotate their own variables.
 Intent = IntentDefinition
+
+
+# ─── Entity Support ────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class EntityDefinition:
+    """
+    An App Entity definition for complex, domain-specific data types.
+    Entities can be queried and used as parameter types in intents.
+    """
+
+    name: str
+    display_title: str
+    display_subtitle: str | None = None
+    display_image: str | None = None
+    properties: dict[str, IntentParameterSpec] = field(default_factory=dict)
+    query_type: str = "id"  # "id", "all", "string", "property"
+
+    def to_ir(self, *, source_file: str | None = None, source_line: int | None = None) -> EntityIR:
+        display_repr = DisplayRepresentationIR(
+            title=self.display_title,
+            subtitle=self.display_subtitle,
+            image=self.display_image,
+        )
+        return EntityIR(
+            name=self.name,
+            display_representation=display_repr,
+            properties=tuple(
+                spec.to_parameter(name) for name, spec in self.properties.items()
+            ),
+            query_type=self.query_type,
+            source_file=source_file,
+            source_line=source_line,
+        )
+
+
+Entity = EntityDefinition
+
+
+def define_entity(
+    *,
+    name: str,
+    display_title: str,
+    display_subtitle: str | None = None,
+    display_image: str | None = None,
+    properties: dict[str, IntentParameterSpec] | None = None,
+    query_type: str = "id",
+) -> EntityDefinition:
+    """
+    Declare an App Entity for use in intents.
+
+    Parameters
+    ----------
+    name
+        PascalCase name of the entity (e.g., "Task", "Contact").
+    display_title
+        Title shown in Siri and Shortcuts (e.g., "Task").
+    display_subtitle
+        Optional subtitle for display context.
+    display_image
+        Optional image name or symbol.
+    properties
+        Mapping of property name → `param.*` spec.
+    query_type
+        How the entity is queried: "id" (default), "all", "string", "property".
+    """
+    return EntityDefinition(
+        name=name,
+        display_title=display_title,
+        display_subtitle=display_subtitle,
+        display_image=display_image,
+        properties=dict(properties or {}),
+        query_type=query_type,
+    )
 
 
 def define_intent(
