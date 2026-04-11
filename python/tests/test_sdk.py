@@ -559,7 +559,7 @@ def test_intent_with_entity_param() -> None:
 
 
 def test_return_type_inference_string() -> None:
-    from axintai import define_intent, param
+    from axintai import define_intent
 
     def perform() -> str:
         return "result"
@@ -576,7 +576,7 @@ def test_return_type_inference_string() -> None:
 
 
 def test_return_type_inference_int() -> None:
-    from axintai import define_intent, param
+    from axintai import define_intent
 
     def perform() -> int:
         return 42
@@ -593,7 +593,7 @@ def test_return_type_inference_int() -> None:
 
 
 def test_return_type_inference_bool() -> None:
-    from axintai import define_intent, param
+    from axintai import define_intent
 
     def perform() -> bool:
         return True
@@ -610,7 +610,7 @@ def test_return_type_inference_bool() -> None:
 
 
 def test_return_type_inference_float() -> None:
-    from axintai import define_intent, param
+    from axintai import define_intent
 
     def perform() -> float:
         return 3.14
