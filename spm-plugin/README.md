@@ -120,6 +120,7 @@ Here's an example TypeScript intent definition:
 import { defineIntent, param } from "@axintai/compiler";
 
 export const myIntent = defineIntent({
+  name: "MyIntent",
   title: "My Intent",
   description: "An example intent",
   domain: "general",

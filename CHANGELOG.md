@@ -6,6 +6,30 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-04-10
+
+Security hardening, compiler fixes, and the first PyPI publish.
+
+### Added
+
+- **Python SDK on PyPI** — `pip install axintai` now works. v0.1.0, Apache 2.0, published from the release workflow.
+- **Registry rate limiting** — IP-based rate limiting (120 req/min global, 10/min auth, 30/hr publish) with 10 MB publish payload cap.
+- **Registry XSS mitigation** — markdown link rendering now blocks `javascript:`, `data:`, and `vbscript:` URI schemes.
+- **Authenticated GitHub API proxy** on axint.ai — `/api/github` route with 5-minute edge cache, bumps from 60 to 5,000 req/hr.
+
+### Fixed
+
+- **`eject --format` flag** was accepted but never wired to `formatSwift()`. `ejectIntent()` is now async and runs swift-format when `--format` is passed.
+- **`param.dynamicOptions()` inner type** was hardcoded to `string`. Now recursively extracts the actual param type from the second argument.
+- **Property-based entity queries** now generate `EntityPropertyQuery` conformance with `QueryProperties`, comparators, and `SortingOptions` instead of a placeholder comment.
+- **Custom result types** now emit a compilable return stub instead of a bare TODO comment.
+- **Registry search pagination** uses a separate `COUNT(*)` query for accurate totals.
+- **Version strings** synced to 0.3.2 across axint.ai, README, ROADMAP, and CHANGELOG.
+
+### Removed
+
+- **PEM key** from `trading-engine/` (security risk, should never have been committed).
+
 ## [0.3.0] — 2026-04-10
 
 Entity support, editor extensions, Python bridge fixes, and a cleanup pass across every surface.

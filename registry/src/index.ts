@@ -197,6 +197,34 @@ route("GET", "/api/v1/auth/callback", async (req, env) => {
   );
 });
 
+// ─── Token Revocation ──────────────────────────────────────────────
+
+route("POST", "/api/v1/auth/revoke", async (req, env) => {
+  const userId = await authenticate(req, env);
+  if (!userId) return err("unauthorized", 401);
+
+  const auth = req.headers.get("Authorization")!;
+  const token = auth.slice(7);
+  const hash = await hashToken(token);
+
+  await env.DB.prepare("DELETE FROM tokens WHERE token_hash = ? AND user_id = ?")
+    .bind(hash, userId)
+    .run();
+
+  return json({ revoked: true });
+});
+
+route("POST", "/api/v1/auth/revoke-all", async (req, env) => {
+  const userId = await authenticate(req, env);
+  if (!userId) return err("unauthorized", 401);
+
+  await env.DB.prepare("DELETE FROM tokens WHERE user_id = ?")
+    .bind(userId)
+    .run();
+
+  return json({ revoked: true, all: true });
+});
+
 // ─── Publish ────────────────────────────────────────────────────────
 
 route("POST", "/api/v1/publish", async (req, env) => {
@@ -445,7 +473,13 @@ import { renderHomePage, renderSearchPage, renderPackagePage, renderNotFound } f
 function html(body: string, status = 200): Response {
   return new Response(body, {
     status,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src https:; font-src https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+    },
   });
 }
 
