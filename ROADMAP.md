@@ -1,8 +1,8 @@
 # Axint Roadmap
 
-_Last updated: April 2026 · Current release: [v0.3.2](https://github.com/agenticempire/axint/releases) · 60 days to WWDC 2026_
+_Last updated: April 2026 · Current release: [v0.3.2](https://github.com/agenticempire/axint/releases) · 58 days to WWDC 2026_
 
-Axint is the open-source compiler that turns TypeScript `defineIntent()` calls into native Apple App Intents and MCP tool servers. This roadmap tracks what's shipped, what's next, and where we need help.
+Axint is the open-source compiler that turns TypeScript definitions into native Apple platform code — App Intents, SwiftUI views, and WidgetKit widgets. This roadmap tracks what's shipped, what's next, and where we need help.
 
 We ship small, tight releases. Everything on this page is open for contribution — see [CONTRIBUTING.md](CONTRIBUTING.md) to get involved.
 
@@ -76,25 +76,31 @@ _Status: scaffolding · Target: v0.3.0 · Impact: medium_
 
 ---
 
-## Priority — v0.3.x (post-WWDC)
+## Shipped — v0.3.x
 
 ### VS Code / Cursor extension
 
-Inline diagnostics from the Axint compiler, hover documentation for `defineIntent()` parameters, snippet completions for common intent shapes, and one-click compile. Meet developers where they already work.
+MCP-backed extension (`extensions/vscode/`) exposes six tools to VS Code's AI features — scaffold, compile, validate, schema mode, templates. Works with GitHub Copilot in agent mode and any VS Code AI feature that supports MCP.
 
-_Status: not started · Target: v0.3.x_
+_Status: shipped · v0.3.0_
 
 ### `--watch` mode
 
-Long-lived compiler process that re-runs on file changes for iterative development, with incremental re-validation.
+Long-lived compiler process with 150ms debounce, inline error reporting, optional `--swift-build` for live recompilation, and `--format` for swift-format integration.
 
-_Status: not started · Target: v0.3.x_
+_Status: shipped · v0.3.0_
+
+### `defineView()` + `defineWidget()` compilation
+
+Full SwiftUI view and WidgetKit widget compilation pipelines — parser, validator, generator, and MCP schema mode for all three surfaces.
+
+_Status: shipped · v0.3.2_
 
 ### Audience positioning refresh
 
-Lead with AI agent developers (TS/Python devs building MCP tools) as the primary audience. iOS developers who hate boilerplate are the secondary audience — they find Axint through the Xcode plugin, not through the MCP story. Rewrite README hero, landing page, and all copy to reflect this.
+README, landing page, and all copy rewritten to lead with the "compression layer for AI agents on Apple" positioning. Token proof section on axint.ai with real compression ratios.
 
-_Status: not started · Target: v0.3.x_
+_Status: shipped · v0.3.2_
 
 ---
 

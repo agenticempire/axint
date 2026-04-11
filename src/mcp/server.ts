@@ -24,17 +24,26 @@ import {
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { compileSource, compileFromIR, compileViewFromIR } from "../core/compiler.js";
+import {
+  compileSource,
+  compileFromIR,
+  compileViewFromIR,
+  compileWidgetFromIR,
+} from "../core/compiler.js";
 import { scaffoldIntent } from "./scaffold.js";
 import { TEMPLATES, getTemplate } from "../templates/index.js";
 import type {
   IRIntent,
   IRView,
+  IRWidget,
+  IRWidgetEntry,
   IRViewState,
   IRViewProp,
   IRParameter,
   IRType,
   IRPrimitiveType,
+  WidgetFamily,
+  WidgetRefreshPolicy,
 } from "../core/types.js";
 
 // Read version from package.json so it stays in sync
@@ -220,18 +229,52 @@ async function handleViewSchema(args: SchemaCompileArgs, inputTokens: number) {
 }
 
 /**
- * Handle widget schema compilation (stub for now — widgets not yet fully implemented).
+ * Handle widget schema compilation.
  */
-async function handleWidgetSchema(_args: SchemaCompileArgs, _inputTokens: number) {
-  return {
-    content: [
-      {
-        type: "text" as const,
-        text: "Widget compilation from schema is not yet implemented. Use view schema or intent schema instead.",
-      },
-    ],
-    isError: true,
+async function handleWidgetSchema(args: SchemaCompileArgs, inputTokens: number) {
+  const entries: IRWidgetEntry[] = [];
+  if (args.entry) {
+    for (const [name, typeStr] of Object.entries(args.entry)) {
+      entries.push({
+        name,
+        type: schemaTypeToIRType(typeStr),
+      });
+    }
+  }
+
+  const families: WidgetFamily[] = (args.families as WidgetFamily[]) || ["systemSmall"];
+
+  let refreshPolicy: WidgetRefreshPolicy = "atEnd";
+  if (args.refreshInterval) {
+    refreshPolicy = "after";
+  }
+
+  const ir: IRWidget = {
+    name: args.name,
+    displayName: args.displayName || args.name.replace(/([A-Z])/g, " $1").trim(),
+    description: args.description || "",
+    families,
+    entry: entries,
+    body: args.body
+      ? [{ kind: "raw", swift: args.body }]
+      : [{ kind: "text", content: "Hello" }],
+    refreshInterval: args.refreshInterval,
+    refreshPolicy,
+    sourceFile: "<schema>",
   };
+
+  const result = compileWidgetFromIR(ir);
+  if (!result.success || !result.output) {
+    const errorText = result.diagnostics
+      .map((d) => `[${d.code}] ${d.severity}: ${d.message}`)
+      .join("\n");
+    return {
+      content: [{ type: "text" as const, text: errorText }],
+      isError: true,
+    };
+  }
+
+  return formatSchemaOutput(result.output.swiftCode, inputTokens);
 }
 
 /**

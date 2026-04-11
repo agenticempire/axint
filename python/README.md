@@ -9,7 +9,11 @@ The Python SDK includes a **native Swift generator** — no Node.js dependency r
 
 ## Install
 
-> **Note:** The PyPI package is not published yet. Install from source for now:
+```bash
+pip install axintai
+```
+
+Or install from source for development:
 
 ```bash
 git clone https://github.com/agenticempire/axint.git

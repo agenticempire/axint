@@ -12,11 +12,12 @@ ext install agenticempire.axint
 
 ## What It Does
 
-Registers an MCP server that exposes five tools to VS Code's AI features:
+Registers an MCP server that exposes six tools to VS Code's AI features:
 
 - **axint_scaffold** — Generate a new intent from a description
 - **axint_compile** — Compile TypeScript to Swift
 - **axint_validate** — Check for issues
+- **axint_compile_from_schema** — Compile minimal JSON directly to Swift (intents, views, widgets)
 - **axint_list_templates** — Browse pre-built patterns
 - **axint_template** — Pull a complete working example
 
