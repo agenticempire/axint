@@ -467,7 +467,7 @@ export function renderHomePage(packages: Package[] = []): string {
   <div class="hero">
     <h1 class="hero-title">Axint Registry</h1>
     <p class="hero-subtitle">
-      Discover TypeScript-to-Swift App Intents packages. Transform your workflows with zero friction.
+      Discover and install App Intents, SwiftUI Views, Widgets, and Apps — all compiled from TypeScript.
     </p>
 
     <form class="search-container" action="/search" method="get">
@@ -479,6 +479,14 @@ export function renderHomePage(packages: Package[] = []): string {
         autocomplete="off"
       >
     </form>
+
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:1.5rem;">
+      <a href="/search?q=messaging" style="padding:0.375rem 1rem;border-radius:20px;font-size:0.8rem;font-weight:600;text-decoration:none;border:1px solid rgba(96,165,250,0.3);color:#93c5fd;background:rgba(96,165,250,0.08);transition:all 0.2s;">Messaging</a>
+      <a href="/search?q=productivity" style="padding:0.375rem 1rem;border-radius:20px;font-size:0.8rem;font-weight:600;text-decoration:none;border:1px solid rgba(74,222,128,0.3);color:#86efac;background:rgba(74,222,128,0.08);transition:all 0.2s;">Productivity</a>
+      <a href="/search?q=media" style="padding:0.375rem 1rem;border-radius:20px;font-size:0.8rem;font-weight:600;text-decoration:none;border:1px solid rgba(192,132,252,0.3);color:#d8b4fe;background:rgba(192,132,252,0.08);transition:all 0.2s;">Media</a>
+      <a href="/search?q=navigation" style="padding:0.375rem 1rem;border-radius:20px;font-size:0.8rem;font-weight:600;text-decoration:none;border:1px solid rgba(251,146,60,0.3);color:#fdba74;background:rgba(251,146,60,0.08);transition:all 0.2s;">Navigation</a>
+      <a href="/search?q=webbrowser" style="padding:0.375rem 1rem;border-radius:20px;font-size:0.8rem;font-weight:600;text-decoration:none;border:1px solid rgba(248,113,113,0.3);color:#fca5a5;background:rgba(248,113,113,0.08);transition:all 0.2s;">Web Browser</a>
+    </div>
   </div>
 
   ${packages.length > 0 ? `
@@ -1003,6 +1011,7 @@ export function renderPackagePage(pkg: PackageDetail): string {
   `;
 
   const colors = getDomainColor(pkg.domain);
+  const axintCmd = `axint add @${pkg.namespace}/${pkg.slug}`;
   const installCmd = `npm install @${pkg.namespace}/${pkg.slug}`;
 
   const versionsList = pkg.versions.slice(0, 10).map((v) => `
@@ -1054,7 +1063,11 @@ export function renderPackagePage(pkg: PackageDetail): string {
 
   <div class="install-section">
     <div class="install-title">Quick Install</div>
-    <div class="install-command">
+    <div class="install-command" style="margin-bottom:0.75rem;">
+      <code class="install-code">${escapeHtml(axintCmd)}</code>
+      <button class="copy-button" onclick="copyInstallCommand(this)">Copy</button>
+    </div>
+    <div class="install-command" style="opacity:0.7;">
       <code class="install-code">${escapeHtml(installCmd)}</code>
       <button class="copy-button" onclick="copyInstallCommand(this)">Copy</button>
     </div>

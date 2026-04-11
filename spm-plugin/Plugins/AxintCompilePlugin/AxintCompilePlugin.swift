@@ -28,11 +28,6 @@ struct AxintCompilePlugin: BuildToolPlugin {
             let inputPath = sourceFile.path
             let inputFileName = inputPath.lastComponent
 
-            // The compiler emits <IntentName>Intent.swift based on the intent's
-            // `name` field, not the source filename. We also can't predict the
-            // companion fragment names (.plist.fragment.xml, .entitlements.fragment.xml).
-            // Use prebuildCommand so SwiftPM discovers outputs by scanning the
-            // directory instead of requiring us to declare them upfront.
             let compileArgs: [String] = prefixArgs + [
                 "compile",
                 inputPath.string,
@@ -42,7 +37,7 @@ struct AxintCompilePlugin: BuildToolPlugin {
             ]
 
             let command = Command.prebuildCommand(
-                displayName: "Compiling TypeScript Intent: \(inputFileName)",
+                displayName: "Axint: \(inputFileName)",
                 executable: executablePath,
                 arguments: compileArgs,
                 outputFilesDirectory: outputDirectory
@@ -108,3 +103,42 @@ enum AxintPluginError: Error, CustomStringConvertible {
         }
     }
 }
+
+#if canImport(XcodeProjectPlugin)
+import XcodeProjectPlugin
+
+extension AxintCompilePlugin: XcodeBuildToolPlugin {
+    func createBuildCommands(context: XcodePluginContext, target: XcodeTarget) throws -> [Command] {
+        let (executablePath, prefixArgs) = try resolveCompiler()
+
+        let tsFiles = target.inputFiles.filter { file in
+            file.path.string.hasSuffix(".ts") && !file.path.string.hasSuffix(".d.ts")
+        }
+
+        let outputDirectory = context.pluginWorkDirectory.appending("compiled")
+
+        try FileManager.default.createDirectory(
+            at: outputDirectory.asURL,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+
+        return tsFiles.map { sourceFile in
+            let compileArgs: [String] = prefixArgs + [
+                "compile",
+                sourceFile.path.string,
+                "--out", outputDirectory.string,
+                "--emit-info-plist",
+                "--emit-entitlements",
+            ]
+
+            return .prebuildCommand(
+                displayName: "Axint: \(sourceFile.path.lastComponent)",
+                executable: executablePath,
+                arguments: compileArgs,
+                outputFilesDirectory: outputDirectory
+            )
+        }
+    }
+}
+#endif
