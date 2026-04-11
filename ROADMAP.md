@@ -2,7 +2,7 @@
 
 _Last updated: April 2026 · Current release: [v0.3.2](https://github.com/agenticempire/axint/releases) · 58 days to WWDC 2026_
 
-Axint is the open-source compiler that turns TypeScript definitions into native Apple platform code — App Intents, SwiftUI views, and WidgetKit widgets. This roadmap tracks what's shipped, what's next, and where we need help.
+Axint is the open-source compiler that turns TypeScript definitions into native Apple platform code — App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds. This roadmap tracks what's shipped, what's next, and where we need help.
 
 We ship small, tight releases. Everything on this page is open for contribution — see [CONTRIBUTING.md](CONTRIBUTING.md) to get involved.
 
@@ -90,9 +90,15 @@ Long-lived compiler process with 150ms debounce, inline error reporting, optiona
 
 _Status: shipped · v0.3.0_
 
-### `defineView()` + `defineWidget()` compilation
+### `defineView()` + `defineWidget()` + `defineApp()` compilation
 
-Full SwiftUI view and WidgetKit widget compilation pipelines — parser, validator, generator, and MCP schema mode for all three surfaces.
+Full SwiftUI view, WidgetKit widget, and app scaffold compilation pipelines — parser, validator, generator, and MCP schema mode for all four surfaces. 91 diagnostic codes across five validators.
+
+_Status: shipped · v0.3.2_
+
+### Python SDK
+
+Python parity for all four surfaces with a dataclass-based IR, decorator API, and cross-language compilation via `compileFromIR()`. Python and TypeScript produce byte-identical Swift output.
 
 _Status: shipped · v0.3.2_
 
@@ -105,12 +111,6 @@ _Status: shipped · v0.3.2_
 ---
 
 ## Planned — v0.4.0+
-
-### Python SDK
-
-Python parity for `defineIntent()`: a libcst-based parser, a decorator API, and full MCP parity. The IR is already language-agnostic — Python plugs in alongside TypeScript. This is a multi-week project done right; shipping it half-baked would hurt credibility more than shipping it later.
-
-_Target: v0.4.0_
 
 ### Swift → TypeScript reverse compiler
 
