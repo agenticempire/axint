@@ -1,0 +1,427 @@
+/**
+ * Axint Registry — Cloudflare Workers
+ *
+ * API for publishing and installing intent packages.
+ * Auth via GitHub OAuth device flow.
+ */
+
+interface Env {
+  DB: D1Database;
+  PACKAGES: R2Bucket;
+  GITHUB_CLIENT_ID: string;
+  GITHUB_CLIENT_SECRET: string;
+}
+
+type Handler = (req: Request, env: Env, params: Record<string, string>) => Promise<Response>;
+
+const routes: Array<{ method: string; pattern: RegExp; handler: Handler }> = [];
+
+function route(method: string, path: string, handler: Handler) {
+  const pattern = new RegExp(
+    "^" + path.replace(/:(\w+)/g, "(?<$1>[^/]+)") + "$"
+  );
+  routes.push({ method, pattern, handler });
+}
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+function err(message: string, status: number): Response {
+  return json({ error: message }, status);
+}
+
+function generateId(len = 32): string {
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function generateCode(len = 8): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
+async function hashToken(token: string): Promise<string> {
+  const data = new TextEncoder().encode(token);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function authenticate(req: Request, env: Env): Promise<string | null> {
+  const auth = req.headers.get("Authorization");
+  if (!auth?.startsWith("Bearer ")) return null;
+  const token = auth.slice(7);
+  const hash = await hashToken(token);
+  const row = await env.DB.prepare(
+    "SELECT user_id FROM tokens WHERE token_hash = ? AND (expires_at IS NULL OR expires_at > datetime('now'))"
+  ).bind(hash).first<{ user_id: string }>();
+  return row?.user_id ?? null;
+}
+
+// ─── Auth: Device Code Flow ─────────────────────────────────────────
+
+route("POST", "/api/v1/auth/device-code", async (req, env) => {
+  const body = await req.json<{ client_id: string }>();
+  if (!body.client_id) return err("client_id required", 400);
+
+  const deviceCode = generateId();
+  const userCode = generateCode();
+  const githubState = generateId(16);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+  await env.DB.prepare(
+    "INSERT INTO device_codes (device_code, user_code, client_id, github_state, expires_at) VALUES (?, ?, ?, ?, ?)"
+  ).bind(deviceCode, userCode, body.client_id, githubState, expiresAt).run();
+
+  const verificationUri = `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&state=${githubState}&scope=read:user`;
+
+  return json({
+    device_code: deviceCode,
+    user_code: userCode,
+    verification_uri: verificationUri,
+    expires_in: 900,
+    interval: 5,
+  });
+});
+
+route("POST", "/api/v1/auth/token", async (req, env) => {
+  const body = await req.json<{ device_code: string; grant_type: string }>();
+  if (body.grant_type !== "device_code") return err("invalid grant_type", 400);
+
+  const dc = await env.DB.prepare(
+    "SELECT * FROM device_codes WHERE device_code = ? AND expires_at > datetime('now')"
+  ).bind(body.device_code).first<{
+    status: string;
+    access_token: string | null;
+    user_id: string | null;
+  }>();
+
+  if (!dc) return json({ error: "expired_token" }, 400);
+  if (dc.status === "pending") return json({ error: "authorization_pending" }, 400);
+  if (dc.status !== "complete" || !dc.access_token) return err("authorization failed", 400);
+
+  return json({ access_token: dc.access_token });
+});
+
+// GitHub OAuth callback — completes the device flow
+route("GET", "/api/v1/auth/callback", async (req, env) => {
+  const url = new URL(req.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  if (!code || !state) return err("missing code or state", 400);
+
+  // Find the device code entry
+  const dc = await env.DB.prepare(
+    "SELECT device_code FROM device_codes WHERE github_state = ? AND status = 'pending'"
+  ).bind(state).first<{ device_code: string }>();
+  if (!dc) return err("invalid or expired state", 400);
+
+  // Exchange code for GitHub access token
+  const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: env.GITHUB_CLIENT_ID,
+      client_secret: env.GITHUB_CLIENT_SECRET,
+      code,
+    }),
+  });
+  const tokenData = await tokenRes.json<{ access_token?: string; error?: string }>();
+  if (!tokenData.access_token) return err(tokenData.error ?? "github auth failed", 400);
+
+  // Get GitHub user
+  const userRes = await fetch("https://api.github.com/user", {
+    headers: {
+      Authorization: `Bearer ${tokenData.access_token}`,
+      "User-Agent": "axint-registry",
+    },
+  });
+  const ghUser = await userRes.json<{ id: number; login: string; avatar_url: string }>();
+
+  // Upsert user
+  const userId = `gh_${ghUser.id}`;
+  await env.DB.prepare(
+    "INSERT INTO users (id, github_id, username, avatar_url) VALUES (?, ?, ?, ?) ON CONFLICT(github_id) DO UPDATE SET username = excluded.username, avatar_url = excluded.avatar_url"
+  ).bind(userId, ghUser.id, ghUser.login, ghUser.avatar_url).run();
+
+  // Create API token
+  const apiToken = generateId(48);
+  const tokenHash = await hashToken(apiToken);
+  await env.DB.prepare(
+    "INSERT INTO tokens (id, user_id, token_hash) VALUES (?, ?, ?)"
+  ).bind(generateId(), userId, tokenHash).run();
+
+  // Complete device code
+  await env.DB.prepare(
+    "UPDATE device_codes SET status = 'complete', user_id = ?, access_token = ? WHERE device_code = ?"
+  ).bind(userId, apiToken, dc.device_code).run();
+
+  return new Response(
+    `<html><body style="font-family:system-ui;text-align:center;padding:4rem">
+      <h2>Logged in as ${ghUser.login}</h2>
+      <p>You can close this window and return to your terminal.</p>
+    </body></html>`,
+    { headers: { "Content-Type": "text/html" } }
+  );
+});
+
+// ─── Publish ────────────────────────────────────────────────────────
+
+route("POST", "/api/v1/publish", async (req, env) => {
+  const userId = await authenticate(req, env);
+  if (!userId) return err("unauthorized", 401);
+
+  const body = await req.json<{
+    namespace: string;
+    slug: string;
+    name: string;
+    version: string;
+    description?: string;
+    readme?: string;
+    primary_language?: string;
+    surface_areas?: string[];
+    tags?: string[];
+    license?: string;
+    homepage?: string;
+    repository?: string;
+    ts_source: string;
+    py_source?: string;
+    swift_output: string;
+    plist_fragment?: string;
+    ir: Record<string, unknown>;
+    compiler_version: string;
+  }>();
+
+  if (!body.namespace || !body.slug || !body.version || !body.ts_source || !body.swift_output) {
+    return err("missing required fields: namespace, slug, version, ts_source, swift_output", 400);
+  }
+
+  // Validate namespace matches user
+  const user = await env.DB.prepare("SELECT username FROM users WHERE id = ?").bind(userId).first<{ username: string }>();
+  const expectedNamespace = `@${user?.username}`;
+  if (body.namespace !== expectedNamespace && body.namespace !== "@axintai") {
+    return err(`namespace must be ${expectedNamespace} (your GitHub username)`, 403);
+  }
+
+  // Check if package exists
+  let pkg = await env.DB.prepare(
+    "SELECT id, owner_id FROM packages WHERE namespace = ? AND slug = ?"
+  ).bind(body.namespace, body.slug).first<{ id: number; owner_id: string }>();
+
+  if (pkg && pkg.owner_id !== userId) {
+    return err("you don't own this package", 403);
+  }
+
+  // Check for duplicate version
+  if (pkg) {
+    const existing = await env.DB.prepare(
+      "SELECT id FROM versions WHERE package_id = ? AND version = ?"
+    ).bind(pkg.id, body.version).first();
+    if (existing) return err(`version ${body.version} already exists`, 409);
+  }
+
+  // Create or update package
+  if (!pkg) {
+    const result = await env.DB.prepare(
+      "INSERT INTO packages (namespace, slug, name, description, latest_version, owner_id, license, homepage, repository) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"
+    ).bind(
+      body.namespace, body.slug, body.name, body.description ?? "",
+      body.version, userId, body.license ?? "Apache-2.0",
+      body.homepage ?? null, body.repository ?? null
+    ).first<{ id: number }>();
+    pkg = { id: result!.id, owner_id: userId };
+  } else {
+    await env.DB.prepare(
+      "UPDATE packages SET latest_version = ?, updated_at = datetime('now'), description = ?, name = ? WHERE id = ?"
+    ).bind(body.version, body.description ?? "", body.name, pkg.id).run();
+  }
+
+  // Store version in R2 for large payloads
+  const r2Key = `${body.namespace}/${body.slug}/${body.version}.json`;
+  await env.PACKAGES.put(r2Key, JSON.stringify({
+    ts_source: body.ts_source,
+    py_source: body.py_source,
+    swift_output: body.swift_output,
+    plist_fragment: body.plist_fragment,
+    ir: body.ir,
+  }));
+
+  // Insert version row
+  await env.DB.prepare(
+    `INSERT INTO versions (package_id, version, ts_source, py_source, swift_output, plist_fragment, ir, readme, tags, surface_areas, primary_language, compiler_version, r2_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    pkg.id, body.version, body.ts_source, body.py_source ?? null,
+    body.swift_output, body.plist_fragment ?? null,
+    JSON.stringify(body.ir), body.readme ?? null,
+    JSON.stringify(body.tags ?? []), JSON.stringify(body.surface_areas ?? []),
+    body.primary_language ?? "typescript", body.compiler_version, r2Key
+  ).run();
+
+  return json({
+    url: `https://registry.axint.ai/${body.namespace}/${body.slug}`,
+    version: body.version,
+  }, 201);
+});
+
+// ─── Install ────────────────────────────────────────────────────────
+
+route("GET", "/api/v1/install", async (req, env) => {
+  const url = new URL(req.url);
+  const namespace = url.searchParams.get("namespace");
+  const slug = url.searchParams.get("slug");
+  const version = url.searchParams.get("version");
+
+  if (!namespace || !slug) return err("namespace and slug required", 400);
+
+  const pkg = await env.DB.prepare(
+    "SELECT id, latest_version FROM packages WHERE namespace = ? AND slug = ?"
+  ).bind(namespace, slug).first<{ id: number; latest_version: string }>();
+
+  if (!pkg) return err("package not found", 404);
+
+  const targetVersion = version ?? pkg.latest_version;
+  const ver = await env.DB.prepare(
+    "SELECT * FROM versions WHERE package_id = ? AND version = ?"
+  ).bind(pkg.id, targetVersion).first<{
+    ts_source: string;
+    py_source: string | null;
+    swift_output: string;
+    plist_fragment: string | null;
+    ir: string;
+    readme: string | null;
+    tags: string;
+    surface_areas: string;
+    primary_language: string;
+    compiler_version: string;
+  }>();
+
+  if (!ver) return err(`version ${targetVersion} not found`, 404);
+
+  // Increment downloads
+  await env.DB.prepare(
+    "UPDATE packages SET downloads = downloads + 1 WHERE id = ?"
+  ).bind(pkg.id).run();
+
+  return json({
+    namespace,
+    slug,
+    version: targetVersion,
+    ts_source: ver.ts_source,
+    py_source: ver.py_source,
+    swift_output: ver.swift_output,
+    plist_fragment: ver.plist_fragment,
+    ir: JSON.parse(ver.ir),
+    readme: ver.readme,
+    tags: JSON.parse(ver.tags),
+    surface_areas: JSON.parse(ver.surface_areas),
+    primary_language: ver.primary_language,
+    compiler_version: ver.compiler_version,
+  });
+});
+
+// ─── Search ─────────────────────────────────────────────────────────
+
+route("GET", "/api/v1/search", async (req, env) => {
+  const url = new URL(req.url);
+  const q = url.searchParams.get("q") ?? "";
+  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20"), 100);
+  const offset = parseInt(url.searchParams.get("offset") ?? "0");
+
+  let results;
+  if (q) {
+    results = await env.DB.prepare(
+      `SELECT p.namespace, p.slug, p.name, p.description, p.latest_version, p.downloads, p.license,
+              u.username as author
+       FROM packages p
+       JOIN users u ON p.owner_id = u.id
+       WHERE p.name LIKE ? OR p.slug LIKE ? OR p.description LIKE ?
+       ORDER BY p.downloads DESC
+       LIMIT ? OFFSET ?`
+    ).bind(`%${q}%`, `%${q}%`, `%${q}%`, limit, offset).all();
+  } else {
+    results = await env.DB.prepare(
+      `SELECT p.namespace, p.slug, p.name, p.description, p.latest_version, p.downloads, p.license,
+              u.username as author
+       FROM packages p
+       JOIN users u ON p.owner_id = u.id
+       ORDER BY p.downloads DESC
+       LIMIT ? OFFSET ?`
+    ).bind(limit, offset).all();
+  }
+
+  return json({
+    results: results.results,
+    total: results.results.length,
+  });
+});
+
+// ─── Package detail ─────────────────────────────────────────────────
+
+route("GET", "/api/v1/packages/:namespace/:slug", async (_req, env, params) => {
+  const namespace = `@${params.namespace}`;
+  const pkg = await env.DB.prepare(
+    `SELECT p.*, u.username as author, u.avatar_url as author_avatar
+     FROM packages p
+     JOIN users u ON p.owner_id = u.id
+     WHERE p.namespace = ? AND p.slug = ?`
+  ).bind(namespace, params.slug).first();
+
+  if (!pkg) return err("not found", 404);
+
+  const versions = await env.DB.prepare(
+    "SELECT version, created_at, compiler_version FROM versions WHERE package_id = ? ORDER BY created_at DESC"
+  ).bind(pkg.id as number).all();
+
+  return json({ ...pkg, versions: versions.results });
+});
+
+// ─── Health ─────────────────────────────────────────────────────────
+
+route("GET", "/api/v1/health", async (_req, env) => {
+  const count = await env.DB.prepare("SELECT COUNT(*) as n FROM packages").first<{ n: number }>();
+  return json({ status: "ok", packages: count?.n ?? 0 });
+});
+
+// ─── Router ─────────────────────────────────────────────────────────
+
+export default {
+  async fetch(req: Request, env: Env): Promise<Response> {
+    // CORS preflight
+    if (req.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Axint-Version",
+        },
+      });
+    }
+
+    const url = new URL(req.url);
+
+    for (const r of routes) {
+      if (req.method !== r.method) continue;
+      const match = url.pathname.match(r.pattern);
+      if (match) {
+        try {
+          return await r.handler(req, env, match.groups ?? {});
+        } catch (e) {
+          console.error(e);
+          return err("internal server error", 500);
+        }
+      }
+    }
+
+    return err("not found", 404);
+  },
+};
