@@ -1,15 +1,18 @@
 # AxintPlugin
 
-A Swift Package Manager (SPM) Build Tool Plugin that automatically compiles TypeScript `defineIntent()` definitions into native Swift App Intents during your Xcode build process.
+A Swift Package Manager (SPM) and Xcode Build Tool Plugin that automatically compiles TypeScript definitions into native Swift code during your build process.
 
 ## Overview
 
-The Axint compiler transforms TypeScript intent definitions into Swift App Intents code that can be embedded directly in your iOS/macOS applications. This plugin integrates that compilation into your SPM/Xcode build pipeline, so your `.ts` intent files are automatically compiled whenever you build your project.
+The Axint compiler transforms TypeScript definitions into native Swift code that can be embedded directly in your iOS/macOS applications. This plugin integrates that compilation into your SPM and Xcode build pipelines, so your `.ts` files are automatically compiled whenever you build your project.
+
+TypeScript files can contain `defineIntent()`, `defineView()`, `defineWidget()`, or `defineApp()` definitions — the plugin handles all Axint surfaces.
 
 **Features:**
 - Automatic TypeScript → Swift compilation via `swift build`
-- Seamless Xcode integration
+- Works in SPM projects and Xcode projects (with or without SPM)
 - Generates `.swift`, `.plist.fragment.xml`, and `.entitlements.fragment.xml` files
+- Supports all Axint surfaces (intents, views, widgets, apps)
 - Minimal configuration required
 - Clear error messages if dependencies are missing
 
@@ -38,7 +41,7 @@ npm install -g @axintai/compiler
 
 ## Integration
 
-### Step 1: Add the Plugin Dependency
+### SPM Projects
 
 In your Swift package's `Package.swift`, add the AxintPlugin as a dependency:
 
@@ -70,20 +73,29 @@ let package = Package(
 )
 ```
 
-Or, if you're working with an Xcode project without SPM, add the plugin via the package dependency UI in Xcode.
+### Xcode Projects (non-SPM)
 
-### Step 2: Organize Your Intent Files
+The plugin also supports Xcode projects that don't use SPM. Add the plugin via Xcode's package dependency UI:
 
-Place your TypeScript intent definitions in your target's source directory:
+1. In Xcode, select your project
+2. Go to **Build Phases** for your target
+3. Add the AxintPlugin as a build tool plugin dependency
+4. The plugin will automatically compile `.ts` files during build
+
+### Organize Your Files
+
+Place your TypeScript definitions in your target's source directory:
 
 ```
 Sources/YourTarget/
-├── MyIntent.ts          # Your TypeScript intent definition
-├── AnotherIntent.ts     # Another intent
+├── MyIntent.ts          # defineIntent() definition
+├── UserView.ts          # defineView() definition
+├── HealthWidget.ts      # defineWidget() definition
+├── MyApp.ts             # defineApp() definition
 └── ...other files
 ```
 
-### Step 3: Build!
+### Build
 
 Build your project as normal:
 
@@ -111,7 +123,7 @@ For each `.ts` intent file, the plugin generates:
 
 These are generated in the plugin's work directory and automatically included in your build.
 
-## Writing Intent Definitions
+## Writing Definitions
 
 Here's an example TypeScript intent definition:
 
@@ -135,7 +147,7 @@ export const myIntent = defineIntent({
 });
 ```
 
-For more details on writing intents, see the [Axint documentation](https://github.com/agenticempire/axint).
+You can also define views, widgets, and apps using `defineView()`, `defineWidget()`, and `defineApp()` respectively. For more details, see the [Axint documentation](https://github.com/agenticempire/axint).
 
 ## Troubleshooting
 
