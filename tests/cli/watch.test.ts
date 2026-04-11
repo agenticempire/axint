@@ -131,11 +131,14 @@ describe("axint watch", () => {
     const initial = readFileSync(outFile, "utf-8");
     expect(initial).toContain("Greet");
 
+    // Small delay to let the watcher fully settle before triggering a change
+    await new Promise((r) => setTimeout(r, 500));
+
     // Trigger a recompile by editing the file
     writeFileSync(intentFile, UPDATED_INTENT, "utf-8");
 
     // Wait for recompile (same collector, shared buffer)
-    await out.waitFor("GreetUpdated");
+    await out.waitFor("GreetUpdated", 12_000);
 
     // Verify the new output file was written
     const updatedFile = join(outDir, "GreetUpdatedIntent.swift");

@@ -255,14 +255,12 @@ route("POST", "/api/v1/publish", async (req, env) => {
     ir: body.ir,
   }));
 
-  // Insert version row
+  // Insert version row — large payloads live in R2, D1 stores metadata only
   await env.DB.prepare(
     `INSERT INTO versions (package_id, version, ts_source, py_source, swift_output, plist_fragment, ir, readme, tags, surface_areas, primary_language, compiler_version, r2_key)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, '', '', '', '', '{}', ?, ?, ?, ?, ?, ?)`
   ).bind(
-    pkg.id, body.version, body.ts_source, body.py_source ?? null,
-    body.swift_output, body.plist_fragment ?? null,
-    JSON.stringify(body.ir), body.readme ?? null,
+    pkg.id, body.version, body.readme ?? null,
     JSON.stringify(body.tags ?? []), JSON.stringify(body.surface_areas ?? []),
     body.primary_language ?? "typescript", body.compiler_version, r2Key
   ).run();
@@ -291,13 +289,9 @@ route("GET", "/api/v1/install", async (req, env) => {
 
   const targetVersion = version ?? pkg.latest_version;
   const ver = await env.DB.prepare(
-    "SELECT * FROM versions WHERE package_id = ? AND version = ?"
+    "SELECT r2_key, readme, tags, surface_areas, primary_language, compiler_version FROM versions WHERE package_id = ? AND version = ?"
   ).bind(pkg.id, targetVersion).first<{
-    ts_source: string;
-    py_source: string | null;
-    swift_output: string;
-    plist_fragment: string | null;
-    ir: string;
+    r2_key: string;
     readme: string | null;
     tags: string;
     surface_areas: string;
@@ -306,6 +300,17 @@ route("GET", "/api/v1/install", async (req, env) => {
   }>();
 
   if (!ver) return err(`version ${targetVersion} not found`, 404);
+
+  // Read source payload from R2
+  const r2Obj = await env.PACKAGES.get(ver.r2_key);
+  if (!r2Obj) return err("package data missing from storage", 500);
+  const payload = await r2Obj.json<{
+    ts_source: string;
+    py_source?: string;
+    swift_output: string;
+    plist_fragment?: string;
+    ir: Record<string, unknown>;
+  }>();
 
   // Increment downloads
   await env.DB.prepare(
@@ -316,11 +321,11 @@ route("GET", "/api/v1/install", async (req, env) => {
     namespace,
     slug,
     version: targetVersion,
-    ts_source: ver.ts_source,
-    py_source: ver.py_source,
-    swift_output: ver.swift_output,
-    plist_fragment: ver.plist_fragment,
-    ir: JSON.parse(ver.ir),
+    ts_source: payload.ts_source,
+    py_source: payload.py_source ?? null,
+    swift_output: payload.swift_output,
+    plist_fragment: payload.plist_fragment ?? null,
+    ir: payload.ir,
     readme: ver.readme,
     tags: JSON.parse(ver.tags),
     surface_areas: JSON.parse(ver.surface_areas),
@@ -394,6 +399,15 @@ route("GET", "/api/v1/health", async (_req, env) => {
 
 // ─── Router ─────────────────────────────────────────────────────────
 
+import { renderHomePage, renderSearchPage, renderPackagePage, renderNotFound } from "./frontend.js";
+
+function html(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     // CORS preflight
@@ -409,6 +423,7 @@ export default {
 
     const url = new URL(req.url);
 
+    // API routes
     for (const r of routes) {
       if (req.method !== r.method) continue;
       const match = url.pathname.match(r.pattern);
@@ -422,6 +437,68 @@ export default {
       }
     }
 
-    return err("not found", 404);
+    // Frontend routes (GET only)
+    if (req.method === "GET") {
+      // Home page
+      if (url.pathname === "/") {
+        const featured = await env.DB.prepare(
+          `SELECT p.namespace, p.slug, p.name, p.description, p.latest_version as version, p.downloads, p.license,
+                  u.username as author
+           FROM packages p
+           JOIN users u ON p.owner_id = u.id
+           ORDER BY p.downloads DESC LIMIT 12`
+        ).all();
+        return html(renderHomePage(featured.results as never[]));
+      }
+
+      // Search page
+      if (url.pathname === "/search") {
+        const q = url.searchParams.get("q") ?? "";
+        const results = await env.DB.prepare(
+          `SELECT p.namespace, p.slug, p.name, p.description, p.latest_version as version, p.downloads,
+                  u.username as author
+           FROM packages p
+           JOIN users u ON p.owner_id = u.id
+           WHERE p.name LIKE ? OR p.slug LIKE ? OR p.description LIKE ?
+           ORDER BY p.downloads DESC LIMIT 50`
+        ).bind(`%${q}%`, `%${q}%`, `%${q}%`).all();
+        return html(renderSearchPage(q, results.results as never[]));
+      }
+
+      // Package detail: /@namespace/slug
+      const pkgMatch = url.pathname.match(/^\/@([a-z0-9][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)$/);
+      if (pkgMatch) {
+        const [, ns, slug] = pkgMatch;
+        const namespace = `@${ns}`;
+        const pkg = await env.DB.prepare(
+          `SELECT p.*, u.username as author, u.avatar_url as author_avatar
+           FROM packages p JOIN users u ON p.owner_id = u.id
+           WHERE p.namespace = ? AND p.slug = ?`
+        ).bind(namespace, slug).first();
+
+        if (!pkg) return html(renderNotFound(), 404);
+
+        const versions = await env.DB.prepare(
+          "SELECT version, created_at as publishedAt, compiler_version FROM versions WHERE package_id = ? ORDER BY created_at DESC"
+        ).bind(pkg.id as number).all();
+
+        const latest = await env.DB.prepare(
+          "SELECT readme, swift_output FROM versions WHERE package_id = ? AND version = ?"
+        ).bind(pkg.id as number, pkg.latest_version as string).first<{ readme: string | null; swift_output: string }>();
+
+        return html(renderPackagePage({
+          ...(pkg as never),
+          version: pkg.latest_version as string,
+          readme: latest?.readme ?? "",
+          versions: versions.results.map((v: Record<string, unknown>) => ({
+            version: v.version as string,
+            publishedAt: v.publishedAt as string,
+            swiftOutputPreview: v === versions.results[0] ? latest?.swift_output?.slice(0, 500) : undefined,
+          })),
+        }));
+      }
+    }
+
+    return html(renderNotFound(), 404);
   },
 };

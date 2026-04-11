@@ -1,6 +1,5 @@
 # axintai — Python SDK for Axint
 
-[![PyPI](https://img.shields.io/pypi/v/axintai.svg)](https://pypi.org/project/axintai/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -10,8 +9,12 @@ The Python SDK includes a **native Swift generator** — no Node.js dependency r
 
 ## Install
 
+> **Note:** The PyPI package is not published yet. Install from source for now:
+
 ```bash
-pip install axintai
+git clone https://github.com/agenticempire/axint.git
+cd axint/python
+pip install -e '.[dev]'
 ```
 
 ## Define an intent
