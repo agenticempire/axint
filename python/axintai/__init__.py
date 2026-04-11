@@ -47,9 +47,9 @@ from .ir import (
     ViewPropIR,
     ViewStateIR,
     ViewStateKind,
+    WidgetEntryIR,
     WidgetFamily,
     WidgetIR,
-    WidgetEntryIR,
     WidgetRefreshPolicy,
 )
 from .sdk import (
