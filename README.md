@@ -63,7 +63,7 @@ Axint is the fastest path from an AI coding tool to a shipped App Intent. **One 
 - **Native type fidelity.** `int → Int`, `double → Double`, `float → Float`, `date → Date`, `url → URL`, `duration → Measurement<UnitDuration>`, `optional<T> → T?`. Default values and optionality are preserved end-to-end.
 - **Return-type-aware `perform()` signatures.** Every generated intent is a drop-in tool for Agent Siri and Shortcuts.
 - **Info.plist and .entitlements emit.** Axint writes the `NSAppIntentsDomains` plist fragment and the App Intents entitlement XML alongside your `.swift` file. Drop all three into Xcode and ship.
-- **MCP-native.** A bundled `axint-mcp` server exposes `axint_scaffold`, `axint_compile`, and `axint_validate` to any MCP client. Your AI coding agent can read your project, draft a TypeScript intent, compile it, and open a PR — without a human touching Xcode.
+- **MCP-native.** A bundled `axint-mcp` server exposes five tools — `axint_scaffold`, `axint_compile`, `axint_validate`, `axint_list_templates`, and `axint_template` — to any MCP client. Your AI coding agent can read your project, draft a TypeScript intent, compile it, and open a PR — without a human touching Xcode.
 - **Rust-grade diagnostics.** 16 diagnostic codes (`AX001`–`AX202`) with fix suggestions and color-coded output.
 - **Sub-millisecond compile.** A typical intent compiles in under a millisecond. The [axint.ai playground](https://axint.ai/#playground) runs the full compiler in your browser with zero server round-trip.
 - **152 tests.** Parser, validator, generator, emit paths, and sandbox — all covered.
@@ -183,13 +183,15 @@ Axint ships with `axint-mcp`, a Model Context Protocol server that exposes the c
 }
 ```
 
-Three tools are exposed:
+Five tools are exposed:
 
-| Tool              | What it does                                                               |
-| ----------------- | -------------------------------------------------------------------------- |
-| `axint_scaffold`  | Generates a TypeScript intent from a natural-language description          |
-| `axint_compile`   | Runs the full pipeline and returns `.swift` + `.plist` + `.entitlements`   |
-| `axint_validate`  | Dry-run validation with line/column diagnostics                            |
+| Tool                  | What it does                                                               |
+| --------------------- | -------------------------------------------------------------------------- |
+| `axint_scaffold`      | Generates a TypeScript intent from a natural-language description          |
+| `axint_compile`       | Runs the full pipeline and returns `.swift` + `.plist` + `.entitlements`   |
+| `axint_validate`      | Dry-run validation with line/column diagnostics                            |
+| `axint_list_templates`| Lists all bundled intent templates                                         |
+| `axint_template`      | Returns the source of a specific bundled template                          |
 
 Once connected, your AI coding agent can read a Swift project, draft an intent, compile it, and open a PR — without a human touching Xcode.
 
@@ -272,7 +274,7 @@ axint/
 │   ├── mcp/         # MCP server (scaffold, compile, validate)
 │   ├── cli/         # axint CLI (Commander.js)
 │   └── templates/   # Intent template registry
-├── tests/           # 117 vitest tests
+├── tests/           # 152 vitest tests
 ├── examples/        # Example intent definitions
 └── docs/            # Error reference, contributing, assets
 ```

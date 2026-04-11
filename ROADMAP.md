@@ -14,7 +14,7 @@ We ship small, tight releases. Everything on this page is open for contribution 
 
 - **Xcode SPM build plugin** (`spm-plugin/`) — `AxintPlugin` Swift Package with `BuildToolPlugin` that auto-compiles `.ts` intents during `swift build` and Xcode builds. Discovers `axint` via `npx` or `PATH`.
 - **`axint eject`** (`src/core/eject.ts`) — generates standalone Swift with zero Axint dependency. Strips regeneration markers, adds Apple documentation references. Optional XCTest scaffold generation. 12 tests.
-- **EntityQuery + DynamicOptionsProvider** — full IR support (`entityQuery`, `dynamicOptions` types, `IREntity` interface), parser (`defineEntity()`, `param.entity()`, `param.dynamicOptions()`), generator (AppEntity structs, EntityQuery conformances, intent donations), validator (rules AX110–AX114), and two new templates (`search-tasks`, `dynamic-playlist`).
+- **EntityQuery + DynamicOptionsProvider** — initial SDK support (`defineEntity()`, `param.entity()`, `param.dynamicOptions()`), IR types (`entityQuery`, `dynamicOptions`, `IREntity`), validator rules AX110–AX113, and two new templates (`search-tasks`, `dynamic-playlist`). Codegen for entity queries and dynamic options is in progress for v0.3.1.
 - **WWDC API adapter pipeline** (`scripts/wwdc-diff.ts`) — nightly CI scanning Apple SDK headers for API changes with priority-ranked adapter recommendations and auto GitHub issue creation on detected changes.
 - **Launch kit** (`launch/`) — HN post draft, Twitter thread, beta-tester seeding plan, Discord channel layout, pre-launch → launch-day → post-launch checklist.
 
