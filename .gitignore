@@ -46,3 +46,6 @@ __pycache__/
 *.egg-info/
 python/dist/
 python/build/
+
+python/**/__pycache__/
+*.tgz
