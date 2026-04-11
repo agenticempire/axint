@@ -30,8 +30,8 @@ jobs:
       - run: npm audit --audit-level=moderate || true
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
       - run: npm run build
+      - run: npm test
 
       - name: Verify CLI works
         run: |
