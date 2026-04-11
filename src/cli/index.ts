@@ -11,12 +11,20 @@
  *   axint login                   Authenticate with the Axint Registry
  *   axint publish                 Publish an intent to the Registry
  *   axint add <package>           Install a template from the Registry
+ *   axint watch <file|dir>         Watch intent files and recompile on change
  *   axint mcp                     Start the MCP server (stdio)
  *   axint --version               Show version
  */
 
 import { Command } from "commander";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  watch as fsWatch,
+  statSync,
+} from "node:fs";
 import { resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileFile, compileFromIR, irFromJSON } from "../core/compiler.js";
@@ -959,6 +967,252 @@ program
       process.exit(1);
     }
   });
+
+// ─── watch ───────────────────────────────────────────────────────────
+
+program
+  .command("watch")
+  .description("Watch intent files and recompile on change")
+  .argument("<file>", "Path to a TypeScript intent file or directory of intents")
+  .option("-o, --out <dir>", "Output directory for generated Swift", ".")
+  .option("--no-validate", "Skip validation of generated Swift")
+  .option("--emit-info-plist", "Emit Info.plist fragments alongside Swift files")
+  .option("--emit-entitlements", "Emit entitlements fragments alongside Swift files")
+  .option("--format", "Pipe generated Swift through swift-format")
+  .option(
+    "--strict-format",
+    "Fail if swift-format is missing or errors (implies --format)"
+  )
+  .action(
+    async (
+      file: string,
+      options: {
+        out: string;
+        validate: boolean;
+        emitInfoPlist: boolean;
+        emitEntitlements: boolean;
+        format: boolean;
+        strictFormat: boolean;
+      }
+    ) => {
+      const target = resolve(file);
+      const isDir = existsSync(target) && statSync(target).isDirectory();
+      const filesToWatch: string[] = [];
+
+      if (isDir) {
+        // Collect all .ts files in the directory (non-recursive, skip .d.ts)
+        const { readdirSync } = await import("node:fs");
+        for (const entry of readdirSync(target)) {
+          if (entry.endsWith(".ts") && !entry.endsWith(".d.ts")) {
+            filesToWatch.push(resolve(target, entry));
+          }
+        }
+        if (filesToWatch.length === 0) {
+          console.error(`\x1b[31merror:\x1b[0m No .ts files found in ${target}`);
+          process.exit(1);
+        }
+      } else {
+        if (!existsSync(target)) {
+          console.error(`\x1b[31merror:\x1b[0m File not found: ${target}`);
+          process.exit(1);
+        }
+        filesToWatch.push(target);
+      }
+
+      function compileOne(filePath: string): boolean {
+        const t0 = performance.now();
+        const result = compileFile(filePath, {
+          outDir: options.out,
+          validate: options.validate,
+          emitInfoPlist: options.emitInfoPlist,
+          emitEntitlements: options.emitEntitlements,
+        });
+
+        for (const d of result.diagnostics) {
+          const prefix =
+            d.severity === "error"
+              ? "\x1b[31merror\x1b[0m"
+              : d.severity === "warning"
+                ? "\x1b[33mwarning\x1b[0m"
+                : "\x1b[36minfo\x1b[0m";
+          console.error(`  ${prefix}[${d.code}]: ${d.message}`);
+          if (d.file) console.error(`    --> ${d.file}${d.line ? `:${d.line}` : ""}`);
+          if (d.suggestion) console.error(`    = help: ${d.suggestion}`);
+        }
+
+        if (!result.success || !result.output) {
+          const errors = result.diagnostics.filter((d) => d.severity === "error").length;
+          console.error(`\x1b[31m✗\x1b[0m ${basename(filePath)} — ${errors} error(s)`);
+          return false;
+        }
+
+        const swiftCode = result.output.swiftCode;
+
+        // Apply swift-format synchronously if requested (async import cached after first run)
+        if (options.format || options.strictFormat) {
+          // swift-format is async — we handle it in the wrapper
+        }
+
+        const outPath = resolve(result.output.outputPath);
+        mkdirSync(dirname(outPath), { recursive: true });
+        writeFileSync(outPath, swiftCode, "utf-8");
+
+        if (options.emitInfoPlist && result.output.infoPlistFragment) {
+          const plistPath = outPath.replace(/\.swift$/, ".plist.fragment.xml");
+          writeFileSync(plistPath, result.output.infoPlistFragment, "utf-8");
+        }
+        if (options.emitEntitlements && result.output.entitlementsFragment) {
+          const entPath = outPath.replace(/\.swift$/, ".entitlements.fragment.xml");
+          writeFileSync(entPath, result.output.entitlementsFragment, "utf-8");
+        }
+
+        const dt = (performance.now() - t0).toFixed(1);
+        console.log(
+          `\x1b[32m✓\x1b[0m ${result.output.ir.name} → ${outPath} \x1b[90m(${dt}ms)\x1b[0m`
+        );
+        return true;
+      }
+
+      async function compileWithFormat(filePath: string): Promise<boolean> {
+        if (!options.format && !options.strictFormat) {
+          return compileOne(filePath);
+        }
+
+        // For format mode, compile then format the output file
+        const t0 = performance.now();
+        const result = compileFile(filePath, {
+          outDir: options.out,
+          validate: options.validate,
+          emitInfoPlist: options.emitInfoPlist,
+          emitEntitlements: options.emitEntitlements,
+        });
+
+        for (const d of result.diagnostics) {
+          const prefix =
+            d.severity === "error"
+              ? "\x1b[31merror\x1b[0m"
+              : d.severity === "warning"
+                ? "\x1b[33mwarning\x1b[0m"
+                : "\x1b[36minfo\x1b[0m";
+          console.error(`  ${prefix}[${d.code}]: ${d.message}`);
+          if (d.file) console.error(`    --> ${d.file}${d.line ? `:${d.line}` : ""}`);
+          if (d.suggestion) console.error(`    = help: ${d.suggestion}`);
+        }
+
+        if (!result.success || !result.output) {
+          const errors = result.diagnostics.filter((d) => d.severity === "error").length;
+          console.error(`\x1b[31m✗\x1b[0m ${basename(filePath)} — ${errors} error(s)`);
+          return false;
+        }
+
+        let swiftCode = result.output.swiftCode;
+        try {
+          const { formatSwift } = await import("../core/format.js");
+          const fmt = await formatSwift(swiftCode, { strict: options.strictFormat });
+          if (fmt.ran) swiftCode = fmt.formatted;
+        } catch (fmtErr: unknown) {
+          if (options.strictFormat) {
+            console.error(`\x1b[31merror:\x1b[0m ${(fmtErr as Error).message}`);
+            return false;
+          }
+        }
+
+        const outPath = resolve(result.output.outputPath);
+        mkdirSync(dirname(outPath), { recursive: true });
+        writeFileSync(outPath, swiftCode, "utf-8");
+
+        if (options.emitInfoPlist && result.output.infoPlistFragment) {
+          writeFileSync(
+            outPath.replace(/\.swift$/, ".plist.fragment.xml"),
+            result.output.infoPlistFragment,
+            "utf-8"
+          );
+        }
+        if (options.emitEntitlements && result.output.entitlementsFragment) {
+          writeFileSync(
+            outPath.replace(/\.swift$/, ".entitlements.fragment.xml"),
+            result.output.entitlementsFragment,
+            "utf-8"
+          );
+        }
+
+        const dt = (performance.now() - t0).toFixed(1);
+        console.log(
+          `\x1b[32m✓\x1b[0m ${result.output.ir.name} → ${outPath} \x1b[90m(${dt}ms)\x1b[0m`
+        );
+        return true;
+      }
+
+      // Initial compile pass
+      console.log(`\x1b[1maxint watch\x1b[0m — ${filesToWatch.length} file(s)\n`);
+      let ok = 0;
+      let fail = 0;
+      for (const f of filesToWatch) {
+        if (await compileWithFormat(f)) {
+          ok++;
+        } else {
+          fail++;
+        }
+      }
+      console.log();
+      if (fail > 0) {
+        console.log(
+          `\x1b[33m⚠\x1b[0m ${ok} compiled, ${fail} failed — watching for changes…\n`
+        );
+      } else {
+        console.log(`\x1b[32m✓\x1b[0m ${ok} compiled — watching for changes…\n`);
+      }
+
+      // Set up file watchers with debounce
+      const pending = new Map<string, ReturnType<typeof setTimeout>>();
+      const DEBOUNCE_MS = 150;
+
+      function onFileChange(filePath: string) {
+        const existing = pending.get(filePath);
+        if (existing) clearTimeout(existing);
+        pending.set(
+          filePath,
+          setTimeout(async () => {
+            pending.delete(filePath);
+            const now = new Date().toLocaleTimeString();
+            console.log(`\x1b[90m[${now}]\x1b[0m ${basename(filePath)} changed`);
+            await compileWithFormat(filePath);
+            console.log();
+          }, DEBOUNCE_MS)
+        );
+      }
+
+      if (isDir) {
+        // Watch the entire directory for .ts file changes
+        fsWatch(target, { persistent: true }, (_event, filename) => {
+          if (
+            filename &&
+            typeof filename === "string" &&
+            filename.endsWith(".ts") &&
+            !filename.endsWith(".d.ts")
+          ) {
+            onFileChange(resolve(target, filename));
+          }
+        });
+      } else {
+        // Watch individual file — also watch its parent dir as a fallback
+        // since some editors do atomic writes (delete + create)
+        const parentDir = dirname(target);
+        const targetBase = basename(target);
+        fsWatch(parentDir, { persistent: true }, (_event, filename) => {
+          if (filename === targetBase) {
+            onFileChange(target);
+          }
+        });
+      }
+
+      // Keep process alive, clean exit on SIGINT
+      process.on("SIGINT", () => {
+        console.log("\n\x1b[90mStopped watching.\x1b[0m");
+        process.exit(0);
+      });
+    }
+  );
 
 // ─── mcp ─────────────────────────────────────────────────────────────
 //

@@ -66,7 +66,7 @@ Axint is the fastest path from an AI coding tool to a shipped App Intent. **One 
 - **MCP-native.** A bundled `axint-mcp` server exposes five tools — `axint_scaffold`, `axint_compile`, `axint_validate`, `axint_list_templates`, and `axint_template` — to any MCP client. Your AI coding agent can read your project, draft a TypeScript intent, compile it, and open a PR — without a human touching Xcode.
 - **Rust-grade diagnostics.** 16 diagnostic codes (`AX001`–`AX202`) with fix suggestions and color-coded output.
 - **Sub-millisecond compile.** A typical intent compiles in under a millisecond. The [axint.ai playground](https://axint.ai/#playground) runs the full compiler in your browser with zero server round-trip.
-- **152 tests.** Parser, validator, generator, emit paths, and sandbox — all covered.
+- **155 tests.** Parser, validator, generator, emit paths, watch mode, and sandbox — all covered.
 - **Apache 2.0, no CLA.** Fork it, extend it, ship it.
 
 ---
@@ -117,6 +117,25 @@ ios/Intents/
 ├── CreateEventIntent.plist.fragment.xml   # NSAppIntentsDomains
 └── CreateEventIntent.entitlements.fragment.xml  # App Intents entitlement
 ```
+
+---
+
+## Watch mode
+
+For iterative development, `axint watch` recompiles on every save with sub-millisecond rebuilds:
+
+```bash
+# Watch a single file
+axint watch my-intent.ts --out ios/Intents/
+
+# Watch a directory of intents
+axint watch ./intents/ --out ios/Intents/ --emit-info-plist --emit-entitlements
+
+# With swift-format
+axint watch my-intent.ts --out ios/Intents/ --format
+```
+
+The watcher runs an initial compile pass, then re-triggers on file changes with a 150ms debounce. Errors are reported inline without killing the process — fix the file and it recompiles automatically.
 
 ---
 
@@ -274,7 +293,7 @@ axint/
 │   ├── mcp/         # MCP server (scaffold, compile, validate)
 │   ├── cli/         # axint CLI (Commander.js)
 │   └── templates/   # Intent template registry
-├── tests/           # 152 vitest tests
+├── tests/           # 155 vitest tests
 ├── examples/        # Example intent definitions
 └── docs/            # Error reference, contributing, assets
 ```
