@@ -604,6 +604,17 @@ export default {
 
     // Frontend routes (GET only)
     if (req.method === "GET") {
+      // OG image — served from R2 or inline
+      if (url.pathname === "/og-image.png") {
+        const obj = await env.PACKAGES.get("_static/og-image.png");
+        if (obj) {
+          return new Response(obj.body, {
+            headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400" },
+          });
+        }
+        return new Response("not found", { status: 404 });
+      }
+
       // Home page
       if (url.pathname === "/") {
         const featured = await env.DB.prepare(

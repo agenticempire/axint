@@ -17,7 +17,6 @@ means `axintai compile` never imports user code.
 
 from __future__ import annotations
 
-import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, get_type_hints

@@ -1,0 +1,10 @@
+{
+  "context_servers": {
+    "axint": {
+      "command": {
+        "path": "npx",
+        "args": ["-y", "@axintai/compiler@latest", "axint-mcp"]
+      }
+    }
+  }
+}
