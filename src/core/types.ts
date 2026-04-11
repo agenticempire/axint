@@ -24,7 +24,11 @@ export type IRType =
   | { kind: "array"; elementType: IRType }
   | { kind: "optional"; innerType: IRType }
   | { kind: "entity"; entityName: string; properties: IRParameter[] }
-  | { kind: "entityQuery"; entityName: string; queryType: "all" | "id" | "string" | "property" }
+  | {
+      kind: "entityQuery";
+      entityName: string;
+      queryType: "all" | "id" | "string" | "property";
+    }
   | { kind: "dynamicOptions"; valueType: IRType; providerName: string }
   | { kind: "enum"; name: string; cases: string[] };
 
@@ -59,6 +63,67 @@ export interface IREntity {
   queryType: "all" | "id" | "string" | "property";
 }
 
+// ─── View IR Types ──────────────────────────────────────────────────
+
+/** SwiftUI property wrapper kind for state management */
+export type ViewStateKind = "state" | "binding" | "environment" | "observed";
+
+/** A state or binding property in a view definition */
+export interface IRViewState {
+  name: string;
+  type: IRType;
+  kind: ViewStateKind;
+  defaultValue?: unknown;
+  /** For @Environment, the keypath (e.g. "\.dismiss") */
+  environmentKey?: string;
+}
+
+/** A prop passed from a parent view */
+export interface IRViewProp {
+  name: string;
+  type: IRType;
+  isOptional: boolean;
+  defaultValue?: unknown;
+  description?: string;
+}
+
+/** Supported SwiftUI layout container types */
+export type ViewBodyNode =
+  | { kind: "vstack"; spacing?: number; alignment?: string; children: ViewBodyNode[] }
+  | { kind: "hstack"; spacing?: number; alignment?: string; children: ViewBodyNode[] }
+  | { kind: "zstack"; alignment?: string; children: ViewBodyNode[] }
+  | { kind: "text"; content: string }
+  | { kind: "image"; systemName?: string; name?: string }
+  | { kind: "button"; label: string; action?: string }
+  | { kind: "spacer" }
+  | { kind: "divider" }
+  | { kind: "foreach"; collection: string; itemName: string; body: ViewBodyNode[] }
+  | {
+      kind: "conditional";
+      condition: string;
+      then: ViewBodyNode[];
+      else?: ViewBodyNode[];
+    }
+  | { kind: "navigationLink"; destination: string; label: ViewBodyNode[] }
+  | { kind: "list"; children: ViewBodyNode[] }
+  | { kind: "raw"; swift: string };
+
+/** Modifier applied to a view node */
+export interface ViewModifier {
+  name: string;
+  args: string[];
+}
+
+/** The main IR node representing a compiled view */
+export interface IRView {
+  name: string;
+  props: IRViewProp[];
+  state: IRViewState[];
+  body: ViewBodyNode[];
+  modifiers?: Record<string, ViewModifier[]>;
+  sourceFile: string;
+}
+
 /** The main IR node representing a compiled intent */
 export interface IRIntent {
   name: string;
@@ -91,7 +156,15 @@ export interface CompilerOptions {
   /** Whether to run validation after generation */
   validate?: boolean;
   /** Target iOS/macOS version */
-  target?: "ios16" | "ios17" | "ios18" | "ios26" | "macos13" | "macos14" | "macos15" | "macos26";
+  target?:
+    | "ios16"
+    | "ios17"
+    | "ios18"
+    | "ios26"
+    | "macos13"
+    | "macos14"
+    | "macos15"
+    | "macos26";
   /** Whether to emit an Info.plist fragment alongside the Swift file */
   emitInfoPlist?: boolean;
   /** Whether to emit an entitlements fragment alongside the Swift file */
