@@ -76,7 +76,7 @@ swift_code = generate_swift(ir)
 
 ## Cross-language bridge
 
-The Python SDK produces the same IR JSON as the TypeScript SDK. You can pipe it into the TypeScript compiler for additional validation:
+The Python SDK produces compatible IR JSON that the TypeScript compiler can consume. You can pipe it in for additional validation and Swift generation:
 
 ```bash
 axintai parse intent.py --json | axint compile - --from-ir --stdout

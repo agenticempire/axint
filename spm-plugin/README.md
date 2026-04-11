@@ -117,25 +117,19 @@ Here's an example TypeScript intent definition:
 
 ```typescript
 // MyIntent.ts
-import { defineIntent } from "@axintai/compiler";
+import { defineIntent, param } from "@axintai/compiler";
 
 export const myIntent = defineIntent({
-  name: "MyIntent",
-  displayName: "My Intent",
+  title: "My Intent",
   description: "An example intent",
-  category: "general",
-  
-  parameters: {
-    message: {
-      type: "string",
-      displayName: "Message",
-      description: "A message to process",
-    },
+  domain: "general",
+
+  params: {
+    message: param.string("A message to process"),
   },
-  
-  handler: async (params) => {
-    console.log(`Processing: ${params.message}`);
-    return { success: true };
+
+  perform({ message }) {
+    return `Processed: ${message}`;
   },
 });
 ```
