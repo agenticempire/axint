@@ -11,7 +11,7 @@
   "homepage": "https://axint.ai",
   "repository": {
     "type": "git",
-    "url": "https://github.com/agenticempire/axint.git"
+    "url": "git+https://github.com/agenticempire/axint.git"
   },
   "bugs": {
     "url": "https://github.com/agenticempire/axint/issues"
@@ -33,8 +33,8 @@
     "node": ">=22"
   },
   "bin": {
-    "axint": "./dist/cli/index.js",
-    "axint-mcp": "./dist/mcp/index.js"
+    "axint": "dist/cli/index.js",
+    "axint-mcp": "dist/mcp/index.js"
   },
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
