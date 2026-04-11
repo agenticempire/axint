@@ -446,3 +446,93 @@ export interface EntityDefinition {
 export function defineEntity(config: EntityDefinition): EntityDefinition {
   return config;
 }
+
+// ─── Widget Definition ──────────────────────────────────────────────────────
+
+/** Configuration for a widget timeline entry field */
+export interface WidgetEntryConfig {
+  description?: string;
+  default?: unknown;
+}
+
+type WidgetEntryFactory<T extends string> = (
+  description?: string,
+  config?: Partial<WidgetEntryConfig>
+) => { type: T; description?: string } & Partial<WidgetEntryConfig>;
+
+function makeWidgetEntry<T extends string>(type: T): WidgetEntryFactory<T> {
+  return (description, config) => ({ type, description, ...config });
+}
+
+/** Widget entry field helpers — timeline entry properties */
+export const entry = {
+  string: makeWidgetEntry("string"),
+  int: makeWidgetEntry("int"),
+  double: makeWidgetEntry("double"),
+  float: makeWidgetEntry("float"),
+  boolean: makeWidgetEntry("boolean"),
+  date: makeWidgetEntry("date"),
+  url: makeWidgetEntry("url"),
+};
+
+/** Widget family size option */
+export type WidgetFamily =
+  | "systemSmall"
+  | "systemMedium"
+  | "systemLarge"
+  | "systemExtraLarge"
+  | "accessoryCircular"
+  | "accessoryRectangular"
+  | "accessoryInline";
+
+/** Widget refresh policy */
+export type WidgetRefreshPolicy = "atEnd" | "after" | "never";
+
+/** The full widget definition for generating a WidgetKit widget */
+export interface WidgetDefinition {
+  /** PascalCase name for the generated Swift struct (e.g., "StepCounterWidget"). */
+  name: string;
+  /** Display name shown in widget gallery. */
+  displayName: string;
+  /** Human-readable description of what this widget does. */
+  description: string;
+  /** Supported widget families/sizes. */
+  families: WidgetFamily[];
+  /** Timeline entry fields — using entry.* helpers. */
+  entry: Record<string, ReturnType<(typeof entry)[keyof typeof entry]>>;
+  /** The widget body tree — using view.* helpers. */
+  body: ViewElement[];
+  /** Refresh interval in minutes (required if refreshPolicy is "after"). */
+  refreshInterval?: number;
+  /** Refresh policy: "atEnd" (default), "after" (interval-based), "never". */
+  refreshPolicy?: WidgetRefreshPolicy;
+}
+
+/**
+ * Define a WidgetKit widget for compilation to Swift.
+ *
+ * @example
+ * ```typescript
+ * export default defineWidget({
+ *   name: "StepCounter",
+ *   displayName: "Step Counter",
+ *   description: "Shows your daily step count",
+ *   families: ["systemSmall", "systemMedium"],
+ *   entry: {
+ *     steps: entry.int("Current step count", { default: 0 }),
+ *     goal: entry.int("Daily goal", { default: 10000 }),
+ *     lastUpdated: entry.date("Last sync time"),
+ *   },
+ *   body: [
+ *     view.vstack([
+ *       view.text("\\(steps)"),
+ *       view.text("of \\(goal) steps"),
+ *     ], { spacing: 4 }),
+ *   ],
+ *   refreshInterval: 15,
+ * });
+ * ```
+ */
+export function defineWidget(config: WidgetDefinition): WidgetDefinition {
+  return config;
+}

@@ -14,20 +14,24 @@
 import { readFileSync } from "node:fs";
 import { parseIntentSource, ParserError } from "./parser.js";
 import { parseViewSource } from "./view-parser.js";
+import { parseWidgetSource } from "./widget-parser.js";
 import {
   generateSwift,
   generateInfoPlistFragment,
   generateEntitlementsFragment,
 } from "./generator.js";
 import { generateSwiftUIView } from "./view-generator.js";
+import { generateSwiftWidget } from "./widget-generator.js";
 import { validateIntent, validateSwiftSource } from "./validator.js";
 import { validateView, validateSwiftUISource } from "./view-validator.js";
+import { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
 import type {
   CompilerOutput,
   CompilerOptions,
   Diagnostic,
   IRIntent,
   IRView,
+  IRWidget,
   IRType,
   IRParameter,
   IRPrimitiveType,
@@ -243,6 +247,96 @@ export function compileViewFromIR(
 
   const viewFileName = `${ir.name}.swift`;
   const outputPath = options.outDir ? `${options.outDir}/${viewFileName}` : viewFileName;
+
+  return {
+    success: true,
+    output: {
+      outputPath,
+      swiftCode,
+      ir,
+      diagnostics,
+    },
+    diagnostics,
+  };
+}
+
+// ─── Widget Compilation ────────────────────────────────────────────
+
+export interface WidgetCompileResult {
+  success: boolean;
+  output?: {
+    outputPath: string;
+    swiftCode: string;
+    ir: IRWidget;
+    diagnostics: Diagnostic[];
+  };
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * Compile a TypeScript widget definition source string into WidgetKit.
+ */
+export function compileWidgetSource(
+  source: string,
+  fileName: string = "<stdin>",
+  options: Partial<CompilerOptions> = {}
+): WidgetCompileResult {
+  let ir: IRWidget;
+  try {
+    ir = parseWidgetSource(source, fileName);
+  } catch (err) {
+    if (err instanceof ParserError) {
+      return {
+        success: false,
+        diagnostics: [
+          {
+            code: err.code,
+            severity: "error",
+            message: err.message,
+            file: err.file,
+            line: err.line,
+            suggestion: err.suggestion,
+          },
+        ],
+      };
+    }
+    throw err;
+  }
+
+  return compileWidgetFromIR(ir, options);
+}
+
+/**
+ * Compile from a pre-built IRWidget (skips parsing).
+ */
+export function compileWidgetFromIR(
+  ir: IRWidget,
+  options: Partial<CompilerOptions> = {}
+): WidgetCompileResult {
+  const diagnostics: Diagnostic[] = [];
+
+  const widgetDiagnostics = validateWidget(ir);
+  diagnostics.push(...widgetDiagnostics);
+
+  if (widgetDiagnostics.some((d) => d.severity === "error")) {
+    return { success: false, diagnostics };
+  }
+
+  const swiftCode = generateSwiftWidget(ir);
+
+  if (options.validate !== false) {
+    const swiftDiagnostics = validateSwiftWidgetSource(swiftCode, ir.name);
+    diagnostics.push(...swiftDiagnostics);
+
+    if (swiftDiagnostics.some((d) => d.severity === "error")) {
+      return { success: false, diagnostics };
+    }
+  }
+
+  const widgetFileName = `${ir.name}Widget.swift`;
+  const outputPath = options.outDir
+    ? `${options.outDir}/${widgetFileName}`
+    : widgetFileName;
 
   return {
     success: true,

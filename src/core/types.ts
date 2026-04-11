@@ -148,6 +148,43 @@ export interface IRIntent {
   customResultType?: string;
 }
 
+// ─── Widget IR Types ────────────────────────────────────────────────────────
+
+/** Widget family sizes */
+export type WidgetFamily =
+  | "systemSmall"
+  | "systemMedium"
+  | "systemLarge"
+  | "systemExtraLarge"
+  | "accessoryCircular"
+  | "accessoryRectangular"
+  | "accessoryInline";
+
+/** Widget refresh policy */
+export type WidgetRefreshPolicy = "atEnd" | "after" | "never";
+
+/** Timeline entry field */
+export interface IRWidgetEntry {
+  name: string;
+  type: IRType;
+  defaultValue?: unknown;
+}
+
+/** The main IR node for a compiled widget */
+export interface IRWidget {
+  name: string;
+  displayName: string;
+  description: string;
+  families: WidgetFamily[];
+  entry: IRWidgetEntry[];
+  /** The view body to render (reuses ViewBodyNode from views) */
+  body: ViewBodyNode[];
+  /** Refresh interval in minutes (for .after policy) */
+  refreshInterval?: number;
+  refreshPolicy: WidgetRefreshPolicy;
+  sourceFile: string;
+}
+
 // ─── Compiler Types ──────────────────────────────────────────────────
 
 export interface CompilerOptions {
