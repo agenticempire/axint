@@ -190,8 +190,8 @@ function findDefineEntityCalls(node: ts.Node): ts.CallExpression[] {
   return found;
 }
 
-function propertyMap(obj: ts.ObjectLiteralExpression): Map<string, ts.Expression> {
-  const map = new Map<string, ts.Expression>();
+function propertyMap(obj: ts.ObjectLiteralExpression): Map<string, ts.Node> {
+  const map = new Map<string, ts.Node>();
   for (const prop of obj.properties) {
     if (ts.isPropertyAssignment(prop)) {
       const key = propertyKeyName(prop.name);
@@ -200,7 +200,7 @@ function propertyMap(obj: ts.ObjectLiteralExpression): Map<string, ts.Expression
       map.set(prop.name.text, prop.name);
     } else if (ts.isMethodDeclaration(prop)) {
       const key = propertyKeyName(prop.name);
-      if (key) map.set(key, prop as unknown as ts.Expression);
+      if (key) map.set(key, prop);
     }
   }
   return map;
@@ -213,21 +213,21 @@ function propertyKeyName(name: ts.PropertyName): string | undefined {
   return undefined;
 }
 
-function readStringLiteral(node: ts.Expression | undefined): string | null {
+function readStringLiteral(node: ts.Node | undefined): string | null {
   if (!node) return null;
   if (ts.isStringLiteral(node)) return node.text;
   if (ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
   return null;
 }
 
-function readBooleanLiteral(node: ts.Expression | undefined): boolean | undefined {
+function readBooleanLiteral(node: ts.Node | undefined): boolean | undefined {
   if (!node) return undefined;
   if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
   if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
   return undefined;
 }
 
-function readStringArray(node: ts.Expression | undefined): string[] {
+function readStringArray(node: ts.Node | undefined): string[] {
   if (!node || !ts.isArrayLiteralExpression(node)) return [];
   const out: string[] = [];
   for (const el of node.elements) {
@@ -237,7 +237,7 @@ function readStringArray(node: ts.Expression | undefined): string[] {
   return out;
 }
 
-function readStringRecord(node: ts.Expression | undefined): Record<string, string> {
+function readStringRecord(node: ts.Node | undefined): Record<string, string> {
   if (!node || !ts.isObjectLiteralExpression(node)) return {};
   const rec: Record<string, string> = {};
   for (const prop of node.properties) {
@@ -325,7 +325,7 @@ function validateQueryType(
   value: string | null,
   filePath: string,
   sourceFile: ts.SourceFile,
-  node: ts.Expression | undefined
+  node: ts.Node | undefined
 ): "all" | "id" | "string" | "property" {
   if (!value) {
     throw new ParserError(
@@ -336,8 +336,8 @@ function validateQueryType(
       'Add query field: query: "string" (or "all", "id", "property")'
     );
   }
-  const valid = ["all", "id", "string", "property"] as const;
-  if (!valid.includes(value as any)) {
+  const valid = new Set(["all", "id", "string", "property"]);
+  if (!valid.has(value)) {
     throw new ParserError(
       "AX019",
       `Invalid query type: "${value}". Must be one of: all, id, string, property`,
@@ -351,7 +351,7 @@ function validateQueryType(
 // ─── Parameter Extraction ────────────────────────────────────────────
 
 function extractParameters(
-  node: ts.Expression,
+  node: ts.Node,
   filePath: string,
   sourceFile: ts.SourceFile
 ): IRParameter[] {
@@ -413,7 +413,7 @@ function extractParameters(
 interface ParamCallInfo {
   typeName: string;
   description: string;
-  configObject: Map<string, ts.Expression> | null;
+  configObject: Map<string, ts.Node> | null;
   callExpr: ts.CallExpression;
 }
 
@@ -499,7 +499,7 @@ function resolveParamType(
   callExpr?: ts.CallExpression
 ): IRType {
   // Primitive types
-  if (PARAM_TYPES.has(typeName as IRPrimitiveType)) {
+  if ((PARAM_TYPES as ReadonlySet<string>).has(typeName)) {
     return { kind: "primitive", value: typeName as IRPrimitiveType };
   }
 
@@ -597,7 +597,7 @@ function resolveParamType(
 
 // ─── Literal Evaluation ──────────────────────────────────────────────
 
-function evaluateLiteral(node: ts.Expression): unknown {
+function evaluateLiteral(node: ts.Node): unknown {
   if (ts.isStringLiteral(node)) return node.text;
   if (ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
   if (ts.isNumericLiteral(node)) return Number(node.text);
@@ -616,7 +616,7 @@ function evaluateLiteral(node: ts.Expression): unknown {
 
 // ─── Return-Type Inference ───────────────────────────────────────────
 
-function inferReturnType(performNode: ts.Expression | undefined): IRType {
+function inferReturnType(performNode: ts.Node | undefined): IRType {
   // Default when we can't infer anything.
   const defaultType: IRType = { kind: "primitive", value: "string" };
   if (!performNode) return defaultType;

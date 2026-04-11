@@ -10,6 +10,8 @@ interface Env {
   PACKAGES: R2Bucket;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
+  /** Comma-separated GitHub user IDs allowed to publish to @axintai */
+  ORG_ADMIN_IDS?: string;
 }
 
 // ─── Rate Limiter ──────────────────────────────────────────────────
@@ -265,8 +267,16 @@ route("POST", "/api/v1/publish", async (req, env) => {
   // Validate namespace matches user
   const user = await env.DB.prepare("SELECT username FROM users WHERE id = ?").bind(userId).first<{ username: string }>();
   const expectedNamespace = `@${user?.username}`;
-  if (body.namespace !== expectedNamespace && body.namespace !== "@axintai") {
-    return err(`namespace must be ${expectedNamespace} (your GitHub username)`, 403);
+  if (body.namespace !== expectedNamespace) {
+    // Only org admins can publish to @axintai
+    if (body.namespace === "@axintai") {
+      const adminIds = (env.ORG_ADMIN_IDS || "").split(",").map(s => s.trim()).filter(Boolean);
+      if (!adminIds.includes(userId)) {
+        return err("only org admins can publish to the @axintai namespace", 403);
+      }
+    } else {
+      return err(`namespace must be ${expectedNamespace} (your GitHub username)`, 403);
+    }
   }
 
   // Check if package exists
