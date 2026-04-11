@@ -1,5 +1,0 @@
-# Redirect old URLs if needed
-# /old-path /new-path 301
-
-# Catch-all: serve index.html for SPA-like behavior if needed
-# /* /index.html 200

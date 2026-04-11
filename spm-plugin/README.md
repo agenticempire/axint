@@ -9,7 +9,7 @@ The Axint compiler transforms TypeScript intent definitions into Swift App Inten
 **Features:**
 - Automatic TypeScript → Swift compilation via `swift build`
 - Seamless Xcode integration
-- Generates `.swift`, `.plist`, and `.entitlements` files
+- Generates `.swift`, `.plist.fragment.xml`, and `.entitlements.fragment.xml` files
 - Minimal configuration required
 - Clear error messages if dependencies are missing
 
@@ -98,16 +98,16 @@ Or in Xcode:
 The plugin will:
 1. Detect all `.ts` files in your target
 2. Run `axint compile` on each file
-3. Generate `.swift`, `.plist`, and `.entitlements` files in the build directory
+3. Generate `.swift`, `.plist.fragment.xml`, and `.entitlements.fragment.xml` files in the build directory
 4. Make them available for linking
 
 ## Output Files
 
 For each `.ts` intent file, the plugin generates:
 
-- **`{name}.swift`** — Compiled Swift code implementing the App Intent
-- **`{name}.ts.plist`** — Info.plist configuration for the intent
-- **`{name}.ts.entitlements`** — Entitlements required by the intent
+- **`{Name}Intent.swift`** — Compiled Swift code implementing the App Intent
+- **`{Name}Intent.plist.fragment.xml`** — Info.plist configuration for the intent
+- **`{Name}Intent.entitlements.fragment.xml`** — Entitlements required by the intent
 
 These are generated in the plugin's work directory and automatically included in your build.
 
