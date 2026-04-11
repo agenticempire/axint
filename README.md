@@ -133,9 +133,15 @@ axint watch ./intents/ --out ios/Intents/ --emit-info-plist --emit-entitlements
 
 # With swift-format
 axint watch my-intent.ts --out ios/Intents/ --format
+
+# Auto-run swift build after each compile
+axint watch ./intents/ --out ios/Intents/ --swift-build
+
+# Specify the Swift project root (defaults to --out parent)
+axint watch ./intents/ --out ios/Sources/Intents/ --swift-build --swift-project ios/
 ```
 
-The watcher runs an initial compile pass, then re-triggers on file changes with a 150ms debounce. Errors are reported inline without killing the process — fix the file and it recompiles automatically.
+The watcher runs an initial compile pass, then re-triggers on file changes with a 150ms debounce. Errors are reported inline without killing the process — fix the file and it recompiles automatically. With `--swift-build`, each successful compile triggers `swift build` in the project directory so you get immediate feedback on whether the generated Swift compiles cleanly.
 
 ---
 
@@ -321,10 +327,11 @@ See [`ROADMAP.md`](ROADMAP.md) for the full plan. Highlights:
 - [x] Info.plist and `.entitlements` emit (v0.2.0)
 - [x] Return-type-aware `perform()` (v0.2.0)
 - [x] MCP scaffold tool (v0.2.0)
-- [x] 152-test suite with snapshot coverage (v0.2.0)
-- [ ] Intent template library (v0.3.0)
-- [ ] `--watch` mode for live Swift preview
-- [ ] Xcode build plugin
+- [x] 155-test suite with snapshot coverage (v0.2.0+)
+- [x] Intent template library with 12+ templates (v0.3.0)
+- [x] `--watch` mode with `--swift-build` for live recompilation (v0.3.0)
+- [x] SPM build plugin — auto-compile during `swift build` (v0.3.0)
+- [x] Registry at registry.axint.ai (v0.3.0)
 - [ ] GitHub template repo (`axint-starter`)
 - [ ] Axint Cloud (hosted compilation)
 
