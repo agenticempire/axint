@@ -13,17 +13,21 @@
 
 import { readFileSync } from "node:fs";
 import { parseIntentSource, ParserError } from "./parser.js";
+import { parseViewSource } from "./view-parser.js";
 import {
   generateSwift,
   generateInfoPlistFragment,
   generateEntitlementsFragment,
 } from "./generator.js";
+import { generateSwiftUIView } from "./view-generator.js";
 import { validateIntent, validateSwiftSource } from "./validator.js";
+import { validateView, validateSwiftUISource } from "./view-validator.js";
 import type {
   CompilerOutput,
   CompilerOptions,
   Diagnostic,
   IRIntent,
+  IRView,
   IRType,
   IRParameter,
   IRPrimitiveType,
@@ -157,6 +161,94 @@ export function compileFromIR(
       swiftCode,
       infoPlistFragment,
       entitlementsFragment,
+      ir,
+      diagnostics,
+    },
+    diagnostics,
+  };
+}
+
+// ─── View Compilation ──────────────────────────────────────────────
+
+export interface ViewCompileResult {
+  success: boolean;
+  output?: {
+    outputPath: string;
+    swiftCode: string;
+    ir: IRView;
+    diagnostics: Diagnostic[];
+  };
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * Compile a TypeScript view definition source string into SwiftUI.
+ */
+export function compileViewSource(
+  source: string,
+  fileName: string = "<stdin>",
+  options: Partial<CompilerOptions> = {}
+): ViewCompileResult {
+  let ir: IRView;
+  try {
+    ir = parseViewSource(source, fileName);
+  } catch (err) {
+    if (err instanceof ParserError) {
+      return {
+        success: false,
+        diagnostics: [
+          {
+            code: err.code,
+            severity: "error",
+            message: err.message,
+            file: err.file,
+            line: err.line,
+            suggestion: err.suggestion,
+          },
+        ],
+      };
+    }
+    throw err;
+  }
+
+  return compileViewFromIR(ir, options);
+}
+
+/**
+ * Compile from a pre-built IRView (skips parsing).
+ */
+export function compileViewFromIR(
+  ir: IRView,
+  options: Partial<CompilerOptions> = {}
+): ViewCompileResult {
+  const diagnostics: Diagnostic[] = [];
+
+  const viewDiagnostics = validateView(ir);
+  diagnostics.push(...viewDiagnostics);
+
+  if (viewDiagnostics.some((d) => d.severity === "error")) {
+    return { success: false, diagnostics };
+  }
+
+  const swiftCode = generateSwiftUIView(ir);
+
+  if (options.validate !== false) {
+    const swiftDiagnostics = validateSwiftUISource(swiftCode);
+    diagnostics.push(...swiftDiagnostics);
+
+    if (swiftDiagnostics.some((d) => d.severity === "error")) {
+      return { success: false, diagnostics };
+    }
+  }
+
+  const viewFileName = `${ir.name}.swift`;
+  const outputPath = options.outDir ? `${options.outDir}/${viewFileName}` : viewFileName;
+
+  return {
+    success: true,
+    output: {
+      outputPath,
+      swiftCode,
       ir,
       diagnostics,
     },

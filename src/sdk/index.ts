@@ -231,6 +231,188 @@ export function defineIntent<
   return config;
 }
 
+// ─── View Definition ────────────────────────────────────────────────
+
+/** SwiftUI view body element types */
+export type ViewElement =
+  | { type: "vstack"; spacing?: number; alignment?: string; children: ViewElement[] }
+  | { type: "hstack"; spacing?: number; alignment?: string; children: ViewElement[] }
+  | { type: "zstack"; alignment?: string; children: ViewElement[] }
+  | { type: "text"; content: string }
+  | { type: "image"; systemName?: string; name?: string }
+  | { type: "button"; label: string; action?: string }
+  | { type: "spacer" }
+  | { type: "divider" }
+  | { type: "foreach"; collection: string; item: string; children: ViewElement[] }
+  | { type: "if"; condition: string; then: ViewElement[]; else?: ViewElement[] }
+  | { type: "navigationLink"; destination: string; children: ViewElement[] }
+  | { type: "list"; children: ViewElement[] }
+  | { type: "raw"; swift: string };
+
+/** Configuration for view state properties */
+export interface ViewStateConfig {
+  kind?: "state" | "binding" | "environment" | "observed";
+  default?: unknown;
+  /** For @Environment, e.g. "\.dismiss" */
+  environmentKey?: string;
+}
+
+type StateFactory<T extends string> = (
+  description?: string,
+  config?: Partial<ViewStateConfig>
+) => { type: T } & Partial<ViewStateConfig>;
+
+function makeState<T extends string>(type: T): StateFactory<T> {
+  return (_description, config) => ({ type, ...config });
+}
+
+/** State property helpers — mirrors the param.* pattern for views */
+export const state = {
+  string: makeState("string"),
+  int: makeState("int"),
+  double: makeState("double"),
+  float: makeState("float"),
+  boolean: makeState("boolean"),
+  date: makeState("date"),
+  url: makeState("url"),
+  /** Array of a given element type (pass the inner type string) */
+  array: (
+    elementType: string,
+    _description?: string,
+    config?: Partial<ViewStateConfig>
+  ) => ({
+    type: "array" as const,
+    elementType,
+    ...config,
+  }),
+};
+
+/** View prop (input from parent) configuration */
+export interface ViewPropConfig {
+  description?: string;
+  default?: unknown;
+  required?: boolean;
+}
+
+type PropFactory<T extends string> = (
+  description?: string,
+  config?: Partial<ViewPropConfig>
+) => { type: T; description?: string } & Partial<ViewPropConfig>;
+
+function makeProp<T extends string>(type: T): PropFactory<T> {
+  return (description, config) => ({ type, description, ...config });
+}
+
+/** View prop helpers for declaring inputs from parent views */
+export const prop = {
+  string: makeProp("string"),
+  int: makeProp("int"),
+  double: makeProp("double"),
+  float: makeProp("float"),
+  boolean: makeProp("boolean"),
+  date: makeProp("date"),
+  url: makeProp("url"),
+};
+
+/** SwiftUI view body builder helpers */
+export const view = {
+  vstack: (
+    children: ViewElement[],
+    opts?: { spacing?: number; alignment?: string }
+  ): ViewElement => ({
+    type: "vstack",
+    children,
+    ...opts,
+  }),
+  hstack: (
+    children: ViewElement[],
+    opts?: { spacing?: number; alignment?: string }
+  ): ViewElement => ({
+    type: "hstack",
+    children,
+    ...opts,
+  }),
+  zstack: (children: ViewElement[], opts?: { alignment?: string }): ViewElement => ({
+    type: "zstack",
+    children,
+    ...opts,
+  }),
+  text: (content: string): ViewElement => ({ type: "text", content }),
+  image: (opts: { systemName?: string; name?: string }): ViewElement => ({
+    type: "image",
+    ...opts,
+  }),
+  button: (label: string, action?: string): ViewElement => ({
+    type: "button",
+    label,
+    action,
+  }),
+  spacer: (): ViewElement => ({ type: "spacer" }),
+  divider: (): ViewElement => ({ type: "divider" }),
+  foreach: (collection: string, item: string, children: ViewElement[]): ViewElement => ({
+    type: "foreach",
+    collection,
+    item,
+    children,
+  }),
+  conditional: (
+    condition: string,
+    then: ViewElement[],
+    elseChildren?: ViewElement[]
+  ): ViewElement => ({
+    type: "if",
+    condition,
+    then,
+    else: elseChildren,
+  }),
+  navigationLink: (destination: string, children: ViewElement[]): ViewElement => ({
+    type: "navigationLink",
+    destination,
+    children,
+  }),
+  list: (children: ViewElement[]): ViewElement => ({ type: "list", children }),
+  raw: (swift: string): ViewElement => ({ type: "raw", swift }),
+};
+
+/** The full view definition for generating a SwiftUI view struct. */
+export interface ViewDefinition {
+  /** PascalCase name for the generated Swift struct (e.g., "ProfileCard"). */
+  name: string;
+  /** Props received from parent view — using prop.* helpers. */
+  props?: Record<string, ReturnType<(typeof prop)[keyof typeof prop]>>;
+  /** Local state managed by this view — using state.* helpers. */
+  state?: Record<string, ReturnType<(typeof state)[keyof typeof state]>>;
+  /** The view body tree — using view.* helpers. */
+  body: ViewElement[];
+}
+
+/**
+ * Define a SwiftUI view for compilation to Swift.
+ *
+ * @example
+ * ```typescript
+ * export default defineView({
+ *   name: "Greeting",
+ *   props: {
+ *     username: prop.string("User's display name"),
+ *   },
+ *   state: {
+ *     tapCount: state.int("Number of taps", { default: 0 }),
+ *   },
+ *   body: [
+ *     view.vstack([
+ *       view.text("Hello, \\(username)!"),
+ *       view.button("Tap me", "tapCount += 1"),
+ *       view.text("Tapped \\(tapCount) times"),
+ *     ], { spacing: 16 }),
+ *   ],
+ * });
+ * ```
+ */
+export function defineView(config: ViewDefinition): ViewDefinition {
+  return config;
+}
+
 // ─── Entity Definition ──────────────────────────────────────────────
 
 /** Display representation mapping for an entity. */
