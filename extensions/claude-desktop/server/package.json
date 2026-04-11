@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@axintai/compiler": "^0.2.2"
+    "@axintai/compiler": "^0.3.0"
   }
 }

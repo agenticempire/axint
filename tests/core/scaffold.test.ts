@@ -21,7 +21,7 @@ describe("scaffoldProject", () => {
       targetDir: workDir,
       projectName: "my-intents",
       template: "create-event",
-      version: "0.2.2",
+      version: "0.3.0",
       install: false,
     });
 
@@ -41,14 +41,14 @@ describe("scaffoldProject", () => {
       targetDir: workDir,
       projectName: "versioned-app",
       template: "send-message",
-      version: "0.2.2",
+      version: "0.3.0",
       install: false,
     });
 
     const pkg = JSON.parse(await readFile(join(workDir, "package.json"), "utf-8"));
     expect(pkg.name).toBe("versioned-app");
     expect(pkg.type).toBe("module");
-    expect(pkg.dependencies["@axintai/compiler"]).toBe("^0.2.2");
+    expect(pkg.dependencies["@axintai/compiler"]).toBe("^0.3.0");
     expect(pkg.scripts.compile).toContain("axint compile");
     expect(pkg.scripts.validate).toContain("axint validate");
     expect(pkg.scripts.sandbox).toContain("--sandbox");
@@ -59,7 +59,7 @@ describe("scaffoldProject", () => {
       targetDir: workDir,
       projectName: "import-rewrite-test",
       template: "create-event",
-      version: "0.2.2",
+      version: "0.3.0",
       install: false,
     });
 
@@ -76,7 +76,7 @@ describe("scaffoldProject", () => {
       targetDir: workDir,
       projectName: "mcp-ready",
       template: "create-event",
-      version: "0.2.2",
+      version: "0.3.0",
       install: false,
     });
 
@@ -92,7 +92,7 @@ describe("scaffoldProject", () => {
       targetDir: workDir,
       projectName: "target-dir",
       template: "create-event",
-      version: "0.2.2",
+      version: "0.3.0",
       install: false,
     });
     expect(existsSync(join(workDir, "ios", "Intents"))).toBe(true);
@@ -104,7 +104,7 @@ describe("scaffoldProject", () => {
         targetDir: workDir,
         projectName: "bad-template",
         template: "does-not-exist-xyz",
-        version: "0.2.2",
+        version: "0.3.0",
         install: false,
       })
     ).rejects.toThrow(/Unknown template/);
@@ -117,7 +117,7 @@ describe("scaffoldProject", () => {
         targetDir: workDir,
         projectName: "populated",
         template: "create-event",
-        version: "0.2.2",
+        version: "0.3.0",
         install: false,
       })
     ).rejects.toThrow(/not empty/);
@@ -131,7 +131,7 @@ describe("scaffoldProject", () => {
       targetDir: workDir,
       projectName: "git-ok",
       template: "create-event",
-      version: "0.2.2",
+      version: "0.3.0",
       install: false,
     });
     expect(result.files.length).toBeGreaterThan(0);
@@ -142,7 +142,7 @@ describe("scaffoldProject", () => {
       targetDir: workDir,
       projectName: "readme-check",
       template: "book-ride",
-      version: "0.2.2",
+      version: "0.3.0",
       install: false,
     });
 
@@ -150,6 +150,6 @@ describe("scaffoldProject", () => {
     expect(readme).toContain("# readme-check");
     expect(readme).toContain("book-ride");
     expect(readme).toContain("axint.ai");
-    expect(readme).toContain("@axintai/compiler@^0.2.2");
+    expect(readme).toContain("@axintai/compiler@^0.3.0");
   });
 });

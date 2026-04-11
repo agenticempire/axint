@@ -6,17 +6,28 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-04-10
+
+Entity support, editor extensions, Python bridge fixes, and a cleanup pass across every surface.
+
 ### Added
 
-- **Python SDK (`axintai`) v0.1.0a1** — Python parity with the TypeScript authoring surface. `define_intent()` + `param.*` produce the same language-agnostic IR the TS compiler emits, so a Python-authored intent compiles to byte-identical Swift. Ships with:
-  - `axintai` CLI (`parse`, `compile`) built on the Python stdlib `ast` module — no runtime execution of user code.
-  - Stdlib-only parser with 9 diagnostic codes (`AXP001`–`AXP009`).
-  - Frozen dataclasses for `IntentIR` / `IntentParameter` that serialize to the exact camelCase JSON the TS compiler expects.
-  - 17 tests at green on Python 3.10+ (target floor is 3.11 per pyproject).
-  - Hatchling build backend, Ruff + mypy strict configured.
-  - Lives in `python/` inside the main repo for now; published to PyPI as a separate package.
-- **`--format` and `--strict-format` CLI flags on `axint compile`** — pipe generated Swift through Apple's `swift-format` using the Axint house style before writing to disk. Gracefully falls back on Linux/Windows where swift-format isn't installed (unless `--strict-format` is passed).
-- **Tests for `scaffold`, `sandbox`, and `format` modules** — the three new v0.2.2 subsystems are now covered by the vitest suite with OS-gated Swift toolchain checks so CI stays green on Linux.
+- **`defineEntity()` and `param.entity()` SDK helpers** — first-class entity authoring in TypeScript with `EntityQuery` generation and `displayRepresentation` support.
+- **`param.dynamicOptions()` SDK helper** — declare parameters with runtime option suggestions (codegen support landing in v0.3.1).
+- **Editor extensions** for Claude Code, Claude Desktop, VS Code, Cursor, and Windsurf — each ships as a ready-to-install package under `extensions/`.
+- **Python SDK (`axintai`) v0.1.0a1** — Python parity with the TypeScript authoring surface. `define_intent()` + `param.*` produce the same language-agnostic IR the TS compiler emits, so a Python-authored intent compiles to byte-identical Swift.
+- **`--format` and `--strict-format` CLI flags on `axint compile`** — pipe generated Swift through Apple's `swift-format` before writing to disk.
+
+### Fixed
+
+- **Profile and org READMEs** referenced the defunct unscoped `axint` npm package instead of `@axintai/compiler`.
+- **`npx axint compile`** in the main README used the wrong package name (unscoped `axint` is 404).
+- **SPM build plugin** passed `--json` which prevented file writes, used wrong output filenames, and invoked `npx` without `-p @axintai/compiler`.
+- **Python IR bridge** serialized `infoPlistKeys` as a flat string list but the TS compiler expected `Record<string, string>`.
+- **`--from-ir` CLI flag** only accepted a single IR object but the Python CLI emits arrays.
+- **`dynamic-playlist` template** used `param.dynamicOptions()` and `customResultType` which the codegen didn't support yet — simplified to standard param types.
+- **CONTRIBUTING.md** Discord link was dead.
+- **ROADMAP.md** claimed v0.3.0 was current when npm had 0.2.2.
 
 ## [0.2.2] — 2026-04-09
 
@@ -121,7 +132,8 @@ The "it's a real compiler now" release. Everything the v0.1.x vision pointed at,
 - tsup for builds with separate CLI/MCP/library entry points
 - Vitest with snapshot testing and V8 coverage
 
-[Unreleased]: https://github.com/agenticempire/axint/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/agenticempire/axint/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/agenticempire/axint/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/agenticempire/axint/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/agenticempire/axint/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/agenticempire/axint/compare/v0.1.1...v0.2.0
