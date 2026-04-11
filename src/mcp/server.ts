@@ -93,6 +93,27 @@ type SchemaCompileArgs = {
   }>;
 };
 
+const VALID_SCENE_KINDS = new Set<string>([
+  "windowGroup",
+  "window",
+  "documentGroup",
+  "settings",
+]);
+const VALID_PLATFORMS = new Set<string>(["macOS", "iOS", "visionOS"]);
+
+function toSceneKind(kind: string | undefined): SceneKind {
+  const k = kind || "windowGroup";
+  return VALID_SCENE_KINDS.has(k) ? (k as SceneKind) : "windowGroup";
+}
+
+function toPlatformGuard(
+  platform: string | undefined
+): "macOS" | "iOS" | "visionOS" | undefined {
+  return platform && VALID_PLATFORMS.has(platform)
+    ? (platform as "macOS" | "iOS" | "visionOS")
+    : undefined;
+}
+
 /**
  * Convert a minimal schema string type to an IRType.
  */
@@ -255,7 +276,18 @@ async function handleWidgetSchema(args: SchemaCompileArgs, inputTokens: number) 
     }
   }
 
-  const families: WidgetFamily[] = (args.families as WidgetFamily[]) || ["systemSmall"];
+  const validFamilies = new Set<string>([
+    "systemSmall",
+    "systemMedium",
+    "systemLarge",
+    "systemExtraLarge",
+    "accessoryCircular",
+    "accessoryRectangular",
+    "accessoryInline",
+  ]);
+  const families: WidgetFamily[] = (args.families || ["systemSmall"]).filter(
+    (f: string): f is WidgetFamily => validFamilies.has(f)
+  );
 
   let refreshPolicy: WidgetRefreshPolicy = "atEnd";
   if (args.refreshInterval) {
@@ -298,11 +330,11 @@ async function handleAppSchema(args: SchemaCompileArgs, inputTokens: number) {
   if (args.scenes) {
     for (const s of args.scenes) {
       scenes.push({
-        sceneKind: (s.kind || "windowGroup") as SceneKind,
+        sceneKind: toSceneKind(s.kind),
         rootView: s.view,
         title: s.title,
         name: s.name,
-        platformGuard: s.platform as "macOS" | "iOS" | "visionOS" | undefined,
+        platformGuard: toPlatformGuard(s.platform),
         isDefault: scenes.length === 0 && (s.kind || "windowGroup") === "windowGroup",
       });
     }
