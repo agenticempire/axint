@@ -256,7 +256,7 @@ def _parse_param_call(
                 ParserDiagnostic(
                     code="AXP010",
                     severity="error",
-                    message=f"param.entity() requires entity name and description",
+                    message="param.entity() requires entity name and description",
                     file=file,
                     line=node.lineno,
                     suggestion='Use: param.entity("EntityName", "description")',
@@ -270,7 +270,7 @@ def _parse_param_call(
                 ParserDiagnostic(
                     code="AXP010",
                     severity="error",
-                    message=f"param.entity() entity name must be a string literal",
+                    message="param.entity() entity name must be a string literal",
                     file=file,
                     line=getattr(entity_name_node, "lineno", node.lineno),
                 )
@@ -281,7 +281,7 @@ def _parse_param_call(
                 ParserDiagnostic(
                     code="AXP010",
                     severity="error",
-                    message=f"param.entity() description must be a string literal",
+                    message="param.entity() description must be a string literal",
                     file=file,
                     line=getattr(desc_node, "lineno", node.lineno),
                 )
@@ -309,7 +309,7 @@ def _parse_param_call(
                 ParserDiagnostic(
                     code="AXP011",
                     severity="error",
-                    message=f"param.enum() requires cases list and description",
+                    message="param.enum() requires cases list and description",
                     file=file,
                     line=node.lineno,
                     suggestion='Use: param.enum(["case1", "case2"], "description")',
@@ -330,7 +330,7 @@ def _parse_param_call(
                         ParserDiagnostic(
                             code="AXP011",
                             severity="error",
-                            message=f"param.enum() cases must be string literals",
+                            message="param.enum() cases must be string literals",
                             file=file,
                             line=getattr(elt, "lineno", node.lineno),
                         )
@@ -341,7 +341,7 @@ def _parse_param_call(
                 ParserDiagnostic(
                     code="AXP011",
                     severity="error",
-                    message=f"param.enum() first argument must be a list or tuple",
+                    message="param.enum() first argument must be a list or tuple",
                     file=file,
                     line=getattr(cases_node, "lineno", node.lineno),
                 )
@@ -353,7 +353,7 @@ def _parse_param_call(
                 ParserDiagnostic(
                     code="AXP011",
                     severity="error",
-                    message=f"param.enum() description must be a string literal",
+                    message="param.enum() description must be a string literal",
                     file=file,
                     line=getattr(desc_node, "lineno", node.lineno),
                 )
