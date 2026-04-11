@@ -1,0 +1,15 @@
+name = "axint-registry"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+GITHUB_CLIENT_ID = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "axint-registry"
+database_id = ""
+
+[[r2_buckets]]
+binding = "PACKAGES"
+bucket_name = "axint-packages"
