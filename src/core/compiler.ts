@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { parseIntentSource, ParserError } from "./parser.js";
 import { parseViewSource } from "./view-parser.js";
 import { parseWidgetSource } from "./widget-parser.js";
+import { parseAppSource } from "./app-parser.js";
 import {
   generateSwift,
   generateInfoPlistFragment,
@@ -22,9 +23,11 @@ import {
 } from "./generator.js";
 import { generateSwiftUIView } from "./view-generator.js";
 import { generateSwiftWidget } from "./widget-generator.js";
+import { generateSwiftApp } from "./app-generator.js";
 import { validateIntent, validateSwiftSource } from "./validator.js";
 import { validateView, validateSwiftUISource } from "./view-validator.js";
 import { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
+import { validateApp, validateSwiftAppSource } from "./app-validator.js";
 import type {
   CompilerOutput,
   CompilerOptions,
@@ -32,6 +35,7 @@ import type {
   IRIntent,
   IRView,
   IRWidget,
+  IRApp,
   IRType,
   IRParameter,
   IRPrimitiveType,
@@ -337,6 +341,94 @@ export function compileWidgetFromIR(
   const outputPath = options.outDir
     ? `${options.outDir}/${widgetFileName}`
     : widgetFileName;
+
+  return {
+    success: true,
+    output: {
+      outputPath,
+      swiftCode,
+      ir,
+      diagnostics,
+    },
+    diagnostics,
+  };
+}
+
+// ─── App Compilation ──────────────────────────────────────────────
+
+export interface AppCompileResult {
+  success: boolean;
+  output?: {
+    outputPath: string;
+    swiftCode: string;
+    ir: IRApp;
+    diagnostics: Diagnostic[];
+  };
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * Compile a TypeScript app definition source string into a SwiftUI App.
+ */
+export function compileAppSource(
+  source: string,
+  fileName: string = "<stdin>",
+  options: Partial<CompilerOptions> = {}
+): AppCompileResult {
+  let ir: IRApp;
+  try {
+    ir = parseAppSource(source, fileName);
+  } catch (err) {
+    if (err instanceof ParserError) {
+      return {
+        success: false,
+        diagnostics: [
+          {
+            code: err.code,
+            severity: "error",
+            message: err.message,
+            file: err.file,
+            line: err.line,
+            suggestion: err.suggestion,
+          },
+        ],
+      };
+    }
+    throw err;
+  }
+
+  return compileAppFromIR(ir, options);
+}
+
+/**
+ * Compile from a pre-built IRApp (skips parsing).
+ */
+export function compileAppFromIR(
+  ir: IRApp,
+  options: Partial<CompilerOptions> = {}
+): AppCompileResult {
+  const diagnostics: Diagnostic[] = [];
+
+  const appDiagnostics = validateApp(ir);
+  diagnostics.push(...appDiagnostics);
+
+  if (appDiagnostics.some((d) => d.severity === "error")) {
+    return { success: false, diagnostics };
+  }
+
+  const swiftCode = generateSwiftApp(ir);
+
+  if (options.validate !== false) {
+    const swiftDiagnostics = validateSwiftAppSource(swiftCode, ir.name);
+    diagnostics.push(...swiftDiagnostics);
+
+    if (swiftDiagnostics.some((d) => d.severity === "error")) {
+      return { success: false, diagnostics };
+    }
+  }
+
+  const appFileName = `${ir.name}App.swift`;
+  const outputPath = options.outDir ? `${options.outDir}/${appFileName}` : appFileName;
 
   return {
     success: true,

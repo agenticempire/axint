@@ -29,6 +29,7 @@ import {
   compileFromIR,
   compileViewFromIR,
   compileWidgetFromIR,
+  compileAppFromIR,
 } from "../core/compiler.js";
 import { scaffoldIntent } from "./scaffold.js";
 import { TEMPLATES, getTemplate } from "../templates/index.js";
@@ -37,6 +38,8 @@ import type {
   IRView,
   IRWidget,
   IRWidgetEntry,
+  IRApp,
+  IRScene,
   IRViewState,
   IRViewProp,
   IRParameter,
@@ -44,6 +47,7 @@ import type {
   IRPrimitiveType,
   WidgetFamily,
   WidgetRefreshPolicy,
+  SceneKind,
 } from "../core/types.js";
 
 // Read version from package.json so it stays in sync
@@ -67,7 +71,7 @@ type ScaffoldArgs = {
 type TemplateArgs = { id: string };
 
 type SchemaCompileArgs = {
-  type: "intent" | "view" | "widget";
+  type: "intent" | "view" | "widget" | "app";
   name: string;
   title?: string;
   description?: string;
@@ -80,6 +84,13 @@ type SchemaCompileArgs = {
   families?: string[];
   entry?: Record<string, string>;
   refreshInterval?: number;
+  scenes?: Array<{
+    kind: string;
+    view: string;
+    title?: string;
+    name?: string;
+    platform?: string;
+  }>;
 };
 
 /**
@@ -117,6 +128,8 @@ async function handleCompileFromSchema(args: SchemaCompileArgs) {
       return handleViewSchema(args, inputTokens);
     } else if (args.type === "widget") {
       return handleWidgetSchema(args, inputTokens);
+    } else if (args.type === "app") {
+      return handleAppSchema(args, inputTokens);
     }
 
     return {
@@ -278,6 +291,52 @@ async function handleWidgetSchema(args: SchemaCompileArgs, inputTokens: number) 
 }
 
 /**
+ * Handle app schema compilation.
+ */
+async function handleAppSchema(args: SchemaCompileArgs, inputTokens: number) {
+  const scenes: IRScene[] = [];
+  if (args.scenes) {
+    for (const s of args.scenes) {
+      scenes.push({
+        sceneKind: (s.kind || "windowGroup") as SceneKind,
+        rootView: s.view,
+        title: s.title,
+        name: s.name,
+        platformGuard: s.platform as "macOS" | "iOS" | "visionOS" | undefined,
+        isDefault: scenes.length === 0 && (s.kind || "windowGroup") === "windowGroup",
+      });
+    }
+  }
+
+  if (scenes.length === 0) {
+    scenes.push({
+      sceneKind: "windowGroup",
+      rootView: "ContentView",
+      isDefault: true,
+    });
+  }
+
+  const ir: IRApp = {
+    name: args.name,
+    scenes,
+    sourceFile: "<schema>",
+  };
+
+  const result = compileAppFromIR(ir);
+  if (!result.success || !result.output) {
+    const errorText = result.diagnostics
+      .map((d) => `[${d.code}] ${d.severity}: ${d.message}`)
+      .join("\n");
+    return {
+      content: [{ type: "text" as const, text: errorText }],
+      isError: true,
+    };
+  }
+
+  return formatSchemaOutput(result.output.swiftCode, inputTokens);
+}
+
+/**
  * Format the schema output with token statistics.
  */
 function formatSchemaOutput(
@@ -415,8 +474,8 @@ export async function startMCPServer(): Promise<void> {
           properties: {
             type: {
               type: "string",
-              enum: ["intent", "view", "widget"],
-              description: "What to compile: intent, view, or widget",
+              enum: ["intent", "view", "widget", "app"],
+              description: "What to compile: intent, view, widget, or app",
             },
             name: {
               type: "string",
@@ -482,6 +541,29 @@ export async function startMCPServer(): Promise<void> {
             refreshInterval: {
               type: "number",
               description: "Widget refresh interval in minutes — widgets only",
+            },
+            scenes: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  kind: {
+                    type: "string",
+                    enum: ["windowGroup", "window", "documentGroup", "settings"],
+                    description: "Scene type",
+                  },
+                  view: { type: "string", description: "Root SwiftUI view name" },
+                  title: { type: "string", description: "Window title" },
+                  name: { type: "string", description: "Scene identifier" },
+                  platform: {
+                    type: "string",
+                    enum: ["macOS", "iOS", "visionOS"],
+                    description: "Platform guard (#if os(...))",
+                  },
+                },
+                required: ["kind", "view"],
+              },
+              description: "For apps: scene definitions — apps only",
             },
           },
           required: ["type", "name"],

@@ -185,6 +185,36 @@ export interface IRWidget {
   sourceFile: string;
 }
 
+// ─── App IR Types ──────────────────────────────────────────────────────────
+
+/** Scene type in a SwiftUI App */
+export type SceneKind = "windowGroup" | "window" | "documentGroup" | "settings";
+
+/** A single scene in an App definition */
+export interface IRScene {
+  /** Optional name identifier for named windows */
+  name?: string;
+  /** Scene wrapper type */
+  sceneKind: SceneKind;
+  /** The root view to render in this scene */
+  rootView: string;
+  /** Title for the window/group */
+  title?: string;
+  /** Whether this scene is the default (first WindowGroup) */
+  isDefault?: boolean;
+  /** Platform guard: only emit this scene under #if os(...) */
+  platformGuard?: "macOS" | "iOS" | "visionOS";
+}
+
+/** The main IR node for a compiled App */
+export interface IRApp {
+  name: string;
+  scenes: IRScene[];
+  /** App-level @AppStorage properties */
+  appStorage?: Array<{ name: string; key: string; type: IRType; defaultValue?: unknown }>;
+  sourceFile: string;
+}
+
 // ─── Compiler Types ──────────────────────────────────────────────────
 
 export interface CompilerOptions {

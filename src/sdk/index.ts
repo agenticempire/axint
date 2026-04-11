@@ -536,3 +536,119 @@ export interface WidgetDefinition {
 export function defineWidget(config: WidgetDefinition): WidgetDefinition {
   return config;
 }
+
+// ─── App Definition ────────────────────────────────────────────────────────
+
+/** Scene kind in a SwiftUI App */
+export type AppSceneKind = "windowGroup" | "window" | "documentGroup" | "settings";
+
+/** A single scene configuration */
+export interface AppSceneConfig {
+  /** Scene type: windowGroup, window, documentGroup, settings */
+  kind: AppSceneKind;
+  /** PascalCase name of the root SwiftUI view */
+  view: string;
+  /** Optional window title */
+  title?: string;
+  /** Optional scene identifier (for multi-window apps) */
+  name?: string;
+  /** Platform guard: only emit under #if os(...) */
+  platform?: "macOS" | "iOS" | "visionOS";
+}
+
+/** AppStorage property type helpers */
+export interface AppStorageConfig {
+  default?: unknown;
+}
+
+type StorageFactory<T extends string> = (
+  key: string,
+  defaultValue?: unknown
+) => { type: T; key: string; default?: unknown };
+
+function makeStorage<T extends string>(type: T): StorageFactory<T> {
+  return (key, defaultValue) => ({ type, key, default: defaultValue });
+}
+
+/** AppStorage property helpers for app-level persistent state */
+export const storage = {
+  string: makeStorage("string"),
+  int: makeStorage("int"),
+  double: makeStorage("double"),
+  float: makeStorage("float"),
+  boolean: makeStorage("boolean"),
+  date: makeStorage("date"),
+  url: makeStorage("url"),
+};
+
+/** Scene builder helpers */
+export const scene = {
+  /** Main window group (default scene for most apps) */
+  windowGroup: (
+    view: string,
+    opts?: Omit<AppSceneConfig, "kind" | "view">
+  ): AppSceneConfig => ({
+    kind: "windowGroup",
+    view,
+    ...opts,
+  }),
+  /** Named window (macOS multi-window) */
+  window: (
+    view: string,
+    opts?: Omit<AppSceneConfig, "kind" | "view">
+  ): AppSceneConfig => ({
+    kind: "window",
+    view,
+    ...opts,
+  }),
+  /** Document-based app group */
+  documentGroup: (
+    view: string,
+    opts?: Omit<AppSceneConfig, "kind" | "view">
+  ): AppSceneConfig => ({
+    kind: "documentGroup",
+    view,
+    ...opts,
+  }),
+  /** Settings window (macOS) */
+  settings: (
+    view: string,
+    opts?: Omit<AppSceneConfig, "kind" | "view">
+  ): AppSceneConfig => ({
+    kind: "settings",
+    view,
+    ...opts,
+  }),
+};
+
+/** The full app definition for generating a SwiftUI @main App struct. */
+export interface AppDefinition {
+  /** PascalCase name for the generated App (e.g., "MyApp" → MyAppApp struct). */
+  name: string;
+  /** Scenes in the app — using scene.* helpers. */
+  scenes: AppSceneConfig[];
+  /** Optional app-level @AppStorage properties — using storage.* helpers. */
+  appStorage?: Record<string, ReturnType<(typeof storage)[keyof typeof storage]>>;
+}
+
+/**
+ * Define a SwiftUI App for compilation to Swift.
+ *
+ * @example
+ * ```typescript
+ * export default defineApp({
+ *   name: "MyApp",
+ *   scenes: [
+ *     scene.windowGroup("ContentView"),
+ *     scene.settings("SettingsView", { platform: "macOS" }),
+ *   ],
+ *   appStorage: {
+ *     isDarkMode: storage.boolean("dark_mode", false),
+ *     username: storage.string("username", ""),
+ *   },
+ * });
+ * ```
+ */
+export function defineApp(config: AppDefinition): AppDefinition {
+  return config;
+}

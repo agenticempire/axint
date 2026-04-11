@@ -6,12 +6,19 @@ export {
   compileViewFromIR,
   compileWidgetSource,
   compileWidgetFromIR,
+  compileAppSource,
+  compileAppFromIR,
   irFromJSON,
 } from "./compiler.js";
-export type { ViewCompileResult, WidgetCompileResult } from "./compiler.js";
+export type {
+  ViewCompileResult,
+  WidgetCompileResult,
+  AppCompileResult,
+} from "./compiler.js";
 export { parseIntentSource, ParserError } from "./parser.js";
 export { parseViewSource } from "./view-parser.js";
 export { parseWidgetSource } from "./widget-parser.js";
+export { parseAppSource } from "./app-parser.js";
 export {
   generateSwift,
   generateEntity,
@@ -23,9 +30,11 @@ export {
 } from "./generator.js";
 export { generateSwiftUIView } from "./view-generator.js";
 export { generateSwiftWidget } from "./widget-generator.js";
+export { generateSwiftApp } from "./app-generator.js";
 export { validateIntent, validateEntity, validateSwiftSource } from "./validator.js";
 export { validateView, validateSwiftUISource } from "./view-validator.js";
 export { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
+export { validateApp, validateSwiftAppSource } from "./app-validator.js";
 export { ejectIntent } from "./eject.js";
 export {
   irTypeToSwift,
@@ -43,11 +52,14 @@ export {
   defineEntity,
   defineView,
   defineWidget,
+  defineApp,
   param,
   prop,
   state,
   entry,
   view,
+  scene,
+  storage,
 } from "../sdk/index.js";
 export type {
   IntentDefinition,
@@ -62,4 +74,7 @@ export type {
   WidgetEntryConfig,
   WidgetFamily,
   WidgetRefreshPolicy,
+  AppDefinition,
+  AppSceneConfig,
+  AppSceneKind,
 } from "../sdk/index.js";
