@@ -1,6 +1,6 @@
 # Axint Roadmap
 
-_Last updated: April 2026 · Current release: [v0.2.2](https://github.com/agenticempire/axint/releases) · 60 days to WWDC 2026_
+_Last updated: April 2026 · Current release: [v0.3.0](https://github.com/agenticempire/axint/releases) · 60 days to WWDC 2026_
 
 Axint is the open-source compiler that turns TypeScript `defineIntent()` calls into native Apple App Intents and MCP tool servers. This roadmap tracks what's shipped, what's next, and where we need help.
 
