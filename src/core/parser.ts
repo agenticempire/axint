@@ -139,8 +139,7 @@ export function parseIntentSource(
     returnType,
     sourceFile: filePath,
     entitlements: entitlements.length > 0 ? entitlements : undefined,
-    infoPlistKeys:
-      Object.keys(infoPlistKeys).length > 0 ? infoPlistKeys : undefined,
+    infoPlistKeys: Object.keys(infoPlistKeys).length > 0 ? infoPlistKeys : undefined,
     isDiscoverable: isDiscoverable ?? undefined,
     entities: entities.length > 0 ? entities : undefined,
     donateOnPerform: donateOnPerform ?? undefined,
@@ -153,9 +152,7 @@ export function parseIntentSource(
 /**
  * Find the first defineIntent() call in the AST.
  */
-function findDefineIntentCall(
-  node: ts.Node
-): ts.CallExpression | undefined {
+function findDefineIntentCall(node: ts.Node): ts.CallExpression | undefined {
   let found: ts.CallExpression | undefined;
   const visit = (n: ts.Node): void => {
     if (found) return;
@@ -193,9 +190,7 @@ function findDefineEntityCalls(node: ts.Node): ts.CallExpression[] {
   return found;
 }
 
-function propertyMap(
-  obj: ts.ObjectLiteralExpression
-): Map<string, ts.Expression> {
+function propertyMap(obj: ts.ObjectLiteralExpression): Map<string, ts.Expression> {
   const map = new Map<string, ts.Expression>();
   for (const prop of obj.properties) {
     if (ts.isPropertyAssignment(prop)) {
@@ -225,9 +220,7 @@ function readStringLiteral(node: ts.Expression | undefined): string | null {
   return null;
 }
 
-function readBooleanLiteral(
-  node: ts.Expression | undefined
-): boolean | undefined {
+function readBooleanLiteral(node: ts.Expression | undefined): boolean | undefined {
   if (!node) return undefined;
   if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
   if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
@@ -244,9 +237,7 @@ function readStringArray(node: ts.Expression | undefined): string[] {
   return out;
 }
 
-function readStringRecord(
-  node: ts.Expression | undefined
-): Record<string, string> {
+function readStringRecord(node: ts.Expression | undefined): Record<string, string> {
   if (!node || !ts.isObjectLiteralExpression(node)) return {};
   const rec: Record<string, string> = {};
   for (const prop of node.properties) {
@@ -491,9 +482,7 @@ function extractParamCall(
   }
 
   const configObject =
-    configArg && ts.isObjectLiteralExpression(configArg)
-      ? propertyMap(configArg)
-      : null;
+    configArg && ts.isObjectLiteralExpression(configArg) ? propertyMap(configArg) : null;
 
   return { typeName, description, configObject, callExpr: expr };
 }
@@ -569,8 +558,27 @@ function resolveParamType(
         posOf(sourceFile, node)
       );
     }
-    // TODO: Extract inner param type from the second argument
-    const valueType: IRType = { kind: "primitive", value: "string" };
+    // Extract inner param type from the second argument (e.g. param.string(...))
+    const innerArg = callExpr.arguments[1];
+    let valueType: IRType;
+    if (
+      ts.isCallExpression(innerArg) &&
+      ts.isPropertyAccessExpression(innerArg.expression) &&
+      ts.isIdentifier(innerArg.expression.expression) &&
+      innerArg.expression.expression.text === "param"
+    ) {
+      const innerTypeName = innerArg.expression.name.text;
+      valueType = resolveParamType(
+        innerTypeName,
+        filePath,
+        sourceFile,
+        innerArg,
+        innerArg
+      );
+    } else {
+      // Fall back to string if the inner arg isn't a recognizable param call
+      valueType = { kind: "primitive", value: "string" };
+    }
     return {
       kind: "dynamicOptions",
       valueType,
@@ -686,10 +694,7 @@ function prettyTitle(name: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-function posOf(
-  sourceFile: ts.SourceFile,
-  node: ts.Node
-): number | undefined {
+function posOf(sourceFile: ts.SourceFile, node: ts.Node): number | undefined {
   try {
     const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
     return line + 1;

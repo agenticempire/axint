@@ -195,7 +195,8 @@ export function generateEntityQuery(entity: IREntity): string {
   const lines: string[] = [];
   const queryType = entity.queryType;
 
-  lines.push(`struct ${entity.name}Query: EntityQuery {`);
+  const protocol = queryType === "property" ? "EntityPropertyQuery" : "EntityQuery";
+  lines.push(`struct ${entity.name}Query: ${protocol} {`);
   lines.push(
     `    func entities(for identifiers: [${entity.name}.ID]) async throws -> [${entity.name}] {`
   );
@@ -221,9 +222,37 @@ export function generateEntityQuery(entity: IREntity): string {
     lines.push(`        return []`);
     lines.push(`    }`);
   } else if (queryType === "property") {
-    // Property-based query requires additional configuration
-    lines.push(`    // Property-based query: implement using EntityPropertyQuery`);
-    lines.push(`    // Example: property.where { \\$0.status == "active" }`);
+    // Property-based query: generate EntityPropertyQuery with sortable/filterable properties
+    const queryableProps = entity.properties.filter((p) => p.type.kind === "primitive");
+
+    lines.push(`    static var properties = QueryProperties {`);
+    for (const prop of queryableProps) {
+      const swiftType = irTypeToSwift(prop.type);
+      lines.push(`        Property(\\${entity.name}.${prop.name}) {`);
+      lines.push(`            EqualToComparator()`);
+      if (swiftType === "String") {
+        lines.push(`            ContainsComparator()`);
+      }
+      if (["Int", "Double", "Float", "Date"].includes(swiftType)) {
+        lines.push(`            LessThanComparator()`);
+        lines.push(`            GreaterThanComparator()`);
+      }
+      lines.push(`        }`);
+    }
+    lines.push(`    }`);
+    lines.push(``);
+    lines.push(`    static var sortingOptions = SortingOptions {`);
+    for (const prop of queryableProps) {
+      lines.push(`        SortableBy(\\${entity.name}.${prop.name})`);
+    }
+    lines.push(`    }`);
+    lines.push(``);
+    lines.push(
+      `    func entities(matching comparators: [${entity.name}Comparator], mode: ComparatorMode, sortedBy: [${entity.name}Sort], limit: Int?) async throws -> [${entity.name}] {`
+    );
+    lines.push(`        // TODO: Filter and sort entities using the comparators`);
+    lines.push(`        return []`);
+    lines.push(`    }`);
   }
 
   lines.push(`}`);
@@ -362,8 +391,7 @@ function generateReturnSignature(type: IRType, customResultType?: string): strin
 function generatePerformReturn(type: IRType, customResultType?: string): string {
   const indent = "        ";
   if (customResultType) {
-    // For custom result types, the user must provide the implementation
-    return `${indent}// TODO: Return a ${customResultType} instance`;
+    return `${indent}return .result(value: ${customResultType}()) // replace with your ${customResultType} instance`;
   }
   if (type.kind === "primitive") {
     return `${indent}return .result(value: ${defaultLiteralFor(type.value)})`;

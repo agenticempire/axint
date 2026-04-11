@@ -1,6 +1,6 @@
 # Axint Roadmap
 
-_Last updated: April 2026 · Current release: [v0.3.0](https://github.com/agenticempire/axint/releases) · 60 days to WWDC 2026_
+_Last updated: April 2026 · Current release: [v0.3.2](https://github.com/agenticempire/axint/releases) · 60 days to WWDC 2026_
 
 Axint is the open-source compiler that turns TypeScript `defineIntent()` calls into native Apple App Intents and MCP tool servers. This roadmap tracks what's shipped, what's next, and where we need help.
 
@@ -14,7 +14,7 @@ We ship small, tight releases. Everything on this page is open for contribution 
 
 - **Xcode SPM build plugin** (`spm-plugin/`) — `AxintPlugin` Swift Package with `BuildToolPlugin` that auto-compiles `.ts` intents during `swift build` and Xcode builds. Discovers `axint` via `npx` or `PATH`.
 - **`axint eject`** (`src/core/eject.ts`) — generates standalone Swift with zero Axint dependency. Strips regeneration markers, adds Apple documentation references. Optional XCTest scaffold generation. 12 tests.
-- **EntityQuery + DynamicOptionsProvider** — initial SDK support (`defineEntity()`, `param.entity()`, `param.dynamicOptions()`), IR types (`entityQuery`, `dynamicOptions`, `IREntity`), validator rules AX110–AX113, and two new templates (`search-tasks`, `dynamic-playlist`). Codegen for entity queries and dynamic options is in progress for v0.3.1.
+- **EntityQuery + DynamicOptionsProvider** — initial SDK support (`defineEntity()`, `param.entity()`, `param.dynamicOptions()`), IR types (`entityQuery`, `dynamicOptions`, `IREntity`), validator rules AX110–AX113, and two new templates (`search-tasks`, `dynamic-playlist`). Dynamic options inner type extraction and property-based entity query codegen shipped in v0.3.2.
 - **WWDC API adapter pipeline** (`scripts/wwdc-diff.ts`) — nightly CI scanning Apple SDK headers for API changes with priority-ranked adapter recommendations and auto GitHub issue creation on detected changes.
 - **Launch kit** (`launch/`) — HN post draft, Twitter thread, beta-tester seeding plan, Discord channel layout, pre-launch → launch-day → post-launch checklist.
 
