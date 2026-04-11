@@ -13,3 +13,7 @@ database_id = "14155d9c-09d2-4020-a6c4-ce9828022c2d"
 [[r2_buckets]]
 binding = "PACKAGES"
 bucket_name = "axint-packages"
+
+[[routes]]
+pattern = "registry.axint.ai"
+custom_domain = true
