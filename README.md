@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  The open-source compiler that turns <code>defineIntent()</code>, <code>defineView()</code>, and <code>defineWidget()</code> calls<br>
-  into native Swift — App Intents for Siri, SwiftUI views, and WidgetKit widgets.
+  The open-source compiler that turns <code>defineIntent()</code>, <code>defineView()</code>, <code>defineWidget()</code>, and <code>defineApp()</code> calls<br>
+  into native Swift — App Intents for Siri, SwiftUI views, WidgetKit widgets, and full app scaffolds.
 </p>
 
 <p align="center">
@@ -37,33 +37,33 @@ AI coding agents pay per token. Apple's API surfaces — App Intents, SwiftUI, W
 Axint compresses all of that. One TypeScript definition compiles to idiomatic, production-ready Swift with zero boilerplate. An intent compresses ~4×. A view compresses ~4×. A widget compresses **13×**.
 
 ```
-┌─────────────────────────────────────┐
-│  defineIntent()  defineView()       │   TypeScript / Python / JSON
-│  defineWidget()                     │
-└─────────────────┬───────────────────┘
-                  │  axint compile
-          ┌───────┼───────┐
-          ▼       ▼       ▼
-     ┌────────┐ ┌─────┐ ┌──────────┐
-     │ .swift │ │.swift│ │  .swift  │
-     │ .plist │ │     │ │          │
-     │ .entl. │ │     │ │          │
-     └────────┘ └─────┘ └──────────┘
-     App Intent  SwiftUI  WidgetKit
-     for Siri    View     Widget
+┌───────────────────────────────────────────┐
+│  defineIntent()  defineView()             │  TypeScript / Python / JSON
+│  defineWidget()  defineApp()              │
+└───────────────────┬───────────────────────┘
+                    │  axint compile
+          ┌─────────┼─────────┐─────────┐
+          ▼         ▼         ▼         ▼
+     ┌────────┐ ┌───────┐ ┌────────┐ ┌──────┐
+     │ .swift │ │ .swift│ │ .swift │ │.swift│
+     │ .plist │ │       │ │        │ │      │
+     │ .entl. │ │       │ │        │ │      │
+     └────────┘ └───────┘ └────────┘ └──────┘
+     App Intent  SwiftUI   WidgetKit   App
+     for Siri    View      Widget      Scaffold
 ```
 
 ---
 
 ## Why Axint
 
-- **Three Apple surfaces, one compiler.** App Intents, SwiftUI views, and WidgetKit widgets all compile from the same pipeline. More surfaces shipping soon.
+- **Four Apple surfaces, one compiler.** App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds all compile from the same pipeline.
 - **Real TypeScript AST parser.** Uses the TypeScript compiler API (same as `tsc`), not regex. Full type fidelity and diagnostics with line/column spans.
 - **MCP-native with JSON schema mode.** Six tools exposed to any MCP client. The `axint_compile_from_schema` tool accepts minimal JSON (~20 tokens) and returns compiled Swift — AI agents skip TypeScript entirely and save even more tokens.
 - **Native type fidelity.** `int → Int`, `double → Double`, `date → Date`, `url → URL`, `duration → Measurement<UnitDuration>`. Default values and optionality preserved end-to-end.
-- **40 diagnostic codes** (`AX000`–`AX422`) with fix suggestions and color-coded output. Intent, entity, view, and widget validators each have dedicated error ranges.
+- **91 diagnostic codes** (`AX000`–`AX522`) with fix suggestions and color-coded output. Intent, entity, view, widget, and app validators each have dedicated error ranges.
 - **Sub-millisecond compile.** The [axint.ai playground](https://axint.ai/#playground) runs the full compiler in-browser with zero server round-trip.
-- **187 tests.** Parser, validator, generator, emit paths, views, widgets, watch mode, sandbox, and MCP — all covered.
+- **244 tests.** Parser, validator, generator, emit paths, views, widgets, apps, watch mode, sandbox, and MCP — all covered.
 - **Cross-language IR.** The intermediate representation is language-agnostic JSON. TypeScript, Python, and raw JSON all feed into the same generator. New language frontends plug in without touching the Swift emitter.
 - **Apache 2.0, no CLA.** Fork it, extend it, ship it.
 
@@ -75,7 +75,7 @@ Axint compresses all of that. One TypeScript definition compiles to idiomatic, p
 npm install -g @axintai/compiler
 
 # Or run without installing
-npx @axintai/compiler axint compile my-intent.ts --stdout
+npx @axintai/compiler compile my-intent.ts --stdout
 ```
 
 ### Intent
@@ -143,12 +143,31 @@ export default defineWidget({
 });
 ```
 
+### App
+
+```typescript
+import { defineApp, scene, storage } from "@axintai/compiler";
+
+export default defineApp({
+  name: "WeatherApp",
+  scenes: [
+    scene.windowGroup("WeatherDashboard"),
+    scene.settings("SettingsView", { platform: "macOS" }),
+  ],
+  appStorage: {
+    useCelsius: storage.boolean("use_celsius", true),
+    lastCity: storage.string("last_city", "Cupertino"),
+  },
+});
+```
+
 Compile any of them:
 
 ```bash
 axint compile my-intent.ts --out ios/Intents/
 axint compile my-view.ts --out ios/Views/
 axint compile my-widget.ts --out ios/Widgets/
+axint compile my-app.ts --out ios/App/
 ```
 
 ---
@@ -198,16 +217,16 @@ The schema mode is the key optimization for agents — instead of generating Typ
 
 ## Diagnostics
 
-40 diagnostic codes across four validators:
+91 diagnostic codes across five validators:
 
-| Range           | Domain       |
-| --------------- | ------------ |
-| `AX000`         | Compiler     |
-| `AX001`–`AX008` | Parser       |
-| `AX100`–`AX113` | Intent       |
-| `AX200`–`AX202` | Swift output |
-| `AX310`–`AX322` | View         |
-| `AX410`–`AX422` | Widget       |
+| Range            | Domain       |
+| ---------------- | ------------ |
+| `AX000`–`AX023`  | Compiler / Parser |
+| `AX100`–`AX113`  | Intent       |
+| `AX200`–`AX202`  | Swift output |
+| `AX300`–`AX322`  | View         |
+| `AX400`–`AX422`  | Widget       |
+| `AX500`–`AX522`  | App          |
 
 ```
 error[AX100]: Intent name "sendMessage" must be PascalCase
@@ -263,7 +282,7 @@ axint/
 ├── extensions/
 │   └── vscode/      # VS Code / Cursor extension (MCP-backed)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # 187 vitest tests
+├── tests/           # 244 vitest tests
 ├── examples/        # Example definitions
 └── docs/            # Error reference, assets
 ```
@@ -286,16 +305,16 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Apache 2.0, no CLA.
 
 See [`ROADMAP.md`](ROADMAP.md). Highlights:
 
-- [x] Three compilation targets: intents, views, widgets
+- [x] Four compilation targets: intents, views, widgets, apps
 - [x] MCP server with JSON schema mode (6 tools)
-- [x] 40 diagnostic codes with fix suggestions
+- [x] 91 diagnostic codes with fix suggestions
 - [x] `--watch` mode with `--swift-build`
 - [x] VS Code / Cursor extension
 - [x] Python SDK with native Swift codegen
-- [x] SPM build plugin for Xcode
+- [x] SPM build plugin for Xcode + Xcode project plugin
 - [x] `axint eject` for zero-dependency Swift output
 - [x] Cross-language IR bridge (TS, Python, JSON)
-- [ ] `defineApp()` — full app compilation
+- [x] `defineApp()` — full app scaffold compilation
 - [ ] `defineExtension()` — app extension compilation
 - [ ] Axint Cloud (hosted compilation)
 

@@ -8,7 +8,7 @@
  *   axint compile examples/calendar-assistant.ts --out generated/
  */
 
-import { defineIntent, param } from "../src/sdk/index.js";
+import { defineIntent, param } from "@axintai/compiler";
 
 export default defineIntent({
   name: "CreateCalendarEvent",
