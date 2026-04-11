@@ -13,6 +13,7 @@
  */
 
 import { compileSource } from "./compiler.js";
+import { formatSwift } from "./format.js";
 import type { IRIntent } from "./types.js";
 
 // ─── Public Interface ────────────────────────────────────────────────
@@ -61,11 +62,11 @@ export interface EjectResult {
  * @param options Eject options (outDir, includeTests, format)
  * @returns Ejected files
  */
-export function ejectIntent(
+export async function ejectIntent(
   source: string,
   fileName: string,
   options: EjectOptions = {}
-): EjectResult {
+): Promise<EjectResult> {
   // 1. Compile using the standard pipeline
   const compileResult = compileSource(source, fileName, {
     validate: true,
@@ -82,12 +83,17 @@ export function ejectIntent(
     );
   }
 
-  const { ir, swiftCode, infoPlistFragment, entitlementsFragment } =
-    compileResult.output;
+  const { ir, swiftCode, infoPlistFragment, entitlementsFragment } = compileResult.output;
   const outDir = options.outDir ?? ".";
 
   // 2. Transform Swift to remove Axint markers
-  const ejectedSwift = transformSwiftForEject(swiftCode, ir);
+  let ejectedSwift = transformSwiftForEject(swiftCode, ir);
+
+  // 2b. Optionally run swift-format
+  if (options.format) {
+    const { formatted, ran } = await formatSwift(ejectedSwift);
+    if (ran) ejectedSwift = formatted;
+  }
 
   // 3. Construct file paths
   const intentFileName = `${ir.name}Intent.swift`;
@@ -98,9 +104,7 @@ export function ejectIntent(
   const entitlementsPath = entitlementsFragment
     ? `${outDir}/${ir.name}Intent.entitlements.fragment.xml`
     : null;
-  const testPath = options.includeTests
-    ? `${outDir}/${ir.name}IntentTests.swift`
-    : null;
+  const testPath = options.includeTests ? `${outDir}/${ir.name}IntentTests.swift` : null;
 
   // 4. Build result object
   const result: EjectResult = {
@@ -174,12 +178,8 @@ function transformSwiftForEject(swiftCode: string, ir: IRIntent): string {
       if (line.includes("// TODO: Implement your intent logic here.")) {
         result.push(`        // TODO: Implement your intent logic here.`);
         result.push(`        //`);
-        result.push(
-          `        // For more information about App Intents, see:`
-        );
-        result.push(
-          `        // https://developer.apple.com/documentation/appintents`
-        );
+        result.push(`        // For more information about App Intents, see:`);
+        result.push(`        // https://developer.apple.com/documentation/appintents`);
       } else {
         result.push(line);
       }

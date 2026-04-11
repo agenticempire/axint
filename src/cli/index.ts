@@ -456,7 +456,7 @@ program
         }
 
         // Eject
-        const result = ejectIntent(source, basename(filePath), {
+        const result = await ejectIntent(source, basename(filePath), {
           outDir: options.out,
           includeTests: options.includeTests,
           format: options.format,
