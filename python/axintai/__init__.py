@@ -1,11 +1,10 @@
 """
 axintai — the Python SDK for Axint.
 
-Define Apple App Intents in Python. Ship them to Siri, Shortcuts, and
-Spotlight through the same open-source compiler pipeline that powers
-the TypeScript SDK.
+Define Apple App Intents, Views, Widgets, and Apps in Python. Ship them
+through the same open-source compiler pipeline that powers the TypeScript SDK.
 
-    from axintai import define_intent, param
+    from axintai import define_intent, define_view, define_widget, param, prop, view
 
     create_event = define_intent(
         name="CreateCalendarEventIntent",
@@ -22,36 +21,100 @@ the TypeScript SDK.
 
 Axint is a cross-language compiler. The TypeScript SDK and the Python
 SDK produce the same language-agnostic intermediate representation, so
-every intent — regardless of which SDK authored it — compiles through
+every definition — regardless of which SDK authored it — compiles through
 the same Swift generator and hits the same validator rules.
 """
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .generator import (
     generate_entitlements_fragment,
     generate_info_plist_fragment,
     generate_swift,
 )
-from .ir import AppleTarget, IntentIR, IntentParameter, ParamType
-from .sdk import Intent, IntentDefinition, define_intent, param
+from .ir import (
+    AppleTarget,
+    AppIR,
+    AppSceneIR,
+    AppStorageIR,
+    IntentIR,
+    IntentParameter,
+    ParamType,
+    SceneKind,
+    ViewIR,
+    ViewPropIR,
+    ViewStateIR,
+    ViewStateKind,
+    WidgetFamily,
+    WidgetIR,
+    WidgetEntryIR,
+    WidgetRefreshPolicy,
+)
+from .sdk import (
+    App,
+    AppDefinition,
+    Intent,
+    IntentDefinition,
+    View,
+    ViewDefinition,
+    Widget,
+    WidgetDefinition,
+    define_app,
+    define_intent,
+    define_view,
+    define_widget,
+    entry,
+    param,
+    prop,
+    scene,
+    state,
+    storage,
+    view,
+)
 from .validator import ValidatorDiagnostic, validate_intent
 
 __all__ = [
+    "App",
+    "AppDefinition",
+    "AppIR",
+    "AppSceneIR",
+    "AppStorageIR",
     "AppleTarget",
     "Intent",
     "IntentDefinition",
     "IntentIR",
     "IntentParameter",
     "ParamType",
+    "SceneKind",
     "ValidatorDiagnostic",
+    "View",
+    "ViewDefinition",
+    "ViewIR",
+    "ViewPropIR",
+    "ViewStateIR",
+    "ViewStateKind",
+    "Widget",
+    "WidgetDefinition",
+    "WidgetEntryIR",
+    "WidgetFamily",
+    "WidgetIR",
+    "WidgetRefreshPolicy",
     "__version__",
+    "define_app",
     "define_intent",
+    "define_view",
+    "define_widget",
+    "entry",
     "generate_entitlements_fragment",
     "generate_info_plist_fragment",
     "generate_swift",
     "param",
+    "prop",
+    "scene",
+    "state",
+    "storage",
     "validate_intent",
+    "view",
 ]
