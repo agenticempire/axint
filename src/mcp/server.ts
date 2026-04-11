@@ -10,6 +10,7 @@
  *   - axint_compile:   Compile TypeScript intent → Swift App Intent
  *                      (optionally with Info.plist and entitlements)
  *   - axint_validate:  Validate an intent definition without codegen
+ *   - axint_compile_from_schema: Compile minimal JSON schema → Swift (token saver)
  *   - axint_list_templates: List bundled reference templates
  *   - axint_template:  Return the source of a specific template
  */
@@ -23,15 +24,22 @@ import {
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { compileSource } from "../core/compiler.js";
+import { compileSource, compileFromIR, compileViewFromIR } from "../core/compiler.js";
 import { scaffoldIntent } from "./scaffold.js";
 import { TEMPLATES, getTemplate } from "../templates/index.js";
+import type {
+  IRIntent,
+  IRView,
+  IRViewState,
+  IRViewProp,
+  IRParameter,
+  IRType,
+  IRPrimitiveType,
+} from "../core/types.js";
 
 // Read version from package.json so it stays in sync
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(
-  readFileSync(resolve(__dirname, "../../package.json"), "utf-8")
-);
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
 
 type CompileArgs = {
   source: string;
@@ -48,6 +56,207 @@ type ScaffoldArgs = {
 };
 
 type TemplateArgs = { id: string };
+
+type SchemaCompileArgs = {
+  type: "intent" | "view" | "widget";
+  name: string;
+  title?: string;
+  description?: string;
+  domain?: string;
+  params?: Record<string, string>;
+  props?: Record<string, string>;
+  state?: Record<string, { type: string; default?: unknown }>;
+  body?: string;
+  displayName?: string;
+  families?: string[];
+  entry?: Record<string, string>;
+  refreshInterval?: number;
+};
+
+/**
+ * Convert a minimal schema string type to an IRType.
+ */
+function schemaTypeToIRType(typeStr: string): IRType {
+  const normalized = typeStr === "number" ? "int" : typeStr;
+  const validPrimitives = [
+    "string",
+    "int",
+    "double",
+    "float",
+    "boolean",
+    "date",
+    "duration",
+    "url",
+  ];
+  if (validPrimitives.includes(normalized)) {
+    return { kind: "primitive" as const, value: normalized as IRPrimitiveType };
+  }
+  return { kind: "primitive", value: "string" };
+}
+
+/**
+ * Handle compile_from_schema requests.
+ */
+async function handleCompileFromSchema(args: SchemaCompileArgs) {
+  try {
+    const inputJson = JSON.stringify(args);
+    const inputTokens = Math.ceil(inputJson.length / 4);
+
+    if (args.type === "intent") {
+      return handleIntentSchema(args, inputTokens);
+    } else if (args.type === "view") {
+      return handleViewSchema(args, inputTokens);
+    } else if (args.type === "widget") {
+      return handleWidgetSchema(args, inputTokens);
+    }
+
+    return {
+      content: [{ type: "text" as const, text: `Invalid type: ${args.type}` }],
+      isError: true,
+    };
+  } catch (err: unknown) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `Schema compilation error: ${err instanceof Error ? err.message : String(err)}`,
+        },
+      ],
+      isError: true,
+    };
+  }
+}
+
+/**
+ * Handle intent schema compilation.
+ */
+async function handleIntentSchema(args: SchemaCompileArgs, inputTokens: number) {
+  const parameters: IRParameter[] = [];
+  if (args.params) {
+    for (const [name, typeStr] of Object.entries(args.params)) {
+      parameters.push({
+        name,
+        type: schemaTypeToIRType(typeStr),
+        title: name.replace(/([A-Z])/g, " $1").trim(),
+        description: "",
+        isOptional: false,
+      });
+    }
+  }
+
+  const ir: IRIntent = {
+    name: args.name,
+    title: args.title || args.name.replace(/([A-Z])/g, " $1").trim(),
+    description: args.description || "",
+    domain: args.domain,
+    parameters,
+    returnType: { kind: "primitive", value: "string" },
+    sourceFile: "<schema>",
+  };
+
+  const result = compileFromIR(ir);
+  if (!result.success || !result.output) {
+    const errorText = result.diagnostics
+      .map((d) => `[${d.code}] ${d.severity}: ${d.message}`)
+      .join("\n");
+    return {
+      content: [{ type: "text" as const, text: errorText }],
+      isError: true,
+    };
+  }
+
+  return formatSchemaOutput(result.output.swiftCode, inputTokens);
+}
+
+/**
+ * Handle view schema compilation.
+ */
+async function handleViewSchema(args: SchemaCompileArgs, inputTokens: number) {
+  const props: IRViewProp[] = [];
+  if (args.props) {
+    for (const [name, typeStr] of Object.entries(args.props)) {
+      props.push({
+        name,
+        type: schemaTypeToIRType(typeStr),
+        isOptional: false,
+      });
+    }
+  }
+
+  const state: IRViewState[] = [];
+  if (args.state) {
+    for (const [name, stateConfig] of Object.entries(args.state)) {
+      state.push({
+        name,
+        type: schemaTypeToIRType(stateConfig.type || "string"),
+        kind: "state",
+        defaultValue: stateConfig.default,
+      });
+    }
+  }
+
+  const ir: IRView = {
+    name: args.name,
+    props,
+    state,
+    body: args.body
+      ? [{ kind: "raw", swift: args.body }]
+      : [{ kind: "text", content: "VStack {}" }],
+    sourceFile: "<schema>",
+  };
+
+  const result = compileViewFromIR(ir);
+  if (!result.success || !result.output) {
+    const errorText = result.diagnostics
+      .map((d) => `[${d.code}] ${d.severity}: ${d.message}`)
+      .join("\n");
+    return {
+      content: [{ type: "text" as const, text: errorText }],
+      isError: true,
+    };
+  }
+
+  return formatSchemaOutput(result.output.swiftCode, inputTokens);
+}
+
+/**
+ * Handle widget schema compilation (stub for now — widgets not yet fully implemented).
+ */
+async function handleWidgetSchema(_args: SchemaCompileArgs, _inputTokens: number) {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: "Widget compilation from schema is not yet implemented. Use view schema or intent schema instead.",
+      },
+    ],
+    isError: true,
+  };
+}
+
+/**
+ * Format the schema output with token statistics.
+ */
+function formatSchemaOutput(
+  swiftCode: string,
+  inputTokens: number
+): { content: Array<{ type: string; text: string }>; isError?: boolean } {
+  const outputTokens = Math.ceil(swiftCode.length / 4);
+  const compressionRatio =
+    inputTokens > 0 ? (outputTokens / inputTokens).toFixed(2) : "0.00";
+  const tokensSaved = inputTokens - outputTokens;
+
+  const tokenStats = `
+// ─── Token Statistics ────────────────────────────────────────
+// Input tokens (JSON schema):     ~${inputTokens}
+// Output tokens (Swift code):     ~${outputTokens}
+// Compression ratio:              ${compressionRatio}x
+// Tokens saved:                   ${tokensSaved > 0 ? `+${tokensSaved}` : tokensSaved}
+`;
+
+  const output = tokenStats + "\n\n" + swiftCode;
+  return { content: [{ type: "text" as const, text: output }] };
+}
 
 export async function startMCPServer(): Promise<void> {
   const server = new Server(
@@ -153,6 +362,89 @@ export async function startMCPServer(): Promise<void> {
         },
       },
       {
+        name: "axint_compile_from_schema",
+        description:
+          "Compile a minimal JSON schema directly to Swift, bypassing TypeScript. " +
+          "Supports intents, views, and widgets. Minimal JSON means ~20 tokens vs " +
+          "hundreds for full TypeScript. Returns Swift code with token usage stats.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            type: {
+              type: "string",
+              enum: ["intent", "view", "widget"],
+              description: "What to compile: intent, view, or widget",
+            },
+            name: {
+              type: "string",
+              description: "PascalCase name (e.g., 'CreateEvent', 'EventListView')",
+            },
+            title: {
+              type: "string",
+              description: "Human-readable title (for intents)",
+            },
+            description: {
+              type: "string",
+              description: "Description of what this does",
+            },
+            domain: {
+              type: "string",
+              description:
+                "Intent domain (messaging, productivity, health, finance, commerce, " +
+                "media, navigation, smart-home) — intents only",
+            },
+            params: {
+              type: "object",
+              description:
+                "For intents: parameter definitions as { fieldName: 'type' }. " +
+                "Types: string, int, double, float, boolean, date, duration, url",
+              additionalProperties: { type: "string" },
+            },
+            props: {
+              type: "object",
+              description:
+                "For views: prop definitions as { fieldName: 'type' }. " + "Views only.",
+              additionalProperties: { type: "string" },
+            },
+            state: {
+              type: "object",
+              description:
+                "For views: state definitions as { fieldName: { type: 'string', default?: value } }. " +
+                "Views only.",
+            },
+            body: {
+              type: "string",
+              description:
+                "For views/widgets: raw Swift code to use as the body. " +
+                "E.g., 'VStack { Text(\"Hello\") }' — will be wrapped automatically.",
+            },
+            displayName: {
+              type: "string",
+              description: "Display name (widgets only)",
+            },
+            families: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Widget families: systemSmall, systemMedium, systemLarge, systemExtraLarge, " +
+                "accessoryCircular, accessoryRectangular, accessoryInline — widgets only",
+            },
+            entry: {
+              type: "object",
+              description:
+                "For widgets: timeline entry fields as { fieldName: 'type' }. " +
+                "Widgets only.",
+              additionalProperties: { type: "string" },
+            },
+            refreshInterval: {
+              type: "number",
+              description: "Widget refresh interval in minutes — widgets only",
+            },
+          },
+          required: ["type", "name"],
+        },
+      },
+      {
         name: "axint_list_templates",
         description:
           "List the bundled reference templates. Use `axint_template` to " +
@@ -241,6 +533,10 @@ export async function startMCPServer(): Promise<void> {
                 .join("\n")
             : "Valid intent definition. No issues found.";
         return { content: [{ type: "text" as const, text }] };
+      }
+
+      if (name === "axint_compile_from_schema") {
+        return handleCompileFromSchema(args as unknown as SchemaCompileArgs);
       }
 
       if (name === "axint_list_templates") {
