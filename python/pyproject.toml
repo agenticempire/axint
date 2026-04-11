@@ -46,7 +46,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://axint.ai"
-Documentation = "https://axint.ai/docs"
+Documentation = "https://github.com/agenticempire/axint/tree/main/python#readme"
 Repository = "https://github.com/agenticempire/axint"
 Issues = "https://github.com/agenticempire/axint/issues"
 Changelog = "https://github.com/agenticempire/axint/blob/main/CHANGELOG.md"

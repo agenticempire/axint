@@ -19,7 +19,7 @@ Everything needed to launch Axint v0.3.0 and turn it from a repo into a communit
 
 ### 4. Discord
 - **File**: `discord-setup.md` — channel structure, roles, welcome flow
-- **URL**: TBD (create at discord.gg)
+- **URL**: Not yet created — set up before launch week
 
 ### 5. Landing Page (axint.ai)
 - **File**: `landing-page-copy.md` — conversion-optimized copy

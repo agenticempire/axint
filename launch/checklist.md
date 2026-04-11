@@ -7,7 +7,7 @@
 - [ ] npm package published: `@axintai/compiler@0.3.0`
 - [ ] SPM plugin package tagged and published
 - [ ] `axint eject` working end-to-end
-- [ ] EntityQuery + DynamicOptionsProvider in all relevant templates
+- [ ] EntityQuery + DynamicOptionsProvider codegen landed (SDK support shipped, codegen in v0.3.1)
 - [ ] WWDC pipeline CI passing nightly
 - [ ] Playground on axint.ai updated to v0.3.0
 

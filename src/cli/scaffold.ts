@@ -214,7 +214,7 @@ Any agent that supports MCP can now call \`axint_compile\`, \`axint_validate\`,
 - Edit \`intents/${template}.ts\` — this is your App Intent source of truth.
 - Add more intents in the \`intents/\` folder.
 - Run \`axint templates\` to see every bundled starter.
-- Read the docs at https://axint.ai/docs
+- Read the docs at https://github.com/agenticempire/axint#readme
 
 ---
 

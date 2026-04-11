@@ -26,7 +26,7 @@ Claude scaffolds the TypeScript, compiles it to Swift, and hands you a file read
 
 Axint runs entirely on your machine. No data leaves your device. The compiler processes TypeScript locally and emits Swift — nothing is sent to any server.
 
-See [axint.ai/privacy](https://axint.ai/privacy) for the full policy.
+See the [LICENSE](https://github.com/agenticempire/axint/blob/main/LICENSE) for details.
 
 ## Links
 

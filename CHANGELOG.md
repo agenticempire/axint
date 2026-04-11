@@ -15,7 +15,7 @@ Entity support, editor extensions, Python bridge fixes, and a cleanup pass acros
 - **`defineEntity()` and `param.entity()` SDK helpers** — first-class entity authoring in TypeScript with `EntityQuery` generation and `displayRepresentation` support.
 - **`param.dynamicOptions()` SDK helper** — declare parameters with runtime option suggestions (codegen support landing in v0.3.1).
 - **Editor extensions** for Claude Code, Claude Desktop, VS Code, Cursor, and Windsurf — each ships as a ready-to-install package under `extensions/`.
-- **Python SDK (`axintai`) v0.1.0a1** — Python parity with the TypeScript authoring surface. `define_intent()` + `param.*` produce the same language-agnostic IR the TS compiler emits, so a Python-authored intent compiles to byte-identical Swift.
+- **Python SDK (`axintai`) v0.1.0a1** — Python parity with the TypeScript authoring surface. `define_intent()` + `param.*` produce the same language-agnostic IR the TS compiler emits, so a Python-authored intent compiles to equivalent Swift.
 - **`--format` and `--strict-format` CLI flags on `axint compile`** — pipe generated Swift through Apple's `swift-format` before writing to disk.
 
 ### Fixed

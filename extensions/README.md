@@ -7,7 +7,7 @@ Pre-built integrations for every major AI coding tool. Each directory contains t
 | Tool | How to install |
 |------|---------------|
 | **Claude Code** | `/plugin marketplace add agenticempire/axint` |
-| **Claude Desktop** | Double-click `claude-desktop/dist/axint.mcpb` |
+| **Claude Desktop** | Copy `claude-desktop/mcp.json` into your Claude Desktop config (see `claude-desktop/README.md`) |
 | **VS Code** | `ext install agenticempire.axint` |
 | **Cursor** | Copy `cursor/mcp.json` → `.cursor/mcp.json` |
 | **Windsurf** | Copy `windsurf/mcp_config.json` → `~/.codeium/windsurf/mcp_config.json` |

@@ -3,15 +3,11 @@ import Foundation
 
 @main
 struct AxintCompilePlugin: BuildToolPlugin {
-    /// Implements the build tool plugin capability.
-    /// Scans for TypeScript files and compiles them to Swift using Axint.
     func createBuildCommands(context: PluginContext, target: Target) async throws -> [Command] {
         guard let sourceTarget = target as? SourceModuleTarget else {
             return []
         }
 
-        // Resolve the compiler. When axint is in PATH we call it directly;
-        // when only npx is available we invoke npx -y -p @axintai/compiler axint.
         let (executablePath, prefixArgs) = try resolveCompiler()
 
         var commands: [Command] = []
@@ -20,24 +16,23 @@ struct AxintCompilePlugin: BuildToolPlugin {
             sourceFile.path.string.hasSuffix(".ts") && !sourceFile.path.string.hasSuffix(".d.ts")
         }
 
+        let outputDirectory = context.pluginWorkDirectory.appending("compiled")
+
+        try FileManager.default.createDirectory(
+            at: outputDirectory.asURL,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+
         for sourceFile in tsFiles {
             let inputPath = sourceFile.path
-            let outputDirectory = context.pluginWorkDirectory.appending("compiled")
-
-            try FileManager.default.createDirectory(
-                at: outputDirectory.asURL,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-
             let inputFileName = inputPath.lastComponent
-            let baseName = inputFileName.replacingOccurrences(of: ".ts", with: "")
 
-            // axint compile writes <Name>Intent.swift alongside .plist and .entitlements
-            let intentSwift = outputDirectory.appending("\(baseName)Intent.swift")
-            let intentPlist = outputDirectory.appending("\(baseName).plist")
-            let intentEntitlements = outputDirectory.appending("\(baseName).entitlements")
-
+            // The compiler emits <IntentName>Intent.swift based on the intent's
+            // `name` field, not the source filename. We also can't predict the
+            // companion fragment names (.plist.fragment.xml, .entitlements.fragment.xml).
+            // Use prebuildCommand so SwiftPM discovers outputs by scanning the
+            // directory instead of requiring us to declare them upfront.
             let compileArgs: [String] = prefixArgs + [
                 "compile",
                 inputPath.string,
@@ -46,13 +41,11 @@ struct AxintCompilePlugin: BuildToolPlugin {
                 "--emit-entitlements",
             ]
 
-            let command = Command.buildCommand(
+            let command = Command.prebuildCommand(
                 displayName: "Compiling TypeScript Intent: \(inputFileName)",
                 executable: executablePath,
                 arguments: compileArgs,
-                environment: [:],
-                inputFiles: [inputPath],
-                outputFiles: [intentSwift, intentPlist, intentEntitlements]
+                outputFilesDirectory: outputDirectory
             )
 
             commands.append(command)
@@ -88,7 +81,6 @@ struct AxintCompilePlugin: BuildToolPlugin {
         )
     }
 
-    /// Searches for an executable in PATH
     private func findInPath(_ executableName: String) throws -> Path? {
         let pathEnvironment = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/local/bin:/usr/bin:/bin"
         let pathComponents = pathEnvironment.split(separator: ":")
@@ -106,7 +98,6 @@ struct AxintCompilePlugin: BuildToolPlugin {
     }
 }
 
-/// Errors that can occur in the Axint plugin
 enum AxintPluginError: Error, CustomStringConvertible {
     case executableNotFound(String)
 
