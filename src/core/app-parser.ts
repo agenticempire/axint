@@ -12,7 +12,6 @@ import type { IRApp, IRScene, IRPrimitiveType, SceneKind } from "./types.js";
 import { ParserError } from "./parser.js";
 import {
   propertyMap,
-  propertyKeyName,
   readStringLiteral,
   evaluateLiteral,
   posOf,
@@ -202,8 +201,6 @@ function isValidSceneKind(kind: string): kind is SceneKind {
 
 // ─── AST Helpers ────────────────────────────────────────────────────
 
-
-
 function extractStringProp(
   obj: ts.ObjectLiteralExpression,
   name: string,
@@ -212,6 +209,5 @@ function extractStringProp(
 ): string | undefined {
   const props = propertyMap(obj);
   const val = props.get(name);
-  return val ? readStringLiteral(val) ?? undefined : undefined;
+  return val ? (readStringLiteral(val) ?? undefined) : undefined;
 }
-

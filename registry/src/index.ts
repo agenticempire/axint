@@ -106,11 +106,6 @@ async function getTokenData(token: string, env: Env): Promise<TokenRow | null> {
   ).bind(hash).first<TokenRow>();
 }
 
-function isTokenExpired(expiresAt: string | null): boolean {
-  if (!expiresAt) return false; // Tokens with no expiry are never expired
-  return Date.now() > new Date(expiresAt).getTime();
-}
-
 function isTokenRefreshable(expiresAt: string | null): boolean {
   if (!expiresAt) return true; // Tokens with no expiry can always be refreshed
   const expiryTime = new Date(expiresAt).getTime();
