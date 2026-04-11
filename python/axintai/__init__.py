@@ -36,9 +36,9 @@ from .generator import (
 )
 from .ir import (
     AppIR,
+    AppleTarget,
     AppSceneIR,
     AppStorageIR,
-    AppleTarget,
     IntentIR,
     IntentParameter,
     ParamType,
