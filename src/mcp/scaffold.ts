@@ -8,8 +8,8 @@
  */
 
 import {
-  PARAM_TYPES,
   LEGACY_PARAM_ALIASES,
+  isPrimitiveType,
   type IRPrimitiveType,
 } from "../core/types.js";
 
@@ -77,7 +77,7 @@ export function scaffoldIntent(input: ScaffoldInput): string {
 
 function resolveType(raw: string): IRPrimitiveType {
   const lc = raw.toLowerCase();
-  if (PARAM_TYPES.has(lc as IRPrimitiveType)) return lc as IRPrimitiveType;
+  if (isPrimitiveType(lc)) return lc;
   if (lc in LEGACY_PARAM_ALIASES) return LEGACY_PARAM_ALIASES[lc];
   // Fall back to string — keeps scaffolding from throwing on unknown
   // types. Users can edit the file if they wanted something more exotic.

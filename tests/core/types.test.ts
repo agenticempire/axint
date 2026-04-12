@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { irTypeToSwift, SWIFT_TYPE_MAP } from "../../src/core/types.js";
+import {
+  irTypeToSwift,
+  SWIFT_TYPE_MAP,
+  isPrimitiveType,
+  isSceneKind,
+} from "../../src/core/types.js";
 import type { IRType } from "../../src/core/types.js";
 
 describe("SWIFT_TYPE_MAP", () => {
@@ -69,5 +74,43 @@ describe("irTypeToSwift", () => {
       },
     };
     expect(irTypeToSwift(nestedType)).toBe("[String]?");
+  });
+});
+
+describe("isPrimitiveType", () => {
+  it("returns true for all valid primitive types", () => {
+    for (const t of [
+      "string",
+      "int",
+      "double",
+      "float",
+      "boolean",
+      "date",
+      "duration",
+      "url",
+    ]) {
+      expect(isPrimitiveType(t)).toBe(true);
+    }
+  });
+
+  it("returns false for unknown types", () => {
+    expect(isPrimitiveType("number")).toBe(false);
+    expect(isPrimitiveType("String")).toBe(false);
+    expect(isPrimitiveType("")).toBe(false);
+    expect(isPrimitiveType("object")).toBe(false);
+  });
+});
+
+describe("isSceneKind", () => {
+  it("returns true for valid scene kinds", () => {
+    for (const k of ["windowGroup", "window", "documentGroup", "settings"]) {
+      expect(isSceneKind(k)).toBe(true);
+    }
+  });
+
+  it("returns false for invalid scene kinds", () => {
+    expect(isSceneKind("tabGroup")).toBe(false);
+    expect(isSceneKind("")).toBe(false);
+    expect(isSceneKind("WindowGroup")).toBe(false);
   });
 });

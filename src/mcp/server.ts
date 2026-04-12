@@ -44,11 +44,11 @@ import type {
   IRViewProp,
   IRParameter,
   IRType,
-  IRPrimitiveType,
   WidgetFamily,
   WidgetRefreshPolicy,
   SceneKind,
 } from "../core/types.js";
+import { isPrimitiveType, isSceneKind } from "../core/types.js";
 
 // Read version from package.json so it stays in sync
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -93,25 +93,21 @@ type SchemaCompileArgs = {
   }>;
 };
 
-const VALID_SCENE_KINDS = new Set<string>([
-  "windowGroup",
-  "window",
-  "documentGroup",
-  "settings",
-]);
 const VALID_PLATFORMS = new Set<string>(["macOS", "iOS", "visionOS"]);
 
 function toSceneKind(kind: string | undefined): SceneKind {
   const k = kind || "windowGroup";
-  return VALID_SCENE_KINDS.has(k) ? (k as SceneKind) : "windowGroup";
+  return isSceneKind(k) ? k : "windowGroup";
 }
 
-function toPlatformGuard(
-  platform: string | undefined
-): "macOS" | "iOS" | "visionOS" | undefined {
-  return platform && VALID_PLATFORMS.has(platform)
-    ? (platform as "macOS" | "iOS" | "visionOS")
-    : undefined;
+type Platform = "macOS" | "iOS" | "visionOS";
+
+function isPlatform(s: string): s is Platform {
+  return VALID_PLATFORMS.has(s);
+}
+
+function toPlatformGuard(platform: string | undefined): Platform | undefined {
+  return platform && isPlatform(platform) ? platform : undefined;
 }
 
 /**
@@ -119,18 +115,8 @@ function toPlatformGuard(
  */
 function schemaTypeToIRType(typeStr: string): IRType {
   const normalized = typeStr === "number" ? "int" : typeStr;
-  const validPrimitives = [
-    "string",
-    "int",
-    "double",
-    "float",
-    "boolean",
-    "date",
-    "duration",
-    "url",
-  ];
-  if (validPrimitives.includes(normalized)) {
-    return { kind: "primitive" as const, value: normalized as IRPrimitiveType };
+  if (isPrimitiveType(normalized)) {
+    return { kind: "primitive", value: normalized };
   }
   return { kind: "primitive", value: "string" };
 }
@@ -176,13 +162,17 @@ async function handleCompileFromSchema(args: SchemaCompileArgs) {
 async function handleIntentSchema(args: SchemaCompileArgs, inputTokens: number) {
   if (!args.name) {
     return {
-      content: [{ type: "text" as const, text: "[AX002] error: Schema requires a 'name' field" }],
+      content: [
+        { type: "text" as const, text: "[AX002] error: Schema requires a 'name' field" },
+      ],
       isError: true,
     };
   }
   if (!args.title && !args.name) {
     return {
-      content: [{ type: "text" as const, text: "[AX003] error: Schema requires a 'title' field" }],
+      content: [
+        { type: "text" as const, text: "[AX003] error: Schema requires a 'title' field" },
+      ],
       isError: true,
     };
   }
@@ -230,7 +220,12 @@ async function handleIntentSchema(args: SchemaCompileArgs, inputTokens: number) 
 async function handleViewSchema(args: SchemaCompileArgs, inputTokens: number) {
   if (!args.name) {
     return {
-      content: [{ type: "text" as const, text: "[AX301] error: View schema requires a 'name' field" }],
+      content: [
+        {
+          type: "text" as const,
+          text: "[AX301] error: View schema requires a 'name' field",
+        },
+      ],
       isError: true,
     };
   }
@@ -288,13 +283,23 @@ async function handleViewSchema(args: SchemaCompileArgs, inputTokens: number) {
 async function handleWidgetSchema(args: SchemaCompileArgs, inputTokens: number) {
   if (!args.name) {
     return {
-      content: [{ type: "text" as const, text: "[AX402] error: Widget schema requires a 'name' field" }],
+      content: [
+        {
+          type: "text" as const,
+          text: "[AX402] error: Widget schema requires a 'name' field",
+        },
+      ],
       isError: true,
     };
   }
   if (!args.displayName) {
     return {
-      content: [{ type: "text" as const, text: "[AX403] error: Widget schema requires a 'displayName' field" }],
+      content: [
+        {
+          type: "text" as const,
+          text: "[AX403] error: Widget schema requires a 'displayName' field",
+        },
+      ],
       isError: true,
     };
   }
@@ -361,13 +366,23 @@ async function handleWidgetSchema(args: SchemaCompileArgs, inputTokens: number) 
 async function handleAppSchema(args: SchemaCompileArgs, inputTokens: number) {
   if (!args.name) {
     return {
-      content: [{ type: "text" as const, text: "[AX502] error: App schema requires a 'name' field" }],
+      content: [
+        {
+          type: "text" as const,
+          text: "[AX502] error: App schema requires a 'name' field",
+        },
+      ],
       isError: true,
     };
   }
   if (!args.scenes || args.scenes.length === 0) {
     return {
-      content: [{ type: "text" as const, text: "[AX503] error: App schema requires at least one scene" }],
+      content: [
+        {
+          type: "text" as const,
+          text: "[AX503] error: App schema requires at least one scene",
+        },
+      ],
       isError: true,
     };
   }

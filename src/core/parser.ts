@@ -18,11 +18,10 @@ import type {
   IRIntent,
   IRParameter,
   IRType,
-  IRPrimitiveType,
   IREntity,
   DisplayRepresentation,
 } from "./types.js";
-import { PARAM_TYPES, LEGACY_PARAM_ALIASES } from "./types.js";
+import { PARAM_TYPES, LEGACY_PARAM_ALIASES, isPrimitiveType } from "./types.js";
 import {
   propertyMap,
   propertyKeyName,
@@ -38,7 +37,7 @@ import {
 
 function resolveEntityProperties(type: IRType, entities: IREntity[]): void {
   if (type.kind === "entity") {
-    const match = entities.find(e => e.name === type.entityName);
+    const match = entities.find((e) => e.name === type.entityName);
     if (match) {
       type.properties = match.properties;
     }
@@ -266,8 +265,14 @@ function validateQueryType(
       'Add query field: query: "string" (or "all", "id", "property")'
     );
   }
-  const valid = new Set(["all", "id", "string", "property"]);
-  if (!valid.has(value)) {
+  const valid: Record<string, "all" | "id" | "string" | "property"> = {
+    all: "all",
+    id: "id",
+    string: "string",
+    property: "property",
+  };
+  const narrowed = valid[value];
+  if (!narrowed) {
     throw new ParserError(
       "AX019",
       `Invalid query type: "${value}". Must be one of: all, id, string, property`,
@@ -275,7 +280,7 @@ function validateQueryType(
       node ? posOf(sourceFile, node) : undefined
     );
   }
-  return value as "all" | "id" | "string" | "property";
+  return narrowed;
 }
 
 // ─── Parameter Extraction ────────────────────────────────────────────
@@ -429,8 +434,8 @@ function resolveParamType(
   callExpr?: ts.CallExpression
 ): IRType {
   // Primitive types
-  if ((PARAM_TYPES as ReadonlySet<string>).has(typeName)) {
-    return { kind: "primitive", value: typeName as IRPrimitiveType };
+  if (isPrimitiveType(typeName)) {
+    return { kind: "primitive", value: typeName };
   }
 
   // Legacy aliases
@@ -543,7 +548,10 @@ function inferReturnType(performNode: ts.Node | undefined): IRType {
       return inferFromReturnStatements(performNode.body);
     }
     // Single-expression arrow: perform: async (p) => "literal"
-    return inferFromExpression(performNode.body as ts.Expression);
+    // body is ConciseBody = Block | Expression — Block handled above
+    return ts.isExpression(performNode.body)
+      ? inferFromExpression(performNode.body)
+      : defaultType;
   }
 
   // Handle function expression: perform: async function() { ... }
