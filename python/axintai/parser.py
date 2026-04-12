@@ -17,7 +17,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .ir import IntentIR, IntentParameter, ParamType
+from .ir import (
+    IntentIR,
+    IntentParameter,
+    ParamType,
+    ViewIR,
+    ViewPropIR,
+    ViewStateIR,
+    WidgetIR,
+    WidgetEntryIR,
+    AppIR,
+    AppSceneIR,
+    AppStorageIR,
+    ViewStateKind,
+    WidgetFamily,
+    WidgetRefreshPolicy,
+    SceneKind,
+)
 
 # ── Diagnostics ──────────────────────────────────────────────────────
 
@@ -89,6 +105,129 @@ def parse_file(path: str | Path) -> list[IntentIR]:
     return parse_source(p.read_text(encoding="utf-8"), file=str(p))
 
 
+def parse_view_source(source: str, *, file: str | None = None) -> list[ViewIR]:
+    """
+    Parse a Python source string and return every view IR it contains.
+    """
+    try:
+        tree = ast.parse(source, filename=file or "<string>")
+    except SyntaxError as exc:
+        raise ParserError(
+            [
+                ParserDiagnostic(
+                    code="AXP100",
+                    severity="error",
+                    message=f"Python syntax error: {exc.msg}",
+                    file=file,
+                    line=exc.lineno,
+                    suggestion="Fix the syntax error and re-run `axintai compile`.",
+                )
+            ]
+        ) from exc
+
+    views: list[ViewIR] = []
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not isinstance(node.value, ast.Call):
+            continue
+        call = node.value
+        if not _is_define_view(call):
+            continue
+
+        ir = _view_ir_from_call(call, file=file)
+        views.append(ir)
+
+    return views
+
+
+def parse_file_views(path: str | Path) -> list[ViewIR]:
+    p = Path(path)
+    return parse_view_source(p.read_text(encoding="utf-8"), file=str(p))
+
+
+def parse_widget_source(source: str, *, file: str | None = None) -> list[WidgetIR]:
+    """
+    Parse a Python source string and return every widget IR it contains.
+    """
+    try:
+        tree = ast.parse(source, filename=file or "<string>")
+    except SyntaxError as exc:
+        raise ParserError(
+            [
+                ParserDiagnostic(
+                    code="AXP200",
+                    severity="error",
+                    message=f"Python syntax error: {exc.msg}",
+                    file=file,
+                    line=exc.lineno,
+                    suggestion="Fix the syntax error and re-run `axintai compile`.",
+                )
+            ]
+        ) from exc
+
+    widgets: list[WidgetIR] = []
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not isinstance(node.value, ast.Call):
+            continue
+        call = node.value
+        if not _is_define_widget(call):
+            continue
+
+        ir = _widget_ir_from_call(call, file=file)
+        widgets.append(ir)
+
+    return widgets
+
+
+def parse_file_widgets(path: str | Path) -> list[WidgetIR]:
+    p = Path(path)
+    return parse_widget_source(p.read_text(encoding="utf-8"), file=str(p))
+
+
+def parse_app_source(source: str, *, file: str | None = None) -> list[AppIR]:
+    """
+    Parse a Python source string and return every app IR it contains.
+    """
+    try:
+        tree = ast.parse(source, filename=file or "<string>")
+    except SyntaxError as exc:
+        raise ParserError(
+            [
+                ParserDiagnostic(
+                    code="AXP300",
+                    severity="error",
+                    message=f"Python syntax error: {exc.msg}",
+                    file=file,
+                    line=exc.lineno,
+                    suggestion="Fix the syntax error and re-run `axintai compile`.",
+                )
+            ]
+        ) from exc
+
+    apps: list[AppIR] = []
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not isinstance(node.value, ast.Call):
+            continue
+        call = node.value
+        if not _is_define_app(call):
+            continue
+
+        ir = _app_ir_from_call(call, file=file)
+        apps.append(ir)
+
+    return apps
+
+
+def parse_file_apps(path: str | Path) -> list[AppIR]:
+    p = Path(path)
+    return parse_app_source(p.read_text(encoding="utf-8"), file=str(p))
+
+
 # ── AST walkers ──────────────────────────────────────────────────────
 
 
@@ -99,6 +238,39 @@ def _is_define_intent(call: ast.Call) -> bool:
     return (
         isinstance(call.func, ast.Attribute)
         and call.func.attr == "define_intent"
+        and isinstance(call.func.value, ast.Name)
+    )
+
+
+def _is_define_view(call: ast.Call) -> bool:
+    """Detect `define_view(...)` or `axintai.define_view(...)` calls."""
+    if isinstance(call.func, ast.Name) and call.func.id == "define_view":
+        return True
+    return (
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr == "define_view"
+        and isinstance(call.func.value, ast.Name)
+    )
+
+
+def _is_define_widget(call: ast.Call) -> bool:
+    """Detect `define_widget(...)` or `axintai.define_widget(...)` calls."""
+    if isinstance(call.func, ast.Name) and call.func.id == "define_widget":
+        return True
+    return (
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr == "define_widget"
+        and isinstance(call.func.value, ast.Name)
+    )
+
+
+def _is_define_app(call: ast.Call) -> bool:
+    """Detect `define_app(...)` or `axintai.define_app(...)` calls."""
+    if isinstance(call.func, ast.Name) and call.func.id == "define_app":
+        return True
+    return (
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr == "define_app"
         and isinstance(call.func.value, ast.Name)
     )
 
@@ -158,6 +330,783 @@ def _ir_from_call(call: ast.Call, *, file: str | None) -> IntentIR:
         is_discoverable=is_discoverable,
         source_file=file,
         source_line=call.lineno,
+    )
+
+
+def _view_ir_from_call(call: ast.Call, *, file: str | None) -> ViewIR:
+    """Parse a define_view(...) call and emit a ViewIR."""
+    kwargs = {kw.arg: kw.value for kw in call.keywords if kw.arg is not None}
+    diagnostics: list[ParserDiagnostic] = []
+
+    def require(name: str) -> ast.expr:
+        if name not in kwargs:
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP101",
+                    severity="error",
+                    message=f"`define_view(...)` is missing required argument `{name}`",
+                    file=file,
+                    line=call.lineno,
+                    suggestion=f"Add `{name}=...` to the define_view call.",
+                )
+            )
+            return ast.Constant(value="")
+        return kwargs[name]
+
+    name = _literal_str(require("name"), "name", diagnostics, file, call.lineno)
+    body = _parse_view_body(kwargs.get("body"), diagnostics, file, call.lineno)
+    props = _parse_view_props(kwargs.get("props"), diagnostics, file, call.lineno)
+    state = _parse_view_state(kwargs.get("state"), diagnostics, file, call.lineno)
+
+    if any(d.severity == "error" for d in diagnostics):
+        raise ParserError(diagnostics)
+
+    return ViewIR(
+        name=name,
+        body=tuple(body),
+        props=tuple(props),
+        state=tuple(state),
+        source_file=file,
+        source_line=call.lineno,
+    )
+
+
+def _parse_view_body(
+    node: ast.expr | None,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> list[dict[str, Any]]:
+    """Parse a body=list of view.* calls."""
+    if node is None:
+        return []
+    if not isinstance(node, (ast.List, ast.Tuple)):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP102",
+                severity="error",
+                message="`body=` must be a list or tuple of view.* calls",
+                file=file,
+                line=line,
+            )
+        )
+        return []
+
+    out: list[dict[str, Any]] = []
+    for elt in node.elts:
+        elem = _parse_view_element(elt, diagnostics, file)
+        if elem is not None:
+            out.append(elem)
+    return out
+
+
+def _parse_view_element(
+    node: ast.expr,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+) -> dict[str, Any] | None:
+    """Parse a single view.* call."""
+    if not isinstance(node, ast.Call):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP103",
+                severity="error",
+                message="Body elements must be view.* calls",
+                file=file,
+                line=getattr(node, "lineno", None),
+            )
+        )
+        return None
+
+    if not isinstance(node.func, ast.Attribute) or not isinstance(node.func.value, ast.Name):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP104",
+                severity="error",
+                message="Body elements must use view.* syntax",
+                file=file,
+                line=node.lineno,
+            )
+        )
+        return None
+
+    elem_type = node.func.attr
+    out: dict[str, Any] = {"type": elem_type}
+
+    # Handle each element type
+    if elem_type == "text":
+        if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+            out["content"] = node.args[0].value
+    elif elem_type in ("vstack", "hstack", "zstack"):
+        if node.args:
+            children = _parse_view_body(node.args[0], diagnostics, file, node.lineno)
+            out["children"] = children
+        for kw in node.keywords:
+            if kw.arg == "spacing" and isinstance(kw.value, ast.Constant):
+                out["spacing"] = kw.value.value
+            elif kw.arg == "alignment" and isinstance(kw.value, ast.Constant):
+                out["alignment"] = kw.value.value
+    elif elem_type == "image":
+        for kw in node.keywords:
+            if kw.arg == "system_name" and isinstance(kw.value, ast.Constant):
+                out["systemName"] = kw.value.value
+            elif kw.arg == "name" and isinstance(kw.value, ast.Constant):
+                out["name"] = kw.value.value
+    elif elem_type == "button":
+        if node.args:
+            if isinstance(node.args[0], ast.Constant):
+                out["label"] = node.args[0].value
+        if len(node.args) >= 2:
+            if isinstance(node.args[1], ast.Constant):
+                out["action"] = node.args[1].value
+    elif elem_type == "spacer":
+        pass
+    elif elem_type == "divider":
+        pass
+    elif elem_type == "foreach":
+        if len(node.args) >= 3:
+            if isinstance(node.args[0], ast.Constant):
+                out["collection"] = node.args[0].value
+            if isinstance(node.args[1], ast.Constant):
+                out["item"] = node.args[1].value
+            body_nodes = _parse_view_body(node.args[2], diagnostics, file, node.lineno)
+            out["body"] = body_nodes
+    elif elem_type == "conditional":
+        if len(node.args) >= 2:
+            if isinstance(node.args[0], ast.Constant):
+                out["condition"] = node.args[0].value
+            if_true = _parse_view_body(node.args[1], diagnostics, file, node.lineno)
+            out["then"] = if_true
+            if len(node.args) >= 3:
+                if_false = _parse_view_body(node.args[2], diagnostics, file, node.lineno)
+                out["else"] = if_false
+    elif elem_type == "navigation_link":
+        if len(node.args) >= 2:
+            if isinstance(node.args[0], ast.Constant):
+                out["destination"] = node.args[0].value
+            children = _parse_view_body(node.args[1], diagnostics, file, node.lineno)
+            out["children"] = children
+    elif elem_type == "list":
+        if node.args:
+            children = _parse_view_body(node.args[0], diagnostics, file, node.lineno)
+            out["children"] = children
+    elif elem_type == "raw":
+        if node.args and isinstance(node.args[0], ast.Constant):
+            out["swift"] = node.args[0].value
+
+    return out
+
+
+def _parse_view_props(
+    node: ast.expr | None,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> list[ViewPropIR]:
+    """Parse props=dict of prop.* calls."""
+    if node is None:
+        return []
+    if not isinstance(node, ast.Dict):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP105",
+                severity="error",
+                message="`props=` must be a dict literal like `{'name': prop.string()}`",
+                file=file,
+                line=line,
+            )
+        )
+        return []
+
+    out: list[ViewPropIR] = []
+    for key_node, value_node in zip(node.keys, node.values, strict=False):
+        if not isinstance(key_node, ast.Constant) or not isinstance(key_node.value, str):
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP106",
+                    severity="error",
+                    message="Prop keys must be string literals",
+                    file=file,
+                    line=getattr(key_node, "lineno", line),
+                )
+            )
+            continue
+        prop_name = key_node.value
+        prop = _parse_view_prop_call(value_node, prop_name, diagnostics, file)
+        if prop is not None:
+            out.append(prop)
+    return out
+
+
+def _parse_view_prop_call(
+    node: ast.expr,
+    prop_name: str,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+) -> ViewPropIR | None:
+    """Parse a prop.<type>(...) attribute-call expression."""
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP107",
+                severity="error",
+                message=f"Property `{prop_name}` must be a `prop.<type>(...)` call",
+                file=file,
+                line=getattr(node, "lineno", None),
+                suggestion="Use one of prop.string, prop.int, prop.boolean, prop.double, prop.float, prop.date, prop.url.",
+            )
+        )
+        return None
+
+    attr = node.func.attr
+    valid_types = {"string", "int", "double", "float", "boolean", "date", "url"}
+    if attr not in valid_types:
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP108",
+                severity="error",
+                message=f"Unknown prop type `prop.{attr}` for property `{prop_name}`",
+                file=file,
+                line=node.lineno,
+                suggestion="Valid types: string, int, double, float, boolean, date, url.",
+            )
+        )
+        return None
+
+    description = ""
+    if node.args:
+        first = node.args[0]
+        if isinstance(first, ast.Constant) and isinstance(first.value, str):
+            description = first.value
+
+    optional = False
+    default_val: Any = None
+    for kw in node.keywords:
+        if kw.arg == "optional" and isinstance(kw.value, ast.Constant):
+            optional = bool(kw.value.value)
+        elif kw.arg == "default" and isinstance(kw.value, ast.Constant):
+            default_val = kw.value.value
+
+    return ViewPropIR(
+        name=prop_name,
+        type=attr,  # type: ignore[assignment]
+        optional=optional,
+        default=default_val,
+        description=description,
+    )
+
+
+def _parse_view_state(
+    node: ast.expr | None,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> list[ViewStateIR]:
+    """Parse state=dict of state.* calls."""
+    if node is None:
+        return []
+    if not isinstance(node, ast.Dict):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP109",
+                severity="error",
+                message="`state=` must be a dict literal like `{'name': state.string()}`",
+                file=file,
+                line=line,
+            )
+        )
+        return []
+
+    out: list[ViewStateIR] = []
+    for key_node, value_node in zip(node.keys, node.values, strict=False):
+        if not isinstance(key_node, ast.Constant) or not isinstance(key_node.value, str):
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP110",
+                    severity="error",
+                    message="State keys must be string literals",
+                    file=file,
+                    line=getattr(key_node, "lineno", line),
+                )
+            )
+            continue
+        state_name = key_node.value
+        state_ir = _parse_view_state_call(value_node, state_name, diagnostics, file)
+        if state_ir is not None:
+            out.append(state_ir)
+    return out
+
+
+def _parse_view_state_call(
+    node: ast.expr,
+    state_name: str,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+) -> ViewStateIR | None:
+    """Parse a state.<type>(...) attribute-call expression."""
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP111",
+                severity="error",
+                message=f"State `{state_name}` must be a `state.<type>(...)` call",
+                file=file,
+                line=getattr(node, "lineno", None),
+                suggestion="Use one of state.string, state.int, state.boolean, state.double, state.float, state.date, state.url, state.array.",
+            )
+        )
+        return None
+
+    attr = node.func.attr
+    valid_types = {"string", "int", "double", "float", "boolean", "date", "url", "array"}
+    if attr not in valid_types:
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP112",
+                severity="error",
+                message=f"Unknown state type `state.{attr}` for state `{state_name}`",
+                file=file,
+                line=node.lineno,
+                suggestion="Valid types: string, int, double, float, boolean, date, url, array.",
+            )
+        )
+        return None
+
+    state_type: ParamType | Literal["array"] = attr  # type: ignore[assignment]
+    element_type: str | None = None
+    default_val: Any = None
+    kind: ViewStateKind = "state"
+    env_key: str | None = None
+
+    # For array type, first arg is element type
+    if attr == "array":
+        if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+            element_type = node.args[0].value
+
+    # Parse keyword args
+    for kw in node.keywords:
+        if kw.arg == "default" and isinstance(kw.value, ast.Constant):
+            default_val = kw.value.value
+        elif kw.arg == "kind" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+            kind = kw.value.value  # type: ignore[assignment]
+        elif kw.arg == "environment_key" and isinstance(kw.value, ast.Constant):
+            env_key = kw.value.value
+
+    return ViewStateIR(
+        name=state_name,
+        type=state_type,
+        kind=kind,
+        default=default_val,
+        element_type=element_type,
+        environment_key=env_key,
+    )
+
+
+def _widget_ir_from_call(call: ast.Call, *, file: str | None) -> WidgetIR:
+    """Parse a define_widget(...) call and emit a WidgetIR."""
+    kwargs = {kw.arg: kw.value for kw in call.keywords if kw.arg is not None}
+    diagnostics: list[ParserDiagnostic] = []
+
+    def require(name: str) -> ast.expr:
+        if name not in kwargs:
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP201",
+                    severity="error",
+                    message=f"`define_widget(...)` is missing required argument `{name}`",
+                    file=file,
+                    line=call.lineno,
+                    suggestion=f"Add `{name}=...` to the define_widget call.",
+                )
+            )
+            return ast.Constant(value="")
+        return kwargs[name]
+
+    name = _literal_str(require("name"), "name", diagnostics, file, call.lineno)
+    display_name = _literal_str(require("display_name"), "display_name", diagnostics, file, call.lineno)
+    description = _literal_str(require("description"), "description", diagnostics, file, call.lineno)
+    families = _parse_widget_families(require("families"), diagnostics, file, call.lineno)
+    entry = _parse_widget_entry(kwargs.get("entry"), diagnostics, file, call.lineno)
+    body = _parse_view_body(kwargs.get("body"), diagnostics, file, call.lineno)
+
+    refresh_interval: int | None = None
+    if "refresh_interval" in kwargs:
+        node = kwargs["refresh_interval"]
+        if isinstance(node, ast.Constant) and isinstance(node.value, int):
+            refresh_interval = node.value
+
+    refresh_policy: WidgetRefreshPolicy = "atEnd"
+    if "refresh_policy" in kwargs:
+        node = kwargs["refresh_policy"]
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            refresh_policy = node.value  # type: ignore[assignment]
+
+    if any(d.severity == "error" for d in diagnostics):
+        raise ParserError(diagnostics)
+
+    return WidgetIR(
+        name=name,
+        display_name=display_name,
+        description=description,
+        families=tuple(families),
+        entry=tuple(entry),
+        body=tuple(body),
+        refresh_interval=refresh_interval,
+        refresh_policy=refresh_policy,
+        source_file=file,
+        source_line=call.lineno,
+    )
+
+
+def _parse_widget_families(
+    node: ast.expr,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> list[WidgetFamily]:
+    """Parse families=list of family strings."""
+    if not isinstance(node, (ast.List, ast.Tuple)):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP202",
+                severity="error",
+                message="`families=` must be a list or tuple of family name strings",
+                file=file,
+                line=line,
+            )
+        )
+        return []
+
+    out: list[WidgetFamily] = []
+    for elt in node.elts:
+        if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+            out.append(elt.value)  # type: ignore[assignment]
+        else:
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP203",
+                    severity="error",
+                    message="`families=` entries must be string literals",
+                    file=file,
+                    line=getattr(elt, "lineno", line),
+                )
+            )
+    return out
+
+
+def _parse_widget_entry(
+    node: ast.expr | None,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> list[WidgetEntryIR]:
+    """Parse entry=dict of entry.* calls."""
+    if node is None:
+        return []
+    if not isinstance(node, ast.Dict):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP204",
+                severity="error",
+                message="`entry=` must be a dict literal like `{'name': entry.string()}`",
+                file=file,
+                line=line,
+            )
+        )
+        return []
+
+    out: list[WidgetEntryIR] = []
+    for key_node, value_node in zip(node.keys, node.values, strict=False):
+        if not isinstance(key_node, ast.Constant) or not isinstance(key_node.value, str):
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP205",
+                    severity="error",
+                    message="Entry keys must be string literals",
+                    file=file,
+                    line=getattr(key_node, "lineno", line),
+                )
+            )
+            continue
+        entry_name = key_node.value
+        entry_ir = _parse_widget_entry_call(value_node, entry_name, diagnostics, file)
+        if entry_ir is not None:
+            out.append(entry_ir)
+    return out
+
+
+def _parse_widget_entry_call(
+    node: ast.expr,
+    entry_name: str,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+) -> WidgetEntryIR | None:
+    """Parse an entry.<type>(...) attribute-call expression."""
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP206",
+                severity="error",
+                message=f"Entry `{entry_name}` must be an `entry.<type>(...)` call",
+                file=file,
+                line=getattr(node, "lineno", None),
+                suggestion="Use one of entry.string, entry.int, entry.boolean, entry.double, entry.float, entry.date, entry.url.",
+            )
+        )
+        return None
+
+    attr = node.func.attr
+    valid_types = {"string", "int", "double", "float", "boolean", "date", "url"}
+    if attr not in valid_types:
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP207",
+                severity="error",
+                message=f"Unknown entry type `entry.{attr}` for entry `{entry_name}`",
+                file=file,
+                line=node.lineno,
+                suggestion="Valid types: string, int, double, float, boolean, date, url.",
+            )
+        )
+        return None
+
+    description = ""
+    if node.args:
+        first = node.args[0]
+        if isinstance(first, ast.Constant) and isinstance(first.value, str):
+            description = first.value
+
+    default_val: Any = None
+    for kw in node.keywords:
+        if kw.arg == "default" and isinstance(kw.value, ast.Constant):
+            default_val = kw.value.value
+
+    return WidgetEntryIR(
+        name=entry_name,
+        type=attr,  # type: ignore[assignment]
+        default=default_val,
+        description=description,
+    )
+
+
+def _app_ir_from_call(call: ast.Call, *, file: str | None) -> AppIR:
+    """Parse a define_app(...) call and emit an AppIR."""
+    kwargs = {kw.arg: kw.value for kw in call.keywords if kw.arg is not None}
+    diagnostics: list[ParserDiagnostic] = []
+
+    def require(name: str) -> ast.expr:
+        if name not in kwargs:
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP301",
+                    severity="error",
+                    message=f"`define_app(...)` is missing required argument `{name}`",
+                    file=file,
+                    line=call.lineno,
+                    suggestion=f"Add `{name}=...` to the define_app call.",
+                )
+            )
+            return ast.Constant(value="")
+        return kwargs[name]
+
+    name = _literal_str(require("name"), "name", diagnostics, file, call.lineno)
+    scenes = _parse_app_scenes(require("scenes"), diagnostics, file, call.lineno)
+    app_storage = _parse_app_storage(kwargs.get("app_storage"), diagnostics, file, call.lineno)
+
+    if any(d.severity == "error" for d in diagnostics):
+        raise ParserError(diagnostics)
+
+    return AppIR(
+        name=name,
+        scenes=tuple(scenes),
+        app_storage=tuple(app_storage),
+        source_file=file,
+        source_line=call.lineno,
+    )
+
+
+def _parse_app_scenes(
+    node: ast.expr,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> list[AppSceneIR]:
+    """Parse scenes=list of scene.* calls."""
+    if not isinstance(node, (ast.List, ast.Tuple)):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP302",
+                severity="error",
+                message="`scenes=` must be a list or tuple of scene.* calls",
+                file=file,
+                line=line,
+            )
+        )
+        return []
+
+    out: list[AppSceneIR] = []
+    for elt in node.elts:
+        scene = _parse_app_scene_call(elt, diagnostics, file)
+        if scene is not None:
+            out.append(scene)
+    return out
+
+
+def _parse_app_scene_call(
+    node: ast.expr,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+) -> AppSceneIR | None:
+    """Parse a scene.* call."""
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP303",
+                severity="error",
+                message="Scene elements must be scene.* calls",
+                file=file,
+                line=getattr(node, "lineno", None),
+            )
+        )
+        return None
+
+    scene_kind = node.func.attr
+    valid_kinds = {"window_group", "window", "document_group", "settings"}
+    if scene_kind not in valid_kinds:
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP304",
+                severity="error",
+                message=f"Unknown scene kind `scene.{scene_kind}`",
+                file=file,
+                line=node.lineno,
+                suggestion="Valid kinds: window_group, window, document_group, settings.",
+            )
+        )
+        return None
+
+    view_name = ""
+    if node.args and isinstance(node.args[0], ast.Constant):
+        view_name = node.args[0].value
+
+    title: str | None = None
+    name: str | None = None
+    platform: str | None = None
+
+    for kw in node.keywords:
+        if kw.arg == "title" and isinstance(kw.value, ast.Constant):
+            title = kw.value.value
+        elif kw.arg == "name" and isinstance(kw.value, ast.Constant):
+            name = kw.value.value
+        elif kw.arg == "platform" and isinstance(kw.value, ast.Constant):
+            platform = kw.value.value
+
+    kind: SceneKind
+    if scene_kind == "window_group":
+        kind = "windowGroup"
+    elif scene_kind == "document_group":
+        kind = "documentGroup"
+    else:
+        kind = scene_kind  # type: ignore[assignment]
+
+    return AppSceneIR(
+        kind=kind,
+        view=view_name,
+        title=title,
+        name=name,
+        platform=platform,
+    )
+
+
+def _parse_app_storage(
+    node: ast.expr | None,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> list[AppStorageIR]:
+    """Parse app_storage=dict of storage.* calls."""
+    if node is None:
+        return []
+    if not isinstance(node, ast.Dict):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP305",
+                severity="error",
+                message="`app_storage=` must be a dict literal like `{'name': storage.string('key', default)}`",
+                file=file,
+                line=line,
+            )
+        )
+        return []
+
+    out: list[AppStorageIR] = []
+    for key_node, value_node in zip(node.keys, node.values, strict=False):
+        if not isinstance(key_node, ast.Constant) or not isinstance(key_node.value, str):
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP306",
+                    severity="error",
+                    message="AppStorage keys must be string literals",
+                    file=file,
+                    line=getattr(key_node, "lineno", line),
+                )
+            )
+            continue
+        storage_name = key_node.value
+        storage = _parse_app_storage_call(value_node, storage_name, diagnostics, file)
+        if storage is not None:
+            out.append(storage)
+    return out
+
+
+def _parse_app_storage_call(
+    node: ast.expr,
+    storage_name: str,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+) -> AppStorageIR | None:
+    """Parse a storage.<type>(key, default) call."""
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP307",
+                severity="error",
+                message=f"Storage `{storage_name}` must be a `storage.<type>(key, default)` call",
+                file=file,
+                line=getattr(node, "lineno", None),
+                suggestion="Use one of storage.string, storage.int, storage.boolean, storage.double, storage.float, storage.date, storage.url.",
+            )
+        )
+        return None
+
+    attr = node.func.attr
+    valid_types = {"string", "int", "double", "float", "boolean", "date", "url"}
+    if attr not in valid_types:
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP308",
+                severity="error",
+                message=f"Unknown storage type `storage.{attr}` for storage `{storage_name}`",
+                file=file,
+                line=node.lineno,
+                suggestion="Valid types: string, int, double, float, boolean, date, url.",
+            )
+        )
+        return None
+
+    storage_key = ""
+    if node.args and isinstance(node.args[0], ast.Constant):
+        storage_key = node.args[0].value
+
+    default_val: Any = None
+    if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
+        default_val = node.args[1].value
+
+    return AppStorageIR(
+        name=storage_name,
+        key=storage_key,
+        type=attr,  # type: ignore[assignment]
+        default=default_val,
     )
 
 

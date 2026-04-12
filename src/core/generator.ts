@@ -421,7 +421,7 @@ function defaultLiteralFor(primitive: string): string {
     case "duration":
       return `Measurement<UnitDuration>(value: 0, unit: .seconds)`;
     case "url":
-      return `URL(string: "about:blank")!`;
+      return `URL(string: "about:blank")! // TODO: Replace with your URL`;
     default:
       return `""`;
   }

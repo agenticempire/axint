@@ -27,12 +27,15 @@ the same Swift generator and hits the same validator rules.
 
 from __future__ import annotations
 
-__version__ = "0.2.0"
+__version__ = "0.3.2"
 
 from .generator import (
     generate_entitlements_fragment,
     generate_info_plist_fragment,
     generate_swift,
+    generate_swift_app,
+    generate_swift_view,
+    generate_swift_widget,
 )
 from .ir import (
     AppIR,
@@ -78,7 +81,23 @@ from .sdk import (
     storage,
     view,
 )
-from .validator import ValidatorDiagnostic, validate_intent
+from .parser import (
+    parse_app_source,
+    parse_file,
+    parse_file_apps,
+    parse_file_views,
+    parse_file_widgets,
+    parse_source,
+    parse_view_source,
+    parse_widget_source,
+)
+from .validator import (
+    ValidatorDiagnostic,
+    validate_app,
+    validate_intent,
+    validate_view,
+    validate_widget,
+)
 
 __all__ = [
     "App",
@@ -120,11 +139,25 @@ __all__ = [
     "generate_entitlements_fragment",
     "generate_info_plist_fragment",
     "generate_swift",
+    "generate_swift_app",
+    "generate_swift_view",
+    "generate_swift_widget",
     "param",
+    "parse_app_source",
+    "parse_file",
+    "parse_file_apps",
+    "parse_file_views",
+    "parse_file_widgets",
+    "parse_source",
+    "parse_view_source",
+    "parse_widget_source",
     "prop",
     "scene",
     "state",
     "storage",
+    "validate_app",
     "validate_intent",
+    "validate_view",
+    "validate_widget",
     "view",
 ]

@@ -440,7 +440,11 @@ describe("generateSwift — all primitive return types", () => {
       expected: "Measurement<UnitDuration>",
       literal: "Measurement<UnitDuration>(value: 0, unit: .seconds)",
     },
-    { primitive: "url", expected: "URL", literal: 'URL(string: "about:blank")!' },
+    {
+      primitive: "url",
+      expected: "URL",
+      literal: 'URL(string: "about:blank")! // TODO: Replace with your URL',
+    },
   ];
 
   for (const { primitive, expected, literal } of returnTypeTests) {

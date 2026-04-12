@@ -1,0 +1,16 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+# The compression layer for AI on Apple — AI agents write 5-15× less code
+
+startCommand:
+  type: stdio
+
+configSchema:
+  # JSON Schema defining the configuration options for the MCP.
+  type: object
+  required: []
+  properties: {}
+
+commandFunction:
+  # A function that produces the CLI command to start the MCP on stdio.
+  |-
+    config => ({ command: 'npx', args: ['-y', '@axintai/compiler@0.3.2', 'axint-mcp'] })
