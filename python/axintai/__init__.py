@@ -57,6 +57,16 @@ from .ir import (
     WidgetIR,
     WidgetRefreshPolicy,
 )
+from .parser import (
+    parse_app_source,
+    parse_file,
+    parse_file_apps,
+    parse_file_views,
+    parse_file_widgets,
+    parse_source,
+    parse_view_source,
+    parse_widget_source,
+)
 from .sdk import (
     App,
     AppDefinition,
@@ -80,16 +90,6 @@ from .sdk import (
     state,
     storage,
     view,
-)
-from .parser import (
-    parse_app_source,
-    parse_file,
-    parse_file_apps,
-    parse_file_views,
-    parse_file_widgets,
-    parse_source,
-    parse_view_source,
-    parse_widget_source,
 )
 from .validator import (
     ValidatorDiagnostic,

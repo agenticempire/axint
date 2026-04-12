@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .ir import IntentIR, ViewIR, WidgetIR, AppIR
+from .ir import AppIR, IntentIR, ViewIR, WidgetIR
 
 MAX_PARAMETERS = 10
 MAX_TITLE_LENGTH = 60

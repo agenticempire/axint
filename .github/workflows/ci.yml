@@ -31,7 +31,17 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
-      - run: npm test
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload TypeScript coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/coverage-final.json
+          flags: typescript
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
 
       - name: Run benchmarks
         run: npm run bench -- --reporter=verbose
@@ -89,8 +99,17 @@ jobs:
       - name: Type check with mypy
         run: mypy axintai
 
-      - name: Run tests
-        run: pytest -v --tb=short
+      - name: Run tests with coverage
+        run: pytest -v --tb=short --cov=axintai --cov-report=json --cov-report=lcov --cov-report=term
+
+      - name: Upload Python coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./python/coverage.json
+          flags: python
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
 
       - name: Verify CLI works
         run: |
