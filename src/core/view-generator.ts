@@ -223,7 +223,7 @@ function previewDefault(p: IRViewProp): string {
       case "date":
         return `Date()`;
       case "url":
-        return `URL(string: "https://example.com")!`;
+        return `URL(string: "https://example.com")! // TODO: Replace with your URL`;
       default:
         return `""`;
     }

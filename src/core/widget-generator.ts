@@ -181,7 +181,8 @@ function getDefaultValue(value: unknown, type?: IRType): string {
   if (swift === "Double" || swift === "Float") return `0.0`;
   if (swift === "Bool") return `false`;
   if (swift === "Date") return `Date()`;
-  if (swift === "URL") return `URL(string: "https://example.com")!`;
+  if (swift === "URL")
+    return `URL(string: "https://example.com")! // TODO: Replace with your URL`;
   return `nil`;
 }
 
