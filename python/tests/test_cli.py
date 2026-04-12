@@ -47,9 +47,10 @@ def test_parse_json_command(capsys) -> None:
     assert exit_code == 0
     captured = capsys.readouterr()
     data = json.loads(captured.out)
-    assert len(data) == 1
-    assert data[0]["name"] == "CreateCalendarEventIntent"
-    assert len(data[0]["parameters"]) == 2
+    assert "intents" in data
+    assert len(data["intents"]) == 1
+    assert data["intents"][0]["name"] == "CreateCalendarEventIntent"
+    assert len(data["intents"][0]["parameters"]) == 2
 
 
 def test_compile_stdout(capsys) -> None:
@@ -108,7 +109,7 @@ def test_validate_valid_intent(capsys) -> None:
     exit_code = main(["validate", str(path)])
     assert exit_code == 0
     captured = capsys.readouterr()
-    assert "valid intent definition" in captured.out
+    assert "valid intent" in captured.out
 
 
 def test_validate_invalid_intent(capsys) -> None:
