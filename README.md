@@ -63,7 +63,7 @@ Axint compresses all of that. One TypeScript definition compiles to idiomatic, p
 - **Native type fidelity.** `int → Int`, `double → Double`, `date → Date`, `url → URL`, `duration → Measurement<UnitDuration>`. Default values and optionality preserved end-to-end.
 - **91 diagnostic codes** (`AX000`–`AX522`) with fix suggestions and color-coded output. Intent, entity, view, widget, and app validators each have dedicated error ranges.
 - **Sub-millisecond compile.** The [axint.ai playground](https://axint.ai/#playground) runs the full compiler in-browser with zero server round-trip.
-- **249 tests.** Parser, validator, generator, emit paths, views, widgets, apps, watch mode, sandbox, and MCP — all covered.
+- **402 tests.** Parser, validator, generator, emit paths, views, widgets, apps, watch mode, sandbox, and MCP — all covered.
 - **Cross-language IR.** The intermediate representation is language-agnostic JSON. TypeScript, Python, and raw JSON all feed into the same generator. New language frontends plug in without touching the Swift emitter.
 - **Apache 2.0, no CLA.** Fork it, extend it, ship it.
 
@@ -282,7 +282,7 @@ axint/
 ├── extensions/
 │   └── vscode/      # VS Code / Cursor extension (MCP-backed)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # 249 vitest tests
+├── tests/           # 402 vitest tests
 ├── examples/        # Example definitions
 └── docs/            # Error reference, assets
 ```

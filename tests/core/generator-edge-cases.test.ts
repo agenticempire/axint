@@ -6,8 +6,14 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateSwift } from "../../src/core/generator.js";
-import type { IRIntent, IRParameter } from "../../src/core/types.js";
+import {
+  generateSwift,
+  generateEntity,
+  generateEntityQuery,
+  generateInfoPlistFragment,
+  generateEntitlementsFragment,
+} from "../../src/core/generator.js";
+import type { IRIntent, IRParameter, IRPrimitiveType } from "../../src/core/types.js";
 
 function makeIntent(overrides: Partial<IRIntent> = {}): IRIntent {
   return {
@@ -195,5 +201,740 @@ describe("generateSwift — structure", () => {
   it("omits param comment when no parameters", () => {
     const swift = generateSwift(makeIntent({ parameters: [] }));
     expect(swift).not.toContain("Parameters available");
+  });
+});
+
+describe("generateSwift — isDiscoverable flag", () => {
+  it("includes isDiscoverable when true", () => {
+    const swift = generateSwift(makeIntent({ isDiscoverable: true }));
+    expect(swift).toContain("static let isDiscoverable: Bool = true");
+  });
+
+  it("includes isDiscoverable when false", () => {
+    const swift = generateSwift(makeIntent({ isDiscoverable: false }));
+    expect(swift).toContain("static let isDiscoverable: Bool = false");
+  });
+
+  it("omits isDiscoverable when undefined", () => {
+    const swift = generateSwift(makeIntent({ isDiscoverable: undefined }));
+    expect(swift).not.toContain("isDiscoverable");
+  });
+});
+
+describe("generateSwift — donateOnPerform flag", () => {
+  it("includes donation logic when donateOnPerform is true", () => {
+    const swift = generateSwift(makeIntent({ donateOnPerform: true }));
+    expect(swift).toContain("Donate to Siri and Spotlight");
+    expect(swift).toContain("try? await self.donate()");
+  });
+
+  it("omits donation logic when donateOnPerform is false or undefined", () => {
+    const swift = generateSwift(makeIntent({ donateOnPerform: false }));
+    expect(swift).not.toContain("Donate to Siri");
+    expect(swift).not.toContain("self.donate()");
+  });
+});
+
+describe("generateSwift — custom return types", () => {
+  it("uses customResultType when provided", () => {
+    const swift = generateSwift(
+      makeIntent({
+        customResultType: "MyCustomResult",
+        returnType: { kind: "primitive", value: "string" },
+      })
+    );
+    expect(swift).toContain("func perform() async throws -> MyCustomResult");
+    expect(swift).toContain(
+      "return .result(value: MyCustomResult()) // replace with your MyCustomResult instance"
+    );
+  });
+
+  it("falls back to IntentResult when no return type is primitive", () => {
+    const swift = generateSwift(
+      makeIntent({
+        returnType: {
+          kind: "array",
+          elementType: { kind: "primitive", value: "string" },
+        },
+      })
+    );
+    expect(swift).toContain("func perform() async throws -> some IntentResult");
+    expect(swift).toContain("return .result()");
+  });
+
+  it("uses ReturnsValue wrapper for primitive return types", () => {
+    const swift = generateSwift(
+      makeIntent({
+        returnType: { kind: "primitive", value: "int" },
+      })
+    );
+    expect(swift).toContain(
+      "func perform() async throws -> some IntentResult & ReturnsValue<Int>"
+    );
+    expect(swift).toContain("return .result(value: 0)");
+  });
+
+  it("handles optional primitive return types with ReturnsValue", () => {
+    const swift = generateSwift(
+      makeIntent({
+        returnType: { kind: "optional", innerType: { kind: "primitive", value: "date" } },
+      })
+    );
+    expect(swift).toContain("some IntentResult & ReturnsValue<Date>");
+    expect(swift).toContain("return .result(value: Date())");
+  });
+});
+
+describe("generateSwift — nested optional types", () => {
+  it("handles optional array parameter", () => {
+    const swift = generateSwift(
+      makeIntent({
+        parameters: [
+          {
+            name: "tags",
+            type: {
+              kind: "optional",
+              innerType: {
+                kind: "array",
+                elementType: { kind: "primitive", value: "string" },
+              },
+            },
+            title: "Tags",
+            description: "Optional tags",
+            isOptional: true,
+          },
+        ],
+      })
+    );
+    expect(swift).toContain("var tags: [String]?");
+  });
+
+  it("handles array of optional primitives", () => {
+    const swift = generateSwift(
+      makeIntent({
+        parameters: [
+          {
+            name: "values",
+            type: {
+              kind: "array",
+              elementType: {
+                kind: "optional",
+                innerType: { kind: "primitive", value: "int" },
+              },
+            },
+            title: "Values",
+            description: "Values",
+            isOptional: false,
+          },
+        ],
+      })
+    );
+    expect(swift).toContain("var values: [Int?]");
+  });
+});
+
+describe("generateSwift — enum types", () => {
+  it("generates enum parameter as Swift type", () => {
+    const swift = generateSwift(
+      makeIntent({
+        parameters: [
+          {
+            name: "priority",
+            type: {
+              kind: "enum",
+              name: "Priority",
+              cases: ["low", "medium", "high"],
+            },
+            title: "Priority",
+            description: "Task priority",
+            isOptional: false,
+          },
+        ],
+      })
+    );
+    expect(swift).toContain("var priority: Priority");
+  });
+
+  it("handles optional enum parameter", () => {
+    const swift = generateSwift(
+      makeIntent({
+        parameters: [
+          {
+            name: "status",
+            type: {
+              kind: "optional",
+              innerType: {
+                kind: "enum",
+                name: "Status",
+                cases: ["active", "inactive"],
+              },
+            },
+            title: "Status",
+            description: "Item status",
+            isOptional: true,
+          },
+        ],
+      })
+    );
+    expect(swift).toContain("var status: Status?");
+  });
+});
+
+describe("generateSwift — dynamic options", () => {
+  it("handles dynamic options parameter as array", () => {
+    const swift = generateSwift(
+      makeIntent({
+        parameters: [
+          {
+            name: "contact",
+            type: {
+              kind: "dynamicOptions",
+              valueType: { kind: "primitive", value: "string" },
+              providerName: "ContactProvider",
+            },
+            title: "Contact",
+            description: "Select a contact",
+            isOptional: false,
+          },
+        ],
+      })
+    );
+    expect(swift).toContain("var contact: [DynamicOptionsResult<String>]");
+  });
+
+  it("handles optional dynamic options as optional array", () => {
+    const swift = generateSwift(
+      makeIntent({
+        parameters: [
+          {
+            name: "file",
+            type: {
+              kind: "optional",
+              innerType: {
+                kind: "dynamicOptions",
+                valueType: { kind: "primitive", value: "string" },
+                providerName: "FileProvider",
+              },
+            },
+            title: "File",
+            description: "Select a file",
+            isOptional: true,
+          },
+        ],
+      })
+    );
+    expect(swift).toContain("var file: [DynamicOptionsResult<String>]?");
+  });
+});
+
+describe("generateSwift — all primitive return types", () => {
+  const returnTypeTests: { primitive: string; expected: string; literal: string }[] = [
+    { primitive: "string", expected: "String", literal: '""' },
+    { primitive: "int", expected: "Int", literal: "0" },
+    { primitive: "double", expected: "Double", literal: "0.0" },
+    { primitive: "float", expected: "Float", literal: "Float(0)" },
+    { primitive: "boolean", expected: "Bool", literal: "false" },
+    { primitive: "date", expected: "Date", literal: "Date()" },
+    {
+      primitive: "duration",
+      expected: "Measurement<UnitDuration>",
+      literal: "Measurement<UnitDuration>(value: 0, unit: .seconds)",
+    },
+    { primitive: "url", expected: "URL", literal: 'URL(string: "about:blank")!' },
+  ];
+
+  for (const { primitive, expected, literal } of returnTypeTests) {
+    it(`maps return type ${primitive} → ${expected}`, () => {
+      const swift = generateSwift(
+        makeIntent({
+          returnType: { kind: "primitive", value: primitive as IRPrimitiveType },
+        })
+      );
+      expect(swift).toContain(`some IntentResult & ReturnsValue<${expected}>`);
+      expect(swift).toContain(`return .result(value: ${literal})`);
+    });
+  }
+
+  it("handles unknown primitive type gracefully", () => {
+    const swift = generateSwift(
+      makeIntent({
+        returnType: { kind: "primitive", value: "unknown" as unknown as IRPrimitiveType },
+      })
+    );
+    expect(swift).toContain("some IntentResult & ReturnsValue");
+    expect(swift).toContain('return .result(value: "")');
+  });
+});
+
+describe("generateEntity", () => {
+  it("generates AppEntity struct with basic properties", () => {
+    const entity = {
+      name: "Contact",
+      displayRepresentation: { title: "name" },
+      properties: [
+        {
+          name: "name",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Name",
+          description: "Contact name",
+          isOptional: false,
+        },
+        {
+          name: "email",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Email",
+          description: "Email",
+          isOptional: false,
+        },
+      ],
+      queryType: "string" as const,
+    };
+    const swift = generateEntity(entity);
+    expect(swift).toContain("struct Contact: AppEntity");
+    expect(swift).toContain("var name: String");
+    expect(swift).toContain("var email: String");
+    expect(swift).toContain("static var defaultQuery = ContactQuery()");
+  });
+
+  it("adds id property if not present in entity", () => {
+    const entity = {
+      name: "Task",
+      displayRepresentation: { title: "title" },
+      properties: [
+        {
+          name: "title",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Title",
+          description: "Task title",
+          isOptional: false,
+        },
+      ],
+      queryType: "all" as const,
+    };
+    const swift = generateEntity(entity);
+    expect(swift).toContain("var id: String");
+  });
+
+  it("skips id property if already defined", () => {
+    const entity = {
+      name: "Item",
+      displayRepresentation: { title: "id" },
+      properties: [
+        {
+          name: "id",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "ID",
+          description: "Unique ID",
+          isOptional: false,
+        },
+        {
+          name: "label",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Label",
+          description: "Item label",
+          isOptional: false,
+        },
+      ],
+      queryType: "id" as const,
+    };
+    const swift = generateEntity(entity);
+    const idCount = (swift.match(/var id: String/g) || []).length;
+    expect(idCount).toBe(1);
+  });
+
+  it("generates TypeDisplayRepresentation with entity name", () => {
+    const entity = {
+      name: "Person",
+      displayRepresentation: { title: "name" },
+      properties: [
+        {
+          name: "name",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Name",
+          description: "Name",
+          isOptional: false,
+        },
+      ],
+      queryType: "string" as const,
+    };
+    const swift = generateEntity(entity);
+    expect(swift).toContain(
+      "static let typeDisplayRepresentation: TypeDisplayRepresentation"
+    );
+    expect(swift).toContain('LocalizedStringResource("Person")');
+  });
+
+  it("generates displayRepresentation with title, subtitle, and image", () => {
+    const entity = {
+      name: "Photo",
+      displayRepresentation: {
+        title: "title",
+        subtitle: "date",
+        image: "photo",
+      },
+      properties: [
+        {
+          name: "title",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Title",
+          description: "Title",
+          isOptional: false,
+        },
+        {
+          name: "date",
+          type: { kind: "primitive" as const, value: "date" as const },
+          title: "Date",
+          description: "Date",
+          isOptional: false,
+        },
+      ],
+      queryType: "all" as const,
+    };
+    const swift = generateEntity(entity);
+    expect(swift).toContain("var displayRepresentation: DisplayRepresentation");
+    expect(swift).toContain('title: "\\(title)"');
+    expect(swift).toContain('subtitle: "\\(date)"');
+    expect(swift).toContain('image: .init(systemName: "photo")');
+  });
+
+  it("generates displayRepresentation with title only", () => {
+    const entity = {
+      name: "Simple",
+      displayRepresentation: { title: "name" },
+      properties: [
+        {
+          name: "name",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Name",
+          description: "Name",
+          isOptional: false,
+        },
+      ],
+      queryType: "all" as const,
+    };
+    const swift = generateEntity(entity);
+    expect(swift).toContain('title: "\\(name)"');
+    expect(swift).not.toContain("subtitle:");
+    expect(swift).not.toContain("image:");
+  });
+
+  it("generates displayRepresentation with title and subtitle but no image", () => {
+    const entity = {
+      name: "Event",
+      displayRepresentation: {
+        title: "name",
+        subtitle: "date",
+      },
+      properties: [
+        {
+          name: "name",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Name",
+          description: "Name",
+          isOptional: false,
+        },
+        {
+          name: "date",
+          type: { kind: "primitive" as const, value: "date" as const },
+          title: "Date",
+          description: "Date",
+          isOptional: false,
+        },
+      ],
+      queryType: "all" as const,
+    };
+    const swift = generateEntity(entity);
+    expect(swift).toContain('title: "\\(name)",');
+    expect(swift).toContain('subtitle: "\\(date)"');
+    expect(swift).not.toContain("image:");
+  });
+});
+
+describe("generateEntityQuery", () => {
+  it("generates EntityQuery for 'all' query type", () => {
+    const entity = {
+      name: "Event",
+      displayRepresentation: { title: "title" },
+      properties: [
+        {
+          name: "title",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Title",
+          description: "Title",
+          isOptional: false,
+        },
+      ],
+      queryType: "all" as const,
+    };
+    const swift = generateEntityQuery(entity);
+    expect(swift).toContain("struct EventQuery: EntityQuery");
+    expect(swift).toContain("func entities(for identifiers: [Event.ID])");
+    expect(swift).toContain("func allEntities()");
+  });
+
+  it("generates EntityQuery for 'id' query type", () => {
+    const entity = {
+      name: "User",
+      displayRepresentation: { title: "name" },
+      properties: [
+        {
+          name: "name",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Name",
+          description: "Name",
+          isOptional: false,
+        },
+      ],
+      queryType: "id" as const,
+    };
+    const swift = generateEntityQuery(entity);
+    expect(swift).toContain("struct UserQuery: EntityQuery");
+    expect(swift).toContain("func entities(for identifiers: [User.ID])");
+    expect(swift).toContain(
+      "ID-based query is provided by the entities(for:) method above"
+    );
+  });
+
+  it("generates EntityQuery for 'string' query type", () => {
+    const entity = {
+      name: "Location",
+      displayRepresentation: { title: "name" },
+      properties: [
+        {
+          name: "name",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Name",
+          description: "Name",
+          isOptional: false,
+        },
+      ],
+      queryType: "string" as const,
+    };
+    const swift = generateEntityQuery(entity);
+    expect(swift).toContain("func entities(matching string: String)");
+    expect(swift).not.toContain("allEntities()");
+  });
+
+  it("generates EntityPropertyQuery for 'property' query type", () => {
+    const entity = {
+      name: "Product",
+      displayRepresentation: { title: "name" },
+      properties: [
+        {
+          name: "name",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Name",
+          description: "Name",
+          isOptional: false,
+        },
+        {
+          name: "price",
+          type: { kind: "primitive" as const, value: "double" as const },
+          title: "Price",
+          description: "Price",
+          isOptional: false,
+        },
+      ],
+      queryType: "property" as const,
+    };
+    const swift = generateEntityQuery(entity);
+    expect(swift).toContain("struct ProductQuery: EntityPropertyQuery");
+    expect(swift).toContain("static var properties = QueryProperties");
+    expect(swift).toContain("static var sortingOptions = SortingOptions");
+    expect(swift).toContain("func entities(matching comparators:");
+  });
+
+  it("adds appropriate comparators based on property type", () => {
+    const entity = {
+      name: "Item",
+      displayRepresentation: { title: "name" },
+      properties: [
+        {
+          name: "name",
+          type: { kind: "primitive" as const, value: "string" as const },
+          title: "Name",
+          description: "Name",
+          isOptional: false,
+        },
+        {
+          name: "count",
+          type: { kind: "primitive" as const, value: "int" as const },
+          title: "Count",
+          description: "Count",
+          isOptional: false,
+        },
+        {
+          name: "date",
+          type: { kind: "primitive" as const, value: "date" as const },
+          title: "Date",
+          description: "Date",
+          isOptional: false,
+        },
+      ],
+      queryType: "property" as const,
+    };
+    const swift = generateEntityQuery(entity);
+    expect(swift).toContain("EqualToComparator()");
+    expect(swift).toContain("ContainsComparator()");
+    expect(swift).toContain("LessThanComparator()");
+    expect(swift).toContain("GreaterThanComparator()");
+  });
+});
+
+describe("generateInfoPlistFragment", () => {
+  it("returns undefined when no keys present", () => {
+    const intent = makeIntent({ infoPlistKeys: undefined });
+    const fragment = generateInfoPlistFragment(intent);
+    expect(fragment).toBeUndefined();
+  });
+
+  it("returns undefined when keys object is empty", () => {
+    const intent = makeIntent({ infoPlistKeys: {} });
+    const fragment = generateInfoPlistFragment(intent);
+    expect(fragment).toBeUndefined();
+  });
+
+  it("generates plist XML with proper structure", () => {
+    const intent = makeIntent({
+      infoPlistKeys: {
+        NSLocationWhenInUseUsageDescription: "We need your location",
+        NSCameraUsageDescription: "We need camera access",
+      },
+    });
+    const fragment = generateInfoPlistFragment(intent);
+    expect(fragment).toBeDefined();
+    expect(fragment).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+    expect(fragment).toContain("<dict>");
+    expect(fragment).toContain("</dict>");
+    expect(fragment).toContain("NSLocationWhenInUseUsageDescription");
+    expect(fragment).toContain("We need your location");
+  });
+
+  it("escapes XML entities in keys and values", () => {
+    const intent = makeIntent({
+      infoPlistKeys: {
+        "Key & <value>": 'Value with "quotes" & <tags>',
+      },
+    });
+    const fragment = generateInfoPlistFragment(intent);
+    expect(fragment).toBeDefined();
+    expect(fragment).toContain("&amp;");
+    expect(fragment).toContain("&lt;");
+    expect(fragment).toContain("&gt;");
+    expect(fragment).toContain("&quot;");
+  });
+
+  it("includes intent name in comment header", () => {
+    const intent = makeIntent({
+      name: "SendMessage",
+      infoPlistKeys: { NSUserNotificationUsageDescription: "For notifications" },
+    });
+    const fragment = generateInfoPlistFragment(intent);
+    expect(fragment).toContain("SendMessageIntent");
+  });
+});
+
+describe("generateEntitlementsFragment", () => {
+  it("returns undefined when no entitlements present", () => {
+    const intent = makeIntent({ entitlements: undefined });
+    const fragment = generateEntitlementsFragment(intent);
+    expect(fragment).toBeUndefined();
+  });
+
+  it("returns undefined when entitlements array is empty", () => {
+    const intent = makeIntent({ entitlements: [] });
+    const fragment = generateEntitlementsFragment(intent);
+    expect(fragment).toBeUndefined();
+  });
+
+  it("generates entitlements XML with proper structure", () => {
+    const intent = makeIntent({
+      entitlements: [
+        "com.apple.security.app-sandbox",
+        "com.apple.security.files.user-selected.read-only",
+      ],
+    });
+    const fragment = generateEntitlementsFragment(intent);
+    expect(fragment).toBeDefined();
+    expect(fragment).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+    expect(fragment).toContain("<!DOCTYPE plist PUBLIC");
+    expect(fragment).toContain("<dict>");
+    expect(fragment).toContain("</dict>");
+    expect(fragment).toContain("com.apple.security.app-sandbox");
+    expect(fragment).toContain("<true/>");
+  });
+
+  it("escapes XML entities in entitlement identifiers", () => {
+    const intent = makeIntent({
+      entitlements: ["com.apple.security.key & value"],
+    });
+    const fragment = generateEntitlementsFragment(intent);
+    expect(fragment).toBeDefined();
+    expect(fragment).toContain("&amp;");
+  });
+
+  it("includes intent name and manual adjustment note", () => {
+    const intent = makeIntent({
+      name: "RecordAudio",
+      entitlements: ["com.apple.security.device.microphone"],
+    });
+    const fragment = generateEntitlementsFragment(intent);
+    expect(fragment).toContain("RecordAudioIntent");
+    expect(fragment).toContain("Note: entitlements requiring typed values");
+    expect(fragment).toContain("need manual adjustment");
+  });
+});
+
+describe("generateSwift — with entities", () => {
+  it("generates entities before the intent struct", () => {
+    const intent = makeIntent({
+      name: "SelectContact",
+      entities: [
+        {
+          name: "Contact",
+          displayRepresentation: { title: "name" },
+          properties: [
+            {
+              name: "name",
+              type: { kind: "primitive" as const, value: "string" as const },
+              title: "Name",
+              description: "Name",
+              isOptional: false,
+            },
+          ],
+          queryType: "string" as const,
+        },
+      ],
+    });
+    const swift = generateSwift(intent);
+    const contactIndex = swift.indexOf("struct Contact: AppEntity");
+    const intentIndex = swift.indexOf("struct SelectContactIntent: AppIntent");
+    expect(contactIndex).toBeGreaterThan(-1);
+    expect(intentIndex).toBeGreaterThan(-1);
+    expect(contactIndex).toBeLessThan(intentIndex);
+  });
+
+  it("generates both entity and entity query", () => {
+    const intent = makeIntent({
+      entities: [
+        {
+          name: "Item",
+          displayRepresentation: { title: "label" },
+          properties: [
+            {
+              name: "label",
+              type: { kind: "primitive" as const, value: "string" as const },
+              title: "Label",
+              description: "Label",
+              isOptional: false,
+            },
+          ],
+          queryType: "all" as const,
+        },
+      ],
+    });
+    const swift = generateSwift(intent);
+    expect(swift).toContain("struct Item: AppEntity");
+    expect(swift).toContain("struct ItemQuery: EntityQuery");
   });
 });
