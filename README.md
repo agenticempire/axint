@@ -282,7 +282,7 @@ axint/
 ├── extensions/
 │   └── vscode/      # VS Code / Cursor extension (MCP-backed)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # 244 vitest tests
+├── tests/           # 245 vitest tests
 ├── examples/        # Example definitions
 └── docs/            # Error reference, assets
 ```
