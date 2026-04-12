@@ -3,9 +3,9 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Define Apple App Intents in Python. Ship them to Siri, Shortcuts, and Spotlight through the same open-source compiler pipeline that powers the TypeScript SDK.
+Define Apple App Intents, SwiftUI views, WidgetKit widgets, and full apps in Python. Compile to native Swift through the same open-source compiler pipeline that powers the TypeScript SDK.
 
-The Python SDK includes a **native Swift generator** — no Node.js dependency required. Parse, validate, and compile intents entirely from Python.
+The Python SDK includes a **native Swift generator** — no Node.js dependency required. Parse, validate, and compile entirely from Python.
 
 ## Install
 

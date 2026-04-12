@@ -156,12 +156,13 @@ function formatLiteral(value: unknown, _type?: IRType): string {
     return "nil";
   }
   if (Array.isArray(value)) {
-    const elements = value.map(v => formatLiteral(v));
+    const elements = value.map((v) => formatLiteral(v));
     return `[${elements.join(", ")}]`;
   }
   if (typeof value === "object" && value !== null) {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .map(([k, v]) => `"${escapeSwiftString(k)}": ${formatLiteral(v)}`);
+    const entries = Object.entries(value as Record<string, unknown>).map(
+      ([k, v]) => `"${escapeSwiftString(k)}": ${formatLiteral(v)}`
+    );
     return `[${entries.join(", ")}]`;
   }
   return "nil";
@@ -180,7 +181,7 @@ function getDefaultValue(value: unknown, type?: IRType): string {
   if (swift === "Double" || swift === "Float") return `0.0`;
   if (swift === "Bool") return `false`;
   if (swift === "Date") return `Date()`;
-  if (swift === "URL") return `URL(string: "")!`;
+  if (swift === "URL") return `URL(string: "https://example.com")!`;
   return `nil`;
 }
 

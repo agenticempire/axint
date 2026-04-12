@@ -110,11 +110,13 @@ export function generateSwift(intent: IRIntent): string {
     lines.push(`        // Parameters available: ${paramList}`);
   }
 
-  // Add intent donation if enabled
+  // Donate this intent to the system prediction engine so Siri and
+  // Spotlight can surface it proactively. The donate API lives on the
+  // intent itself since iOS 16 — no separate manager type needed.
   if (intent.donateOnPerform) {
     lines.push(`        `);
-    lines.push(`        // Donate this intent to Siri and Spotlight`);
-    lines.push(`        try? await IntentDonationManager.shared.donate(intent: self)`);
+    lines.push(`        // Donate to Siri and Spotlight`);
+    lines.push(`        try? await self.donate()`);
   }
 
   lines.push(generatePerformReturn(intent.returnType, intent.customResultType));

@@ -117,7 +117,9 @@ function generateScene(scene: IRScene, depth: number): string[] {
     }
 
     case "documentGroup": {
-      lines.push(`${indent}DocumentGroup(newDocument: { TextDocument() }) { file in`);
+      // Use the scene's documentType when specified, otherwise derive from the root view name
+      const docType = scene.documentType || `${scene.rootView}Document`;
+      lines.push(`${indent}DocumentGroup(newDocument: { ${docType}() }) { file in`);
       lines.push(`${indent}    ${scene.rootView}(document: file.$document)`);
       lines.push(`${indent}}`);
       break;

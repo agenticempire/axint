@@ -204,6 +204,8 @@ export interface IRScene {
   isDefault?: boolean;
   /** Platform guard: only emit this scene under #if os(...) */
   platformGuard?: "macOS" | "iOS" | "visionOS";
+  /** Document model type for documentGroup scenes */
+  documentType?: string;
 }
 
 /** The main IR node for a compiled App */
