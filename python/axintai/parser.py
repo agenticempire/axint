@@ -15,24 +15,24 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from .ir import (
-    IntentIR,
-    IntentParameter,
-    ParamType,
-    ViewIR,
-    ViewPropIR,
-    ViewStateIR,
-    WidgetIR,
-    WidgetEntryIR,
     AppIR,
     AppSceneIR,
     AppStorageIR,
-    ViewStateKind,
-    WidgetFamily,
-    WidgetRefreshPolicy,
+    IntentIR,
+    IntentParameter,
+    ParamType,
     SceneKind,
+    ViewIR,
+    ViewPropIR,
+    ViewStateIR,
+    ViewStateKind,
+    WidgetEntryIR,
+    WidgetFamily,
+    WidgetIR,
+    WidgetRefreshPolicy,
 )
 
 # ── Diagnostics ──────────────────────────────────────────────────────
@@ -453,15 +453,11 @@ def _parse_view_element(
             elif kw.arg == "name" and isinstance(kw.value, ast.Constant):
                 out["name"] = kw.value.value
     elif elem_type == "button":
-        if node.args:
-            if isinstance(node.args[0], ast.Constant):
-                out["label"] = node.args[0].value
-        if len(node.args) >= 2:
-            if isinstance(node.args[1], ast.Constant):
-                out["action"] = node.args[1].value
-    elif elem_type == "spacer":
-        pass
-    elif elem_type == "divider":
+        if node.args and isinstance(node.args[0], ast.Constant):
+            out["label"] = node.args[0].value
+        if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
+            out["action"] = node.args[1].value
+    elif elem_type == "spacer" or elem_type == "divider":
         pass
     elif elem_type == "foreach":
         if len(node.args) >= 3:
@@ -486,13 +482,11 @@ def _parse_view_element(
                 out["destination"] = node.args[0].value
             children = _parse_view_body(node.args[1], diagnostics, file, node.lineno)
             out["children"] = children
-    elif elem_type == "list":
-        if node.args:
-            children = _parse_view_body(node.args[0], diagnostics, file, node.lineno)
-            out["children"] = children
-    elif elem_type == "raw":
-        if node.args and isinstance(node.args[0], ast.Constant):
-            out["swift"] = node.args[0].value
+    elif elem_type == "list" and node.args:
+        children = _parse_view_body(node.args[0], diagnostics, file, node.lineno)
+        out["children"] = children
+    elif elem_type == "raw" and node.args and isinstance(node.args[0], ast.Constant):
+        out["swift"] = node.args[0].value
 
     return out
 
@@ -679,9 +673,8 @@ def _parse_view_state_call(
     env_key: str | None = None
 
     # For array type, first arg is element type
-    if attr == "array":
-        if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
-            element_type = node.args[0].value
+    if attr == "array" and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+        element_type = node.args[0].value
 
     # Parse keyword args
     for kw in node.keywords:

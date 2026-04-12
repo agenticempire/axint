@@ -14,13 +14,12 @@ If you change one, change the other.
 from __future__ import annotations
 
 from .ir import (
+    AppIR,
     IntentIR,
     IntentParameter,
-    ViewIR,
-    ViewStateKind,
-    WidgetIR,
-    AppIR,
     ParamType,
+    ViewIR,
+    WidgetIR,
 )
 
 # ── Swift Type Mapping ──────────────────────────────────────────────
@@ -330,9 +329,9 @@ def _generate_view_state_property(state: object) -> str:
     if not hasattr(state, "name") or not hasattr(state, "kind") or not hasattr(state, "type"):
         return ""
 
-    name = getattr(state, "name")
-    kind = getattr(state, "kind")
-    param_type = getattr(state, "type")
+    name = state.name
+    kind = state.kind
+    param_type = state.type
     default_value = getattr(state, "default", None)
 
     swift_type = param_type_to_swift(param_type)
@@ -390,7 +389,7 @@ def _generate_body_node(node: dict[str, object], depth: int) -> list[str]:
     elif node_type in ("vstack", "hstack", "zstack"):
         container = "VStack" if node_type == "vstack" else "HStack" if node_type == "hstack" else "ZStack"
         args: list[str] = []
-        if "alignment" in node and node["alignment"]:
+        if node.get("alignment"):
             args.append(f"alignment: .{node['alignment']}")
         if "spacing" in node and node["spacing"] is not None:
             args.append(f"spacing: {node['spacing']}")
@@ -455,21 +454,16 @@ def _generate_body_node(node: dict[str, object], depth: int) -> list[str]:
 def _preview_default(param_type: ParamType | str) -> str:
     """Get preview default value for a parameter type."""
     ptype = str(param_type)
-    if ptype == "string":
-        return '"Preview"'
-    elif ptype == "int":
-        return "0"
-    elif ptype == "double":
-        return "0.0"
-    elif ptype == "float":
-        return "Float(0)"
-    elif ptype == "boolean":
-        return "false"
-    elif ptype == "date":
-        return "Date()"
-    elif ptype == "url":
-        return 'URL(string: "https://example.com")! // TODO: Replace with your URL'
-    return '""'
+    defaults = {
+        "string": '"Preview"',
+        "int": "0",
+        "double": "0.0",
+        "float": "Float(0)",
+        "boolean": "false",
+        "date": "Date()",
+        "url": 'URL(string: "https://example.com")! // TODO: Replace with your URL',
+    }
+    return defaults.get(ptype, '""')
 
 
 # ── WidgetKit Widget Generator ──────────────────────────────────────
@@ -686,7 +680,7 @@ def _generate_scene(scene: object, depth: int) -> list[str]:
     if not hasattr(scene, "kind"):
         return lines
 
-    kind = getattr(scene, "kind")
+    kind = scene.kind
     view = getattr(scene, "view", "")
     title = getattr(scene, "title", None)
     name = getattr(scene, "name", None)
