@@ -1,10 +1,10 @@
 {
   "manifest_version": "0.3",
   "name": "axint",
-  "display_name": "Axint — App Intents Compiler",
-  "version": "0.3.0",
-  "description": "Compile TypeScript into native Apple App Intents. Define once, ship to Siri, Shortcuts, and Spotlight.",
-  "long_description": "Axint is the open-source compiler that turns TypeScript defineIntent() calls into native Swift AppIntent structs. Scaffold intents from a description, compile to production-ready Swift, and validate against Apple's SDK — all from Claude Desktop.\n\nIncludes 12+ pre-built templates covering messaging, productivity, health, commerce, media, navigation, and smart home domains.",
+  "display_name": "Axint — Apple Compiler for AI",
+  "version": "0.3.2",
+  "description": "Compile TypeScript into native Swift for Apple platforms — App Intents, SwiftUI views, WidgetKit widgets, and full apps.",
+  "long_description": "Axint is the open-source compiler that turns TypeScript into native Swift for Apple platforms. Compile App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds — all from Claude Desktop. AI agents write 5–15× less code while shipping production-ready Apple-native output.\n\nIncludes 12+ pre-built templates covering messaging, productivity, health, commerce, media, navigation, and smart home domains.",
   "author": {
     "name": "Agentic Empire",
     "email": "hello@axint.ai",
@@ -21,7 +21,7 @@
     "entry_point": "server/index.js",
     "mcp_config": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler@latest", "axint-mcp"]
+      "args": ["-y", "@axintai/compiler@0.3.2", "axint-mcp"]
     }
   },
   "tools": [
@@ -54,8 +54,8 @@
   ],
   "privacy_policies": [
     {
-      "name": "Axint Privacy",
-      "url": "https://github.com/agenticempire/axint/blob/main/LICENSE"
+      "name": "Axint Privacy Policy",
+      "url": "https://axint.ai/privacy"
     }
   ]
 }

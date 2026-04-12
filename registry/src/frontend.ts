@@ -97,24 +97,24 @@ function renderBaseLayout(title: string, content: string, showNav = true): strin
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} | Axint Registry</title>
-  <meta name="description" content="Write an App Intent in TypeScript. Ship it to Siri. One defineIntent() call, one Swift App Intent out. The picks and shovels of Agent Siri.">
-  <meta name="keywords" content="axint, swift compiler, app intents, siri, agent siri, shortcuts, swiftui, widgetkit, typescript to swift, python to swift, apple developer tools, mcp, ai coding, ios 27">
-  <meta property="og:title" content="Axint — Write an App Intent in TypeScript, ship it to Siri">
-  <meta property="og:description" content="One TypeScript defineIntent(). One Swift App Intent for Siri. One MCP tool for Claude, Cursor, and Windsurf. The picks and shovels of Agent Siri.">
+  <meta name="description" content="Browse, publish, and install Axint packages — reusable Apple-native components compiled from TypeScript, Python, or JSON schema.">
+  <meta name="keywords" content="axint, registry, swift compiler, app intents, swiftui, widgetkit, typescript to swift, python to swift, apple developer tools, mcp, ai agents, packages">
+  <meta property="og:title" content="Axint Registry — Packages for Apple-native AI">
+  <meta property="og:description" content="Browse, publish, and install Axint packages. Reusable App Intents, SwiftUI views, WidgetKit widgets, and app scaffolds — compiled from TypeScript, Python, or JSON schema.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://axint.ai">
-  <meta property="og:site_name" content="Axint">
+  <meta property="og:url" content="https://registry.axint.ai">
+  <meta property="og:site_name" content="Axint Registry">
   <meta property="og:image" content="https://registry.axint.ai/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Axint — Write an App Intent in TypeScript, ship it to Siri">
+  <meta property="og:image:alt" content="Axint Registry — Packages for Apple-native AI">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:site" content="@agenticempire">
   <meta name="twitter:creator" content="@agenticempire">
-  <meta name="twitter:title" content="Axint — Write an App Intent in TypeScript, ship it to Siri">
-  <meta name="twitter:description" content="One TypeScript defineIntent(). One Swift App Intent for Siri. One MCP tool for Claude, Cursor, and Windsurf. The picks and shovels of Agent Siri.">
+  <meta name="twitter:title" content="Axint Registry — Packages for Apple-native AI">
+  <meta name="twitter:description" content="Browse, publish, and install Axint packages. Reusable App Intents, SwiftUI views, WidgetKit widgets, and app scaffolds.">
   <meta name="twitter:image" content="https://registry.axint.ai/og-image.png">
-  <link rel="canonical" href="https://axint.ai">
+  <link rel="canonical" href="https://registry.axint.ai">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
