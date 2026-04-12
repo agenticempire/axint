@@ -49,3 +49,7 @@ python/build/
 
 python/**/__pycache__/
 *.tgz
+
+# Hosted separately — not part of the compiler repo
+registry/
+site/
