@@ -15,7 +15,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from .ir import (
     AppIR,
@@ -583,7 +583,7 @@ def _parse_view_prop_call(
 
     return ViewPropIR(
         name=prop_name,
-        type=attr,  # type: ignore[assignment]
+        type=cast("ParamType", attr),
         optional=optional,
         default=default_val,
         description=description,
@@ -666,7 +666,7 @@ def _parse_view_state_call(
         )
         return None
 
-    state_type: ParamType | Literal["array"] = attr  # type: ignore[assignment]
+    state_type: ParamType | Literal["array"] = cast("ParamType", attr)
     element_type: str | None = None
     default_val: Any = None
     kind: ViewStateKind = "state"
@@ -681,7 +681,7 @@ def _parse_view_state_call(
         if kw.arg == "default" and isinstance(kw.value, ast.Constant):
             default_val = kw.value.value
         elif kw.arg == "kind" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
-            kind = kw.value.value  # type: ignore[assignment]
+            kind = cast("ViewStateKind", kw.value.value)
         elif kw.arg == "environment_key" and isinstance(kw.value, ast.Constant):
             env_key = kw.value.value
 
@@ -773,7 +773,7 @@ def _parse_widget_families(
     out: list[WidgetFamily] = []
     for elt in node.elts:
         if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-            out.append(elt.value)  # type: ignore[assignment]
+            out.append(cast("WidgetFamily", elt.value))
         else:
             diagnostics.append(
                 ParserDiagnostic(
@@ -876,7 +876,7 @@ def _parse_widget_entry_call(
 
     return WidgetEntryIR(
         name=entry_name,
-        type=attr,  # type: ignore[assignment]
+        type=cast("ParamType", attr),
         default=default_val,
         description=description,
     )
@@ -1098,7 +1098,7 @@ def _parse_app_storage_call(
     return AppStorageIR(
         name=storage_name,
         key=storage_key,
-        type=attr,  # type: ignore[assignment]
+        type=cast("ParamType", attr),
         default=default_val,
     )
 
