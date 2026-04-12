@@ -190,6 +190,18 @@ export interface IRWidget {
 /** Scene type in a SwiftUI App */
 export type SceneKind = "windowGroup" | "window" | "documentGroup" | "settings";
 
+const SCENE_KINDS: ReadonlySet<string> = new Set([
+  "windowGroup",
+  "window",
+  "documentGroup",
+  "settings",
+]);
+
+/** Type guard — narrows a string to SceneKind. */
+export function isSceneKind(s: string): s is SceneKind {
+  return SCENE_KINDS.has(s);
+}
+
 /** A single scene in an App definition */
 export interface IRScene {
   /** Optional name identifier for named windows */
@@ -288,6 +300,11 @@ export const PARAM_TYPES: ReadonlySet<IRPrimitiveType> = new Set<IRPrimitiveType
   "duration",
   "url",
 ]);
+
+/** Type guard — narrows a string to IRPrimitiveType without an `as` cast. */
+export function isPrimitiveType(s: string): s is IRPrimitiveType {
+  return (PARAM_TYPES as ReadonlySet<string>).has(s);
+}
 
 /**
  * Legacy alias: "number" → "int" for backwards compatibility with v0.1.x files.
