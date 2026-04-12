@@ -13,9 +13,26 @@ function hasSwiftToolchain(): boolean {
 
 const IS_MACOS = process.platform === "darwin";
 const SWIFT_AVAILABLE = hasSwiftToolchain();
+
+function hasAppIntentsSDK(): boolean {
+  // AppIntents requires Xcode 14+ with a macOS 13+ SDK installed.
+  // Command Line Tools alone aren't enough.
+  try {
+    const r = spawnSync("xcrun", ["--sdk", "macosx", "--show-sdk-version"], {
+      stdio: "pipe",
+    });
+    if (r.status !== 0) return false;
+    const ver = parseFloat(r.stdout.toString().trim());
+    return ver >= 13;
+  } catch {
+    return false;
+  }
+}
+
+const APP_INTENTS_AVAILABLE = IS_MACOS && SWIFT_AVAILABLE && hasAppIntentsSDK();
 // AppIntents framework only exists on macOS — Linux runners have Swift
-// but not the Apple frameworks, so we must check both.
-const describeOnMac = IS_MACOS && SWIFT_AVAILABLE ? describe : describe.skip;
+// but not the Apple frameworks, so we must check both plus SDK version.
+const describeOnMac = APP_INTENTS_AVAILABLE ? describe : describe.skip;
 
 describe("sandboxCompile", () => {
   const hello = `import Foundation

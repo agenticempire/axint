@@ -53,3 +53,7 @@ python/**/__pycache__/
 # Hosted separately — not part of the compiler repo
 registry/
 site/
+
+# Audit reports (generated, not source)
+*.audit.html
+*-audit*.html
