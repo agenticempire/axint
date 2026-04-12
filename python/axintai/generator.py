@@ -13,6 +13,8 @@ If you change one, change the other.
 
 from __future__ import annotations
 
+from typing import Any
+
 from .ir import (
     AppIR,
     IntentIR,
@@ -351,7 +353,7 @@ def _generate_view_state_property(state: object) -> str:
         return f"    @State private var {name}: {swift_type}"
 
 
-def _generate_body_node(node: dict[str, object], depth: int) -> list[str]:
+def _generate_body_node(node: dict[str, Any], depth: int) -> list[str]:
     """Recursively generate body node code."""
     indent = "    " * depth
     lines: list[str] = []

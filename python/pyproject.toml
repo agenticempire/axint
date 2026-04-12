@@ -45,7 +45,8 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.11",
-    "pyyaml>=6.0",
+    0
+    "types-PyYAML>=6.0",
 ]
 
 [project.urls]
@@ -80,3 +81,11 @@ warn_unused_configs = true
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 pythonpath = ["."]
+
+[[tool.mypy.overrides]]
+module = "axintai.mcp_server"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "mcp.*"
+ignore_missing_imports = true

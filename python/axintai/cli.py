@@ -613,6 +613,7 @@ def _cmd_mcp(args: argparse.Namespace) -> int:
     server = build_server()
     try:
         asyncio.run(server.main())
+        return 0
     except KeyboardInterrupt:
         return 0
     except Exception as e:
