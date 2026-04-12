@@ -73,13 +73,7 @@ The pattern is rigid by design—it forces new surfaces to think about parsing, 
 
 ## Registry
 
-The registry is a Cloudflare Workers + D1 + R2 setup (`registry/src/`). Users publish intent/view/widget/app definitions; others install them via the CLI (`axint add @user/intent-name`). The registry stores:
-
-- Package metadata and versions in D1 (name, author, version, tarball URL)
-- Tarballs in R2 (the TypeScript/Python source)
-- Search index for discovery
-
-Authentication uses GitHub OAuth device flow—no passwords, no credentials stored.
+The Axint package registry at [registry.axint.ai](https://registry.axint.ai) lets users publish and install intent/view/widget/app definitions. The CLI integrates with it via `axint publish`, `axint add`, and `axint search`. Authentication uses GitHub OAuth device flow.
 
 ## Directory Map
 
@@ -104,9 +98,6 @@ python/axintai/
 
 spm-plugin/
   Plugins/AxintCompilePlugin/
-
-registry/src/
-  index.ts (API), frontend.ts (web UI)
 
 benchmarks/, tests/
 ```
