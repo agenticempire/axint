@@ -683,7 +683,7 @@ def _parse_view_state_call(
         elif kw.arg == "kind" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
             kind = cast("ViewStateKind", kw.value.value)
         elif kw.arg == "environment_key" and isinstance(kw.value, ast.Constant):
-            env_key = kw.value.value
+            env_key = str(kw.value.value)
 
     return ViewStateIR(
         name=state_name,
@@ -980,7 +980,7 @@ def _parse_app_scene_call(
 
     view_name = ""
     if node.args and isinstance(node.args[0], ast.Constant):
-        view_name = node.args[0].value
+        view_name = str(node.args[0].value)
 
     title: str | None = None
     name: str | None = None
@@ -988,11 +988,11 @@ def _parse_app_scene_call(
 
     for kw in node.keywords:
         if kw.arg == "title" and isinstance(kw.value, ast.Constant):
-            title = kw.value.value
+            title = str(kw.value.value)
         elif kw.arg == "name" and isinstance(kw.value, ast.Constant):
-            name = kw.value.value
+            name = str(kw.value.value)
         elif kw.arg == "platform" and isinstance(kw.value, ast.Constant):
-            platform = kw.value.value
+            platform = str(kw.value.value)
 
     kind: SceneKind
     if scene_kind == "window_group":
@@ -1089,7 +1089,7 @@ def _parse_app_storage_call(
 
     storage_key = ""
     if node.args and isinstance(node.args[0], ast.Constant):
-        storage_key = node.args[0].value
+        storage_key = str(node.args[0].value)
 
     default_val: Any = None
     if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
