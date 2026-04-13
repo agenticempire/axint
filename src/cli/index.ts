@@ -14,6 +14,8 @@
  *   axint search [query]          Search the Axint Registry for intent templates
  *   axint watch <file|dir>         Watch intent files and recompile on change
  *   axint mcp                     Start the MCP server (stdio)
+ *   axint xcode setup             Configure Axint for Xcode agentic coding
+ *   axint xcode verify            Verify the MCP connection is working
  *   axint --version               Show version
  */
 
@@ -131,6 +133,30 @@ program
   .action(async () => {
     const { startMCPServer } = await import("../mcp/server.js");
     await startMCPServer();
+  });
+
+// ─── xcode ──────────────────────────────────────────────────────────
+
+const xcode = program
+  .command("xcode")
+  .description("Xcode integration setup and management");
+
+xcode
+  .command("setup")
+  .description("Configure Axint as an MCP server for Xcode's agentic coding workflow")
+  .option("--agent <agent>", "Which agent to configure (claude, codex, all)", "all")
+  .option("--remote", "Use the hosted remote MCP endpoint instead of local stdio")
+  .action(async (options: { agent: string; remote: boolean }) => {
+    const { setupXcode } = await import("./xcode-setup.js");
+    await setupXcode(options);
+  });
+
+xcode
+  .command("verify")
+  .description("Verify Axint MCP connection is working in Xcode")
+  .action(async () => {
+    const { verifyXcode } = await import("./xcode-setup.js");
+    await verifyXcode();
   });
 
 // Helper used by scaffold to avoid a circular import
