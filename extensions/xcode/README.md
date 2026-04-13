@@ -29,7 +29,7 @@ If your Xcode version supports MCP tool servers, add this to your MCP config:
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler@0.3.2", "axint-mcp"]
+      "args": ["-y", "@axintai/compiler@0.3.4", "axint-mcp"]
     }
   }
 }

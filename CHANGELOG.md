@@ -6,6 +6,48 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.3.4] — 2026-04-13
+
+MCP registry hardening and remote transport support.
+
+### Added
+
+- **Remote MCP endpoint** — Cloudflare Worker serving the Axint MCP server over HTTP transport for Smithery and other hosted MCP clients.
+- **`server.json` and registry markers** — machine-readable MCP server metadata for automated registry verification (Glama, Smithery, Pulsemcp).
+- **Dockerfile** for MCP server inspection and containerized deployments.
+- **Glama quality badge** in README.
+- **Dot-notation MCP tools** (`axint.compile`, `axint.validate`, etc.) alongside the existing `axint_compile` names, with enriched parameter descriptions and tool annotations.
+
+### Fixed
+
+- **`server.json` description** trimmed to fit registry character limits.
+- **MCP tool descriptions** rewritten for better indexing on Glama and Smithery quality scores.
+
+## [0.3.3] — 2026-04-12
+
+Massive internal hardening pass: test coverage jump (249 → 402), Python SDK parity, and Smithery listing.
+
+### Added
+
+- **Python MCP server** — full CLI parity with the TypeScript MCP server. `axintai-mcp` serves all six tools over stdio.
+- **MCP HTTP transport** for Smithery registry listing.
+- **153 new tests** (249 → 402) covering validator edge cases, diagnostics, generator corner cases, and type guard paths.
+- **Type guard replacements** — all unsafe `as` casts in the parser and generator replaced with narrowing type guards.
+- **Shared parser utilities** extracted from surface-specific parsers into `src/core/parser-utils.ts`.
+- **Architecture docs** (`ARCHITECTURE.md`) — full compiler pipeline walkthrough.
+- **Xcode SPM build plugin support** documentation and integration.
+- **defineView(), defineWidget(), defineApp()** — three new compilation surfaces with parsers, validators, generators, and schema mode support.
+- **MCP server test suite** — 30 tests covering all 6 tools.
+
+### Fixed
+
+- **Entity resolution and serialization bugs** in the parser utils layer.
+- **Type safety holes** in the MCP server and parser — closed a namespace bypass.
+- **Codegen bugs** for entity queries and dynamic options.
+- **CLI test assertions** aligned to new output format.
+- **Python SDK** — fixed mypy errors across the package, fixed broken TOML (`bare 0` replaced with `pyyaml` dep).
+- **Registry references** removed from the public repo and added to `.gitignore`.
+
 ## [0.3.2] — 2026-04-10
 
 Security hardening, compiler fixes, and the first PyPI publish.
@@ -156,7 +198,10 @@ The "it's a real compiler now" release. Everything the v0.1.x vision pointed at,
 - tsup for builds with separate CLI/MCP/library entry points
 - Vitest with snapshot testing and V8 coverage
 
-[Unreleased]: https://github.com/agenticempire/axint/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/agenticempire/axint/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/agenticempire/axint/compare/v0.3.3...v0.3.4
+[0.3.3]: https://github.com/agenticempire/axint/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/agenticempire/axint/compare/v0.3.0...v0.3.2
 [0.3.0]: https://github.com/agenticempire/axint/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/agenticempire/axint/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/agenticempire/axint/compare/v0.2.0...v0.2.1

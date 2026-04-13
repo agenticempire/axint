@@ -10,7 +10,7 @@ require("avante").setup({
     servers = {
       axint = {
         command = "npx",
-        args = { "-y", "@axintai/compiler@0.3.2", "axint-mcp" },
+        args = { "-y", "@axintai/compiler@0.3.4", "axint-mcp" },
       },
     },
   },
@@ -26,7 +26,7 @@ require("codecompanion").setup({
       servers = {
         axint = {
           command = "npx",
-          args = { "-y", "@axintai/compiler@0.3.2", "axint-mcp" },
+          args = { "-y", "@axintai/compiler@0.3.4", "axint-mcp" },
         },
       },
     },
@@ -39,5 +39,5 @@ require("codecompanion").setup({
 Any Neovim plugin that spawns an MCP server over stdio can connect using:
 
 ```
-npx -y @axintai/compiler@0.3.2 axint-mcp
+npx -y @axintai/compiler@0.3.4 axint-mcp
 ```

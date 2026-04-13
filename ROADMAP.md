@@ -1,6 +1,6 @@
 # Axint Roadmap
 
-_Last updated: April 2026 · Current release: [v0.3.2](https://github.com/agenticempire/axint/releases) · 58 days to WWDC 2026_
+_Last updated: April 2026 · Current release: [v0.3.4](https://github.com/agenticempire/axint/releases) · 56 days to WWDC 2026_
 
 Axint is the open-source compiler that turns TypeScript definitions into native Apple platform code — App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds. This roadmap tracks what's shipped, what's next, and where we need help.
 
@@ -9,6 +9,20 @@ We ship small, tight releases. Everything on this page is open for contribution 
 ---
 
 ## Shipped
+
+### v0.3.4
+
+- **Remote MCP endpoint** — Cloudflare Worker serving the compiler over HTTP for Smithery and hosted MCP clients.
+- **MCP registry metadata** — `server.json`, Dockerfile, tool annotations, and dot-notation tool names for Glama/Smithery/Pulsemcp quality scores.
+
+### v0.3.3
+
+- **Python MCP server** (`axintai-mcp`) — full parity with the TS MCP server, all six tools over stdio.
+- **Smithery listing** — MCP HTTP transport for the Smithery registry.
+- **402 tests** — jumped from 249 to 402 with validator, diagnostics, and generator edge case coverage.
+- **Type safety overhaul** — replaced all unsafe `as` casts with narrowing type guards across the parser and generator.
+- **defineView() + defineWidget() + defineApp()** — three new compilation surfaces shipped end-to-end.
+- **Architecture docs** (`ARCHITECTURE.md`) and shared parser utilities extraction.
 
 ### v0.3.0
 
@@ -101,6 +115,12 @@ _Status: shipped · v0.3.2_
 Python parity for all four surfaces with a dataclass-based IR, decorator API, and cross-language compilation via `compileFromIR()`. Python and TypeScript produce byte-identical Swift output.
 
 _Status: shipped · v0.3.2_
+
+### MCP registry presence
+
+Remote MCP endpoint on Cloudflare Workers, `server.json` metadata, Dockerfile for inspection, tool annotations, and dot-notation tool names. Listed on Smithery, Glama, and Pulsemcp.
+
+_Status: shipped · v0.3.4_
 
 ### Audience positioning refresh
 

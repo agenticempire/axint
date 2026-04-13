@@ -12,7 +12,7 @@ Use Axint inside WebStorm, IntelliJ IDEA, or any JetBrains IDE with AI Assistant
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler@0.3.2", "axint-mcp"]
+      "args": ["-y", "@axintai/compiler@0.3.4", "axint-mcp"]
     }
   }
 }
