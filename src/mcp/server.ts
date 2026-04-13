@@ -475,34 +475,47 @@ export function createAxintServer(): Server {
       {
         name: "axint_scaffold",
         description:
-          "Generate a starter TypeScript intent file using the axint SDK. " +
-          "Returns a complete source string ready to save as a .ts file — " +
-          "no files are written to disk. The output compiles directly with " +
-          "axint_compile. Use this when starting a new intent from scratch; " +
-          "use axint_template for a pre-built example, or " +
-          "axint_compile_from_schema to skip TypeScript entirely.",
+          "Generate a starter TypeScript intent file from a name and description. " +
+          "Returns a complete defineIntent() source string ready to save as a .ts " +
+          "file — no files are written, no network requests made. On invalid " +
+          "domain values, returns an error string. The output compiles directly " +
+          "with axint_compile. Use this when creating a new intent from scratch; " +
+          "use axint_template for a working reference example, or " +
+          "axint_compile_from_schema to generate Swift without writing TypeScript.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: "object" as const,
           properties: {
             name: {
               type: "string",
-              description: "PascalCase name for the intent, e.g., 'CreateEvent'",
+              description:
+                "PascalCase intent name, e.g., 'SendMessage' or 'CreateEvent'. " +
+                "Must start with an uppercase letter and contain no spaces.",
             },
             description: {
               type: "string",
-              description: "Human-readable description of what the intent does",
+              description:
+                "Human-readable description of what the intent does, shown to " +
+                "users in Shortcuts and Spotlight, e.g., 'Send a message to a contact'",
             },
             domain: {
               type: "string",
               description:
-                "Optional Apple App Intent domain (messaging, productivity, " +
-                "health, finance, commerce, media, navigation, smart-home)",
+                "Apple App Intent domain. One of: messaging, productivity, health, " +
+                "finance, commerce, media, navigation, smart-home. Omit if none apply.",
             },
             params: {
               type: "array",
               description:
-                "Optional initial parameters. Each item: { name, type, description }. " +
-                "Supported types: string, int, double, float, boolean, date, duration, url.",
+                "Initial parameters for the intent. Each item needs name (camelCase), " +
+                "type (string | int | double | float | boolean | date | duration | url), " +
+                "and description. Example: { name: 'recipient', type: 'string', " +
+                "description: 'Contact to message' }.",
               items: {
                 type: "object",
                 properties: {
@@ -520,35 +533,48 @@ export function createAxintServer(): Server {
       {
         name: "axint_compile",
         description:
-          "Compile a TypeScript intent definition into native Swift App " +
-          "Intent code. Returns the Swift source as a string — no files " +
-          "are written. Optionally emits Info.plist and entitlements XML " +
-          "fragments alongside the Swift output. On validation failure, " +
-          "returns diagnostics instead of Swift. Use axint_validate first " +
-          "for cheaper pre-flight checks, or axint_compile_from_schema " +
-          "to compile from JSON without writing TypeScript.",
+          "Compile TypeScript source (defineIntent() call) into native Swift " +
+          "App Intent code. Returns { swift, infoPlist?, entitlements? } as a " +
+          "string — no files written, no network requests. On validation " +
+          "failure, returns diagnostics (severity, AX error code, position, " +
+          "fix suggestion) instead of Swift. Use axint_validate for cheaper " +
+          "pre-flight checks without compilation output; use " +
+          "axint_compile_from_schema to compile from JSON without writing " +
+          "TypeScript; use axint_scaffold to generate the TypeScript input.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: "object" as const,
           properties: {
             source: {
               type: "string",
-              description: "TypeScript source code containing a defineIntent() call",
+              description:
+                "Full TypeScript source code containing a defineIntent() call. " +
+                "Must be a complete file starting with an axint import, not a fragment.",
             },
             fileName: {
               type: "string",
-              description: "Optional file name for error messages",
+              description:
+                "Optional file name used in diagnostic messages, e.g., 'SendMessage.intent.ts'. " +
+                "Defaults to 'input.ts' if omitted.",
             },
             emitInfoPlist: {
               type: "boolean",
               description:
-                "When true, also returns an Info.plist XML fragment for the " +
-                "intent's declared infoPlistKeys",
+                "When true, returns an Info.plist XML fragment declaring the intent's " +
+                "infoPlistKeys. Only relevant for intents that use restricted APIs. " +
+                "Defaults to false.",
             },
             emitEntitlements: {
               type: "boolean",
               description:
-                "When true, also returns an .entitlements XML fragment for " +
-                "the intent's declared entitlements",
+                "When true, returns an .entitlements XML fragment for the intent's " +
+                "declared entitlements. Only relevant for intents requiring special " +
+                "capabilities. Defaults to false.",
             },
           },
           required: ["source"],
@@ -557,14 +583,20 @@ export function createAxintServer(): Server {
       {
         name: "axint_validate",
         description:
-          "Validate a TypeScript intent definition without generating Swift. " +
-          "Read-only — no files are written or modified. Returns an array of " +
-          "diagnostics, each containing severity (error | warning), an error " +
-          "code (AXnnn), line and column position, and a suggested fix. " +
-          "Returns an empty array when validation passes. Use this to " +
-          "check intent source before compiling, or to surface errors in " +
-          "an editor without the cost of full compilation. Prefer " +
-          "axint_compile when you need the Swift output directly.",
+          "Validate a TypeScript intent definition without generating Swift " +
+          "output. Returns an array of diagnostics, each with severity " +
+          "(error | warning), error code (AXnnn), line/column position, and " +
+          "a suggested fix. Returns an empty array when validation passes. " +
+          "No files written, no network requests, no side effects. Use this " +
+          "for cheap pre-flight checks before calling axint_compile, or to " +
+          "surface errors in an editor. Prefer axint_compile directly when " +
+          "you need the Swift output and can handle inline diagnostics.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -572,7 +604,8 @@ export function createAxintServer(): Server {
               type: "string",
               description:
                 "Full TypeScript source code containing a defineIntent() call. " +
-                "Must be a complete file, not a fragment.",
+                "Must be a complete file starting with an axint import, not a " +
+                "code fragment. Same format accepted by axint_compile.",
             },
           },
           required: ["source"],
@@ -582,85 +615,111 @@ export function createAxintServer(): Server {
         name: "axint_compile_from_schema",
         description:
           "Compile a minimal JSON schema directly to Swift, bypassing the " +
-          "TypeScript DSL. Supports intents, views, widgets, and full apps. " +
-          "Uses ~20 input tokens vs hundreds for full TypeScript — ideal for " +
-          "LLM agents optimizing token budgets. Returns Swift source and " +
-          "token usage stats as a string; no files are written. On invalid " +
-          "input, returns an error message. Use this for quick generation " +
-          "when TypeScript authoring is unnecessary; use axint_compile " +
-          "when you need the full DSL for complex intents.",
+          "TypeScript DSL entirely. Supports intents, views, widgets, and " +
+          "full apps via the 'type' parameter. Uses ~20 input tokens vs " +
+          "hundreds for TypeScript — ideal for LLM agents optimizing token " +
+          "budgets. Returns Swift source with token usage stats; no files " +
+          "written, no network requests. On invalid input, returns an error " +
+          "message describing the issue. Use this for quick Swift generation " +
+          "without writing TypeScript; use axint_compile when you need the " +
+          "full DSL for complex intents with custom perform() logic.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: "object" as const,
           properties: {
             type: {
               type: "string",
               enum: ["intent", "view", "widget", "app"],
-              description: "What to compile: intent, view, widget, or app",
+              description:
+                "What to compile. Determines which other parameters are relevant: " +
+                "intent uses params/domain/title; view uses props/state/body; " +
+                "widget uses entry/families/body/displayName; app uses scenes.",
             },
             name: {
               type: "string",
-              description: "PascalCase name (e.g., 'CreateEvent', 'EventListView')",
+              description:
+                "PascalCase name, e.g., 'CreateEvent' for intents, 'EventListView' " +
+                "for views, 'StepsWidget' for widgets. Used as the Swift struct name.",
             },
             title: {
               type: "string",
-              description: "Human-readable title (for intents)",
+              description:
+                "Human-readable title shown in Shortcuts/Spotlight. Intent only. " +
+                "E.g., 'Create Event'. Defaults to a space-separated version of name.",
             },
             description: {
               type: "string",
-              description: "Description of what this does",
+              description:
+                "Description of what this intent/view/widget does. Shown to users " +
+                "in system UI for intents. Optional but recommended.",
             },
             domain: {
               type: "string",
               description:
-                "Intent domain (messaging, productivity, health, finance, commerce, " +
-                "media, navigation, smart-home) — intents only",
+                "Apple App Intent domain. Intent only. One of: messaging, " +
+                "productivity, health, finance, commerce, media, navigation, " +
+                "smart-home. Omit if no standard domain applies.",
             },
             params: {
               type: "object",
               description:
-                "For intents: parameter definitions as { fieldName: 'type' }. " +
-                "Types: string, int, double, float, boolean, date, duration, url",
+                "Intent only. Parameter definitions as { fieldName: typeString }. " +
+                "E.g., { recipient: 'string', amount: 'double' }. Supported types: " +
+                "string, int, double, float, boolean, date, duration, url.",
               additionalProperties: { type: "string" },
             },
             props: {
               type: "object",
               description:
-                "For views: prop definitions as { fieldName: 'type' }. " + "Views only.",
+                "View only. Prop definitions as { fieldName: typeString }. " +
+                "E.g., { title: 'string', count: 'int' }. Same type set as params.",
               additionalProperties: { type: "string" },
             },
             state: {
               type: "object",
               description:
-                "For views: state definitions as { fieldName: { type: 'string', default?: value } }. " +
-                "Views only.",
+                "View only. State variable definitions as " +
+                "{ fieldName: { type: 'string', default?: value } }. " +
+                "Generates @State properties in the SwiftUI view.",
             },
             body: {
               type: "string",
               description:
-                "For views/widgets: raw Swift code to use as the body. " +
-                "E.g., 'VStack { Text(\"Hello\") }' — will be wrapped automatically.",
+                "View/widget only. Raw SwiftUI code for the body, e.g., " +
+                "'VStack { Text(\"Hello\") }'. Wrapped in the struct automatically. " +
+                "Can reference props, state, and entry fields by name.",
             },
             displayName: {
               type: "string",
-              description: "Display name (widgets only)",
+              description:
+                "Widget only. Human-readable name shown in the widget gallery. " +
+                "E.g., 'Daily Steps'. Defaults to a spaced version of name.",
             },
             families: {
               type: "array",
               items: { type: "string" },
               description:
-                "Widget families: systemSmall, systemMedium, systemLarge, systemExtraLarge, " +
-                "accessoryCircular, accessoryRectangular, accessoryInline — widgets only",
+                "Widget only. Supported widget sizes: systemSmall, systemMedium, " +
+                "systemLarge, systemExtraLarge, accessoryCircular, " +
+                "accessoryRectangular, accessoryInline. Defaults to [systemSmall].",
             },
             entry: {
               type: "object",
               description:
-                "For widgets: timeline entry fields as { fieldName: 'type' }. " +
-                "Widgets only.",
+                "Widget only. Timeline entry fields as { fieldName: typeString }. " +
+                "E.g., { steps: 'int', date: 'date' }. Available in the body template.",
               additionalProperties: { type: "string" },
             },
             refreshInterval: {
               type: "number",
-              description: "Widget refresh interval in minutes — widgets only",
+              description:
+                "Widget only. Timeline refresh interval in minutes. " +
+                "E.g., 30 for half-hourly updates. Defaults to 60.",
             },
             scenes: {
               type: "array",
@@ -670,20 +729,34 @@ export function createAxintServer(): Server {
                   kind: {
                     type: "string",
                     enum: ["windowGroup", "window", "documentGroup", "settings"],
-                    description: "Scene type",
+                    description:
+                      "Scene type. windowGroup is most common for single-window apps.",
                   },
-                  view: { type: "string", description: "Root SwiftUI view name" },
-                  title: { type: "string", description: "Window title" },
-                  name: { type: "string", description: "Scene identifier" },
+                  view: {
+                    type: "string",
+                    description:
+                      "Root SwiftUI view name, e.g., 'ContentView'. Must be defined elsewhere.",
+                  },
+                  title: {
+                    type: "string",
+                    description: "Window title shown in the title bar",
+                  },
+                  name: {
+                    type: "string",
+                    description: "Unique scene identifier for programmatic access",
+                  },
                   platform: {
                     type: "string",
                     enum: ["macOS", "iOS", "visionOS"],
-                    description: "Platform guard (#if os(...))",
+                    description:
+                      "Platform guard — wraps scene in #if os(...). Omit for cross-platform.",
                   },
                 },
                 required: ["kind", "view"],
               },
-              description: "For apps: scene definitions — apps only",
+              description:
+                "App only. Scene definitions for the @main App struct. " +
+                "At least one scene with kind 'windowGroup' is typically required.",
             },
           },
           required: ["type", "name"],
@@ -692,11 +765,19 @@ export function createAxintServer(): Server {
       {
         name: "axint_list_templates",
         description:
-          "List all bundled reference templates. Returns an array of " +
-          "objects with id, name, and description for each template. " +
-          "Read-only, no parameters required. Use this to discover " +
-          "available templates, then call axint_template with a " +
-          "specific id to get the full source code.",
+          "List all bundled reference templates available in the axint SDK. " +
+          "Returns an array of { id, name, description } objects — one per " +
+          "template. No parameters, no files written, no network requests, " +
+          "no side effects. Use this to discover template ids, then call " +
+          "axint_template with a specific id to retrieve the full source. " +
+          "Unlike axint_scaffold which generates from parameters, templates " +
+          "are complete working examples with perform() logic included.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: "object" as const,
           properties: {},
@@ -706,15 +787,26 @@ export function createAxintServer(): Server {
         name: "axint_template",
         description:
           "Return the full TypeScript source code of a bundled reference " +
-          "template. Read-only — returns a source string, no files written. " +
-          "Returns an error if the id is not found. Use axint_list_templates " +
-          "first to discover valid ids.",
+          "template by id. Returns a complete defineIntent() file that " +
+          "compiles with axint_compile — no files written, no network " +
+          "requests. Returns an error message if the id is not found. " +
+          "Call axint_list_templates first to discover valid ids. Unlike " +
+          "axint_scaffold which generates a skeleton, templates include " +
+          "complete perform() logic and are ready to use as-is.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: "object" as const,
           properties: {
             id: {
               type: "string",
-              description: "Template id (e.g., 'send-message', 'create-event')",
+              description:
+                "Template id from axint_list_templates, e.g., 'send-message' " +
+                "or 'create-event'. Case-sensitive, kebab-case format.",
             },
           },
           required: ["id"],
