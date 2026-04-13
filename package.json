@@ -1,6 +1,6 @@
 {
   "name": "@axintai/compiler",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "publishConfig": {
     "access": "public"
   },
@@ -34,7 +34,8 @@
   },
   "bin": {
     "axint": "dist/cli/index.js",
-    "axint-mcp": "dist/mcp/index.js"
+    "axint-mcp": "dist/mcp/index.js",
+    "axint-mcp-http": "dist/mcp/http.js"
   },
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",

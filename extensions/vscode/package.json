@@ -1,7 +1,7 @@
 {
   "name": "axint",
   "displayName": "Axint — App Intents Compiler",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "publisher": "agenticempire",
   "description": "Compile TypeScript into native Apple App Intents. Scaffold, compile, validate, and browse templates — all from your editor.",
   "license": "Apache-2.0",
