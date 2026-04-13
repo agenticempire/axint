@@ -1,4 +1,6 @@
-# v0.3.0 Launch Checklist
+# v0.3.0 Launch Checklist (Archived)
+
+> **Note:** This checklist was drafted for the v0.3.0 launch cycle. Current release is v0.3.4. Keeping for reference — see [ROADMAP.md](../ROADMAP.md) for active planning.
 
 ## Pre-Launch (Week 5)
 

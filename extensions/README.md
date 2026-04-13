@@ -26,7 +26,7 @@ Any tool that speaks MCP over stdio can connect to Axint:
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler@0.3.2", "axint-mcp"]
+      "args": ["-y", "@axintai/compiler@0.3.4", "axint-mcp"]
     }
   }
 }
