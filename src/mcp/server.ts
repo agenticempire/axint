@@ -6,13 +6,12 @@
  * automatically.
  *
  * Tools:
- *   - axint_scaffold:  Generate a starter TypeScript intent file
- *   - axint_compile:   Compile TypeScript intent → Swift App Intent
- *                      (optionally with Info.plist and entitlements)
- *   - axint_validate:  Validate an intent definition without codegen
- *   - axint_compile_from_schema: Compile minimal JSON schema → Swift (token saver)
- *   - axint_list_templates: List bundled reference templates
- *   - axint_template:  Return the source of a specific template
+ *   - axint.scaffold:         Generate a starter TypeScript intent file
+ *   - axint.compile:          Compile TypeScript intent → Swift App Intent
+ *   - axint.validate:         Validate an intent definition without codegen
+ *   - axint.schema.compile:   Compile minimal JSON schema → Swift (token saver)
+ *   - axint.templates.list:   List bundled reference templates
+ *   - axint.templates.get:    Return the source of a specific template
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -20,6 +19,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -466,22 +467,22 @@ function formatSchemaOutput(
 export function createAxintServer(): Server {
   const server = new Server(
     { name: "axint", version: pkg.version },
-    { capabilities: { tools: {} } }
+    { capabilities: { tools: {}, prompts: {} } }
   );
 
   // List available tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
-        name: "axint_scaffold",
+        name: "axint.scaffold",
         description:
           "Generate a starter TypeScript intent file from a name and description. " +
           "Returns a complete defineIntent() source string ready to save as a .ts " +
           "file — no files are written, no network requests made. On invalid " +
           "domain values, returns an error string. The output compiles directly " +
-          "with axint_compile. Use this when creating a new intent from scratch; " +
-          "use axint_template for a working reference example, or " +
-          "axint_compile_from_schema to generate Swift without writing TypeScript.",
+          "with axint.compile. Use this when creating a new intent from scratch; " +
+          "use axint.templates.get for a working reference example, or " +
+          "axint.schema.compile to generate Swift without writing TypeScript.",
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
@@ -531,16 +532,16 @@ export function createAxintServer(): Server {
         },
       },
       {
-        name: "axint_compile",
+        name: "axint.compile",
         description:
           "Compile TypeScript source (defineIntent() call) into native Swift " +
           "App Intent code. Returns { swift, infoPlist?, entitlements? } as a " +
           "string — no files written, no network requests. On validation " +
           "failure, returns diagnostics (severity, AX error code, position, " +
-          "fix suggestion) instead of Swift. Use axint_validate for cheaper " +
+          "fix suggestion) instead of Swift. Use axint.validate for cheaper " +
           "pre-flight checks without compilation output; use " +
-          "axint_compile_from_schema to compile from JSON without writing " +
-          "TypeScript; use axint_scaffold to generate the TypeScript input.",
+          "axint.schema.compile to compile from JSON without writing " +
+          "TypeScript; use axint.scaffold to generate the TypeScript input.",
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
@@ -581,15 +582,15 @@ export function createAxintServer(): Server {
         },
       },
       {
-        name: "axint_validate",
+        name: "axint.validate",
         description:
           "Validate a TypeScript intent definition without generating Swift " +
           "output. Returns an array of diagnostics, each with severity " +
           "(error | warning), error code (AXnnn), line/column position, and " +
           "a suggested fix. Returns an empty array when validation passes. " +
           "No files written, no network requests, no side effects. Use this " +
-          "for cheap pre-flight checks before calling axint_compile, or to " +
-          "surface errors in an editor. Prefer axint_compile directly when " +
+          "for cheap pre-flight checks before calling axint.compile, or to " +
+          "surface errors in an editor. Prefer axint.compile directly when " +
           "you need the Swift output and can handle inline diagnostics.",
         annotations: {
           readOnlyHint: true,
@@ -605,14 +606,14 @@ export function createAxintServer(): Server {
               description:
                 "Full TypeScript source code containing a defineIntent() call. " +
                 "Must be a complete file starting with an axint import, not a " +
-                "code fragment. Same format accepted by axint_compile.",
+                "code fragment. Same format accepted by axint.compile.",
             },
           },
           required: ["source"],
         },
       },
       {
-        name: "axint_compile_from_schema",
+        name: "axint.schema.compile",
         description:
           "Compile a minimal JSON schema directly to Swift, bypassing the " +
           "TypeScript DSL entirely. Supports intents, views, widgets, and " +
@@ -621,7 +622,7 @@ export function createAxintServer(): Server {
           "budgets. Returns Swift source with token usage stats; no files " +
           "written, no network requests. On invalid input, returns an error " +
           "message describing the issue. Use this for quick Swift generation " +
-          "without writing TypeScript; use axint_compile when you need the " +
+          "without writing TypeScript; use axint.compile when you need the " +
           "full DSL for complex intents with custom perform() logic.",
         annotations: {
           readOnlyHint: true,
@@ -763,14 +764,14 @@ export function createAxintServer(): Server {
         },
       },
       {
-        name: "axint_list_templates",
+        name: "axint.templates.list",
         description:
           "List all bundled reference templates available in the axint SDK. " +
           "Returns an array of { id, name, description } objects — one per " +
           "template. No parameters, no files written, no network requests, " +
           "no side effects. Use this to discover template ids, then call " +
-          "axint_template with a specific id to retrieve the full source. " +
-          "Unlike axint_scaffold which generates from parameters, templates " +
+          "axint.templates.get with a specific id to retrieve the full source. " +
+          "Unlike axint.scaffold which generates from parameters, templates " +
           "are complete working examples with perform() logic included.",
         annotations: {
           readOnlyHint: true,
@@ -784,14 +785,14 @@ export function createAxintServer(): Server {
         },
       },
       {
-        name: "axint_template",
+        name: "axint.templates.get",
         description:
           "Return the full TypeScript source code of a bundled reference " +
           "template by id. Returns a complete defineIntent() file that " +
-          "compiles with axint_compile — no files written, no network " +
+          "compiles with axint.compile — no files written, no network " +
           "requests. Returns an error message if the id is not found. " +
-          "Call axint_list_templates first to discover valid ids. Unlike " +
-          "axint_scaffold which generates a skeleton, templates include " +
+          "Call axint.templates.list first to discover valid ids. Unlike " +
+          "axint.scaffold which generates a skeleton, templates include " +
           "complete perform() logic and are ready to use as-is.",
         annotations: {
           readOnlyHint: true,
@@ -805,7 +806,7 @@ export function createAxintServer(): Server {
             id: {
               type: "string",
               description:
-                "Template id from axint_list_templates, e.g., 'send-message' " +
+                "Template id from axint.templates.list, e.g., 'send-message' " +
                 "or 'create-event'. Case-sensitive, kebab-case format.",
             },
           },
@@ -820,7 +821,7 @@ export function createAxintServer(): Server {
     const { name, arguments: args } = request.params;
 
     try {
-      if (name === "axint_scaffold") {
+      if (name === "axint.scaffold") {
         const a = args as unknown as ScaffoldArgs;
         const source = scaffoldIntent({
           name: a.name,
@@ -831,7 +832,7 @@ export function createAxintServer(): Server {
         return { content: [{ type: "text" as const, text: source }] };
       }
 
-      if (name === "axint_compile") {
+      if (name === "axint.compile") {
         const a = args as unknown as CompileArgs;
         const result = compileSource(a.source, a.fileName || "<mcp>", {
           emitInfoPlist: a.emitInfoPlist,
@@ -865,7 +866,7 @@ export function createAxintServer(): Server {
         };
       }
 
-      if (name === "axint_validate") {
+      if (name === "axint.validate") {
         const a = args as unknown as { source: string };
         const result = compileSource(a.source, "<validate>");
         const text =
@@ -877,11 +878,11 @@ export function createAxintServer(): Server {
         return { content: [{ type: "text" as const, text }] };
       }
 
-      if (name === "axint_compile_from_schema") {
+      if (name === "axint.schema.compile") {
         return handleCompileFromSchema(args as unknown as SchemaCompileArgs);
       }
 
-      if (name === "axint_list_templates") {
+      if (name === "axint.templates.list") {
         const list = TEMPLATES.map(
           (t) => `${t.id}  —  ${t.title}${t.domain ? ` [${t.domain}]` : ""}`
         ).join("\n");
@@ -895,7 +896,7 @@ export function createAxintServer(): Server {
         };
       }
 
-      if (name === "axint_template") {
+      if (name === "axint.templates.get") {
         const a = args as unknown as TemplateArgs;
         const tpl = getTemplate(a.id);
         if (!tpl) {
@@ -903,7 +904,7 @@ export function createAxintServer(): Server {
             content: [
               {
                 type: "text" as const,
-                text: `Unknown template id: ${a.id}. Use axint_list_templates to see available ids.`,
+                text: `Unknown template id: ${a.id}. Use axint.templates.list to see available ids.`,
               },
             ],
             isError: true,
@@ -927,6 +928,140 @@ export function createAxintServer(): Server {
         isError: true,
       };
     }
+  });
+
+  // List available prompts
+  server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: [
+      {
+        name: "axint.quick-start",
+        description:
+          "Step-by-step guide to compile your first TypeScript intent into " +
+          "Swift using Axint. Walks through scaffold → compile → integrate.",
+      },
+      {
+        name: "axint.create-widget",
+        description:
+          "Generate a SwiftUI widget from a description. Produces a complete " +
+          "widget with timeline provider, entry type, and view body.",
+        arguments: [
+          {
+            name: "widgetName",
+            description: "PascalCase widget name, e.g., 'StepsWidget'",
+            required: true,
+          },
+          {
+            name: "widgetDescription",
+            description:
+              "What the widget displays, e.g., 'daily step count from HealthKit'",
+            required: true,
+          },
+        ],
+      },
+      {
+        name: "axint.create-intent",
+        description:
+          "Generate a complete App Intent from a natural language description. " +
+          "Produces TypeScript source and compiles it to Swift in one step.",
+        arguments: [
+          {
+            name: "intentName",
+            description: "PascalCase intent name, e.g., 'SendMessage'",
+            required: true,
+          },
+          {
+            name: "intentDescription",
+            description: "What the intent does, e.g., 'Send a message to a contact'",
+            required: true,
+          },
+          {
+            name: "domain",
+            description:
+              "Apple domain: messaging, productivity, health, finance, " +
+              "commerce, media, navigation, smart-home. Omit if none apply.",
+            required: false,
+          },
+        ],
+      },
+    ],
+  }));
+
+  // Handle prompt retrieval
+  server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+
+    if (name === "axint.quick-start") {
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text:
+                "I want to create my first Apple App Intent using Axint. " +
+                "Walk me through the process step by step:\n\n" +
+                "1. First, use axint.templates.list to show me available templates\n" +
+                "2. Pick a simple one and show me its source with axint.templates.get\n" +
+                "3. Compile it to Swift with axint.compile\n" +
+                "4. Explain what each part of the Swift output does",
+            },
+          },
+        ],
+      };
+    }
+
+    if (name === "axint.create-widget") {
+      const widgetName = args?.widgetName || "MyWidget";
+      const widgetDescription = args?.widgetDescription || "a simple widget";
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text:
+                `Create a SwiftUI widget called "${widgetName}" that shows ${widgetDescription}. ` +
+                "Use axint.schema.compile with type 'widget' to generate the Swift code. " +
+                "Include appropriate families, entry fields, and a clean SwiftUI body. " +
+                "Show the final Swift output ready to drop into an Xcode project.",
+            },
+          },
+        ],
+      };
+    }
+
+    if (name === "axint.create-intent") {
+      const intentName = args?.intentName || "MyIntent";
+      const intentDescription = args?.intentDescription || "a custom action";
+      const domain = args?.domain ? ` in the ${args.domain} domain` : "";
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text:
+                `Create an App Intent called "${intentName}" that ${intentDescription}${domain}. ` +
+                "Use axint.scaffold to generate the TypeScript source with appropriate parameters, " +
+                "then compile it to Swift with axint.compile. Show both the TypeScript input and " +
+                "the Swift output so I can see the full pipeline.",
+            },
+          },
+        ],
+      };
+    }
+
+    return {
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: `Unknown prompt: ${name}. Use axint.quick-start, axint.create-widget, or axint.create-intent.`,
+          },
+        },
+      ],
+    };
   });
 
   return server;

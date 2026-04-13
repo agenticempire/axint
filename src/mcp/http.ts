@@ -12,6 +12,13 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createAxintServer } from "./server.js";
 
 const port = parseInt(process.env.PORT || "3001", 10);
+const logLevel = process.env.LOG_LEVEL || "info";
+const timeout = parseInt(process.env.TIMEOUT || "30000", 10);
+
+const shouldLog = (level: string) => {
+  const levels = ["silent", "warn", "info", "debug"];
+  return levels.indexOf(level) <= levels.indexOf(logLevel);
+};
 
 const httpServer = createServer(async (req, res) => {
   // CORS headers for cross-origin MCP clients
@@ -30,7 +37,7 @@ const httpServer = createServer(async (req, res) => {
   // Health check
   if (url.pathname === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ ok: true, server: "axint-mcp" }));
+    res.end(JSON.stringify({ ok: true, server: "axint-mcp", logLevel }));
     return;
   }
 
@@ -66,6 +73,20 @@ const httpServer = createServer(async (req, res) => {
   const server = createAxintServer();
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
+  // Abort if request exceeds configured timeout
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      res.writeHead(504, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32000, message: `Request timed out after ${timeout}ms` },
+          id: null,
+        })
+      );
+    }
+  }, timeout);
+
   try {
     await server.connect(transport);
     await transport.handleRequest(req, res, body);
@@ -81,6 +102,7 @@ const httpServer = createServer(async (req, res) => {
       );
     }
   } finally {
+    clearTimeout(timer);
     res.on("close", () => {
       transport.close();
       server.close();
@@ -89,7 +111,9 @@ const httpServer = createServer(async (req, res) => {
 });
 
 httpServer.listen(port, () => {
-  console.log(`axint mcp http server listening on port ${port}`);
+  if (shouldLog("info")) {
+    console.log(`axint mcp http server listening on port ${port}`);
+  }
 });
 
 process.on("SIGINT", () => process.exit(0));
