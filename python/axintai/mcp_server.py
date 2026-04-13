@@ -398,10 +398,11 @@ def build_server() -> Server:
                 name="axint_scaffold",
                 description=(
                     "Generate a starter Python intent file using the axint SDK. "
-                    "Pass a PascalCase name, a description, and optionally a domain "
-                    "(messaging, productivity, health, finance, commerce, media, "
-                    "navigation, smart-home) and a list of parameters. Returns ready-"
-                    "to-save source code that compiles with `axintai compile`."
+                    "Returns a complete source string ready to save as a .py file — "
+                    "no files are written to disk. The output compiles directly with "
+                    "axint_compile. Use this when starting a new intent from scratch; "
+                    "use axint_template for a pre-built example, or "
+                    "axint_compile_from_schema to skip Python entirely."
                 ),
                 inputSchema={
                     "type": "object",
@@ -444,9 +445,13 @@ def build_server() -> Server:
             Tool(
                 name="axint_compile",
                 description=(
-                    "Compile a Python intent definition into a native Swift App "
-                    "Intent. Optionally emits Info.plist and entitlements fragments "
-                    "alongside the Swift file. Pass the full Python source code."
+                    "Compile a Python intent definition into native Swift App "
+                    "Intent code. Returns the Swift source as a string — no files "
+                    "are written. Optionally emits Info.plist and entitlements XML "
+                    "fragments alongside the Swift output. On validation failure, "
+                    "returns diagnostics instead of Swift. Use axint_validate first "
+                    "for cheaper pre-flight checks, or axint_compile_from_schema "
+                    "to compile from JSON without writing Python."
                 ),
                 inputSchema={
                     "type": "object",
@@ -474,15 +479,24 @@ def build_server() -> Server:
             Tool(
                 name="axint_validate",
                 description=(
-                    "Validate a Python intent definition without generating Swift "
-                    "output. Returns diagnostics with error codes and fix suggestions."
+                    "Validate a Python intent definition without generating Swift. "
+                    "Read-only — no files are written or modified. Returns an array of "
+                    "diagnostics, each containing severity (error | warning), an error "
+                    "code (AXnnn), line and column position, and a suggested fix. "
+                    "Returns an empty array when validation passes. Use this to "
+                    "check intent source before compiling, or to surface errors in "
+                    "an editor without the cost of full compilation. Prefer "
+                    "axint_compile when you need the Swift output directly."
                 ),
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "source": {
                             "type": "string",
-                            "description": "Python source code containing a define_intent() call",
+                            "description": (
+                                "Full Python source code containing a define_intent() call. "
+                                "Must be a complete file, not a fragment."
+                            ),
                         },
                     },
                     "required": ["source"],
@@ -491,9 +505,14 @@ def build_server() -> Server:
             Tool(
                 name="axint_compile_from_schema",
                 description=(
-                    "Compile a minimal JSON schema directly to Swift, bypassing Python DSL. "
-                    "Supports intents, views, and widgets. Minimal JSON means ~20 tokens vs "
-                    "hundreds for full Python code. Returns Swift code with token usage stats."
+                    "Compile a minimal JSON schema directly to Swift, bypassing the "
+                    "Python DSL. Supports intents, views, widgets, and full apps. "
+                    "Uses ~20 input tokens vs hundreds for full Python — ideal for "
+                    "LLM agents optimizing token budgets. Returns Swift source and "
+                    "token usage stats as a string; no files are written. On invalid "
+                    "input, returns an error message. Use this for quick generation "
+                    "when Python authoring is unnecessary; use axint_compile "
+                    "when you need the full DSL for complex intents."
                 ),
                 inputSchema={
                     "type": "object",
@@ -594,8 +613,11 @@ def build_server() -> Server:
             Tool(
                 name="axint_list_templates",
                 description=(
-                    "List the bundled reference templates. Use `axint_template` to "
-                    "fetch the full source of a specific template by id."
+                    "List all bundled reference templates. Returns an array of "
+                    "objects with id, name, and description for each template. "
+                    "Read-only, no parameters required. Use this to discover "
+                    "available templates, then call axint_template with a "
+                    "specific id to get the full source code."
                 ),
                 inputSchema={"type": "object", "properties": {}},
             ),
@@ -603,7 +625,9 @@ def build_server() -> Server:
                 name="axint_template",
                 description=(
                     "Return the full Python source code of a bundled reference "
-                    "template by id. Use `axint_list_templates` to discover valid ids."
+                    "template. Read-only — returns a source string, no files written. "
+                    "Returns an error if the id is not found. Use axint_list_templates "
+                    "first to discover valid ids."
                 ),
                 inputSchema={
                     "type": "object",
