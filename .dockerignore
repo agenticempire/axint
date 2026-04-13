@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.github
+.vscode
+*.md
+!README.md
+examples
+python
+coverage
+.env*
+*.swift
