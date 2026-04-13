@@ -2,15 +2,19 @@
 # The compression layer for AI on Apple — AI agents write 5-15× less code
 
 startCommand:
-  type: stdio
-
-configSchema:
-  # JSON Schema defining the configuration options for the MCP.
-  type: object
-  required: []
-  properties: {}
-
-commandFunction:
-  # A function that produces the CLI command to start the MCP on stdio.
-  |-
-    config => ({ command: 'npx', args: ['-y', '@axintai/compiler@0.3.2', 'axint-mcp'] })
+  type: http
+  configSchema:
+    type: object
+    required: []
+    properties:
+      port:
+        type: number
+        default: 3001
+        description: Port for the HTTP MCP server
+  commandFunction:
+    |-
+    config => ({ command: 'npx', args: ['-y', '@axintai/compiler', 'axint-mcp-http'], env: { PORT: String(config.port || 3001) } })
+  port:
+    |-
+    config => config.port || 3001
+  statusEndpoint: /health

@@ -453,7 +453,12 @@ function formatSchemaOutput(
   return { content: [{ type: "text" as const, text: output }] };
 }
 
-export async function startMCPServer(): Promise<void> {
+/**
+ * Create and configure the Axint MCP server instance.
+ * Separated from transport so the same server logic works over
+ * stdio, HTTP/SSE, or any future transport.
+ */
+export function createAxintServer(): Server {
   const server = new Server(
     { name: "axint", version: pkg.version },
     { capabilities: { tools: {} } }
@@ -805,6 +810,11 @@ export async function startMCPServer(): Promise<void> {
     }
   });
 
+  return server;
+}
+
+export async function startMCPServer(): Promise<void> {
+  const server = createAxintServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

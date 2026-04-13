@@ -42,4 +42,18 @@ export default defineConfig([
       js: "#!/usr/bin/env node",
     },
   },
+  // MCP HTTP transport (shebang for axint-mcp-http binary, no DTS)
+  {
+    entry: {
+      "mcp/http": "src/mcp/http.ts",
+    },
+    format: ["esm"],
+    dts: false,
+    splitting: false,
+    sourcemap: true,
+    target: "node22",
+    banner: {
+      js: "#!/usr/bin/env node",
+    },
+  },
 ]);
