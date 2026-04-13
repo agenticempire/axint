@@ -1,0 +1,35 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.agenticempire/axint",
+  "title": "Axint",
+  "description": "Open-source compiler for Apple platforms — generate App Intents, SwiftUI views, WidgetKit widgets, and full apps from TypeScript or Python. Tools for scaffolding Xcode projects, compiling definitions to Swift, managing the Axint package registry, and building native Apple experiences with AI agents.",
+  "repository": {
+    "url": "https://github.com/agenticempire/axint",
+    "source": "github"
+  },
+  "version": "0.3.3",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.axint.ai/mcp"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@axintai/compiler",
+      "version": "0.3.3",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "pypi",
+      "identifier": "axintai",
+      "version": "0.3.2",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
