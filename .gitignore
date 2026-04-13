@@ -57,3 +57,10 @@ site/
 # Audit reports (generated, not source)
 *.audit.html
 *-audit*.html
+
+# Registry tokens
+.mcpregistry_github_token
+.mcpregistry_registry_token
+
+# Smithery build artifacts
+.smithery/

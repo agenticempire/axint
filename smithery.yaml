@@ -10,10 +10,35 @@ startCommand:
       port:
         type: number
         default: 3001
-        description: Port for the HTTP MCP server
+        title: Server Port
+        description: >-
+          TCP port for the HTTP MCP server. The server binds to 0.0.0.0 on this
+          port and exposes /mcp (MCP endpoint) and /health (readiness probe).
+          Defaults to 3001. Set to 0 for a random available port.
+      logLevel:
+        type: string
+        default: info
+        title: Log Level
+        description: >-
+          Controls server log verbosity. Use 'debug' for detailed request/response
+          tracing during development, 'info' for normal operation, 'warn' for
+          problems only, or 'silent' to suppress all output.
+        enum:
+          - debug
+          - info
+          - warn
+          - silent
+      timeout:
+        type: number
+        default: 30000
+        title: Request Timeout (ms)
+        description: >-
+          Maximum time in milliseconds for a single compilation or scaffold
+          request before the server aborts and returns an error. Increase for
+          large app schemas with many scenes. Defaults to 30000 (30 seconds).
   commandFunction:
     |-
-    config => ({ command: 'npx', args: ['-y', '@axintai/compiler', 'axint-mcp-http'], env: { PORT: String(config.port || 3001) } })
+    config => ({ command: 'npx', args: ['-y', '@axintai/compiler', 'axint-mcp-http'], env: { PORT: String(config.port || 3001), LOG_LEVEL: config.logLevel || 'info', TIMEOUT: String(config.timeout || 30000) } })
   port:
     |-
     config => config.port || 3001

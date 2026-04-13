@@ -9,9 +9,9 @@ import {
 import { scaffoldIntent } from "../../src/mcp/scaffold.js";
 import { TEMPLATES, getTemplate } from "../../src/templates/index.js";
 
-// ── axint_scaffold ──────────────────────────────────────────────────
+// ── axint.scaffold ──────────────────────────────────────────────────
 
-describe("axint_scaffold tool", () => {
+describe("axint.scaffold tool", () => {
   it("generates a valid intent file for minimal input", () => {
     const source = scaffoldIntent({
       name: "SendMessage",
@@ -78,9 +78,9 @@ describe("axint_scaffold tool", () => {
   });
 });
 
-// ── axint_compile ───────────────────────────────────────────────────
+// ── axint.compile ───────────────────────────────────────────────────
 
-describe("axint_compile tool", () => {
+describe("axint.compile tool", () => {
   it("compiles a valid intent to Swift", () => {
     const source = `
       import { defineIntent, param } from "axint";
@@ -150,9 +150,9 @@ describe("axint_compile tool", () => {
   });
 });
 
-// ── axint_validate ──────────────────────────────────────────────────
+// ── axint.validate ──────────────────────────────────────────────────
 
-describe("axint_validate tool", () => {
+describe("axint.validate tool", () => {
   it("returns no diagnostics for a valid intent", () => {
     const source = `
       import { defineIntent, param } from "axint";
@@ -183,9 +183,9 @@ describe("axint_validate tool", () => {
   });
 });
 
-// ── axint_compile_from_schema (intent) ──────────────────────────────
+// ── axint.schema.compile (intent) ──────────────────────────────
 
-describe("axint_compile_from_schema — intent", () => {
+describe("axint.schema.compile — intent", () => {
   it("compiles a minimal intent schema to Swift", () => {
     const ir = {
       name: "CreateReminder",
@@ -226,9 +226,9 @@ describe("axint_compile_from_schema — intent", () => {
   });
 });
 
-// ── axint_compile_from_schema (view) ────────────────────────────────
+// ── axint.schema.compile (view) ────────────────────────────────
 
-describe("axint_compile_from_schema — view", () => {
+describe("axint.schema.compile — view", () => {
   it("compiles a view schema to SwiftUI", () => {
     const ir = {
       name: "ProfileCard",
@@ -258,9 +258,9 @@ describe("axint_compile_from_schema — view", () => {
   });
 });
 
-// ── axint_compile_from_schema (widget) ──────────────────────────────
+// ── axint.schema.compile (widget) ──────────────────────────────
 
-describe("axint_compile_from_schema — widget", () => {
+describe("axint.schema.compile — widget", () => {
   it("compiles a widget schema to Swift", () => {
     const ir = {
       name: "StepCounter",
@@ -299,9 +299,9 @@ describe("axint_compile_from_schema — widget", () => {
   });
 });
 
-// ── axint_compile_from_schema (app) ─────────────────────────────────
+// ── axint.schema.compile (app) ─────────────────────────────────
 
-describe("axint_compile_from_schema — app", () => {
+describe("axint.schema.compile — app", () => {
   it("compiles an app schema with a single scene", () => {
     const ir = {
       name: "MyApp",
@@ -359,9 +359,9 @@ describe("axint_compile_from_schema — app", () => {
   });
 });
 
-// ── axint_list_templates ────────────────────────────────────────────
+// ── axint.templates.list ────────────────────────────────────────────
 
-describe("axint_list_templates tool", () => {
+describe("axint.templates.list tool", () => {
   it("returns a non-empty list of templates", () => {
     expect(TEMPLATES.length).toBeGreaterThan(0);
   });
@@ -375,9 +375,9 @@ describe("axint_list_templates tool", () => {
   });
 });
 
-// ── axint_template ──────────────────────────────────────────────────
+// ── axint.templates.get ──────────────────────────────────────────────────
 
-describe("axint_template tool", () => {
+describe("axint.templates.get tool", () => {
   it("returns source for a known template", () => {
     const knownId = TEMPLATES[0].id;
     const tpl = getTemplate(knownId);
