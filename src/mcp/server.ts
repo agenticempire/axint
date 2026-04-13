@@ -51,8 +51,13 @@ import type {
 import { isPrimitiveType, isSceneKind } from "../core/types.js";
 
 // Read version from package.json so it stays in sync
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
+let pkg = { version: "0.3.3" };
+try {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
+} catch {
+  // fallback version used when bundled outside repo (e.g. Smithery scan)
+}
 
 type CompileArgs = {
   source: string;
@@ -811,6 +816,14 @@ export function createAxintServer(): Server {
   });
 
   return server;
+}
+
+/**
+ * Sandbox server for Smithery scanning — returns a configured server
+ * without connecting a transport, so Smithery can discover tools.
+ */
+export function createSandboxServer(): Server {
+  return createAxintServer();
 }
 
 export async function startMCPServer(): Promise<void> {
