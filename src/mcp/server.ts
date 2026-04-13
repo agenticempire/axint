@@ -6,6 +6,8 @@
  * automatically.
  *
  * Tools:
+ *   - axint.feature:          Generate a complete Apple-native feature package
+ *   - axint.suggest:          Suggest Apple-native features for an app domain
  *   - axint.scaffold:         Generate a starter TypeScript intent file
  *   - axint.compile:          Compile TypeScript intent → Swift App Intent
  *   - axint.validate:         Validate an intent definition without codegen
@@ -33,6 +35,8 @@ import {
   compileAppFromIR,
 } from "../core/compiler.js";
 import { scaffoldIntent } from "./scaffold.js";
+import { generateFeature, type FeatureInput, type Surface } from "./feature.js";
+import { suggestFeatures, type SuggestInput } from "./suggest.js";
 import { TEMPLATES, getTemplate } from "../templates/index.js";
 import type {
   IRIntent,
@@ -474,6 +478,127 @@ export function createAxintServer(): Server {
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
+        name: "axint.feature",
+        description:
+          "Generate a complete Apple-native feature package from a description. " +
+          "Returns multiple files: validated Swift source, companion widget/view, " +
+          "Info.plist fragments, entitlements, and XCTest scaffolds — all structured " +
+          "file-by-file so an Xcode agent can write each file directly into the " +
+          "project. Designed for composition with Xcode MCP tools: call " +
+          "axint.feature to generate the package, then use XcodeWrite to place " +
+          "each file. No files written, no network requests, no side effects.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            description: {
+              type: "string",
+              description:
+                "What the feature does, in natural language. E.g., " +
+                "'Let users log water intake via Siri' or " +
+                "'Add a Spotlight-searchable recipe entity'. The description " +
+                "is used to infer the feature name, domain, and parameters.",
+            },
+            surfaces: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: ["intent", "view", "widget"],
+              },
+              description:
+                "Which Apple surfaces to generate. 'intent' produces an App Intent " +
+                "struct for Siri/Shortcuts/Spotlight. 'widget' produces a WidgetKit " +
+                "widget with timeline provider. 'view' produces a SwiftUI view. " +
+                "Defaults to ['intent'] if omitted. Combine surfaces to generate " +
+                "a complete feature: ['intent', 'widget'] for a Siri action + " +
+                "home screen widget.",
+            },
+            name: {
+              type: "string",
+              description:
+                "PascalCase feature name, e.g., 'LogWaterIntake'. If omitted, " +
+                "inferred from the description. Used as the base name for all " +
+                "generated Swift structs.",
+            },
+            appName: {
+              type: "string",
+              description:
+                "The target app name, used in generated comments and test " +
+                "references. E.g., 'HealthTracker'. Optional.",
+            },
+            domain: {
+              type: "string",
+              description:
+                "Apple App Intent domain. One of: messaging, productivity, health, " +
+                "finance, commerce, media, navigation, smart-home. If omitted, " +
+                "inferred from the description. Determines default entitlements, " +
+                "Info.plist keys, and parameter suggestions.",
+            },
+            params: {
+              type: "object",
+              description:
+                "Explicit parameter definitions as { fieldName: typeString }. " +
+                "E.g., { amount: 'double', unit: 'string' }. If omitted, " +
+                "inferred from the domain and description. Types: string, int, " +
+                "double, float, boolean, date, duration, url.",
+              additionalProperties: {
+                type: "string",
+                description: "Swift type for this parameter",
+              },
+            },
+          },
+          required: ["description"],
+        },
+      },
+      {
+        name: "axint.suggest",
+        description:
+          "Suggest Apple-native features for an app based on its domain or " +
+          "description. Returns a ranked list of features with recommended " +
+          "surfaces (intent, widget, view), estimated complexity, and a " +
+          "one-line description for each. Use this to discover what Axint " +
+          "can generate for an app before calling axint.feature. No files " +
+          "written, no network requests, no side effects.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            appDescription: {
+              type: "string",
+              description:
+                "What the app does, in natural language. E.g., " +
+                "'A fitness tracking app that logs workouts and counts steps' or " +
+                "'A recipe app for discovering and saving meals'. Used to " +
+                "suggest relevant Apple-native features.",
+            },
+            domain: {
+              type: "string",
+              description:
+                "Primary app domain. One of: messaging, productivity, health, " +
+                "finance, commerce, media, navigation, smart-home. If provided, " +
+                "suggestions are tailored to this domain.",
+            },
+            limit: {
+              type: "number",
+              description:
+                "Maximum number of suggestions to return. Defaults to 5. " +
+                "Suggestions are ordered by estimated user impact.",
+            },
+          },
+          required: ["appDescription"],
+        },
+      },
+      {
         name: "axint.scaffold",
         description:
           "Generate a starter TypeScript intent file from a name and description. " +
@@ -519,10 +644,26 @@ export function createAxintServer(): Server {
                 "description: 'Contact to message' }.",
               items: {
                 type: "object",
+                description: "Parameter definition with name, type, and description",
                 properties: {
-                  name: { type: "string" },
-                  type: { type: "string" },
-                  description: { type: "string" },
+                  name: {
+                    type: "string",
+                    description:
+                      "camelCase parameter name, e.g., 'recipient' or 'messageBody'. " +
+                      "Used as the Swift property name in the generated AppIntent struct.",
+                  },
+                  type: {
+                    type: "string",
+                    description:
+                      "Parameter type. One of: string, int, double, float, boolean, " +
+                      "date, duration, url. Maps to the corresponding Swift type.",
+                  },
+                  description: {
+                    type: "string",
+                    description:
+                      "Human-readable description shown in Shortcuts and Spotlight " +
+                      "when users configure the intent parameter.",
+                  },
                 },
                 required: ["name", "type", "description"],
               },
@@ -672,14 +813,22 @@ export function createAxintServer(): Server {
                 "Intent only. Parameter definitions as { fieldName: typeString }. " +
                 "E.g., { recipient: 'string', amount: 'double' }. Supported types: " +
                 "string, int, double, float, boolean, date, duration, url.",
-              additionalProperties: { type: "string" },
+              additionalProperties: {
+                type: "string",
+                description:
+                  "Swift type for this parameter: string, int, double, float, boolean, date, duration, or url",
+              },
             },
             props: {
               type: "object",
               description:
                 "View only. Prop definitions as { fieldName: typeString }. " +
                 "E.g., { title: 'string', count: 'int' }. Same type set as params.",
-              additionalProperties: { type: "string" },
+              additionalProperties: {
+                type: "string",
+                description:
+                  "Swift type for this prop: string, int, double, float, boolean, date, duration, or url",
+              },
             },
             state: {
               type: "object",
@@ -687,6 +836,22 @@ export function createAxintServer(): Server {
                 "View only. State variable definitions as " +
                 "{ fieldName: { type: 'string', default?: value } }. " +
                 "Generates @State properties in the SwiftUI view.",
+              additionalProperties: {
+                type: "object",
+                description: "State variable config with type and optional default value",
+                properties: {
+                  type: {
+                    type: "string",
+                    description:
+                      "Swift type: string, int, double, float, boolean, date, duration, or url",
+                  },
+                  default: {
+                    type: "string",
+                    description: "Optional default value for the @State property",
+                  },
+                },
+                required: ["type"],
+              },
             },
             body: {
               type: "string",
@@ -703,7 +868,11 @@ export function createAxintServer(): Server {
             },
             families: {
               type: "array",
-              items: { type: "string" },
+              items: {
+                type: "string",
+                description:
+                  "Widget family: systemSmall, systemMedium, systemLarge, systemExtraLarge, accessoryCircular, accessoryRectangular, or accessoryInline",
+              },
               description:
                 "Widget only. Supported widget sizes: systemSmall, systemMedium, " +
                 "systemLarge, systemExtraLarge, accessoryCircular, " +
@@ -714,7 +883,11 @@ export function createAxintServer(): Server {
               description:
                 "Widget only. Timeline entry fields as { fieldName: typeString }. " +
                 "E.g., { steps: 'int', date: 'date' }. Available in the body template.",
-              additionalProperties: { type: "string" },
+              additionalProperties: {
+                type: "string",
+                description:
+                  "Swift type for this entry field: string, int, double, float, boolean, date, duration, or url",
+              },
             },
             refreshInterval: {
               type: "number",
@@ -726,6 +899,8 @@ export function createAxintServer(): Server {
               type: "array",
               items: {
                 type: "object",
+                description:
+                  "Scene definition with kind, view, and optional title/platform",
                 properties: {
                   kind: {
                     type: "string",
@@ -781,7 +956,6 @@ export function createAxintServer(): Server {
         },
         inputSchema: {
           type: "object" as const,
-          properties: {},
         },
       },
       {
@@ -821,6 +995,81 @@ export function createAxintServer(): Server {
     const { name, arguments: args } = request.params;
 
     try {
+      if (name === "axint.feature") {
+        const a = args as unknown as FeatureInput;
+        if (!a.description) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Error: 'description' is required for axint.feature",
+              },
+            ],
+            isError: true,
+          };
+        }
+        const result = generateFeature({
+          description: a.description,
+          surfaces: a.surfaces as Surface[] | undefined,
+          name: a.name,
+          appName: a.appName,
+          domain: a.domain,
+          params: a.params,
+        });
+
+        const output: string[] = [result.summary, ""];
+
+        for (const file of result.files) {
+          output.push(`// ─── ${file.path} ───`);
+          output.push(file.content);
+          output.push("");
+        }
+
+        if (result.diagnostics.length > 0) {
+          output.push("// ─── Diagnostics ───");
+          output.push(result.diagnostics.join("\n"));
+        }
+
+        return {
+          content: [{ type: "text" as const, text: output.join("\n") }],
+          isError: !result.success,
+        };
+      }
+
+      if (name === "axint.suggest") {
+        const a = args as unknown as SuggestInput;
+        if (!a.appDescription) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Error: 'appDescription' is required for axint.suggest",
+              },
+            ],
+            isError: true,
+          };
+        }
+        const suggestions = suggestFeatures(a);
+        const output = suggestions
+          .map((s, i) => {
+            const surfaces = s.surfaces.join(", ");
+            return `${i + 1}. ${s.name}\n   ${s.description}\n   Surfaces: ${surfaces} | Complexity: ${s.complexity}\n   Prompt: "${s.featurePrompt}"`;
+          })
+          .join("\n\n");
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                suggestions.length > 0
+                  ? `Suggested Apple-native features:\n\n${output}\n\nUse axint.feature with any prompt above to generate the full feature package.`
+                  : "No specific suggestions for this app description. Try providing more detail about the app's purpose.",
+            },
+          ],
+        };
+      }
+
       if (name === "axint.scaffold") {
         const a = args as unknown as ScaffoldArgs;
         const source = scaffoldIntent({
