@@ -12,7 +12,7 @@ Add to your Zed settings (`~/.config/zed/settings.json`):
     "axint": {
       "command": {
         "path": "npx",
-        "args": ["-y", "@axintai/compiler", "axint-mcp"]
+        "args": ["-y", "@axint/compiler", "axint-mcp"]
       }
     }
   }

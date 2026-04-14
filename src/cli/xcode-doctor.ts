@@ -197,7 +197,7 @@ function projectChecks(cwd: string): Check[] {
   if (existsSync(pkgJson)) {
     try {
       const pkg = JSON.parse(readFileSync(pkgJson, "utf-8"));
-      if (pkg.name === "axint" || pkg.name === "@axintai/compiler") {
+      if (pkg.name === "axint" || pkg.name === "@axint/compiler") {
         checks.push({
           label: "package.json",
           status: "ok",

@@ -35,7 +35,12 @@ export { validateIntent, validateEntity, validateSwiftSource } from "./validator
 export { validateView, validateSwiftUISource } from "./view-validator.js";
 export { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
 export { validateApp, validateSwiftAppSource } from "./app-validator.js";
-export { DIAGNOSTIC_CODES, DIAGNOSTIC_COUNT, getDiagnostic, getCodesByCategory } from "./diagnostics.js";
+export {
+  DIAGNOSTIC_CODES,
+  DIAGNOSTIC_COUNT,
+  getDiagnostic,
+  getCodesByCategory,
+} from "./diagnostics.js";
 export type { DiagnosticInfo } from "./diagnostics.js";
 export { ejectIntent } from "./eject.js";
 export {
@@ -47,7 +52,7 @@ export {
 export type * from "./types.js";
 export type { EjectOptions, EjectResult } from "./eject.js";
 
-// Re-export SDK authoring helpers so `import { defineIntent, param } from "@axintai/compiler"`
+// Re-export SDK authoring helpers so `import { defineIntent, param } from "@axint/compiler"`
 // works out of the box — the most common import path for new users.
 export {
   defineIntent,

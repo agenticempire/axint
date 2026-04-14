@@ -9,7 +9,7 @@
  *   axint compile examples/profile-card.ts --out generated/
  */
 
-import { defineView, prop, state, view } from "@axintai/compiler";
+import { defineView, prop, state, view } from "@axint/compiler";
 
 export default defineView({
   name: "ProfileCard",

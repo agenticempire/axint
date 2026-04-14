@@ -29,10 +29,10 @@ When a user wants to create an App Intent:
 
 ## TypeScript API
 
-Intents are defined with `defineIntent()` from `@axintai/compiler`:
+Intents are defined with `defineIntent()` from `@axint/compiler`:
 
 ```typescript
-import { defineIntent, param } from "@axintai/compiler";
+import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "CreateEvent",

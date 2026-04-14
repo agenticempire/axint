@@ -3,7 +3,7 @@
     "axint": {
       "command": {
         "path": "npx",
-        "args": ["-y", "@axintai/compiler", "axint-mcp"]
+        "args": ["-y", "@axint/compiler", "axint-mcp"]
       }
     }
   }

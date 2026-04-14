@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@axintai/compiler"><img src="https://img.shields.io/npm/v/@axintai/compiler?color=f05138&label=npm" alt="npm" /></a>
+  <a href="https://www.npmjs.com/package/@axint/compiler"><img src="https://img.shields.io/npm/v/@axint/compiler?color=f05138&label=npm" alt="npm" /></a>
   <a href="https://github.com/agenticempire/axint/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License" /></a>
   <a href="https://github.com/agenticempire/axint/actions/workflows/ci.yml"><img src="https://github.com/agenticempire/axint/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://glama.ai/mcp/servers/agenticempire/axint"><img src="https://glama.ai/mcp/servers/agenticempire/axint/badges/score.svg" alt="axint MCP server" /></a>
@@ -73,16 +73,16 @@ Axint compresses all of that. One TypeScript definition compiles to idiomatic, p
 ## Quick start
 
 ```bash
-npm install -g @axintai/compiler
+npm install -g @axint/compiler
 
 # Or run without installing
-npx @axintai/compiler compile my-intent.ts --stdout
+npx @axint/compiler compile my-intent.ts --stdout
 ```
 
 ### Intent
 
 ```typescript
-import { defineIntent, param } from "@axintai/compiler";
+import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "CreateEvent",
@@ -101,7 +101,7 @@ export default defineIntent({
 ### View
 
 ```typescript
-import { defineView, prop, state, view } from "@axintai/compiler";
+import { defineView, prop, state, view } from "@axint/compiler";
 
 export default defineView({
   name: "EventCard",
@@ -124,7 +124,7 @@ export default defineView({
 ### Widget
 
 ```typescript
-import { defineWidget, entry, view } from "@axintai/compiler";
+import { defineWidget, entry, view } from "@axint/compiler";
 
 export default defineWidget({
   name: "EventCountdown",
@@ -147,7 +147,7 @@ export default defineWidget({
 ### App
 
 ```typescript
-import { defineApp, scene, storage } from "@axintai/compiler";
+import { defineApp, scene, storage } from "@axint/compiler";
 
 export default defineApp({
   name: "WeatherApp",

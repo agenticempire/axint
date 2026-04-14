@@ -2,7 +2,7 @@
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler", "axint-mcp"],
+      "args": ["-y", "@axint/compiler", "axint-mcp"],
       "env": {}
     }
   }

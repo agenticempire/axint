@@ -193,7 +193,7 @@ describe("validateApp", () => {
 describe("parseAppSource", () => {
   it("parses a simple defineApp() call", () => {
     const source = `
-      import { defineApp, scene } from "@axintai/compiler";
+      import { defineApp, scene } from "@axint/compiler";
       export default defineApp({
         name: "MyApp",
         scenes: [
@@ -210,7 +210,7 @@ describe("parseAppSource", () => {
 
   it("parses multi-scene app", () => {
     const source = `
-      import { defineApp, scene } from "@axintai/compiler";
+      import { defineApp, scene } from "@axint/compiler";
       export default defineApp({
         name: "Dashboard",
         scenes: [
@@ -232,7 +232,7 @@ describe("parseAppSource", () => {
 
   it("throws AX502 for missing name", () => {
     const source = `
-      import { defineApp } from "@axintai/compiler";
+      import { defineApp } from "@axint/compiler";
       export default defineApp({
         scenes: [{ kind: "windowGroup", view: "ContentView" }],
       });
@@ -242,7 +242,7 @@ describe("parseAppSource", () => {
 
   it("throws AX503 for missing scenes", () => {
     const source = `
-      import { defineApp } from "@axintai/compiler";
+      import { defineApp } from "@axint/compiler";
       export default defineApp({ name: "MyApp" });
     `;
     expect(() => parseAppSource(source)).toThrow(/requires a `scenes` array/);
@@ -289,7 +289,7 @@ describe("compileAppFromIR", () => {
 describe("compileAppSource", () => {
   it("compiles TypeScript source end-to-end", () => {
     const source = `
-      import { defineApp, scene } from "@axintai/compiler";
+      import { defineApp, scene } from "@axint/compiler";
       export default defineApp({
         name: "TodoApp",
         scenes: [

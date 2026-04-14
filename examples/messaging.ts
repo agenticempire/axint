@@ -3,7 +3,7 @@
  *
  * Demonstrates: string params, optional params, domain field
  */
-import { defineIntent, param } from "@axintai/compiler";
+import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "SendMessage",

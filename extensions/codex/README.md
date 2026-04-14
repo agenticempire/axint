@@ -11,7 +11,7 @@ Add to your Codex MCP configuration:
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler", "axint-mcp"]
+      "args": ["-y", "@axint/compiler", "axint-mcp"]
     }
   }
 }

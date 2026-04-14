@@ -17,7 +17,7 @@
   "packages": [
     {
       "registryType": "npm",
-      "identifier": "@axintai/compiler",
+      "identifier": "@axint/compiler",
       "version": "0.3.4",
       "transport": {
         "type": "stdio"

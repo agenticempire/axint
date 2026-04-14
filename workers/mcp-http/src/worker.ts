@@ -314,7 +314,7 @@ const TOOLS = [
       "Compile TypeScript source (defineIntent() call) into native Swift " +
       "App Intent code. Note: on this remote endpoint, full TS compilation " +
       "is not available — use axint.schema.compile for best results. Full " +
-      "TS compilation is available via the CLI (npx @axintai/compiler axint-mcp).",
+      "TS compilation is available via the CLI (npx @axint/compiler axint-mcp).",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -957,7 +957,7 @@ function handleTool(name: string, args: Record<string, unknown>) {
 
   if (name === "axint.compile" || name === "axint.validate") {
     return textResult(
-      "Full TypeScript compilation requires the local MCP server (`npx @axintai/compiler axint-mcp`). " +
+      "Full TypeScript compilation requires the local MCP server (`npx @axint/compiler axint-mcp`). " +
         "Use axint.schema.compile instead — it accepts a minimal JSON schema and produces identical Swift output with fewer tokens.",
       true
     );

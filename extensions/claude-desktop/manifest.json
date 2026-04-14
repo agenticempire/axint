@@ -21,7 +21,7 @@
     "entry_point": "server/index.js",
     "mcp_config": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler", "axint-mcp"]
+      "args": ["-y", "@axint/compiler", "axint-mcp"]
     }
   },
   "tools": [

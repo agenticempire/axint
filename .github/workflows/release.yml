@@ -78,5 +78,5 @@ jobs:
 
             **Install:**
             ```bash
-            npm install -g @axintai/compiler
+            npm install -g @axint/compiler
             ```
