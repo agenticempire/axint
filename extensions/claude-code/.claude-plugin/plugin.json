@@ -1,6 +1,6 @@
 {
   "name": "axint",
-  "version": "0.3.0",
+  "version": "0.3.8",
   "description": "Compile TypeScript intent definitions into native Apple App Intents and MCP tool servers. Define once, ship to Siri, Shortcuts, and Spotlight.",
   "author": {
     "name": "Agentic Empire",

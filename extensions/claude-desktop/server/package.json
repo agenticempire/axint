@@ -1,9 +1,9 @@
 {
   "name": "axint-desktop-extension-server",
-  "version": "0.3.0",
+  "version": "0.3.8",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@axint/compiler": "^0.3.0"
+    "@axint/compiler": "^0.3.8"
   }
 }
