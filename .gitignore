@@ -34,6 +34,8 @@ npm-debug.log*
 *.generated.swift
 *.swift
 !examples/*.swift
+!extensions/xcode/source-editor-extension/**/*.swift
+!spm-plugin/**/*.swift
 
 # tsup temp files
 tsup.config.bundled_*

@@ -12,12 +12,21 @@ let package = Package(
             name: "AxintCompilePlugin",
             targets: ["AxintCompilePlugin"]
         ),
+        .plugin(
+            name: "AxintValidatePlugin",
+            targets: ["AxintValidatePlugin"]
+        ),
     ],
     targets: [
         .plugin(
             name: "AxintCompilePlugin",
             capability: .buildTool(),
             path: "Plugins/AxintCompilePlugin"
+        ),
+        .plugin(
+            name: "AxintValidatePlugin",
+            capability: .buildTool(),
+            path: "Plugins/AxintValidatePlugin"
         ),
     ]
 )

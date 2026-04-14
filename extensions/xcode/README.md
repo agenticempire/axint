@@ -1,6 +1,6 @@
 # Axint for Xcode
 
-Axint integrates with Xcode in three ways: as an MCP server for agentic coding, as an SPM build plugin for compile-time generation, and via the `axint xcode setup` command for one-step configuration.
+Axint integrates with Xcode in four ways: as an MCP server for agentic coding, as an SPM build plugin for compile-time generation, as a [native Source Editor Extension](./source-editor-extension) for in-editor quickfixes, and via the `axint xcode setup` command for one-step configuration.
 
 ## Quick Setup (recommended)
 

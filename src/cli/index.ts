@@ -6,6 +6,7 @@
  *   axint init [dir]              Scaffold a new Axint project
  *   axint compile <file>          Compile TS intent → Swift App Intent
  *   axint validate <file>         Validate a compiled intent
+ *   axint validate-swift <path>   Validate existing Swift sources against Axint's build-time rules
  *   axint eject <file>            Eject intent to standalone Swift (no vendor lock-in)
  *   axint templates               List bundled intent templates
  *   axint login                   Authenticate with the Axint Registry
@@ -16,6 +17,8 @@
  *   axint mcp                     Start the MCP server (stdio)
  *   axint xcode setup             Configure Axint for Xcode agentic coding
  *   axint xcode verify            Verify the MCP connection is working
+ *   axint xcode fix <path>        Auto-fix mechanical Swift validator errors
+ *   axint xcode doctor            Audit environment for Apple-platform agentic coding
  *   axint --version               Show version
  */
 
@@ -26,6 +29,7 @@ import { fileURLToPath } from "node:url";
 import { scaffoldProject } from "./scaffold.js";
 import { registerCompile } from "./compile.js";
 import { registerValidate } from "./validate.js";
+import { registerValidateSwift } from "./validate-swift.js";
 import { registerEject } from "./eject.js";
 import { registerTemplates } from "./templates.js";
 import { registerLogin } from "./login.js";
@@ -115,6 +119,7 @@ program
 
 registerCompile(program);
 registerValidate(program);
+registerValidateSwift(program);
 registerEject(program);
 registerTemplates(program);
 registerLogin(program);
@@ -157,6 +162,24 @@ xcode
   .action(async () => {
     const { verifyXcode } = await import("./xcode-setup.js");
     await verifyXcode();
+  });
+
+xcode
+  .command("fix")
+  .description("Auto-fix mechanical Swift validator errors (dry-run by default)")
+  .argument("<path>", "Swift file or directory to fix")
+  .option("--apply", "Write changes to disk (omit for a dry-run preview)")
+  .action(async (pathArg: string, options: { apply?: boolean }) => {
+    const { runXcodeFix } = await import("./xcode-fix.js");
+    await runXcodeFix(pathArg, { apply: options.apply ?? false });
+  });
+
+xcode
+  .command("doctor")
+  .description("Audit your environment for Apple-platform agentic coding")
+  .action(async () => {
+    const { runXcodeDoctor } = await import("./xcode-doctor.js");
+    await runXcodeDoctor();
   });
 
 // Helper used by scaffold to avoid a circular import
