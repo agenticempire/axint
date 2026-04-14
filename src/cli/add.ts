@@ -8,7 +8,7 @@ export function registerAdd(program: Command, version: string) {
     .description("Install a template from the Axint Registry")
     .argument(
       "<package>",
-      "Template to install (e.g., @axintai/create-event or @axintai/create-event@1.0.0)"
+      "Template to install (e.g., @axint/create-event or @axint/create-event@1.0.0)"
     )
     .option("--to <dir>", "Target directory", "intents")
     .action(async (pkg: string, options: { to: string }) => {

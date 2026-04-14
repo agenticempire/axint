@@ -1,6 +1,6 @@
 
 [[tool.mypy.overrides]]
-module = "axintai.mcp_server"
+module = "axint.mcp_server"
 ignore_errors = true
 
 [[tool.mypy.overrides]]

@@ -119,7 +119,7 @@ export function compileSource(
  * Used by:
  *   - `compileSource()` after its own parse step
  *   - `axint compile --from-ir <file.json>` for cross-language pipelines
- *   - The Python SDK's `axintai compile` command
+ *   - The Python SDK's `axint-py compile` command
  */
 export function compileFromIR(
   ir: IRIntent,

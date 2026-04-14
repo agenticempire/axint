@@ -43,14 +43,14 @@ struct AxintValidatePlugin: BuildToolPlugin {
             return (axintPath, [])
         }
         if let npxPath = try findInPath("npx") {
-            return (npxPath, ["-y", "-p", "@axintai/compiler", "axint"])
+            return (npxPath, ["-y", "-p", "@axint/compiler", "axint"])
         }
         throw AxintValidateError.executableNotFound(
             """
             The 'axint' compiler was not found in your PATH.
 
             Install it globally:
-              npm install -g @axintai/compiler
+              npm install -g @axint/compiler
 
             Or ensure Node.js and npx are available so the plugin can
             fetch the compiler automatically.
