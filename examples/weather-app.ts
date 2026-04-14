@@ -8,7 +8,7 @@
  *   axint compile examples/weather-app.ts --out generated/
  */
 
-import { defineApp, scene, storage } from "@axintai/compiler";
+import { defineApp, scene, storage } from "@axint/compiler";
 
 export default defineApp({
   name: "WeatherApp",

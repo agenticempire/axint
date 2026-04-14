@@ -5,7 +5,7 @@ Axint integrates with Xcode in four ways: as an MCP server for agentic coding, a
 ## Quick Setup (recommended)
 
 ```bash
-npx @axintai/compiler axint xcode setup
+npx @axint/compiler axint xcode setup
 ```
 
 This detects your Xcode version, configures Claude Code and Codex to use Axint as an MCP server, and verifies the connection. Run `axint xcode verify` afterward to confirm everything works.
@@ -20,13 +20,13 @@ Xcode 26.3+ supports agentic coding with external agents via MCP. Axint adds spe
 ### For Claude Code
 
 ```bash
-claude mcp add --transport stdio axint -- npx -y @axintai/compiler axint-mcp
+claude mcp add --transport stdio axint -- npx -y @axint/compiler axint-mcp
 ```
 
 ### For Codex CLI
 
 ```bash
-codex mcp add axint -- npx -y @axintai/compiler axint-mcp
+codex mcp add axint -- npx -y @axint/compiler axint-mcp
 ```
 
 ### Remote MCP (no local Node.js required)
@@ -48,7 +48,7 @@ codex mcp add axint -- npx -y @axintai/compiler axint-mcp
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler@0.3.4", "axint-mcp"]
+      "args": ["-y", "@axint/compiler", "axint-mcp"]
     }
   }
 }

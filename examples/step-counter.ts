@@ -8,7 +8,7 @@
  *   axint compile examples/step-counter.ts --out generated/
  */
 
-import { defineWidget, entry, view } from "@axintai/compiler";
+import { defineWidget, entry, view } from "@axint/compiler";
 
 export default defineWidget({
   name: "StepCounter",

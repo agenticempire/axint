@@ -95,7 +95,7 @@ export async function verifyXcode(): Promise<void> {
   // test that the MCP server starts and can list tools
   try {
     const output = execSync(
-      'echo \'{"jsonrpc":"2.0","method":"tools/list","id":1}\' | timeout 5 npx -y @axintai/compiler axint-mcp 2>/dev/null',
+      'echo \'{"jsonrpc":"2.0","method":"tools/list","id":1}\' | timeout 5 npx -y @axint/compiler axint-mcp 2>/dev/null',
       { encoding: "utf-8", timeout: 15000 }
     );
 
@@ -109,7 +109,7 @@ export async function verifyXcode(): Promise<void> {
       console.log(`  ${GREEN}All checks passed.${RESET} Axint is ready for Xcode.`);
     } else {
       console.log(`  ${RED}✗${RESET} Server responded but axint.feature not found`);
-      console.log(`  ${DIM}  Try updating: npm install -g @axintai/compiler${RESET}`);
+      console.log(`  ${DIM}  Try updating: npm install -g @axint/compiler${RESET}`);
     }
   } catch {
     console.log(`  ${RED}✗${RESET} Could not start MCP server`);
@@ -137,7 +137,7 @@ async function setupClaude(remote: boolean): Promise<void> {
     }
   } else {
     // local stdio mode
-    const cmd = `claude mcp add --transport stdio axint -- npx -y @axintai/compiler axint-mcp`;
+    const cmd = `claude mcp add --transport stdio axint -- npx -y @axint/compiler axint-mcp`;
     console.log(`  ${DIM}$ ${cmd}${RESET}`);
     try {
       execSync(cmd, { stdio: "inherit", timeout: 10000 });
@@ -163,7 +163,7 @@ async function setupCodex(remote: boolean): Promise<void> {
       printManualCodex(remote);
     }
   } else {
-    const cmd = `codex mcp add axint -- npx -y @axintai/compiler axint-mcp`;
+    const cmd = `codex mcp add axint -- npx -y @axint/compiler axint-mcp`;
     console.log(`  ${DIM}$ ${cmd}${RESET}`);
     try {
       execSync(cmd, { stdio: "inherit", timeout: 10000 });
@@ -225,7 +225,7 @@ function printManualClaude(remote: boolean): void {
   } else {
     console.log(`  Run this command:`);
     console.log(
-      `  ${DIM}claude mcp add --transport stdio axint -- npx -y @axintai/compiler axint-mcp${RESET}`
+      `  ${DIM}claude mcp add --transport stdio axint -- npx -y @axint/compiler axint-mcp${RESET}`
     );
   }
   console.log();
@@ -243,7 +243,7 @@ function printManualCodex(remote: boolean): void {
   } else {
     console.log(`  Run this command:`);
     console.log(
-      `  ${DIM}codex mcp add axint -- npx -y @axintai/compiler axint-mcp${RESET}`
+      `  ${DIM}codex mcp add axint -- npx -y @axint/compiler axint-mcp${RESET}`
     );
   }
   console.log();

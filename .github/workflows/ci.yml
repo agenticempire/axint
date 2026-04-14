@@ -97,10 +97,10 @@ jobs:
         run: ruff check .
 
       - name: Type check with mypy
-        run: mypy axintai
+        run: mypy axint
 
       - name: Run tests with coverage
-        run: pytest -v --tb=short --cov=axintai --cov-report=json --cov-report=lcov --cov-report=term
+        run: pytest -v --tb=short --cov=axint --cov-report=json --cov-report=lcov --cov-report=term
 
       - name: Upload Python coverage
         uses: codecov/codecov-action@v4
@@ -113,5 +113,5 @@ jobs:
 
       - name: Verify CLI works
         run: |
-          axintai --version
-          axintai parse examples/create_event.py --json
+          axint-py --version
+          axint-py parse examples/create_event.py --json

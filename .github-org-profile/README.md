@@ -7,7 +7,7 @@ We build open-source tools that give AI agents native superpowers on every platf
 **[Axint](https://github.com/agenticempire/axint)** — The open-source compiler that transforms TypeScript agent definitions into native Apple App Intents. TypeScript in, Swift out.
 
 ```bash
-npm install -g @axintai/compiler
+npm install -g @axint/compiler
 ```
 
 ### What We Believe

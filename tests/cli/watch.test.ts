@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 const CLI = resolve(__dirname, "../../dist/cli/index.js");
 
 const VALID_INTENT = `
-import { defineIntent, param } from "@axintai/compiler";
+import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "Greet",
@@ -25,7 +25,7 @@ export default defineIntent({
 `;
 
 const UPDATED_INTENT = `
-import { defineIntent, param } from "@axintai/compiler";
+import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "GreetUpdated",

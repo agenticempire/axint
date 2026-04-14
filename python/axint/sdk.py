@@ -4,7 +4,7 @@ Author-facing Python SDK.
 Mirrors the TypeScript `defineIntent()` + `param.*` API. Every call here
 produces an `IntentDefinition` whose `.to_ir()` method returns the same
 language-agnostic IR that the TypeScript SDK produces — the Python file
-can then be parsed by `axintai.parser.parse_file()` and handed off to
+can then be parsed by `axint.parser.parse_file()` and handed off to
 the TypeScript Swift generator.
 
 Design note
@@ -12,7 +12,7 @@ Design note
 The Python SDK is deliberately a plain declarative API with no runtime
 magic — no metaclasses, no global registries, no import-time side effects.
 The parser does its work on the AST, not on a live Python runtime, which
-means `axintai compile` never imports user code.
+means `axint compile` never imports user code.
 """
 
 from __future__ import annotations
@@ -158,7 +158,7 @@ class _ParamFactory:
         )
 
 
-#: Module-level factory — import as `from axintai import param` and call
+#: Module-level factory — import as `from axint import param` and call
 #: `param.string(...)`, `param.int(...)`, etc.
 param = _ParamFactory()
 

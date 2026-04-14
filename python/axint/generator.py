@@ -4,7 +4,7 @@ Native Python Swift code generator.
 Produces the exact same Swift output as the TypeScript generator in
 `src/core/generator.ts`. This eliminates the Node.js dependency — the
 Python SDK can now compile Python intent files to Swift without shelling
-out to `@axintai/compiler`.
+out to `@axint/compiler`.
 
 The generator is deliberately kept in lock-step with the TS version:
 same struct layout, same decorator style, same return-type signatures.

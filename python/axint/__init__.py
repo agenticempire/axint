@@ -1,10 +1,10 @@
 """
-axintai — the Python SDK for Axint.
+axint — the Python SDK for Axint.
 
 Define Apple App Intents, Views, Widgets, and Apps in Python. Ship them
 through the same open-source compiler pipeline that powers the TypeScript SDK.
 
-    from axintai import define_intent, define_view, define_widget, param, prop, view
+    from axint import define_intent, define_view, define_widget, param, prop, view
 
     create_event = define_intent(
         name="CreateCalendarEventIntent",
@@ -27,7 +27,7 @@ the same Swift generator and hits the same validator rules.
 
 from __future__ import annotations
 
-__version__ = "0.3.2"
+__version__ = "0.3.7"
 
 from .generator import (
     generate_entitlements_fragment,

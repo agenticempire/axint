@@ -128,7 +128,7 @@ export const yourTemplate: IntentTemplate = {
   description: "What this template does",
   category: "productivity", // e.g., "productivity", "media", "smart-home"
   source: `
-import { defineIntent, param } from "@axintai/compiler";
+import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "YourIntent",

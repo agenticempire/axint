@@ -51,6 +51,6 @@ Apache 2.0, zero telemetry, no CLA.
 
 - GitHub: https://github.com/agenticempire/axint
 - Playground: https://axint.ai/#playground
-- npm: `npm install -g @axintai/compiler`
+- npm: `npm install -g @axint/compiler`
 
 Would love feedback on the compilation model, the dual-surface approach, and what App Intent patterns you'd want supported next.

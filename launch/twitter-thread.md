@@ -70,7 +70,7 @@ Axint is Apache 2.0, zero telemetry, no CLA.
 
 ⭐ GitHub: github.com/agenticempire/axint
 🎮 Playground: axint.ai
-📦 Install: npm install -g @axintai/compiler
+📦 Install: npm install -g @axint/compiler
 💬 Discord: [link]
 
 Built by @[handle]. Feedback welcome — what intent patterns do you want next?

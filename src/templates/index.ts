@@ -35,7 +35,7 @@ const sendMessage: IntentTemplate = {
   domain: "messaging",
   category: "messaging",
   description: "Send a text message to a contact.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "SendMessage",
@@ -61,7 +61,7 @@ const createEvent: IntentTemplate = {
   domain: "productivity",
   category: "productivity",
   description: "Create a calendar event with a title, date, and duration.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "CreateEvent",
@@ -92,7 +92,7 @@ const bookRide: IntentTemplate = {
   domain: "navigation",
   category: "navigation",
   description: "Request a ride from a pickup location to a destination.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "BookRide",
@@ -118,7 +118,7 @@ const getDirections: IntentTemplate = {
   domain: "navigation",
   category: "navigation",
   description: "Get turn-by-turn directions to a destination.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "GetDirections",
@@ -145,7 +145,7 @@ const playTrack: IntentTemplate = {
   domain: "media",
   category: "media",
   description: "Play a specific track or song.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "PlayTrack",
@@ -171,7 +171,7 @@ const createNote: IntentTemplate = {
   domain: "productivity",
   category: "productivity",
   description: "Create a new note with a title and body.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "CreateNote",
@@ -197,7 +197,7 @@ const logExpense: IntentTemplate = {
   domain: "finance",
   category: "finance",
   description: "Log a financial expense with amount, category, and note.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "LogExpense",
@@ -226,7 +226,7 @@ const logWorkout: IntentTemplate = {
   domain: "health",
   category: "health",
   description: "Log a workout with duration, type, and calories burned.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "LogWorkout",
@@ -257,7 +257,7 @@ const setThermostat: IntentTemplate = {
   domain: "smart-home",
   category: "smart-home",
   description: "Set a smart-home thermostat to a target temperature.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "SetThermostat",
@@ -283,7 +283,7 @@ const placeOrder: IntentTemplate = {
   domain: "commerce",
   category: "commerce",
   description: "Place a commerce order for a product.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "PlaceOrder",
@@ -309,7 +309,7 @@ const searchTasks: IntentTemplate = {
   domain: "productivity",
   category: "productivity",
   description: "Search for tasks using EntityQuery with string-based search.",
-  source: `import { defineIntent, defineEntity, param } from "@axintai/compiler";
+  source: `import { defineIntent, defineEntity, param } from "@axint/compiler";
 
 defineEntity({
   name: "Task",
@@ -352,7 +352,7 @@ const dynamicPlaylist: IntentTemplate = {
   domain: "media",
   category: "media",
   description: "Create a playlist by name, mood, and track count.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "DynamicPlaylist",
@@ -378,7 +378,7 @@ const setTimer: IntentTemplate = {
   domain: "utilities",
   category: "utilities",
   description: "Set a timer with a duration and optional label.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "SetTimer",
@@ -403,7 +403,7 @@ const searchNotes: IntentTemplate = {
   domain: "productivity",
   category: "productivity",
   description: "Search through notes using a query string.",
-  source: `import { defineIntent, defineEntity, param } from "@axintai/compiler";
+  source: `import { defineIntent, defineEntity, param } from "@axint/compiler";
 
 defineEntity({
   name: "Note",
@@ -444,7 +444,7 @@ const createReminder: IntentTemplate = {
   domain: "productivity",
   category: "productivity",
   description: "Create a reminder with title, date, and priority level.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "CreateReminder",
@@ -471,7 +471,7 @@ const toggleSetting: IntentTemplate = {
   domain: "smart-home",
   category: "smart-home",
   description: "Toggle a system or app setting on/off.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "ToggleSetting",
@@ -496,7 +496,7 @@ const shareContent: IntentTemplate = {
   domain: "messaging",
   category: "messaging",
   description: "Share content to a destination with an optional message.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "ShareContent",
@@ -522,7 +522,7 @@ const navigateTo: IntentTemplate = {
   domain: "navigation",
   category: "navigation",
   description: "Navigate to a location with optional transport mode.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "NavigateTo",
@@ -550,7 +550,7 @@ const playMusic: IntentTemplate = {
   domain: "media",
   category: "media",
   description: "Play music by track, artist, album, or playlist.",
-  source: `import { defineIntent, defineEntity, param } from "@axintai/compiler";
+  source: `import { defineIntent, defineEntity, param } from "@axint/compiler";
 
 defineEntity({
   name: "Playlist",
@@ -590,7 +590,7 @@ const scanDocument: IntentTemplate = {
   domain: "productivity",
   category: "productivity",
   description: "Scan or process a document and save in specified format.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "ScanDocument",
@@ -616,7 +616,7 @@ const translateText: IntentTemplate = {
   domain: "utilities",
   category: "utilities",
   description: "Translate text between languages.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "TranslateText",
@@ -642,7 +642,7 @@ const checkWeather: IntentTemplate = {
   domain: "utilities",
   category: "utilities",
   description: "Check weather conditions for a location.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "CheckWeather",
@@ -667,7 +667,7 @@ const addToCart: IntentTemplate = {
   domain: "commerce",
   category: "commerce",
   description: "Add an item to a shopping cart with quantity.",
-  source: `import { defineIntent, defineEntity, param } from "@axintai/compiler";
+  source: `import { defineIntent, defineEntity, param } from "@axint/compiler";
 
 defineEntity({
   name: "Product",
@@ -706,7 +706,7 @@ const bookAppointment: IntentTemplate = {
   domain: "productivity",
   category: "productivity",
   description: "Book an appointment with a service provider on a specific date.",
-  source: `import { defineIntent, defineEntity, param } from "@axintai/compiler";
+  source: `import { defineIntent, defineEntity, param } from "@axint/compiler";
 
 defineEntity({
   name: "ServiceProvider",
@@ -747,7 +747,7 @@ const runShortcut: IntentTemplate = {
   domain: "utilities",
   category: "utilities",
   description: "Run another shortcut or automation by name.",
-  source: `import { defineIntent, param } from "@axintai/compiler";
+  source: `import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
   name: "RunShortcut",

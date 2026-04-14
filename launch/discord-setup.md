@@ -37,7 +37,7 @@ Axint is the open-source compiler that turns TypeScript defineIntent() calls int
 • GitHub: https://github.com/agenticempire/axint
 • Playground: https://axint.ai/#playground
 • Docs: https://docs.axint.ai
-• Install: `npm install -g @axintai/compiler`
+• Install: `npm install -g @axint/compiler`
 
 **Getting started:**
 1. Try the playground at axint.ai

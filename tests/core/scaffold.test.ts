@@ -48,13 +48,13 @@ describe("scaffoldProject", () => {
     const pkg = JSON.parse(await readFile(join(workDir, "package.json"), "utf-8"));
     expect(pkg.name).toBe("versioned-app");
     expect(pkg.type).toBe("module");
-    expect(pkg.dependencies["@axintai/compiler"]).toBe("^0.3.0");
+    expect(pkg.dependencies["@axint/compiler"]).toBe("^0.3.0");
     expect(pkg.scripts.compile).toContain("axint compile");
     expect(pkg.scripts.validate).toContain("axint validate");
     expect(pkg.scripts.sandbox).toContain("--sandbox");
   });
 
-  it("rewrites the template import to @axintai/compiler/sdk", async () => {
+  it("rewrites the template import to @axint/compiler/sdk", async () => {
     await scaffoldProject({
       targetDir: workDir,
       projectName: "import-rewrite-test",
@@ -67,7 +67,7 @@ describe("scaffoldProject", () => {
       join(workDir, "intents", "create-event.ts"),
       "utf-8"
     );
-    expect(intentSource).toContain('from "@axintai/compiler"');
+    expect(intentSource).toContain('from "@axint/compiler"');
     expect(intentSource).not.toContain('from "axint"');
   });
 
@@ -83,7 +83,7 @@ describe("scaffoldProject", () => {
     const mcp = JSON.parse(await readFile(join(workDir, ".vscode", "mcp.json"), "utf-8"));
     expect(mcp.mcpServers.axint.command).toBe("npx");
     expect(mcp.mcpServers.axint.args).toContain("-y");
-    expect(mcp.mcpServers.axint.args).toContain("@axintai/compiler");
+    expect(mcp.mcpServers.axint.args).toContain("@axint/compiler");
     expect(mcp.mcpServers.axint.args).toContain("axint-mcp");
   });
 
@@ -150,6 +150,6 @@ describe("scaffoldProject", () => {
     expect(readme).toContain("# readme-check");
     expect(readme).toContain("book-ride");
     expect(readme).toContain("axint.ai");
-    expect(readme).toContain("@axintai/compiler@^0.3.0");
+    expect(readme).toContain("@axint/compiler@^0.3.0");
   });
 });

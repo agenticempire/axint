@@ -79,7 +79,7 @@ def parse_source(source: str, *, file: str | None = None) -> list[IntentIR]:
                     message=f"Python syntax error: {exc.msg}",
                     file=file,
                     line=exc.lineno,
-                    suggestion="Fix the syntax error and re-run `axintai compile`.",
+                    suggestion="Fix the syntax error and re-run `axint compile`.",
                 )
             ]
         ) from exc
@@ -120,7 +120,7 @@ def parse_view_source(source: str, *, file: str | None = None) -> list[ViewIR]:
                     message=f"Python syntax error: {exc.msg}",
                     file=file,
                     line=exc.lineno,
-                    suggestion="Fix the syntax error and re-run `axintai compile`.",
+                    suggestion="Fix the syntax error and re-run `axint compile`.",
                 )
             ]
         ) from exc
@@ -161,7 +161,7 @@ def parse_widget_source(source: str, *, file: str | None = None) -> list[WidgetI
                     message=f"Python syntax error: {exc.msg}",
                     file=file,
                     line=exc.lineno,
-                    suggestion="Fix the syntax error and re-run `axintai compile`.",
+                    suggestion="Fix the syntax error and re-run `axint compile`.",
                 )
             ]
         ) from exc
@@ -202,7 +202,7 @@ def parse_app_source(source: str, *, file: str | None = None) -> list[AppIR]:
                     message=f"Python syntax error: {exc.msg}",
                     file=file,
                     line=exc.lineno,
-                    suggestion="Fix the syntax error and re-run `axintai compile`.",
+                    suggestion="Fix the syntax error and re-run `axint compile`.",
                 )
             ]
         ) from exc
@@ -232,7 +232,7 @@ def parse_file_apps(path: str | Path) -> list[AppIR]:
 
 
 def _is_define_intent(call: ast.Call) -> bool:
-    """Detect `define_intent(...)` or `axintai.define_intent(...)` calls."""
+    """Detect `define_intent(...)` or `axint.define_intent(...)` calls."""
     if isinstance(call.func, ast.Name) and call.func.id == "define_intent":
         return True
     return (
@@ -243,7 +243,7 @@ def _is_define_intent(call: ast.Call) -> bool:
 
 
 def _is_define_view(call: ast.Call) -> bool:
-    """Detect `define_view(...)` or `axintai.define_view(...)` calls."""
+    """Detect `define_view(...)` or `axint.define_view(...)` calls."""
     if isinstance(call.func, ast.Name) and call.func.id == "define_view":
         return True
     return (
@@ -254,7 +254,7 @@ def _is_define_view(call: ast.Call) -> bool:
 
 
 def _is_define_widget(call: ast.Call) -> bool:
-    """Detect `define_widget(...)` or `axintai.define_widget(...)` calls."""
+    """Detect `define_widget(...)` or `axint.define_widget(...)` calls."""
     if isinstance(call.func, ast.Name) and call.func.id == "define_widget":
         return True
     return (
@@ -265,7 +265,7 @@ def _is_define_widget(call: ast.Call) -> bool:
 
 
 def _is_define_app(call: ast.Call) -> bool:
-    """Detect `define_app(...)` or `axintai.define_app(...)` calls."""
+    """Detect `define_app(...)` or `axint.define_app(...)` calls."""
     if isinstance(call.func, ast.Name) and call.func.id == "define_app":
         return True
     return (

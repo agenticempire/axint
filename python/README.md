@@ -1,4 +1,4 @@
-# axintai — Python SDK for Axint
+# axint — Python SDK for Axint
 
 <!-- mcp-name: io.github.agenticempire/axint -->
 
@@ -12,7 +12,7 @@ The Python SDK includes a **native Swift generator** — no Node.js dependency r
 ## Install
 
 ```bash
-pip install axintai
+pip install axint
 ```
 
 Or install from source for development:
@@ -26,7 +26,7 @@ pip install -e '.[dev]'
 ## Define an intent
 
 ```python
-from axintai import define_intent, param
+from axint import define_intent, param
 
 create_event = define_intent(
     name="CreateCalendarEventIntent",
@@ -48,27 +48,27 @@ create_event = define_intent(
 
 ```bash
 # Parse and inspect the IR
-axintai parse intents/create_event.py
-axintai parse intents/create_event.py --json
+axint parse intents/create_event.py
+axint parse intents/create_event.py --json
 
 # Compile Python → Swift (native, no Node.js needed)
-axintai compile intents/create_event.py --stdout
-axintai compile intents/create_event.py --out ios/Intents/
+axint compile intents/create_event.py --stdout
+axint compile intents/create_event.py --out ios/Intents/
 
 # With companion fragments
-axintai compile intents/create_event.py --out ios/Intents/ --emit-info-plist --emit-entitlements
+axint compile intents/create_event.py --out ios/Intents/ --emit-info-plist --emit-entitlements
 
 # Validate without generating Swift
-axintai validate intents/create_event.py
+axint validate intents/create_event.py
 
 # Machine-readable output
-axintai compile intents/create_event.py --json
+axint compile intents/create_event.py --json
 ```
 
 ## Use it as a library
 
 ```python
-from axintai import define_intent, param, generate_swift, validate_intent
+from axint import define_intent, param, generate_swift, validate_intent
 
 intent = define_intent(
     name="SendMessage",
@@ -88,14 +88,14 @@ swift_code = generate_swift(ir)
 The Python SDK produces compatible IR JSON that the TypeScript compiler can consume. You can pipe it in for additional validation and Swift generation:
 
 ```bash
-axintai parse intent.py --json | axint compile - --from-ir --stdout
+axint parse intent.py --json | axint compile - --from-ir --stdout
 ```
 
 ## Why Python?
 
 Every language-agnostic analysis layer in Axint — the IR, the validator, the generator — works with a stable JSON schema. The Python SDK implements the full pipeline natively, unlocking a massive population of developers who shouldn't have to learn TypeScript to build Siri integrations.
 
-The Python parser never runs your code. It walks the Python AST the same way the TypeScript compiler walks the TS AST, so `axintai compile` is deterministic, sandboxable, and reproducible.
+The Python parser never runs your code. It walks the Python AST the same way the TypeScript compiler walks the TS AST, so `axint compile` is deterministic, sandboxable, and reproducible.
 
 ## Parity with the TypeScript SDK
 
@@ -120,7 +120,7 @@ The Python parser never runs your code. It walks the Python AST the same way the
 pip install -e '.[dev]'
 pytest -v
 ruff check .
-mypy axintai
+mypy axint
 ```
 
 ## License

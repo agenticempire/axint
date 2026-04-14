@@ -23,20 +23,20 @@ Before using this plugin, ensure you have:
 1. **macOS 13 or later** (for the build tool plugin)
 2. **Xcode 15+** (for SPM build tool plugin support)
 3. **Node.js 22+** and **npm** (to run the Axint compiler)
-4. **@axintai/compiler** package installed
+4. **@axint/compiler** package installed
 
 ### Installing the Axint Compiler
 
 Install the Axint compiler package in your Swift package or project directory:
 
 ```bash
-npm install @axintai/compiler
+npm install @axint/compiler
 ```
 
 Or install it globally:
 
 ```bash
-npm install -g @axintai/compiler
+npm install -g @axint/compiler
 ```
 
 ## Integration
@@ -129,7 +129,7 @@ Here's an example TypeScript intent definition:
 
 ```typescript
 // MyIntent.ts
-import { defineIntent, param } from "@axintai/compiler";
+import { defineIntent, param } from "@axint/compiler";
 
 export const myIntent = defineIntent({
   name: "MyIntent",
@@ -156,13 +156,13 @@ You can also define views, widgets, and apps using `defineView()`, `defineWidget
 **Solution:** Install the Axint compiler:
 
 ```bash
-npm install -g @axintai/compiler
+npm install -g @axint/compiler
 ```
 
 Or, if you prefer not to install globally, install it locally in your project:
 
 ```bash
-npm install @axintai/compiler
+npm install @axint/compiler
 ```
 
 The plugin will automatically find it via `npx`.

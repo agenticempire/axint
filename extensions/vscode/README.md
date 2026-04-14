@@ -28,7 +28,7 @@ Works with GitHub Copilot in agent mode and any VS Code AI feature that supports
 - VS Code 1.102 or later
 - Node.js 22+
 
-The extension runs `npx @axintai/compiler axint-mcp` under the hood — no global install needed.
+The extension runs `npx @axint/compiler axint-mcp` under the hood — no global install needed.
 
 ## Links
 

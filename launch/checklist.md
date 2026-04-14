@@ -6,7 +6,7 @@
 
 ### Product
 - [ ] All P0 features merged and tested
-- [ ] npm package published: `@axintai/compiler@0.3.0`
+- [ ] npm package published: `@axint/compiler@0.3.0`
 - [ ] SPM plugin package tagged and published
 - [ ] `axint eject` working end-to-end
 - [ ] EntityQuery + DynamicOptionsProvider codegen landed (SDK support shipped, codegen in v0.3.1)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from axintai import IntentIR, define_intent, param
+from axint import IntentIR, define_intent, param
 
 
 def test_param_string_spec() -> None:
@@ -103,7 +103,7 @@ def test_ir_round_trip() -> None:
 
 
 def test_define_view_minimal() -> None:
-    from axintai import define_view, view
+    from axint import define_view, view
 
     view_def = define_view(
         name="Greeting",
@@ -116,7 +116,7 @@ def test_define_view_minimal() -> None:
 
 
 def test_define_view_full() -> None:
-    from axintai import ViewIR, define_view, prop, state, view
+    from axint import ViewIR, define_view, prop, state, view
 
     view_def = define_view(
         name="ProfileCard",
@@ -145,7 +145,7 @@ def test_define_view_full() -> None:
 
 
 def test_view_ir_to_dict() -> None:
-    from axintai import define_view, prop, view
+    from axint import define_view, prop, view
 
     view_def = define_view(
         name="Button",
@@ -160,7 +160,7 @@ def test_view_ir_to_dict() -> None:
 
 
 def test_view_element_helpers() -> None:
-    from axintai import view
+    from axint import view
 
     vstack = view.vstack([view.text("A"), view.text("B")], spacing=10)
     assert vstack["type"] == "vstack"
@@ -180,7 +180,7 @@ def test_view_element_helpers() -> None:
 
 
 def test_define_widget_minimal() -> None:
-    from axintai import define_widget, view
+    from axint import define_widget, view
 
     widget = define_widget(
         name="Counter",
@@ -195,7 +195,7 @@ def test_define_widget_minimal() -> None:
 
 
 def test_define_widget_full() -> None:
-    from axintai import WidgetIR, define_widget, entry, view
+    from axint import WidgetIR, define_widget, entry, view
 
     widget = define_widget(
         name="StepCounter",
@@ -224,7 +224,7 @@ def test_define_widget_full() -> None:
 
 
 def test_widget_ir_to_dict() -> None:
-    from axintai import define_widget, entry, view
+    from axint import define_widget, entry, view
 
     widget = define_widget(
         name="Simple",
@@ -246,7 +246,7 @@ def test_widget_ir_to_dict() -> None:
 
 
 def test_define_app_minimal() -> None:
-    from axintai import define_app, scene
+    from axint import define_app, scene
 
     app = define_app(
         name="MyApp",
@@ -257,7 +257,7 @@ def test_define_app_minimal() -> None:
 
 
 def test_define_app_full() -> None:
-    from axintai import AppIR, define_app, scene, storage
+    from axint import AppIR, define_app, scene, storage
 
     app = define_app(
         name="MyApp",
@@ -279,7 +279,7 @@ def test_define_app_full() -> None:
 
 
 def test_app_ir_to_dict() -> None:
-    from axintai import define_app, scene, storage
+    from axint import define_app, scene, storage
 
     app = define_app(
         name="TestApp",
@@ -294,7 +294,7 @@ def test_app_ir_to_dict() -> None:
 
 
 def test_scene_factory_variants() -> None:
-    from axintai import scene
+    from axint import scene
 
     wg = scene.window_group("View1", title="Main Window")
     assert wg.kind == "windowGroup"
@@ -310,7 +310,7 @@ def test_scene_factory_variants() -> None:
 
 
 def test_storage_factory_all_types() -> None:
-    from axintai import storage
+    from axint import storage
 
     s_str = storage.string("key_str", "default")
     assert s_str.type == "string"
@@ -330,7 +330,7 @@ def test_storage_factory_all_types() -> None:
 
 
 def test_prop_factory_all_types() -> None:
-    from axintai import prop
+    from axint import prop
 
     p_str = prop.string("description", optional=True, default="value")
     assert p_str.type == "string"
@@ -345,7 +345,7 @@ def test_prop_factory_all_types() -> None:
 
 
 def test_state_factory_all_types() -> None:
-    from axintai import state
+    from axint import state
 
     s_str = state.string(default="hello")
     assert s_str.type == "string"
@@ -360,7 +360,7 @@ def test_state_factory_all_types() -> None:
 
 
 def test_entry_factory_all_types() -> None:
-    from axintai import entry
+    from axint import entry
 
     e_str = entry.string("desc", default="val")
     assert e_str.type == "string"
@@ -375,7 +375,7 @@ def test_entry_factory_all_types() -> None:
 
 
 def test_view_ir_round_trip() -> None:
-    from axintai import ViewIR, define_view, prop, view
+    from axint import ViewIR, define_view, prop, view
 
     ir = define_view(
         name="Card",
@@ -386,7 +386,7 @@ def test_view_ir_round_trip() -> None:
 
 
 def test_widget_ir_round_trip() -> None:
-    from axintai import WidgetIR, define_widget, entry, view
+    from axint import WidgetIR, define_widget, entry, view
 
     ir = define_widget(
         name="W",
@@ -399,7 +399,7 @@ def test_widget_ir_round_trip() -> None:
 
 
 def test_app_ir_round_trip() -> None:
-    from axintai import AppIR, define_app, scene
+    from axint import AppIR, define_app, scene
 
     ir = define_app(
         name="App",
@@ -412,7 +412,7 @@ def test_app_ir_round_trip() -> None:
 
 
 def test_define_entity_minimal() -> None:
-    from axintai import define_entity
+    from axint import define_entity
 
     entity = define_entity(
         name="Task",
@@ -426,7 +426,7 @@ def test_define_entity_minimal() -> None:
 
 
 def test_define_entity_full() -> None:
-    from axintai import EntityIR, define_entity, param
+    from axint import EntityIR, define_entity, param
 
     entity = define_entity(
         name="Task",
@@ -451,7 +451,7 @@ def test_define_entity_full() -> None:
 
 
 def test_entity_ir_to_dict() -> None:
-    from axintai import define_entity, param
+    from axint import define_entity, param
 
     entity = define_entity(
         name="Contact",
@@ -471,7 +471,7 @@ def test_entity_ir_to_dict() -> None:
 
 
 def test_entity_ir_round_trip() -> None:
-    from axintai import EntityIR, define_entity, param
+    from axint import EntityIR, define_entity, param
 
     ir = define_entity(
         name="Event",
@@ -504,7 +504,7 @@ def test_param_enum_optional() -> None:
 
 
 def test_intent_with_enum_param() -> None:
-    from axintai import define_intent, param
+    from axint import define_intent, param
 
     intent = define_intent(
         name="SetPriorityIntent",
@@ -538,7 +538,7 @@ def test_param_entity_optional() -> None:
 
 
 def test_intent_with_entity_param() -> None:
-    from axintai import define_intent, param
+    from axint import define_intent, param
 
     intent = define_intent(
         name="UpdateTaskIntent",
@@ -559,7 +559,7 @@ def test_intent_with_entity_param() -> None:
 
 
 def test_return_type_inference_string() -> None:
-    from axintai import define_intent
+    from axint import define_intent
 
     def perform() -> str:
         return "result"
@@ -576,7 +576,7 @@ def test_return_type_inference_string() -> None:
 
 
 def test_return_type_inference_int() -> None:
-    from axintai import define_intent
+    from axint import define_intent
 
     def perform() -> int:
         return 42
@@ -593,7 +593,7 @@ def test_return_type_inference_int() -> None:
 
 
 def test_return_type_inference_bool() -> None:
-    from axintai import define_intent
+    from axint import define_intent
 
     def perform() -> bool:
         return True
@@ -610,7 +610,7 @@ def test_return_type_inference_bool() -> None:
 
 
 def test_return_type_inference_float() -> None:
-    from axintai import define_intent
+    from axint import define_intent
 
     def perform() -> float:
         return 3.14
@@ -627,7 +627,7 @@ def test_return_type_inference_float() -> None:
 
 
 def test_no_return_type_when_missing() -> None:
-    from axintai import define_intent
+    from axint import define_intent
 
     intent = define_intent(
         name="VoidIntent",
@@ -640,7 +640,7 @@ def test_no_return_type_when_missing() -> None:
 
 
 def test_intent_with_multiple_features() -> None:
-    from axintai import define_intent, param
+    from axint import define_intent, param
 
     def perform() -> str:
         return "success"

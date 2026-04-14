@@ -19,7 +19,7 @@ error[AX001]: No defineIntent() call found in src/intents/my-intent.ts
 **Fix:** Make sure your file calls `defineIntent()`:
 
 ```typescript
-import { defineIntent, param } from "@axintai/compiler";
+import { defineIntent, param } from "@axint/compiler";
 export default defineIntent({ /* ... */ });
 ```
 

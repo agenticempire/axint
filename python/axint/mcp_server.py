@@ -41,7 +41,7 @@ from .validator import validate_intent
 
 SCAFFOLD_INTENT_TEMPLATE = '''"""Intent definition for {name}."""
 
-from axintai import define_intent, param
+from axint import define_intent, param
 
 {name_lower} = define_intent(
     name="{name}",
@@ -58,7 +58,7 @@ TEMPLATES = [
         "domain": "messaging",
         "source": '''"""Send a message to a contact."""
 
-from axintai import define_intent, param
+from axint import define_intent, param
 
 send_message = define_intent(
     name="SendMessage",
@@ -79,7 +79,7 @@ send_message = define_intent(
         "domain": "productivity",
         "source": '''"""Create a calendar event."""
 
-from axintai import define_intent, param
+from axint import define_intent, param
 
 create_event = define_intent(
     name="CreateEvent",
@@ -100,7 +100,7 @@ create_event = define_intent(
         "domain": "media",
         "source": '''"""Play music from the library."""
 
-from axintai import define_intent, param
+from axint import define_intent, param
 
 play_music = define_intent(
     name="PlayMusic",
@@ -479,7 +479,7 @@ def build_server() -> Server:
                             "type": "string",
                             "description": (
                                 "Full Python source code containing a define_intent() call. "
-                                "Must be a complete file starting with an axintai import, not a fragment."
+                                "Must be a complete file starting with an axint import, not a fragment."
                             ),
                         },
                         "file_name": {
@@ -529,7 +529,7 @@ def build_server() -> Server:
                             "type": "string",
                             "description": (
                                 "Full Python source code containing a define_intent() call. "
-                                "Must be a complete file starting with an axintai import, not a "
+                                "Must be a complete file starting with an axint import, not a "
                                 "code fragment. Same format accepted by axint_compile."
                             ),
                         },

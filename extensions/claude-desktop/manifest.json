@@ -21,35 +21,79 @@
     "entry_point": "server/index.js",
     "mcp_config": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler@0.3.4", "axint-mcp"]
+      "args": ["-y", "@axint/compiler", "axint-mcp"]
     }
   },
   "tools": [
     {
-      "name": "axint_scaffold",
+      "name": "axint.scaffold",
       "description": "Generate a new TypeScript intent file from a name, description, and parameter list",
       "readOnlyHint": false,
       "destructiveHint": false
     },
     {
-      "name": "axint_compile",
+      "name": "axint.compile",
       "description": "Compile a TypeScript intent definition into native Swift code",
       "readOnlyHint": true
     },
     {
-      "name": "axint_validate",
+      "name": "axint.validate",
       "description": "Validate a TypeScript intent definition and return diagnostics",
       "readOnlyHint": true
     },
     {
-      "name": "axint_list_templates",
+      "name": "axint.templates.list",
       "description": "List all available pre-built intent templates, optionally filtered by category",
       "readOnlyHint": true
     },
     {
-      "name": "axint_template",
+      "name": "axint.templates.get",
       "description": "Get the full TypeScript source of a specific intent template",
       "readOnlyHint": true
+    },
+    {
+      "name": "axint.feature",
+      "description": "Generate a complete feature package from a description",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.suggest",
+      "description": "Suggest Apple-native features for a domain",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.schema.compile",
+      "description": "Minimal JSON → Swift (token-saving mode)",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.swift.validate",
+      "description": "Validate existing Swift against build-time rules",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.swift.fix",
+      "description": "Auto-fix mechanical Swift errors",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.quick-start",
+      "description": "Quick-start guide",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.create-intent",
+      "description": "Create a new intent",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.create-widget",
+      "description": "Create a new widget",
+      "readOnlyHint": false,
+      "destructiveHint": false
     }
   ],
   "privacy_policies": [

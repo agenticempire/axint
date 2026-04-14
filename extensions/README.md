@@ -26,7 +26,7 @@ Any tool that speaks MCP over stdio can connect to Axint:
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": ["-y", "@axintai/compiler@0.3.4", "axint-mcp"]
+      "args": ["-y", "@axint/compiler", "axint-mcp"]
     }
   }
 }
@@ -34,10 +34,18 @@ Any tool that speaks MCP over stdio can connect to Axint:
 
 ## Tools Provided
 
-All integrations expose the same five tools:
+All integrations expose the same thirteen tools:
 
-- `axint_scaffold` — generate a TypeScript intent from a description
-- `axint_compile` — compile TypeScript → Swift
-- `axint_validate` — validate and return diagnostics
-- `axint_list_templates` — list pre-built templates
-- `axint_template` — get a template's full source
+- `axint.scaffold` — generate a TypeScript intent from a description
+- `axint.compile` — compile TypeScript → Swift
+- `axint.validate` — validate and return diagnostics
+- `axint.templates.list` — list pre-built templates
+- `axint.templates.get` — get a template's full source
+- `axint.feature` — generate a complete feature package from a description
+- `axint.suggest` — suggest Apple-native features for a domain
+- `axint.schema.compile` — minimal JSON → Swift (token-saving mode)
+- `axint.swift.validate` — validate existing Swift against build-time rules
+- `axint.swift.fix` — auto-fix mechanical Swift errors
+- `axint.quick-start` — quick-start guide
+- `axint.create-intent` — create a new intent
+- `axint.create-widget` — create a new widget

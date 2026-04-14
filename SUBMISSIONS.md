@@ -35,7 +35,7 @@ Works with Claude Code, Cursor, Windsurf, Zed, VS Code, and any MCP-compatible c
 **Tags:** `swift` `apple` `compiler` `typescript` `app-intents` `siri` `swiftui` `widgetkit` `mcp`
 **Category:** Developer Tools
 **Repository:** https://github.com/agenticempire/axint
-**Install command:** `npx -y @axintai/compiler axint-mcp`
+**Install command:** `npx -y @axint/compiler axint-mcp`
 
 ---
 
@@ -58,8 +58,8 @@ Open-source (Apache 2.0). TypeScript SDK on npm, Python SDK on PyPI.
 
 **GitHub:** https://github.com/agenticempire/axint
 **Website:** https://axint.ai
-**npm:** `@axintai/compiler`
-**Install:** `npx -y @axintai/compiler axint-mcp`
+**npm:** `@axint/compiler`
+**Install:** `npx -y @axint/compiler axint-mcp`
 
 ---
 

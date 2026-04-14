@@ -97,7 +97,7 @@ export async function scaffoldProject(opts: ScaffoldOptions): Promise<ScaffoldRe
           sandbox: `axint validate intents/${template}.ts --sandbox`,
         },
         dependencies: {
-          "@axintai/compiler": `^${version}`,
+          "@axint/compiler": `^${version}`,
         },
       },
       null,
@@ -136,7 +136,7 @@ export async function scaffoldProject(opts: ScaffoldOptions): Promise<ScaffoldRe
   );
 
   // 6. The starter intent itself — pulled straight from the template library.
-  //    Templates already use `@axintai/compiler` which resolves against the
+  //    Templates already use `@axint/compiler` which resolves against the
   //    scaffolded dependency.
   await write(`intents/${template}.ts`, tpl.source);
 
@@ -148,7 +148,7 @@ export async function scaffoldProject(opts: ScaffoldOptions): Promise<ScaffoldRe
         mcpServers: {
           axint: {
             command: "npx",
-            args: ["-y", "@axintai/compiler", "axint-mcp"],
+            args: ["-y", "@axint/compiler", "axint-mcp"],
           },
         },
       },
@@ -185,7 +185,7 @@ function scaffoldReadme(
 
 An [Axint](https://axint.ai) project — write App Intents in TypeScript, ship them to Siri.
 
-Generated from the **${title}** template, pinned to \`@axintai/compiler@^${version}\`.
+Generated from the **${title}** template, pinned to \`@axint/compiler@^${version}\`.
 
 ## Compile it
 

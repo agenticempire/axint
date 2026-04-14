@@ -12,7 +12,7 @@ export function activate(context: vscode.ExtensionContext) {
         new vscode.McpStdioServerDefinition(
           "Axint",
           "npx",
-          ["-y", "@axintai/compiler", "axint-mcp"],
+          ["-y", "@axint/compiler", "axint-mcp"],
         ),
       ],
     },
