@@ -70,6 +70,8 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
+    "gen:swift-fixer": "tsx scripts/gen-swift-fixer.ts",
+    "gen:swift-fixer:check": "tsx scripts/gen-swift-fixer.ts --check",
     "prepublishOnly": "npm run clean && npm run build",
     "prepare": "husky"
   },

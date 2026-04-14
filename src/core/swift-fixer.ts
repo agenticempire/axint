@@ -4,22 +4,33 @@
  * Takes a Swift source file plus the diagnostics reported by the Swift
  * validator and rewrites the source to fix the mechanical issues.
  *
- * A fix is "mechanical" when we can produce the right replacement without
- * understanding semantics — e.g. `@State let` → `@State var`, or injecting
- * a stub `perform()` into an AppIntent struct.
+ * Most rules are declared as data in swift-fix-rules.ts and dispatched
+ * generically here. A handful of rules (line-based insertions, closure
+ * unwrapping) need custom logic and live as bespoke functions at the
+ * bottom of this file.
  *
- * Non-mechanical fixes (e.g. inventing a good description string) are
- * skipped; the diagnostic remains on the report so the developer sees it.
+ * This file is the source of truth. scripts/gen-swift-fixer.ts reads
+ * the rules registry and emits AxintFixer.swift for the Xcode Source
+ * Editor Extension, keeping the two implementations in lockstep.
  */
 
 import type { Diagnostic } from "./types.js";
 import { validateSwiftSource } from "./swift-validator.js";
+import {
+  REGEX_FIX_RULES,
+  STRUCT_INJECT_FIX_RULES,
+  type RegexFix,
+  type StructInjectFix,
+} from "./swift-fix-rules.js";
 
 export interface FixResult {
   source: string;
   fixed: Diagnostic[];
   remaining: Diagnostic[];
 }
+
+const REGEX_RULES_BY_CODE = new Map(REGEX_FIX_RULES.map((r) => [r.code, r]));
+const STRUCT_RULES_BY_CODE = new Map(STRUCT_INJECT_FIX_RULES.map((r) => [r.code, r]));
 
 export function fixSwiftSource(source: string, file: string): FixResult {
   const initial = validateSwiftSource(source, file).diagnostics;
@@ -29,7 +40,7 @@ export function fixSwiftSource(source: string, file: string): FixResult {
 
   for (const d of initial) {
     const rewrite = applyFix(out, d);
-    if (rewrite !== null) {
+    if (rewrite !== null && rewrite !== out) {
       out = rewrite;
       fixed.push(d);
     }
@@ -40,102 +51,166 @@ export function fixSwiftSource(source: string, file: string): FixResult {
 }
 
 function applyFix(source: string, d: Diagnostic): string | null {
+  const regexRule = REGEX_RULES_BY_CODE.get(d.code);
+  if (regexRule) return applyRegexRule(source, regexRule);
+
+  const structRule = STRUCT_RULES_BY_CODE.get(d.code);
+  if (structRule) return applyStructInjectRule(source, structRule);
+
   switch (d.code) {
-    case "AX703":
-      return fixStateLet(source, "@State");
-    case "AX708":
-      return fixStateLet(source, "@Binding");
-    case "AX709":
-      return fixStateLet(source, "@ObservedObject");
-    case "AX710":
-      return fixStateLet(source, "@StateObject");
-    case "AX711":
-      return fixStateLet(source, "@EnvironmentObject");
-    case "AX701":
-      return injectPerform(source, d);
-    case "AX702":
-      return injectWidgetBody(source, d);
-    case "AX704":
-      return injectIntentTitle(source, d);
-    case "AX714":
-      return injectAppBody(source, d);
-    case "AX713":
-      return injectTimelineEntryDate(source, d);
+    case "AX721":
+      return addMainActorToClass(source, d, "ObservableObject");
+    case "AX722":
+      return addMainActorToClass(source, d, "@Observable");
+    case "AX724":
+      return stripMainActorFromActor(source, d);
+    case "AX728":
+      return addFinalToClass(source, d);
+    case "AX730":
+      return stripRedundantMainActorRun(source);
+    case "AX733":
+      return stripMainActorFromView(source, d);
+    case "AX741":
+    case "AX742":
+      return addCodableHashableToContentState(source);
+    case "AX748":
+      return addActivityKitImport(source);
     default:
       return null;
   }
 }
 
-// ─── @Wrapper let → @Wrapper var ─────────────────────────────────────
+// ─── Generic rule appliers ──────────────────────────────────────────
 
-function fixStateLet(source: string, wrapper: string): string {
-  const pattern = new RegExp(`(${escape(wrapper)}\\b[^=\\n]*?)\\blet(\\s+\\w+)`, "g");
-  const next = source.replace(pattern, "$1var$2");
+function applyRegexRule(source: string, rule: RegexFix): string {
+  const re = new RegExp(rule.pattern, "g");
+  const next = source.replace(re, rule.replacement);
   return next === source ? source : next;
 }
 
-// ─── Injectors ───────────────────────────────────────────────────────
-
-function injectPerform(source: string, d: Diagnostic): string | null {
-  const stub = `    func perform() async throws -> some IntentResult {\n        return .result()\n    }`;
-  return injectAtStructNamed(source, d, /\bAppIntent\b/, stub);
+function applyStructInjectRule(source: string, rule: StructInjectFix): string | null {
+  const decl = new RegExp(
+    `\\bstruct\\s+(\\w+)\\s*:\\s*[^{]*\\b${escapeRegex(rule.conformance)}\\b[^{]*\\{`,
+    "g"
+  );
+  let m: RegExpExecArray | null;
+  while ((m = decl.exec(source)) !== null) {
+    const openIdx = m.index + m[0].length - 1;
+    const closeIdx = findMatchingBrace(source, openIdx);
+    if (closeIdx === -1) continue;
+    const body = source.slice(openIdx + 1, closeIdx);
+    if (body.includes(rule.sentinel)) continue;
+    return source.slice(0, openIdx + 1) + "\n" + rule.stub + source.slice(openIdx + 1);
+  }
+  return null;
 }
 
-function injectWidgetBody(source: string, d: Diagnostic): string | null {
-  const stub = `    var body: some WidgetConfiguration {\n        EmptyWidgetConfiguration()\n    }`;
-  return injectAtStructNamed(source, d, /\bWidget\b/, stub);
+function findMatchingBrace(source: string, openIdx: number): number {
+  let depth = 0;
+  for (let i = openIdx; i < source.length; i++) {
+    if (source[i] === "{") depth++;
+    else if (source[i] === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
 }
 
-function injectIntentTitle(source: string, d: Diagnostic): string | null {
-  const stub = `    static var title: LocalizedStringResource = "Intent"`;
-  return injectAtStructNamed(source, d, /\bAppIntent\b/, stub);
-}
+// ─── Bespoke fixes (line-based / callback replacement) ─────────────
 
-function injectAppBody(source: string, d: Diagnostic): string | null {
-  const stub = `    var body: some Scene {\n        WindowGroup { ContentView() }\n    }`;
-  return injectAtStructNamed(source, d, /\bApp\b/, stub);
-}
-
-function injectTimelineEntryDate(source: string, d: Diagnostic): string | null {
-  const stub = `    let date: Date`;
-  return injectAtStructNamed(source, d, /\bTimelineEntry\b/, stub);
-}
-
-/**
- * Find the struct declaration that matched the diagnostic's line, then
- * inject `stub` as the first statement inside the struct body.
- */
-function injectAtStructNamed(
+function addMainActorToClass(
   source: string,
   d: Diagnostic,
-  conformance: RegExp,
-  stub: string
+  conformanceHint: string
 ): string | null {
   const lines = source.split("\n");
   if (!d.line || d.line > lines.length) return null;
-
-  // The diagnostic is anchored to the `struct X: Protocol {` line. Walk
-  // forward from there to find the opening brace.
-  const anchorLineIdx = d.line - 1;
-  let braceLine = -1;
-  for (let i = anchorLineIdx; i < lines.length && i < anchorLineIdx + 5; i++) {
-    const col = lines[i].indexOf("{");
-    if (col !== -1 && conformance.test(lines[i])) {
-      braceLine = i;
-      break;
-    }
-    if (col !== -1 && i > anchorLineIdx) {
-      braceLine = i;
-      break;
-    }
-  }
-  if (braceLine === -1) return null;
-
-  const before = lines.slice(0, braceLine + 1);
-  const after = lines.slice(braceLine + 1);
-  return [...before, stub, ...after].join("\n");
+  const idx = d.line - 1;
+  const line = lines[idx];
+  if (!line.includes(conformanceHint) && !/\bclass\s+\w+/.test(line)) return null;
+  if (line.includes("@MainActor")) return source;
+  const indent = line.match(/^\s*/)?.[0] ?? "";
+  lines.splice(idx, 0, `${indent}@MainActor`);
+  return lines.join("\n");
 }
 
-function escape(s: string): string {
+function stripMainActorFromActor(source: string, d: Diagnostic): string | null {
+  if (!d.line) return null;
+  const lines = source.split("\n");
+  const idx = d.line - 1;
+  if (idx < 0 || idx >= lines.length) return null;
+  const stripped = lines[idx].replace(/@MainActor\s*/g, "");
+  if (stripped === lines[idx]) return source;
+  lines[idx] = stripped;
+  return lines.join("\n");
+}
+
+function addFinalToClass(source: string, d: Diagnostic): string | null {
+  if (!d.line) return null;
+  const lines = source.split("\n");
+  const idx = d.line - 1;
+  if (idx < 0 || idx >= lines.length) return null;
+  const line = lines[idx];
+  if (/\bfinal\s+class\b/.test(line)) return source;
+  const next = line.replace(/\bclass\s+/, "final class ");
+  if (next === line) return null;
+  lines[idx] = next;
+  return lines.join("\n");
+}
+
+function stripRedundantMainActorRun(source: string): string {
+  return source.replace(/\bawait\s+MainActor\.run\s*\{([\s\S]*?)\}/g, (_, body) =>
+    body.trim()
+  );
+}
+
+function stripMainActorFromView(source: string, d: Diagnostic): string | null {
+  if (!d.line) return null;
+  const lines = source.split("\n");
+  const idx = d.line - 1;
+  for (let i = Math.max(0, idx - 2); i <= idx; i++) {
+    if (/@MainActor/.test(lines[i])) {
+      const stripped = lines[i].replace(/@MainActor\s*/g, "");
+      if (stripped.trim() === "") {
+        lines.splice(i, 1);
+      } else {
+        lines[i] = stripped;
+      }
+      return lines.join("\n");
+    }
+  }
+  return null;
+}
+
+function addCodableHashableToContentState(source: string): string {
+  return source.replace(
+    /\b(struct|class)\s+ContentState\s*(?::\s*([^{]+?))?\s*\{/,
+    (_, kind, conformRaw) => {
+      const existing = (conformRaw ?? "")
+        .split(/[,&]/)
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      for (const n of ["Codable", "Hashable"]) {
+        if (!existing.includes(n)) existing.push(n);
+      }
+      return `${kind} ContentState: ${existing.join(", ")} {`;
+    }
+  );
+}
+
+function addActivityKitImport(source: string): string {
+  if (/\bimport\s+ActivityKit\b/.test(source)) return source;
+  const importRe = /^import\s+\w+.*$/gm;
+  let lastIdx = -1;
+  let m: RegExpExecArray | null;
+  while ((m = importRe.exec(source)) !== null) {
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx === -1) return `import ActivityKit\n${source}`;
+  return source.slice(0, lastIdx) + "\nimport ActivityKit" + source.slice(lastIdx);
+}
+
+function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

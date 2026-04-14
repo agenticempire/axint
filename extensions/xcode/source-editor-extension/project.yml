@@ -1,0 +1,76 @@
+# XcodeGen project for the Axint Source Editor Extension.
+#
+# We don't check the generated .xcodeproj into source control — Xcode
+# regenerates too much on every edit and the diffs are noise. CI
+# generates the project with `xcodegen generate` before building.
+#
+# Local: `brew install xcodegen && xcodegen generate` in this folder.
+
+name: AxintForXcode
+
+options:
+  bundleIdPrefix: com.axint
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+  groupSortPosition: top
+
+settings:
+  base:
+    MARKETING_VERSION: "0.3.4"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ${AXINT_DEVELOPMENT_TEAM}
+    CODE_SIGN_STYLE: Manual
+    ENABLE_HARDENED_RUNTIME: YES
+
+targets:
+  AxintForXcode:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: AxintForXcode
+    info:
+      path: AxintForXcode/Info.plist
+      properties:
+        CFBundleName: AxintForXcode
+        CFBundleDisplayName: Axint for Xcode
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        LSUIElement: false
+        NSHumanReadableCopyright: "Copyright © 2026 Agentic Empire. Apache-2.0."
+    entitlements:
+      path: AxintForXcode/AxintForXcode.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.axint.xcode-extension
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 Agentic Empire"
+        COMBINE_HIDPI_IMAGES: YES
+    dependencies:
+      - target: AxintEditor
+
+  AxintEditor:
+    type: xcode-extension
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: AxintEditor
+    info:
+      path: AxintEditor/Info.plist
+      properties:
+        CFBundleName: AxintEditor
+        CFBundleDisplayName: Axint
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.dt.Xcode.extension.source-editor
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).SourceEditorExtension"
+    entitlements:
+      path: AxintEditor/AxintEditor.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.axint.xcode-extension.AxintEditor
+        SKIP_INSTALL: NO
