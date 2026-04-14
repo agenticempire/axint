@@ -51,14 +51,14 @@ struct AxintCompilePlugin: BuildToolPlugin {
 
     /// Returns (executable, prefixArgs). When `axint` is in PATH the prefix
     /// is empty. When only `npx` is available, the prefix contains the flags
-    /// needed to install and run the @axintai/compiler package.
+    /// needed to install and run the @axint/compiler package.
     private func resolveCompiler() throws -> (Path, [String]) {
         if let axintPath = try findInPath("axint") {
             return (axintPath, [])
         }
 
         if let npxPath = try findInPath("npx") {
-            return (npxPath, ["-y", "-p", "@axintai/compiler", "axint"])
+            return (npxPath, ["-y", "-p", "@axint/compiler", "axint"])
         }
 
         throw AxintPluginError.executableNotFound(
@@ -66,7 +66,7 @@ struct AxintCompilePlugin: BuildToolPlugin {
             The 'axint' compiler was not found in your PATH.
 
             Install it globally:
-              npm install -g @axintai/compiler
+              npm install -g @axint/compiler
 
             Or ensure Node.js and npx are available so the plugin can
             fetch the compiler automatically.
