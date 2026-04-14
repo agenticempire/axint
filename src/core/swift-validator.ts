@@ -17,22 +17,21 @@
  */
 
 import type { Diagnostic } from "./types.js";
-import { getDiagnostic } from "./diagnostics.js";
+import {
+  type SwiftDeclaration,
+  countNewlinesUpTo,
+  escapeRegex,
+  findTypeDeclarations,
+  hasConformance,
+  makeDiagnostic,
+  stripCommentsAndStrings,
+} from "./swift-ast.js";
+import { checkConcurrency } from "./swift-validator-concurrency.js";
+import { checkLiveActivities } from "./swift-validator-live-activities.js";
 
 export interface SwiftValidationResult {
   file: string;
   diagnostics: Diagnostic[];
-}
-
-interface SwiftDeclaration {
-  kind: "struct" | "class";
-  name: string;
-  conformances: string[];
-  startLine: number;
-  endLine: number;
-  bodyStart: number;
-  bodyEnd: number;
-  source: string;
 }
 
 export function validateSwiftSource(source: string, file: string): SwiftValidationResult {
@@ -66,11 +65,10 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
     }
   }
 
-  return { file, diagnostics };
-}
+  checkConcurrency(decls, source, file, diagnostics);
+  checkLiveActivities(decls, source, file, diagnostics);
 
-function hasConformance(decl: SwiftDeclaration, protocolName: string): boolean {
-  return decl.conformances.some((c) => c === protocolName);
+  return { file, diagnostics };
 }
 
 // ─── Rule: AX701 — AppIntent must have a perform() function ──────────
@@ -154,10 +152,6 @@ function checkPropertyWrappersAreVar(
   }
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 // ─── Rule: AX704 — AppIntent must have a `title` ─────────────────────
 
 function checkAppIntentHasTitle(
@@ -185,8 +179,6 @@ function checkAppIntentHasDescription(
   diagnostics: Diagnostic[]
 ) {
   const body = decl.source.slice(decl.bodyStart, decl.bodyEnd);
-  // Match `static var description [: IntentDescription] = IntentDescription("...")`.
-  // Optional type annotation; capture the first string literal passed to IntentDescription(...).
   const declMatch = body.match(
     /\bstatic\s+var\s+description\b(?:\s*:\s*IntentDescription)?\s*=\s*IntentDescription\s*\(\s*"([^"]*)"/
   );
@@ -296,165 +288,4 @@ function checkAppHasBody(
       })
     );
   }
-}
-
-// ─── Declaration finder ──────────────────────────────────────────────
-
-const DECL_REGEX =
-  /\b(struct|class)\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s*<[^>]*>)?\s*(?::\s*([^{]+?))?\s*\{/g;
-
-function findTypeDeclarations(stripped: string, original: string): SwiftDeclaration[] {
-  const decls: SwiftDeclaration[] = [];
-  let match: RegExpExecArray | null;
-
-  DECL_REGEX.lastIndex = 0;
-  while ((match = DECL_REGEX.exec(stripped)) !== null) {
-    const [full, kind, name, conformanceList] = match;
-    const bodyStart = match.index + full.length;
-    const bodyEnd = findMatchingBrace(stripped, bodyStart - 1);
-    if (bodyEnd === -1) continue;
-
-    const startLine = 1 + countNewlinesUpTo(stripped, match.index);
-    const endLine = 1 + countNewlinesUpTo(stripped, bodyEnd);
-
-    decls.push({
-      kind: kind as "struct" | "class",
-      name,
-      conformances: parseConformances(conformanceList ?? ""),
-      startLine,
-      endLine,
-      bodyStart,
-      bodyEnd,
-      source: original,
-    });
-  }
-
-  return decls;
-}
-
-function parseConformances(raw: string): string[] {
-  return (
-    raw
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      // Conformance fragments may be `AppIntent` or `Sendable & AppIntent` —
-      // split on `&` so protocol composition still matches.
-      .flatMap((s) => s.split("&").map((p) => p.trim()))
-  );
-}
-
-function findMatchingBrace(source: string, openBraceIndex: number): number {
-  let depth = 0;
-  for (let i = openBraceIndex; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === "{") depth++;
-    else if (ch === "}") {
-      depth--;
-      if (depth === 0) return i;
-    }
-  }
-  return -1;
-}
-
-function countNewlinesUpTo(source: string, index: number): number {
-  let count = 0;
-  for (let i = 0; i < index; i++) {
-    if (source[i] === "\n") count++;
-  }
-  return count;
-}
-
-// ─── Comment & string stripping ──────────────────────────────────────
-//
-// We replace comments and string literals with spaces (preserving length and
-// line count) so the declaration finder doesn't get fooled by keywords
-// buried inside them.
-
-function stripCommentsAndStrings(source: string): string {
-  const out: string[] = [];
-  let i = 0;
-  const n = source.length;
-
-  while (i < n) {
-    const ch = source[i];
-    const next = source[i + 1];
-
-    if (ch === "/" && next === "/") {
-      while (i < n && source[i] !== "\n") {
-        out.push(" ");
-        i++;
-      }
-      continue;
-    }
-    if (ch === "/" && next === "*") {
-      out.push("  ");
-      i += 2;
-      while (i < n && !(source[i] === "*" && source[i + 1] === "/")) {
-        out.push(source[i] === "\n" ? "\n" : " ");
-        i++;
-      }
-      if (i < n) {
-        out.push("  ");
-        i += 2;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      // Handle multi-line string literals ("""...""") and regular ones.
-      if (source.slice(i, i + 3) === '"""') {
-        out.push("   ");
-        i += 3;
-        while (i < n && source.slice(i, i + 3) !== '"""') {
-          out.push(source[i] === "\n" ? "\n" : " ");
-          i++;
-        }
-        if (i < n) {
-          out.push("   ");
-          i += 3;
-        }
-        continue;
-      }
-      out.push(" ");
-      i++;
-      while (i < n && source[i] !== '"') {
-        if (source[i] === "\\" && i + 1 < n) {
-          out.push("  ");
-          i += 2;
-          continue;
-        }
-        out.push(source[i] === "\n" ? "\n" : " ");
-        i++;
-      }
-      if (i < n) {
-        out.push(" ");
-        i++;
-      }
-      continue;
-    }
-
-    out.push(ch);
-    i++;
-  }
-
-  return out.join("");
-}
-
-// ─── Diagnostic helper ───────────────────────────────────────────────
-
-function makeDiagnostic(
-  code: string,
-  file: string,
-  line: number,
-  overrides: { message?: string; suggestion?: string }
-): Diagnostic {
-  const info = getDiagnostic(code);
-  return {
-    code,
-    severity: info?.severity ?? "error",
-    message: overrides.message ?? info?.message ?? code,
-    file,
-    line,
-    suggestion: overrides.suggestion,
-  };
 }

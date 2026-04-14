@@ -678,6 +678,161 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "AppIntent description is missing or empty",
     category: "swift-validator",
   },
+
+  // ─── Swift 6 Concurrency (AX720–AX734) ──────────────────
+  AX720: {
+    code: "AX720",
+    severity: "error",
+    message: "DispatchQueue.main.async should be Task { @MainActor in } under Swift 6",
+    category: "swift-concurrency",
+  },
+  AX721: {
+    code: "AX721",
+    severity: "error",
+    message: "ObservableObject class should be annotated @MainActor",
+    category: "swift-concurrency",
+  },
+  AX722: {
+    code: "AX722",
+    severity: "error",
+    message: "@Observable class with UI state should be annotated @MainActor",
+    category: "swift-concurrency",
+  },
+  AX723: {
+    code: "AX723",
+    severity: "warning",
+    message: "@unchecked Sendable bypasses the compiler's safety checks",
+    category: "swift-concurrency",
+  },
+  AX724: {
+    code: "AX724",
+    severity: "error",
+    message: "@MainActor is redundant inside an actor declaration",
+    category: "swift-concurrency",
+  },
+  AX725: {
+    code: "AX725",
+    severity: "error",
+    message: "'lazy var' is not allowed inside an actor",
+    category: "swift-concurrency",
+  },
+  AX726: {
+    code: "AX726",
+    severity: "warning",
+    message: "Task.detached without explicit isolation loses the current context",
+    category: "swift-concurrency",
+  },
+  AX727: {
+    code: "AX727",
+    severity: "error",
+    message: "'nonisolated var' must be 'let' for Sendable conformance",
+    category: "swift-concurrency",
+  },
+  AX728: {
+    code: "AX728",
+    severity: "error",
+    message: "Sendable class must be 'final'",
+    category: "swift-concurrency",
+  },
+  AX729: {
+    code: "AX729",
+    severity: "warning",
+    message: "async function inside a View struct can't be called from body",
+    category: "swift-concurrency",
+  },
+  AX730: {
+    code: "AX730",
+    severity: "warning",
+    message: "Redundant 'await MainActor.run' inside a @MainActor context",
+    category: "swift-concurrency",
+  },
+  AX731: {
+    code: "AX731",
+    severity: "warning",
+    message: "Task capturing self should use [weak self] to avoid retain cycles",
+    category: "swift-concurrency",
+  },
+  AX732: {
+    code: "AX732",
+    severity: "warning",
+    message: "actor deinit cannot touch actor-isolated state",
+    category: "swift-concurrency",
+  },
+  AX733: {
+    code: "AX733",
+    severity: "info",
+    message:
+      "@MainActor on a View struct is redundant — SwiftUI views are main-actor isolated",
+    category: "swift-concurrency",
+  },
+  AX734: {
+    code: "AX734",
+    severity: "error",
+    message: "DispatchQueue.global().async should be Task.detached { } under Swift 6",
+    category: "swift-concurrency",
+  },
+
+  // ─── Live Activities / ActivityKit (AX740–AX749) ────────
+  AX740: {
+    code: "AX740",
+    severity: "error",
+    message: "ActivityAttributes is missing nested ContentState type",
+    category: "swift-live-activities",
+  },
+  AX741: {
+    code: "AX741",
+    severity: "error",
+    message: "ActivityAttributes.ContentState must conform to Codable",
+    category: "swift-live-activities",
+  },
+  AX742: {
+    code: "AX742",
+    severity: "error",
+    message: "ActivityAttributes.ContentState must conform to Hashable",
+    category: "swift-live-activities",
+  },
+  AX743: {
+    code: "AX743",
+    severity: "error",
+    message: "ActivityConfiguration is missing dynamicIsland { } closure",
+    category: "swift-live-activities",
+  },
+  AX744: {
+    code: "AX744",
+    severity: "warning",
+    message: "DynamicIsland expanded region is empty",
+    category: "swift-live-activities",
+  },
+  AX745: {
+    code: "AX745",
+    severity: "error",
+    message: "DynamicIsland is missing compactLeading region",
+    category: "swift-live-activities",
+  },
+  AX746: {
+    code: "AX746",
+    severity: "error",
+    message: "DynamicIsland is missing compactTrailing region",
+    category: "swift-live-activities",
+  },
+  AX747: {
+    code: "AX747",
+    severity: "error",
+    message: "DynamicIsland is missing minimal region",
+    category: "swift-live-activities",
+  },
+  AX748: {
+    code: "AX748",
+    severity: "error",
+    message: "File uses ActivityAttributes but is missing 'import ActivityKit'",
+    category: "swift-live-activities",
+  },
+  AX749: {
+    code: "AX749",
+    severity: "warning",
+    message: "Activity<>.request must be called from a @MainActor context",
+    category: "swift-live-activities",
+  },
 };
 
 export const DIAGNOSTIC_COUNT = Object.keys(DIAGNOSTIC_CODES).length;

@@ -19,6 +19,8 @@
  *   axint xcode verify            Verify the MCP connection is working
  *   axint xcode fix <path>        Auto-fix mechanical Swift validator errors
  *   axint xcode doctor            Audit environment for Apple-platform agentic coding
+ *   axint xcode extension install Install the notarized Axint Source Editor Extension
+ *   axint xcode extension status  Report whether the extension is installed
  *   axint --version               Show version
  */
 
@@ -180,6 +182,28 @@ xcode
   .action(async () => {
     const { runXcodeDoctor } = await import("./xcode-doctor.js");
     await runXcodeDoctor();
+  });
+
+const xcodeExtension = xcode
+  .command("extension")
+  .description("Manage the Axint Xcode Source Editor Extension");
+
+xcodeExtension
+  .command("install")
+  .description("Download and install the latest notarized Axint extension")
+  .option("--force", "Replace an existing install with the latest release")
+  .option("--dir <dir>", "Install directory (defaults to ~/Applications)")
+  .action(async (options: { force?: boolean; dir?: string }) => {
+    const { installXcodeExtension } = await import("./xcode-extension.js");
+    await installXcodeExtension(options);
+  });
+
+xcodeExtension
+  .command("status")
+  .description("Report whether the Axint extension is installed and its version")
+  .action(async () => {
+    const { xcodeExtensionStatus } = await import("./xcode-extension.js");
+    await xcodeExtensionStatus();
   });
 
 // Helper used by scaffold to avoid a circular import

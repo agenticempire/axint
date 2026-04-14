@@ -1,0 +1,159 @@
+name: Xcode Extension
+
+# Builds the AxintForXcode source editor extension .app bundle and,
+# when signing secrets are present, produces a notarized release
+# artifact. The source lives at extensions/xcode/source-editor-extension
+# and is generated with XcodeGen rather than committing the xcodeproj.
+#
+# Triggers:
+#   - push to main that touches extension files (smoke build only)
+#   - git tag `xcode-ext-v*` (full notarize + upload)
+#   - workflow_dispatch (manual)
+#
+# Secrets required for notarization (set in repo settings):
+#   AXINT_DEVELOPMENT_TEAM        — Apple Team ID
+#   AXINT_SIGNING_CERT_P12_BASE64 — Developer ID Application cert (base64-encoded .p12)
+#   AXINT_SIGNING_CERT_PASSWORD   — password for the .p12
+#   AXINT_KEYCHAIN_PASSWORD       — temp keychain password (any random string)
+#   AXINT_NOTARY_APPLE_ID         — Apple ID for notarytool
+#   AXINT_NOTARY_PASSWORD         — app-specific password for notarytool
+#   AXINT_NOTARY_TEAM_ID          — Team ID for notarytool
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "xcode-ext-v*"
+    paths:
+      - "extensions/xcode/source-editor-extension/**"
+      - ".github/workflows/xcode-extension.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "extensions/xcode/source-editor-extension/**"
+      - ".github/workflows/xcode-extension.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: extensions/xcode/source-editor-extension
+
+    env:
+      SCHEME: AxintForXcode
+      CONFIG: Release
+      DERIVED: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        env:
+          AXINT_DEVELOPMENT_TEAM: ${{ secrets.AXINT_DEVELOPMENT_TEAM || '-' }}
+        run: xcodegen generate
+
+      - name: Build (unsigned smoke test)
+        if: "!startsWith(github.ref, 'refs/tags/xcode-ext-v')"
+        run: |
+          xcodebuild -project AxintForXcode.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIG" \
+            -derivedDataPath "$DERIVED" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcpretty || true
+
+      # ── Signed + notarized release path ──────────────────────────────
+      - name: Import signing certificate
+        if: startsWith(github.ref, 'refs/tags/xcode-ext-v')
+        env:
+          P12_BASE64: ${{ secrets.AXINT_SIGNING_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.AXINT_SIGNING_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.AXINT_KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/axint.keychain-db
+          CERT_PATH=$RUNNER_TEMP/axint-cert.p12
+          echo -n "$P12_BASE64" | base64 --decode -o "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+
+      - name: Archive and export signed .app
+        if: startsWith(github.ref, 'refs/tags/xcode-ext-v')
+        env:
+          TEAM_ID: ${{ secrets.AXINT_DEVELOPMENT_TEAM }}
+        run: |
+          ARCHIVE_PATH="$DERIVED/AxintForXcode.xcarchive"
+          EXPORT_PATH="$DERIVED/export"
+
+          xcodebuild -project AxintForXcode.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIG" \
+            -derivedDataPath "$DERIVED" \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            archive | xcpretty
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>developer-id</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Notarize and staple
+        if: startsWith(github.ref, 'refs/tags/xcode-ext-v')
+        env:
+          APPLE_ID: ${{ secrets.AXINT_NOTARY_APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.AXINT_NOTARY_PASSWORD }}
+          TEAM_ID: ${{ secrets.AXINT_NOTARY_TEAM_ID }}
+        run: |
+          APP_PATH="$DERIVED/export/AxintForXcode.app"
+          ZIP_PATH="$DERIVED/AxintForXcode.zip"
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+
+          xcrun notarytool submit "$ZIP_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+          xcrun stapler staple "$APP_PATH"
+
+          # Re-zip after stapling so the artifact carries the ticket.
+          rm "$ZIP_PATH"
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+
+      - name: Upload .app artifact
+        if: startsWith(github.ref, 'refs/tags/xcode-ext-v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: AxintForXcode
+          path: extensions/xcode/source-editor-extension/build/AxintForXcode.zip
+          if-no-files-found: error
