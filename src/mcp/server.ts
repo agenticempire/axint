@@ -60,7 +60,7 @@ import type {
 import { isPrimitiveType, isSceneKind } from "../core/types.js";
 
 // Read version from package.json so it stays in sync
-let pkg = { version: "0.3.3" };
+let pkg = { version: "0.3.8" };
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));

@@ -56,7 +56,7 @@ import type {
 } from "../../../src/core/types.js";
 import { isPrimitiveType, isSceneKind } from "../../../src/core/types.js";
 
-const VERSION = "0.3.7";
+const VERSION = "0.3.8";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
