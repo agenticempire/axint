@@ -54,7 +54,7 @@ Each validator emits diagnostics with error codes (`AX100`–`AX202`) that point
 
 ## Cross-Language Bridge
 
-The Python SDK (`python/axintai/`) produces the same IR JSON as the TypeScript SDK. Both serialize to the same shape. A Python user calls `axintai.compile(intent)`, which internally returns IR JSON, which is then fed to the Swift generator (currently via a subprocess call to the TypeScript CLI, but can be refactored to a shared library).
+The Python SDK (`python/axint/`) produces the same IR JSON as the TypeScript SDK. Both serialize to the same shape. A Python user calls `axint.compile(intent)`, which internally returns IR JSON, which is then fed to the Swift generator (currently via a subprocess call to the TypeScript CLI, but can be refactored to a shared library).
 
 `compileFromIR()` is the key function: it accepts an IR object or JSON string, skips parsing entirely, and goes straight to validation and code generation. This is how the Python SDK and registry both use the compiler without reimplementing generation logic.
 

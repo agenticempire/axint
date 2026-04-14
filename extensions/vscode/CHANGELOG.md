@@ -2,7 +2,7 @@
 
 ## [0.3.2] - 2026-04-12
 
-- Unpin compiler version — always pulls latest @axintai/compiler
+- Unpin compiler version — always pulls latest @axint/compiler
 - Version bump to match compiler release
 
 ## [0.3.0] - 2026-04-10

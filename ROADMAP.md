@@ -42,7 +42,7 @@ We ship small, tight releases. Everything on this page is open for contribution 
 
 ### v0.2.1
 
-- **Package rename**: `axint` → `@axint/compiler` with npm provenance.
+- **Package rename**: `axint` → `@axint/compiler` (originally `@axintai`, migrated April 2026) with npm provenance.
 - Vendored compiler in the website sync'd to the published package.
 
 ### v0.2.0
