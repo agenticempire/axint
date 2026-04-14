@@ -2,7 +2,7 @@
 Python-native IR validator.
 
 Mirrors the TypeScript validator in `src/core/validator.ts`. Applies the
-same rules so that `axintai validate` catches errors locally before the
+same rules so that `axint validate` catches errors locally before the
 intent ever reaches the TS compiler.
 """
 

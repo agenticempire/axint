@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from axintai.parser import ParserError, parse_source
+from axint.parser import ParserError, parse_source
 
 
 def test_parses_minimal_intent() -> None:
     src = '''
-from axintai import define_intent, param
+from axint import define_intent, param
 
 my_intent = define_intent(
     name="SendMessageIntent",
@@ -31,7 +31,7 @@ my_intent = define_intent(
 
 def test_parses_intent_with_params() -> None:
     src = '''
-from axintai import define_intent, param
+from axint import define_intent, param
 
 create_event = define_intent(
     name="CreateCalendarEventIntent",
@@ -57,7 +57,7 @@ create_event = define_intent(
 
 def test_parses_multiple_intents_in_one_file() -> None:
     src = '''
-from axintai import define_intent
+from axint import define_intent
 
 a = define_intent(name="A", title="A", description="a", domain="x")
 b = define_intent(name="B", title="B", description="b", domain="x")
@@ -68,7 +68,7 @@ b = define_intent(name="B", title="B", description="b", domain="x")
 
 def test_parses_entitlements_and_info_plist_keys() -> None:
     src = '''
-from axintai import define_intent
+from axint import define_intent
 
 intent = define_intent(
     name="HealthIntent",
@@ -86,7 +86,7 @@ intent = define_intent(
 
 def test_parses_number_alias_as_int() -> None:
     src = '''
-from axintai import define_intent, param
+from axint import define_intent, param
 
 x = define_intent(
     name="CountIntent",
@@ -102,7 +102,7 @@ x = define_intent(
 
 def test_parser_reports_missing_required_field() -> None:
     src = '''
-from axintai import define_intent
+from axint import define_intent
 
 broken = define_intent(
     name="Broken",
@@ -118,7 +118,7 @@ broken = define_intent(
 
 def test_parser_rejects_non_dict_params() -> None:
     src = '''
-from axintai import define_intent
+from axint import define_intent
 
 x = define_intent(
     name="X",
@@ -135,7 +135,7 @@ x = define_intent(
 
 def test_parser_rejects_unknown_param_type() -> None:
     src = '''
-from axintai import define_intent, param
+from axint import define_intent, param
 
 x = define_intent(
     name="X",
@@ -158,7 +158,7 @@ def test_parser_reports_syntax_error() -> None:
 
 def test_parser_ignores_non_define_intent_assignments() -> None:
     src = '''
-from axintai import define_intent
+from axint import define_intent
 
 x = 42
 y = "hello"

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from axintai import define_intent, param
-from axintai.validator import validate_intent
+from axint import define_intent, param
+from axint.validator import validate_intent
 
 
 def test_valid_intent_returns_no_errors() -> None:

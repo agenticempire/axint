@@ -1,4 +1,4 @@
-"""Tests for the axintai CLI."""
+"""Tests for the axint CLI."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ import json
 import tempfile
 from pathlib import Path
 
-from axintai.cli import main
+from axint.cli import main
 
 SAMPLE_INTENT = '''
-from axintai import define_intent, param
+from axint import define_intent, param
 
 create_event = define_intent(
     name="CreateCalendarEventIntent",
@@ -114,7 +114,7 @@ def test_validate_valid_intent(capsys) -> None:
 
 def test_validate_invalid_intent(capsys) -> None:
     bad_intent = '''
-from axintai import define_intent
+from axint import define_intent
 
 broken = define_intent(
     name="not_pascal_case",

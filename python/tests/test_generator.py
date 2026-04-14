@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from axintai import define_intent, param
-from axintai.generator import (
+from axint import define_intent, param
+from axint.generator import (
     escape_swift_string,
     escape_xml,
     generate_entitlements_fragment,

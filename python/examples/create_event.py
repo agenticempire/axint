@@ -2,11 +2,11 @@
 
 Run it:
 
-    axintai parse examples/create_event.py
-    axintai parse examples/create_event.py --json
+    axint parse examples/create_event.py
+    axint parse examples/create_event.py --json
 """
 
-from axintai import define_intent, param
+from axint import define_intent, param
 
 create_event = define_intent(
     name="CreateCalendarEventIntent",

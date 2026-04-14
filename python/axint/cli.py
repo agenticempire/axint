@@ -6,18 +6,18 @@ the shared IR and generates Swift directly, with no Node.js dependency.
 
 Commands
 --------
-    axintai init [dir]               Scaffold a new Axint project
-    axintai compile <file>           Parse .py definitions → Swift
-    axintai parse <file>             Parse + print the IR as JSON
-    axintai validate <file>          Validate definitions without generating Swift
-    axintai eject <file>             Export generated Swift to standalone Xcode project
-    axintai watch <file|dir>         Watch .py files and auto-compile on change
-    axintai mcp                      Start the MCP server for AI coding assistants
-    axintai registry login           Authenticate with registry.axint.ai
-    axintai registry publish         Publish a package to the registry
-    axintai registry add <package>   Install a package from the registry
-    axintai registry search [query]  Search packages in the registry
-    axintai --version                Show the SDK version
+    axint init [dir]               Scaffold a new Axint project
+    axint compile <file>           Parse .py definitions → Swift
+    axint parse <file>             Parse + print the IR as JSON
+    axint validate <file>          Validate definitions without generating Swift
+    axint eject <file>             Export generated Swift to standalone Xcode project
+    axint watch <file|dir>         Watch .py files and auto-compile on change
+    axint mcp                      Start the MCP server for AI coding assistants
+    axint registry login           Authenticate with registry.axint.ai
+    axint registry publish         Publish a package to the registry
+    axint registry add <package>   Install a package from the registry
+    axint registry search [query]  Search packages in the registry
+    axint --version                Show the SDK version
 """
 
 from __future__ import annotations
@@ -61,11 +61,11 @@ from .validator import (
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="axintai",
+        prog="axint",
         description="Python SDK for Axint — define Apple Intents, Views, Widgets, and Apps in Python.",
     )
     parser.add_argument(
-        "--version", action="version", version=f"axintai {__version__}"
+        "--version", action="version", version=f"axint {__version__}"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -423,7 +423,7 @@ entry: intents/example.py
     intents_dir.mkdir(exist_ok=True)
 
     (intents_dir / "example.py").write_text(
-        '''from axintai import define_intent, IntentParameter
+        '''from axint import define_intent, IntentParameter
 
 example = define_intent(
     name="Example",
@@ -454,14 +454,14 @@ An Axint project for iOS Shortcuts.
 
 ## Getting started
 
-1. Install axintai:
+1. Install axint:
    \\`\\`\\`bash
-   pip install axintai
+   pip install axint
    \\`\\`\\`
 
 2. Compile:
    \\`\\`\\`bash
-   axintai compile intents/example.py --out ./
+   axint compile intents/example.py --out ./
    \\`\\`\\`
 
 3. View the generated Swift in your current directory.
@@ -480,7 +480,7 @@ An Axint project for iOS Shortcuts.
     print("  \033[1mNext:\033[0m")
     if args.dir != ".":
         print(f"    cd {args.dir}")
-    print("    axintai compile intents/example.py --out ./")
+    print("    axint compile intents/example.py --out ./")
     print()
     print("  \033[2mDocs: https://github.com/agenticempire/axint#readme\033[0m")
     print()
@@ -541,7 +541,7 @@ def _cmd_watch(args: argparse.Namespace) -> int:
 
     out_dir = Path(args.out).resolve()
 
-    print(f"\033[1maxintai watch\033[0m — {len(files_to_watch)} file(s)\n")
+    print(f"\033[1maxint watch\033[0m — {len(files_to_watch)} file(s)\n")
 
     def compile_one(fpath: Path) -> bool:
         source = _read_source(fpath)
@@ -643,7 +643,7 @@ def _registry_login() -> int:
     cred_path = config_dir / "credentials.json"
 
     try:
-        body = json.dumps({"client_id": "axintai-cli"}).encode("utf-8")
+        body = json.dumps({"client_id": "axint-cli"}).encode("utf-8")
         req = Request(
             f"{registry_url}/api/v1/auth/device-code",
             data=body,
@@ -699,7 +699,7 @@ def _registry_login() -> int:
                         continue
                     if err == "expired_token":
                         print(
-                            "\033[31merror:\033[0m Login timed out. Run `axintai registry login` again.",
+                            "\033[31merror:\033[0m Login timed out. Run `axint registry login` again.",
                             file=sys.stderr,
                         )
                         return 1
@@ -745,7 +745,7 @@ def _registry_publish() -> int:
             f"  \033[31merror:\033[0m No axint.config.yaml found in {cwd}",
             file=sys.stderr,
         )
-        print("  \033[2mRun `axintai init` to create one.\033[0m", file=sys.stderr)
+        print("  \033[2mRun `axint init` to create one.\033[0m", file=sys.stderr)
         return 1
 
     try:
@@ -792,7 +792,7 @@ def _registry_publish() -> int:
 
     if not cred_path.exists():
         print(
-            "  \033[31merror:\033[0m Not logged in. Run `axintai registry login` first.",
+            "  \033[31merror:\033[0m Not logged in. Run `axint registry login` first.",
             file=sys.stderr,
         )
         return 1
@@ -802,7 +802,7 @@ def _registry_publish() -> int:
         token = creds.get("access_token")
     except Exception:
         print(
-            "  \033[31merror:\033[0m Corrupt credentials file. Run `axintai registry login` again.",
+            "  \033[31merror:\033[0m Corrupt credentials file. Run `axint registry login` again.",
             file=sys.stderr,
         )
         return 1
@@ -912,7 +912,7 @@ def _registry_add(package: str, target_dir: str) -> int:
             print(f"      {f}")
         print()
         print("  \033[1mNext:\033[0m")
-        print(f"    axintai compile {target_dir}/{slug}/intent.py --out ./")
+        print(f"    axint compile {target_dir}/{slug}/intent.py --out ./")
         print()
         return 0
 
@@ -972,7 +972,7 @@ def _registry_search(query: str | None, limit: str, as_json: bool) -> int:
         print()
         if results:
             first_pkg = results[0].get("package_name", "@namespace/slug")
-            print(f"  \033[2mInstall:\033[0m axintai registry add {first_pkg}")
+            print(f"  \033[2mInstall:\033[0m axint registry add {first_pkg}")
         print()
         return 0
 
