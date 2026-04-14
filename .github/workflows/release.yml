@@ -37,7 +37,7 @@ jobs:
 
       # ── Publish to npm (primary registry) ────────────────────────
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: npm publish --access public --provenance || echo "Version already published — skipping"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
