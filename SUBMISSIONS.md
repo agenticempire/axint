@@ -13,24 +13,31 @@ Run each step, then delete this file.
 **Name:** `agenticempire/axint`
 
 **Tagline (short):**
-Compile TypeScript or Python into native Swift App Intents, SwiftUI views, and WidgetKit widgets. One MCP server, six tools, zero Xcode boilerplate.
+Compile TypeScript or Python into native Swift App Intents, SwiftUI views, and WidgetKit widgets. One MCP server, thirteen tools, zero Xcode boilerplate.
 
 **Description (Smithery audience = developers using MCP with Claude/Cursor/Windsurf):**
 
-Axint is an open-source compiler that lets AI coding agents generate native Apple code without writing Swift directly. Your agent calls `axint_compile` with a TypeScript `defineIntent()` call and gets back production-ready Swift — App Intents for Siri, SwiftUI views, WidgetKit widgets, full app scaffolds.
+Axint is an open-source compiler that lets AI coding agents generate native Apple code without writing Swift directly. Your agent calls `axint.compile` with a TypeScript `defineIntent()` call and gets back production-ready Swift — App Intents for Siri, SwiftUI views, WidgetKit widgets, full app scaffolds.
 
-The MCP server exposes six tools:
+The MCP server exposes thirteen tools:
 
-- **axint_scaffold** — Generate a starter TypeScript intent file from a natural-language description
-- **axint_compile** — Compile TypeScript/Python → Swift with optional Info.plist and entitlements
-- **axint_validate** — Check an intent definition for errors without generating code
-- **axint_compile_from_schema** — Compile from minimal JSON (saves tokens on large batches)
-- **axint_list_templates** — Browse bundled reference templates
-- **axint_template** — Retrieve the source of a specific template
+- **axint.feature** — Generate a complete feature package from a description
+- **axint.suggest** — Suggest Apple-native features for a domain
+- **axint.scaffold** — Generate a starter TypeScript intent from a description
+- **axint.compile** — Compile TypeScript/Python → Swift with optional Info.plist and entitlements
+- **axint.validate** — Check an intent definition for errors without generating code
+- **axint.schema.compile** — Compile from minimal JSON (saves tokens on large batches)
+- **axint.swift.validate** — Validate existing Swift against build-time rules
+- **axint.swift.fix** — Auto-fix mechanical Swift errors
+- **axint.templates.list** — Browse bundled reference templates
+- **axint.templates.get** — Retrieve the source of a specific template
+- **axint.quick-start** — Quick-start guide
+- **axint.create-intent** — Create a new intent from parameters
+- **axint.create-widget** — Create a new widget from parameters
 
 One `defineWidget()` call replaces ~150 lines of Swift (13× compression). Agents pay per token — Axint makes Apple development dramatically cheaper and faster.
 
-Works with Claude Code, Cursor, Windsurf, Zed, VS Code, and any MCP-compatible client.
+Works with Claude Code, Codex, Cursor, Windsurf, Zed, VS Code, Xcode 26.3, and any MCP-compatible client.
 
 **Tags:** `swift` `apple` `compiler` `typescript` `app-intents` `siri` `swiftui` `widgetkit` `mcp`
 **Category:** Developer Tools
@@ -52,7 +59,7 @@ Turn TypeScript into native Swift for Apple platforms. Axint compiles `defineInt
 
 Built for AI agents that target Apple. A single widget definition compresses ~13× compared to writing the Swift by hand. Your coding assistant calls the MCP server, passes a TypeScript snippet, and gets back Swift files ready to drop into Xcode.
 
-Six tools: scaffold intents from natural language, compile TS/Python/JSON to Swift, validate definitions, browse templates. Supports Claude Code, Cursor, Windsurf, VS Code, Zed, and every other MCP client.
+Thirteen tools: scaffold intents from natural language, compile TS/Python/JSON to Swift, validate and auto-fix Swift, browse templates. Supports Claude Code, Codex, Cursor, Windsurf, VS Code, Zed, Xcode 26.3, and every other MCP client.
 
 Open-source (Apache 2.0). TypeScript SDK on npm, Python SDK on PyPI.
 
@@ -87,7 +94,7 @@ Axint brings Apple App Intents compilation directly into VS Code. Write `defineI
 
 This extension registers Axint as an MCP server so AI assistants in VS Code (GitHub Copilot, Claude, etc.) can automatically scaffold, compile, and validate Apple App Intents without leaving the editor.
 
-Six tools available: scaffold from natural language, compile TS/Python → Swift, validate definitions, browse templates.
+Thirteen tools available: scaffold from natural language, compile TS/Python → Swift, validate and auto-fix Swift, browse templates.
 
 Open-source. Apache 2.0 license.
 
