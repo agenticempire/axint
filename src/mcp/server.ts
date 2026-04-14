@@ -12,6 +12,8 @@
  *   - axint.compile:          Compile TypeScript intent → Swift App Intent
  *   - axint.validate:         Validate an intent definition without codegen
  *   - axint.schema.compile:   Compile minimal JSON schema → Swift (token saver)
+ *   - axint.swift.validate:   Validate an existing Swift source against AX700+ rules
+ *   - axint.swift.fix:        Auto-fix mechanical Swift validator errors
  *   - axint.templates.list:   List bundled reference templates
  *   - axint.templates.get:    Return the source of a specific template
  */
@@ -38,6 +40,8 @@ import { scaffoldIntent } from "./scaffold.js";
 import { generateFeature, type FeatureInput, type Surface } from "./feature.js";
 import { suggestFeatures, type SuggestInput } from "./suggest.js";
 import { TEMPLATES, getTemplate } from "../templates/index.js";
+import { validateSwiftSource } from "../core/swift-validator.js";
+import { fixSwiftSource } from "../core/swift-fixer.js";
 import type {
   IRIntent,
   IRView,
@@ -939,6 +943,68 @@ export function createAxintServer(): Server {
         },
       },
       {
+        name: "axint.swift.validate",
+        description:
+          "Validate an existing Swift source string against Axint's build-time " +
+          "rules (AX701–AX715). Catches the bugs Xcode buries behind 'type does " +
+          "not conform to protocol' errors: AppIntents missing perform(), " +
+          "Widgets missing var body, @State declared with let, TimelineProvider " +
+          "missing required methods, App structs missing var body: some Scene, " +
+          "and so on. Returns an array of diagnostics. Read-only, no side effects. " +
+          "Use this on any Swift source produced by an LLM before suggesting a build.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            source: {
+              type: "string",
+              description: "Full Swift source code to validate.",
+            },
+            file: {
+              type: "string",
+              description:
+                "Optional file name to attach to diagnostics for editor integration.",
+            },
+          },
+          required: ["source"],
+        },
+      },
+      {
+        name: "axint.swift.fix",
+        description:
+          "Auto-fix mechanical Swift errors caught by axint.swift.validate. " +
+          "Rewrites @State let → @State var, injects perform() into AppIntents " +
+          "missing one, drops a var body stub into Widgets and Apps, adds let " +
+          "date: Date to TimelineEntry. Returns the rewritten source plus the " +
+          "list of fixes applied and any remaining diagnostics. Non-mechanical " +
+          "issues (empty descriptions, missing copy) are left alone.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            source: {
+              type: "string",
+              description: "Full Swift source code to fix.",
+            },
+            file: {
+              type: "string",
+              description: "Optional file name to attach to diagnostics.",
+            },
+          },
+          required: ["source"],
+        },
+      },
+      {
         name: "axint.templates.list",
         description:
           "List all bundled reference templates available in the axint SDK. " +
@@ -1129,6 +1195,40 @@ export function createAxintServer(): Server {
 
       if (name === "axint.schema.compile") {
         return handleCompileFromSchema(args as unknown as SchemaCompileArgs);
+      }
+
+      if (name === "axint.swift.validate") {
+        const a = args as unknown as { source: string; file?: string };
+        const result = validateSwiftSource(a.source, a.file ?? "<input>");
+        const text =
+          result.diagnostics.length > 0
+            ? result.diagnostics
+                .map(
+                  (d) =>
+                    `[${d.code}] ${d.severity}${d.line ? ` line ${d.line}` : ""}: ${d.message}` +
+                    (d.suggestion ? `\n  help: ${d.suggestion}` : "")
+                )
+                .join("\n")
+            : "Swift source passes axint validation. No issues found.";
+        return { content: [{ type: "text" as const, text }] };
+      }
+
+      if (name === "axint.swift.fix") {
+        const a = args as unknown as { source: string; file?: string };
+        const result = fixSwiftSource(a.source, a.file ?? "<input>");
+        const summary =
+          result.fixed.length === 0
+            ? "No mechanical fixes applied."
+            : `Applied ${result.fixed.length} fix${result.fixed.length === 1 ? "" : "es"}: ${result.fixed.map((d) => d.code).join(", ")}`;
+        const remaining =
+          result.remaining.length > 0
+            ? `\nRemaining: ${result.remaining.map((d) => `[${d.code}] ${d.message}`).join("; ")}`
+            : "";
+        return {
+          content: [
+            { type: "text" as const, text: `${summary}${remaining}\n\n${result.source}` },
+          ],
+        };
       }
 
       if (name === "axint.templates.list") {

@@ -8,6 +8,8 @@ import {
 } from "../../src/core/compiler.js";
 import { scaffoldIntent } from "../../src/mcp/scaffold.js";
 import { TEMPLATES, getTemplate } from "../../src/templates/index.js";
+import { validateSwiftSource } from "../../src/core/swift-validator.js";
+import { fixSwiftSource } from "../../src/core/swift-fixer.js";
 
 // ── axint.scaffold ──────────────────────────────────────────────────
 
@@ -398,6 +400,106 @@ describe("axint.templates.get tool", () => {
     const result = compileSource(tpl!.source, `${knownId}.ts`);
     expect(result.success).toBe(true);
     expect(result.output).toBeDefined();
+  });
+});
+
+// ── axint.swift.validate ────────────────────────────────────────────
+
+describe("axint.swift.validate tool", () => {
+  it("passes clean Swift source", () => {
+    const source = `
+      struct CounterView: View {
+          @State var count: Int = 0
+          var body: some View { Text("\\(count)") }
+      }
+    `;
+    const result = validateSwiftSource(source, "Counter.swift");
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("flags @State let as an error", () => {
+    const source = `
+      struct CounterView: View {
+          @State let count: Int = 0
+          var body: some View { Text("\\(count)") }
+      }
+    `;
+    const result = validateSwiftSource(source, "Counter.swift");
+    expect(result.diagnostics.some((d) => d.code === "AX703")).toBe(true);
+  });
+
+  it("flags AppIntent missing perform()", () => {
+    const source = `
+      struct SendMessage: AppIntent {
+          static var title: LocalizedStringResource = "Send"
+      }
+    `;
+    const result = validateSwiftSource(source, "SendMessage.swift");
+    expect(result.diagnostics.some((d) => d.code === "AX701")).toBe(true);
+  });
+
+  it("attaches the supplied file name to diagnostics", () => {
+    const source = `struct WeatherWidget: Widget { let kind = "x" }`;
+    const result = validateSwiftSource(source, "WeatherWidget.swift");
+    expect(result.diagnostics.every((d) => d.file === "WeatherWidget.swift")).toBe(true);
+  });
+});
+
+// ── axint.swift.fix ─────────────────────────────────────────────────
+
+describe("axint.swift.fix tool", () => {
+  it("rewrites @State let to @State var", () => {
+    const source = `
+      struct CounterView: View {
+          @State let count: Int = 0
+          var body: some View { Text("\\(count)") }
+      }
+    `;
+    const result = fixSwiftSource(source, "Counter.swift");
+    expect(result.source).toContain("@State var count");
+    expect(result.fixed.some((d) => d.code === "AX703")).toBe(true);
+    expect(validateSwiftSource(result.source, "Counter.swift").diagnostics).toHaveLength(
+      0
+    );
+  });
+
+  it("injects perform() into an AppIntent that lacks one", () => {
+    const source = `
+      struct SendMessage: AppIntent {
+          static var title: LocalizedStringResource = "Send Message"
+      }
+    `;
+    const result = fixSwiftSource(source, "SendMessage.swift");
+    expect(result.source).toContain("func perform()");
+    expect(result.fixed.some((d) => d.code === "AX701")).toBe(true);
+  });
+
+  it("returns input unchanged when nothing is broken", () => {
+    const source = `
+      struct CounterView: View {
+          @State var count: Int = 0
+          var body: some View { Text("\\(count)") }
+      }
+    `;
+    const result = fixSwiftSource(source, "Counter.swift");
+    expect(result.source).toBe(source);
+    expect(result.fixed).toHaveLength(0);
+  });
+
+  it("fixes multiple issues in a single pass", () => {
+    const source = `
+      struct CounterView: View {
+          @State let count: Int = 0
+          var body: some View { Text("\\(count)") }
+      }
+
+      struct SendMessage: AppIntent {
+          static var title: LocalizedStringResource = "Send"
+      }
+    `;
+    const result = fixSwiftSource(source, "Mixed.swift");
+    const codes = result.fixed.map((d) => d.code).sort();
+    expect(codes).toEqual(["AX701", "AX703"]);
   });
 });
 
