@@ -729,14 +729,17 @@ export function createAxintServer(): Server {
       {
         name: "axint.validate",
         description:
-          "Validate a TypeScript intent definition without generating Swift " +
-          "output. Returns an array of diagnostics, each with severity " +
-          "(error | warning), error code (AXnnn), line/column position, and " +
-          "a suggested fix. Returns an empty array when validation passes. " +
-          "No files written, no network requests, no side effects. Use this " +
-          "for cheap pre-flight checks before calling axint.compile, or to " +
-          "surface errors in an editor. Prefer axint.compile directly when " +
-          "you need the Swift output and can handle inline diagnostics.",
+          "Validate a TypeScript intent definition without generating Swift. " +
+          "Runs the full Axint validation pipeline (150 diagnostic rules) and " +
+          "returns a JSON array of diagnostics: { severity: 'error'|'warning', " +
+          "code: 'AXnnn', line: number, column: number, message: string, " +
+          "suggestion?: string }. Returns an empty array [] when validation " +
+          "passes. Checks intent names (PascalCase), parameter types, domain " +
+          "values, entity queries, widget families, view props, and app scenes. " +
+          "No files written, no network requests, no side effects. Use for " +
+          "cheap pre-flight checks before calling axint.compile. Prefer " +
+          "axint.compile directly when you need Swift output — it includes " +
+          "inline diagnostics. For Swift source validation use axint.swift.validate.",
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
@@ -945,13 +948,17 @@ export function createAxintServer(): Server {
       {
         name: "axint.swift.validate",
         description:
-          "Validate an existing Swift source string against Axint's build-time " +
-          "rules (AX701–AX715). Catches the bugs Xcode buries behind 'type does " +
-          "not conform to protocol' errors: AppIntents missing perform(), " +
-          "Widgets missing var body, @State declared with let, TimelineProvider " +
-          "missing required methods, App structs missing var body: some Scene, " +
-          "and so on. Returns an array of diagnostics. Read-only, no side effects. " +
-          "Use this on any Swift source produced by an LLM before suggesting a build.",
+          "Validate existing Swift source against 150 build-time rules " +
+          "(AX700–AX749) including Swift 6 concurrency and Live Activities. " +
+          "Catches bugs Xcode buries behind generic 'type does not conform' " +
+          "errors: missing perform() on AppIntent, missing var body on Widget, " +
+          "@State let instead of var, Sendable violations, @MainActor misuse on " +
+          "actors, missing ActivityAttributes ContentState, and 140+ more. " +
+          "Returns JSON array of { code, severity, message, line, suggestion }. " +
+          "Empty array means the source is clean. Read-only, no files written, " +
+          "no network requests, no side effects. Call this on any Swift source " +
+          "before building — especially LLM-generated code. Pair with " +
+          "axint.swift.fix to auto-repair mechanical issues.",
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
@@ -977,12 +984,18 @@ export function createAxintServer(): Server {
       {
         name: "axint.swift.fix",
         description:
-          "Auto-fix mechanical Swift errors caught by axint.swift.validate. " +
-          "Rewrites @State let → @State var, injects perform() into AppIntents " +
-          "missing one, drops a var body stub into Widgets and Apps, adds let " +
-          "date: Date to TimelineEntry. Returns the rewritten source plus the " +
-          "list of fixes applied and any remaining diagnostics. Non-mechanical " +
-          "issues (empty descriptions, missing copy) are left alone.",
+          "Auto-fix mechanical Swift errors detected by axint.swift.validate. " +
+          "Handles 20+ fix rules: rewrites @State let → @State var, injects " +
+          "perform() into AppIntents, drops var body stubs into Widgets and " +
+          "Apps, adds let date: Date to TimelineEntry, fixes DispatchQueue.main " +
+          "→ Task { @MainActor in }, converts nonisolated var → let, strips " +
+          "redundant @MainActor from actors, adds Codable+Hashable to " +
+          "ActivityAttributes ContentState, and more. Returns JSON with " +
+          "{ source: fixedSwift, fixes: [...applied], remaining: [...unfixed] }. " +
+          "Non-mechanical issues (empty descriptions, missing copy) are left " +
+          "for the developer. Read-only output, no files written, no network " +
+          "requests, no side effects. Call axint.swift.validate first to " +
+          "preview diagnostics, then axint.swift.fix to apply repairs.",
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
@@ -1007,13 +1020,16 @@ export function createAxintServer(): Server {
       {
         name: "axint.templates.list",
         description:
-          "List all bundled reference templates available in the axint SDK. " +
-          "Returns an array of { id, name, description } objects — one per " +
-          "template. No parameters, no files written, no network requests, " +
-          "no side effects. Use this to discover template ids, then call " +
+          "List all 25 bundled reference templates in the Axint SDK. Returns " +
+          "a JSON array of { id, name, description } objects — one per template. " +
+          "Templates cover messaging, productivity, health, finance, commerce, " +
+          "media, navigation, smart-home, and entity/query patterns. No input " +
+          "parameters required, no files written, no network requests, no side " +
+          "effects. Call this to discover template ids, then call " +
           "axint.templates.get with a specific id to retrieve the full source. " +
-          "Unlike axint.scaffold which generates from parameters, templates " +
-          "are complete working examples with perform() logic included.",
+          "Unlike axint.scaffold (which generates a skeleton from parameters), " +
+          "templates are complete working examples with perform() logic, " +
+          "entity queries, and best-practice patterns included.",
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
@@ -1027,13 +1043,14 @@ export function createAxintServer(): Server {
       {
         name: "axint.templates.get",
         description:
-          "Return the full TypeScript source code of a bundled reference " +
-          "template by id. Returns a complete defineIntent() file that " +
-          "compiles with axint.compile — no files written, no network " +
-          "requests. Returns an error message if the id is not found. " +
-          "Call axint.templates.list first to discover valid ids. Unlike " +
-          "axint.scaffold which generates a skeleton, templates include " +
-          "complete perform() logic and are ready to use as-is.",
+          "Retrieve the full TypeScript source code of a specific bundled " +
+          "template by id. Returns a complete, compilable defineIntent() file " +
+          "as a string — ready to save as .ts and compile with axint.compile. " +
+          "Includes perform() logic, parameter definitions, and domain-specific " +
+          "patterns. Returns an error message if the id is not found (call " +
+          "axint.templates.list first to discover valid ids). No files written, " +
+          "no network requests, no side effects. Use templates as starting " +
+          "points — edit the returned source to match your app, then compile.",
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
