@@ -60,11 +60,11 @@ Axint compresses all of that. One TypeScript definition compiles to idiomatic, p
 
 - **Four Apple surfaces, one compiler.** App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds all compile from the same pipeline.
 - **Real TypeScript AST parser.** Uses the TypeScript compiler API (same as `tsc`), not regex. Full type fidelity and diagnostics with line/column spans.
-- **MCP-native with JSON schema mode.** Six tools exposed to any MCP client. The `axint_compile_from_schema` tool accepts minimal JSON (~20 tokens) and returns compiled Swift — AI agents skip TypeScript entirely and save even more tokens.
+- **MCP-native with JSON schema mode.** Thirteen tools exposed to any MCP client. The `axint.schema.compile` tool accepts minimal JSON (~20 tokens) and returns compiled Swift — AI agents skip TypeScript entirely and save even more tokens.
 - **Native type fidelity.** `int → Int`, `double → Double`, `date → Date`, `url → URL`, `duration → Measurement<UnitDuration>`. Default values and optionality preserved end-to-end.
-- **91 diagnostic codes** (`AX000`–`AX522`) with fix suggestions and color-coded output. Intent, entity, view, widget, and app validators each have dedicated error ranges.
+- **150 diagnostic codes** (`AX000`–`AX999`) with fix suggestions and color-coded output. Intent, entity, view, widget, app, Swift concurrency, and Live Activities validators each have dedicated error ranges.
 - **Sub-millisecond compile.** The [axint.ai playground](https://axint.ai/#playground) runs the full compiler in-browser with zero server round-trip.
-- **402 tests.** Parser, validator, generator, emit paths, views, widgets, apps, watch mode, sandbox, and MCP — all covered.
+- **500 tests.** Parser, validator, generator, emit paths, views, widgets, apps, watch mode, sandbox, MCP, Swift concurrency, and Live Activities — all covered.
 - **Cross-language IR.** The intermediate representation is language-agnostic JSON. TypeScript, Python, and raw JSON all feed into the same generator. New language frontends plug in without touching the Swift emitter.
 - **Apache 2.0, no CLA.** Fork it, extend it, ship it.
 
@@ -201,16 +201,23 @@ Axint ships with `axint-mcp`, a Model Context Protocol server for Claude Desktop
 }
 ```
 
-Six tools:
+Thirteen tools (dotted names — legacy underscore aliases still work):
 
-| Tool                        | What it does                                                    |
-| --------------------------- | --------------------------------------------------------------- |
-| `axint_scaffold`            | Generate a starter TypeScript intent from a description         |
-| `axint_compile`             | Full pipeline: TypeScript → Swift + plist + entitlements        |
-| `axint_validate`            | Dry-run validation with diagnostics                             |
-| `axint_compile_from_schema` | Minimal JSON → Swift (token-saving mode for AI agents)          |
-| `axint_list_templates`      | List bundled reference templates                                |
-| `axint_template`            | Return the source of a specific template                        |
+| Tool                    | What it does                                                    |
+| ----------------------- | --------------------------------------------------------------- |
+| `axint.feature`         | Generate a complete feature package from a description          |
+| `axint.suggest`         | Suggest Apple-native features for a given domain                |
+| `axint.scaffold`        | Generate a starter TypeScript intent from a description         |
+| `axint.compile`         | Full pipeline: TypeScript → Swift + plist + entitlements        |
+| `axint.validate`        | Dry-run validation with diagnostics                             |
+| `axint.schema.compile`  | Minimal JSON → Swift (token-saving mode for AI agents)          |
+| `axint.swift.validate`  | Validate existing Swift against Axint's build-time rules        |
+| `axint.swift.fix`       | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
+| `axint.templates.list`  | List bundled reference templates                                |
+| `axint.templates.get`   | Return the source of a specific template                        |
+| `axint.quick-start`     | Get a quick-start guide for Axint                               |
+| `axint.create-intent`   | Create a new intent from parameters                             |
+| `axint.create-widget`   | Create a new widget from parameters                             |
 
 The schema mode is the key optimization for agents — instead of generating TypeScript and then compiling, agents send ~20 tokens of JSON and get compiled Swift back directly.
 
@@ -218,16 +225,19 @@ The schema mode is the key optimization for agents — instead of generating Typ
 
 ## Diagnostics
 
-91 diagnostic codes across five validators:
+150 diagnostic codes across eight validators:
 
-| Range            | Domain       |
-| ---------------- | ------------ |
-| `AX000`–`AX023`  | Compiler / Parser |
-| `AX100`–`AX113`  | Intent       |
-| `AX200`–`AX202`  | Swift output |
-| `AX300`–`AX322`  | View         |
-| `AX400`–`AX422`  | Widget       |
-| `AX500`–`AX522`  | App          |
+| Range            | Domain              |
+| ---------------- | ------------------- |
+| `AX000`–`AX023`  | Compiler / Parser   |
+| `AX100`–`AX113`  | Intent              |
+| `AX200`–`AX202`  | Swift output        |
+| `AX300`–`AX322`  | View                |
+| `AX400`–`AX422`  | Widget              |
+| `AX500`–`AX522`  | App                 |
+| `AX700`–`AX749`  | Swift build rules   |
+| `AX720`–`AX735`  | Swift 6 concurrency |
+| `AX740`–`AX749`  | Live Activities     |
 
 ```
 error[AX100]: Intent name "sendMessage" must be PascalCase
@@ -276,16 +286,16 @@ axint/
 ├── src/
 │   ├── core/        # Parser, validator, generator, compiler, types, IR
 │   ├── sdk/         # defineIntent(), defineView(), defineWidget(), param/prop/state/entry helpers
-│   ├── mcp/         # MCP server (6 tools including JSON schema mode)
-│   ├── cli/         # axint CLI (compile, watch, validate, eject, init)
-│   └── templates/   # Intent template registry
+│   ├── mcp/         # MCP server (13 tools including JSON schema mode)
+│   ├── cli/         # axint CLI (compile, watch, validate, eject, init, xcode)
+│   └── templates/   # Intent template registry (25 templates)
 ├── python/          # Python SDK with native Swift codegen
-├── extensions/
-│   └── vscode/      # VS Code / Cursor extension (MCP-backed)
+├── extensions/      # Claude Code, Codex, Cursor, Windsurf, Zed, JetBrains, Xcode
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # 402 vitest tests
+├── tools/           # swift-syntax helper binary (POC)
+├── tests/           # 500 vitest tests
 ├── examples/        # Example definitions
-└── docs/            # Error reference, assets
+└── docs/            # Error reference, research, assets
 ```
 
 ---
