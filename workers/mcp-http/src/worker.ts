@@ -9,13 +9,15 @@
  * back to the IR-based tools. The FromIR tools and scaffold/templates work
  * natively since generators and validators are pure functions.
  *
- * Tools:
+ * Tools (10):
  *   - axint.feature:          Generate a complete Apple-native feature package
  *   - axint.suggest:          Suggest Apple-native features for an app domain
  *   - axint.scaffold:         Generate a starter TypeScript intent file
  *   - axint.compile:          Compile TypeScript intent → Swift (local only)
  *   - axint.validate:         Validate intent definition (local only)
  *   - axint.schema.compile:   Compile JSON schema → Swift (recommended)
+ *   - axint.swift.validate:   Validate Swift source against 150 Apple rules
+ *   - axint.swift.fix:        Auto-fix mechanical Swift errors
  *   - axint.templates.list:   List bundled reference templates
  *   - axint.templates.get:    Return template source by id
  *
@@ -38,6 +40,8 @@ import { suggestFeatures } from "../../../src/mcp/suggest.js";
 import type { FeatureInput, Surface } from "../../../src/mcp/feature.js";
 import type { SuggestInput } from "../../../src/mcp/suggest.js";
 import { TEMPLATES, getTemplate } from "../../../src/templates/index.js";
+import { validateSwiftSource } from "../../../src/core/swift-validator.js";
+import { fixSwiftSource } from "../../../src/core/swift-fixer.js";
 import type {
   IRIntent,
   IRView,
@@ -613,6 +617,67 @@ const TOOLS = [
       required: ["id"],
     },
   },
+  {
+    name: "axint.swift.validate",
+    description:
+      "Validate existing Swift source against 150 build-time rules " +
+      "(AX700–AX749) including Swift 6 concurrency and Live Activities. " +
+      "Catches bugs Xcode buries behind generic 'type does not conform' " +
+      "errors: missing perform() on AppIntent, missing var body on Widget, " +
+      "@State let instead of var, Sendable violations, @MainActor misuse, " +
+      "missing ActivityAttributes ContentState, and 140+ more. " +
+      "Returns JSON array of diagnostics. Empty array means clean. " +
+      "Read-only, no files written, no side effects.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        source: {
+          type: "string",
+          description: "Full Swift source code to validate.",
+        },
+        file: {
+          type: "string",
+          description: "Optional file name for diagnostics.",
+        },
+      },
+      required: ["source"],
+    },
+  },
+  {
+    name: "axint.swift.fix",
+    description:
+      "Auto-fix mechanical Swift errors detected by axint.swift.validate. " +
+      "Handles 20+ fix rules: @State let → var, injects perform() into " +
+      "AppIntents, drops var body stubs, fixes DispatchQueue → Task, " +
+      "converts nonisolated var → let, and more. Returns the fixed source " +
+      "plus the list of fixes applied. Read-only output, no side effects.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        source: {
+          type: "string",
+          description: "Full Swift source code to fix.",
+        },
+        file: {
+          type: "string",
+          description: "Optional file name for diagnostics.",
+        },
+      },
+      required: ["source"],
+    },
+  },
 ];
 
 // --- Prompts ---
@@ -979,6 +1044,35 @@ function handleTool(name: string, args: Record<string, unknown>) {
     if (!tpl)
       return textResult(`Unknown template id: ${(args as { id: string }).id}`, true);
     return textResult(tpl.source);
+  }
+
+  if (name === "axint.swift.validate") {
+    const source = (args as { source: string; file?: string }).source;
+    const file = (args as { file?: string }).file || "input.swift";
+    if (!source) return textResult("Error: 'source' is required", true);
+    const result = validateSwiftSource(source, file);
+    const diagnostics = result.diagnostics;
+    if (diagnostics.length === 0) return textResult("No issues found. Swift source is clean.");
+    const output = diagnostics
+      .map((d) => `[${d.code}] ${d.severity}: ${d.message}${d.line ? ` (line ${d.line})` : ""}${d.suggestion ? `\n   fix: ${d.suggestion}` : ""}`)
+      .join("\n");
+    return textResult(output);
+  }
+
+  if (name === "axint.swift.fix") {
+    const source = (args as { source: string; file?: string }).source;
+    const file = (args as { file?: string }).file || "input.swift";
+    if (!source) return textResult("Error: 'source' is required", true);
+    const result = fixSwiftSource(source, file);
+    const parts: string[] = [];
+    if (result.fixed.length > 0) {
+      parts.push(`Applied ${result.fixed.length} fix(es):\n${result.fixed.map((f) => `  - [${f.code}] ${f.message}`).join("\n")}`);
+    }
+    if (result.remaining.length > 0) {
+      parts.push(`\nRemaining issues (${result.remaining.length}):\n${result.remaining.map((d) => `  - [${d.code}] ${d.message}`).join("\n")}`);
+    }
+    parts.push("\n// ─── Fixed source ───\n" + result.source);
+    return textResult(parts.join("\n"));
   }
 
   return textResult(`Unknown tool: ${name}`, true);
