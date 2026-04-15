@@ -3,6 +3,30 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { compileFile, compileFromIR, irFromJSON } from "../core/compiler.js";
 
+/**
+ * Count non-blank lines in a source string. Blank lines (whitespace
+ * only) don't carry semantic weight on either the TS or Swift side
+ * and would distort the ratio toward whichever input was more
+ * generously formatted.
+ */
+export function countNonBlankLines(source: string): number {
+  let count = 0;
+  for (const line of source.split("\n")) {
+    if (line.trim().length > 0) count++;
+  }
+  return count;
+}
+
+/**
+ * Render a TS-to-Swift compression ratio (e.g. "0.42x" meaning the
+ * Swift output is 42% the size of the TS input). `null` means the
+ * ratio is not meaningful — either side has zero non-blank lines.
+ */
+export function compressionRatio(tsLines: number, swiftLines: number): string | null {
+  if (tsLines === 0 || swiftLines === 0) return null;
+  return `${(swiftLines / tsLines).toFixed(2)}x`;
+}
+
 export function registerCompile(program: Command) {
   program
     .command("compile")
@@ -183,6 +207,26 @@ export function registerCompile(program: Command) {
             console.log(
               `\x1b[32m✓\x1b[0m Compiled ${result.output.ir.name} → ${outPath}`
             );
+
+            // Show TS-to-Swift compression so authors can eyeball whether
+            // a definition expanded the way they expected. Skipped for
+            // --from-ir since "TS lines" isn't meaningful there.
+            if (!options.fromIr) {
+              try {
+                const tsSource = readFileSync(filePath, "utf-8");
+                const tsLines = countNonBlankLines(tsSource);
+                const swiftLines = countNonBlankLines(result.output.swiftCode);
+                const ratio = compressionRatio(tsLines, swiftLines);
+                if (ratio !== null) {
+                  console.log(
+                    `\x1b[36m→\x1b[0m Compression: ${tsLines} TS → ${swiftLines} Swift (${ratio})`
+                  );
+                }
+              } catch {
+                // Non-fatal: we just skip the ratio if the TS source
+                // can't be re-read for any reason.
+              }
+            }
 
             if (options.emitInfoPlist && result.output.infoPlistFragment) {
               const plistPath = outPath.replace(/\.swift$/, ".plist.fragment.xml");
