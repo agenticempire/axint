@@ -5,12 +5,13 @@
 <h1 align="center">Axint</h1>
 
 <p align="center">
-  <strong>AI agents write 5–15× less code for Apple.</strong>
+  <strong>The Apple-native execution layer for AI agents.</strong>
 </p>
 
 <p align="center">
-  The open-source compiler that turns <code>defineIntent()</code>, <code>defineView()</code>, <code>defineWidget()</code>, and <code>defineApp()</code> calls<br>
-  into native Swift — App Intents for Siri, SwiftUI views, WidgetKit widgets, and full app scaffolds.
+  Context tells agents what to build. Axint makes it shippable on Apple.<br>
+  Open-source compiler that turns TypeScript into validated Swift —<br>
+  App Intents, SwiftUI views, WidgetKit widgets, and full apps.
 </p>
 
 <p align="center">
@@ -26,47 +27,28 @@
   <a href="https://axint.ai/#playground">Playground</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#mcp-server">MCP Server</a> ·
-  <a href="https://github.com/agenticempire/axint/discussions">Discussions</a>
+  <a href="https://docs.axint.ai">Docs</a> ·
+  <a href="https://registry.axint.ai">Registry</a>
 </p>
-
----
-
-## The compression layer for AI agents on Apple
-
-AI coding agents pay per token. Apple's API surfaces — App Intents, SwiftUI, WidgetKit — are verbose. A single widget requires a TimelineEntry, a TimelineProvider, an EntryView, and a Widget struct before you've written a line of business logic.
-
-Axint compresses all of that. One TypeScript definition compiles to idiomatic, production-ready Swift with zero boilerplate. An intent compresses ~4×. A view compresses ~4×. A widget compresses **13×**.
-
-```
-┌───────────────────────────────────────────┐
-│  defineIntent()  defineView()             │  TypeScript / Python / JSON
-│  defineWidget()  defineApp()              │
-└───────────────────┬───────────────────────┘
-                    │  axint compile
-          ┌─────────┼─────────┐─────────┐
-          ▼         ▼         ▼         ▼
-     ┌────────┐ ┌───────┐ ┌────────┐ ┌──────┐
-     │ .swift │ │ .swift│ │ .swift │ │.swift│
-     │ .plist │ │       │ │        │ │      │
-     │ .entl. │ │       │ │        │ │      │
-     └────────┘ └───────┘ └────────┘ └──────┘
-     App Intent  SwiftUI   WidgetKit   App
-     for Siri    View      Widget      Scaffold
-```
 
 ---
 
 ## Why Axint
 
-- **Four Apple surfaces, one compiler.** App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds all compile from the same pipeline.
-- **Real TypeScript AST parser.** Uses the TypeScript compiler API (same as `tsc`), not regex. Full type fidelity and diagnostics with line/column spans.
-- **MCP-native with JSON schema mode.** Thirteen tools exposed to any MCP client. The `axint.schema.compile` tool accepts minimal JSON (~20 tokens) and returns compiled Swift — AI agents skip TypeScript entirely and save even more tokens.
-- **Native type fidelity.** `int → Int`, `double → Double`, `date → Date`, `url → URL`, `duration → Measurement<UnitDuration>`. Default values and optionality preserved end-to-end.
-- **150 diagnostic codes** (`AX000`–`AX999`) with fix suggestions and color-coded output. Intent, entity, view, widget, app, Swift concurrency, and Live Activities validators each have dedicated error ranges.
-- **Sub-millisecond compile.** The [axint.ai playground](https://axint.ai/#playground) runs the full compiler in-browser with zero server round-trip.
-- **500 tests.** Parser, validator, generator, emit paths, views, widgets, apps, watch mode, sandbox, MCP, Swift concurrency, and Live Activities — all covered.
-- **Cross-language IR.** The intermediate representation is language-agnostic JSON. TypeScript, Python, and raw JSON all feed into the same generator. New language frontends plug in without touching the Swift emitter.
-- **Apache 2.0, no CLA.** Fork it, extend it, ship it.
+Apple's API surfaces — App Intents, SwiftUI, WidgetKit — are verbose. A single widget needs a TimelineEntry, a TimelineProvider, an EntryView, and a Widget struct before you've written a line of business logic. AI coding agents pay per token, and all that boilerplate adds up fast.
+
+Axint compresses it. One `defineIntent()` call replaces 50–200 lines of Swift. One `defineWidget()` replaces an entire WidgetKit stack. The compiler handles the struct conformances, the `@Parameter` wrappers, the `LocalizedStringResource` literals — everything an agent would otherwise have to generate token by token.
+
+Four surfaces, one pipeline:
+
+```
+defineIntent()  →  App Intent for Siri & Shortcuts
+defineView()    →  SwiftUI view
+defineWidget()  →  WidgetKit widget
+defineApp()     →  Full app scaffold
+```
+
+The result: agents ship Apple features at 5–15× fewer tokens than hand-written Swift.
 
 ---
 
@@ -75,7 +57,10 @@ Axint compresses all of that. One TypeScript definition compiles to idiomatic, p
 ```bash
 npm install -g @axint/compiler
 
-# Or run without installing
+# compile a single file
+axint compile my-intent.ts --out ios/Intents/
+
+# or pipe to stdout
 npx @axint/compiler compile my-intent.ts --stdout
 ```
 
@@ -162,7 +147,7 @@ export default defineApp({
 });
 ```
 
-Compile any of them:
+Compile any surface the same way:
 
 ```bash
 axint compile my-intent.ts --out ios/Intents/
@@ -175,20 +160,18 @@ axint compile my-app.ts --out ios/App/
 
 ## Watch mode
 
-For iterative development, `axint watch` recompiles on every save:
+Recompiles on every save with 150ms debounce, inline errors, and optional `swift build` after each successful compile:
 
 ```bash
 axint watch ./intents/ --out ios/Intents/ --emit-info-plist --emit-entitlements
 axint watch my-intent.ts --out ios/Intents/ --format --swift-build
 ```
 
-150ms debounce, inline errors, and optional `swift build` after each successful compile.
-
 ---
 
 ## MCP server
 
-Axint ships with `axint-mcp`, a Model Context Protocol server for Claude Desktop, Claude Code, Cursor, Windsurf, and any MCP client.
+Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Windsurf, and any MCP client.
 
 ```json
 {
@@ -201,43 +184,43 @@ Axint ships with `axint-mcp`, a Model Context Protocol server for Claude Desktop
 }
 ```
 
-Thirteen tools (dotted names — legacy underscore aliases still work):
+13 tools:
 
-| Tool                    | What it does                                                    |
-| ----------------------- | --------------------------------------------------------------- |
-| `axint.feature`         | Generate a complete feature package from a description          |
-| `axint.suggest`         | Suggest Apple-native features for a given domain                |
-| `axint.scaffold`        | Generate a starter TypeScript intent from a description         |
-| `axint.compile`         | Full pipeline: TypeScript → Swift + plist + entitlements        |
-| `axint.validate`        | Dry-run validation with diagnostics                             |
-| `axint.schema.compile`  | Minimal JSON → Swift (token-saving mode for AI agents)          |
-| `axint.swift.validate`  | Validate existing Swift against Axint's build-time rules        |
-| `axint.swift.fix`       | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
-| `axint.templates.list`  | List bundled reference templates                                |
-| `axint.templates.get`   | Return the source of a specific template                        |
-| `axint.quick-start`     | Get a quick-start guide for Axint                               |
-| `axint.create-intent`   | Create a new intent from parameters                             |
-| `axint.create-widget`   | Create a new widget from parameters                             |
+| Tool | What it does |
+| --- | --- |
+| `axint.compile` | Full pipeline: TypeScript → Swift + plist + entitlements |
+| `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents) |
+| `axint.validate` | Dry-run validation with diagnostics |
+| `axint.feature` | Generate a complete feature package from a description |
+| `axint.suggest` | Suggest Apple-native features for a domain |
+| `axint.scaffold` | Generate a starter TypeScript intent from a description |
+| `axint.swift.validate` | Validate existing Swift against build-time rules |
+| `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
+| `axint.create-intent` | Create a new intent from parameters |
+| `axint.create-widget` | Create a new widget from parameters |
+| `axint.templates.list` | List bundled reference templates |
+| `axint.templates.get` | Return the source of a specific template |
+| `axint.quick-start` | Get a quick-start guide |
 
-The schema mode is the key optimization for agents — instead of generating TypeScript and then compiling, agents send ~20 tokens of JSON and get compiled Swift back directly.
+`axint.schema.compile` is the key optimization — agents send ~20 tokens of JSON and get compiled Swift back directly, skipping TypeScript entirely.
 
 ---
 
 ## Diagnostics
 
-150 diagnostic codes across eight validators:
+150 diagnostic codes across eight validators with fix suggestions and color-coded output:
 
-| Range            | Domain              |
-| ---------------- | ------------------- |
-| `AX000`–`AX023`  | Compiler / Parser   |
-| `AX100`–`AX113`  | Intent              |
-| `AX200`–`AX202`  | Swift output        |
-| `AX300`–`AX322`  | View                |
-| `AX400`–`AX422`  | Widget              |
-| `AX500`–`AX522`  | App                 |
-| `AX700`–`AX749`  | Swift build rules   |
-| `AX720`–`AX735`  | Swift 6 concurrency |
-| `AX740`–`AX749`  | Live Activities     |
+| Range | Domain |
+| --- | --- |
+| `AX000`–`AX023` | Compiler / Parser |
+| `AX100`–`AX113` | Intent |
+| `AX200`–`AX202` | Swift output |
+| `AX300`–`AX322` | View |
+| `AX400`–`AX422` | Widget |
+| `AX500`–`AX522` | App |
+| `AX700`–`AX749` | Swift build rules |
+| `AX720`–`AX735` | Swift 6 concurrency |
+| `AX740`–`AX749` | Live Activities |
 
 ```
 error[AX100]: Intent name "sendMessage" must be PascalCase
@@ -245,37 +228,35 @@ error[AX100]: Intent name "sendMessage" must be PascalCase
    = help: rename to "SendMessage"
 ```
 
-See [`docs/ERRORS.md`](docs/ERRORS.md) for the full reference.
+Full reference: [`docs/ERRORS.md`](docs/ERRORS.md)
 
 ---
 
-## Supported type mappings
+## Type mappings
 
-| TypeScript       | Swift                       | Default value support |
-| ---------------- | --------------------------- | --------------------- |
-| `string`         | `String`                    | ✓                     |
-| `int`            | `Int`                       | ✓                     |
-| `double`         | `Double`                    | ✓                     |
-| `float`          | `Float`                     | ✓                     |
-| `boolean`        | `Bool`                      | ✓                     |
-| `date`           | `Date`                      | —                     |
-| `duration`       | `Measurement<UnitDuration>` | ✓ (e.g. `"1h"`)      |
-| `url`            | `URL`                       | —                     |
-| `optional<T>`    | `T?`                        | ✓                     |
-
----
-
-## Try it in your browser
-
-No install required: **[axint.ai/#playground](https://axint.ai/#playground)** runs the entire compiler in-browser with zero server round-trip.
+| TypeScript | Swift | Default value |
+| --- | --- | --- |
+| `string` | `String` | ✓ |
+| `int` | `Int` | ✓ |
+| `double` | `Double` | ✓ |
+| `float` | `Float` | ✓ |
+| `boolean` | `Bool` | ✓ |
+| `date` | `Date` | — |
+| `duration` | `Measurement<UnitDuration>` | ✓ (`"1h"`) |
+| `url` | `URL` | — |
+| `optional<T>` | `T?` | ✓ |
 
 ---
 
-## Requirements
+## Playground
 
-- **Node.js 22+**
-- Any OS: macOS, Linux, Windows
-- Xcode 15+ (only to ship the generated Swift to an Apple platform)
+No install required — [axint.ai/#playground](https://axint.ai/#playground) runs the entire compiler in-browser with zero server round-trip.
+
+---
+
+## Editor extensions
+
+Extensions for [Claude Code](extensions/claude-code), [Codex](extensions/codex), [VS Code / Cursor](extensions/vscode), [Windsurf](extensions/windsurf), [JetBrains](extensions/jetbrains), [Neovim](extensions/neovim), and [Xcode](extensions/xcode).
 
 ---
 
@@ -284,59 +265,53 @@ No install required: **[axint.ai/#playground](https://axint.ai/#playground)** ru
 ```
 axint/
 ├── src/
-│   ├── core/        # Parser, validator, generator, compiler, types, IR
-│   ├── sdk/         # defineIntent(), defineView(), defineWidget(), param/prop/state/entry helpers
-│   ├── mcp/         # MCP server (13 tools including JSON schema mode)
-│   ├── cli/         # axint CLI (compile, watch, validate, eject, init, xcode)
-│   └── templates/   # Intent template registry (25 templates)
-├── python/          # Python SDK with native Swift codegen
-├── extensions/      # Claude Code, Codex, Cursor, Windsurf, Zed, JetBrains, Xcode
+│   ├── core/        # Parser, validator, generator, compiler, IR
+│   ├── sdk/         # defineIntent(), defineView(), defineWidget(), defineApp()
+│   ├── mcp/         # MCP server (13 tools)
+│   ├── cli/         # CLI (compile, watch, validate, eject, init, xcode)
+│   └── templates/   # 62 bundled reference templates
+├── python/          # Python SDK
+├── extensions/      # Editor extensions (9 editors)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tools/           # swift-syntax helper binary (POC)
-├── tests/           # 500 vitest tests
+├── tests/           # ~500 vitest tests
 ├── examples/        # Example definitions
-└── docs/            # Error reference, research, assets
+└── docs/            # Error reference, assets
 ```
+
+---
+
+## What's next
+
+Current priorities — full roadmap in [`ROADMAP.md`](ROADMAP.md):
+
+- `defineExtension()` — app extension compilation
+- Axint Cloud — hosted compilation with team workspaces
+- Registry ecosystem — shareable, versioned packages at [registry.axint.ai](https://registry.axint.ai)
 
 ---
 
 ## Contributing
 
-We review PRs within 48 hours. Good places to start:
+PRs reviewed within 48 hours. Browse [`good first issue`](https://github.com/agenticempire/axint/issues?q=is%3Aissue+label%3A%22good+first+issue%22) to get started, or see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-- Browse [`good first issue`](https://github.com/agenticempire/axint/issues?q=is%3Aissue+label%3A%22good+first+issue%22) issues
-- Add a template for a common use case
-- Improve diagnostics with better fix suggestions
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Apache 2.0, no CLA.
+Apache 2.0, no CLA.
 
 ---
 
-## Roadmap
+## Requirements
 
-See [`ROADMAP.md`](ROADMAP.md). Highlights:
-
-- [x] Four compilation targets: intents, views, widgets, apps
-- [x] MCP server with JSON schema mode (6 tools)
-- [x] 91 diagnostic codes with fix suggestions
-- [x] `--watch` mode with `--swift-build`
-- [x] VS Code / Cursor extension
-- [x] Python SDK with native Swift codegen
-- [x] SPM build plugin for Xcode + Xcode project plugin
-- [x] `axint eject` for zero-dependency Swift output
-- [x] Cross-language IR bridge (TS, Python, JSON)
-- [x] `defineApp()` — full app scaffold compilation
-- [ ] `defineExtension()` — app extension compilation
-- [ ] Axint Cloud (hosted compilation)
+- Node.js 22+
+- Any OS (macOS, Linux, Windows)
+- Xcode 15+ to ship the generated Swift
 
 ---
 
 ## License
 
-[Apache 2.0](LICENSE) — fork it, extend it, ship it. No CLA.
+[Apache 2.0](LICENSE) — fork it, extend it, ship it.
 
 ---
 
 <p align="center">
-  Built by <a href="https://github.com/agenticempire">Agentic Empire</a> · <a href="https://axint.ai">axint.ai</a>
+  Built by <a href="https://agenticempire.co">Agentic Empire</a> · <a href="https://axint.ai">axint.ai</a>
 </p>
