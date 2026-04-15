@@ -18,9 +18,12 @@ export function countNonBlankLines(source: string): number {
 }
 
 /**
- * Render a TS-to-Swift compression ratio (e.g. "0.42x" meaning the
- * Swift output is 42% the size of the TS input). `null` means the
- * ratio is not meaningful — either side has zero non-blank lines.
+ * Render a Swift-over-TS size ratio (e.g. "0.42x" meaning the Swift
+ * output is 42% the size of the TS input, i.e. compressed; "1.50x"
+ * meaning the Swift output grew to 150% of the TS input, i.e.
+ * expanded). Callers pick the right label based on the ratio.
+ * `null` means the ratio is not meaningful - either side has zero
+ * non-blank lines.
  */
 export function compressionRatio(tsLines: number, swiftLines: number): string | null {
   if (tsLines === 0 || swiftLines === 0) return null;
@@ -218,8 +221,9 @@ export function registerCompile(program: Command) {
                 const swiftLines = countNonBlankLines(result.output.swiftCode);
                 const ratio = compressionRatio(tsLines, swiftLines);
                 if (ratio !== null) {
+                  const label = swiftLines > tsLines ? "Expansion" : "Compression";
                   console.log(
-                    `\x1b[36m→\x1b[0m Compression: ${tsLines} TS → ${swiftLines} Swift (${ratio})`
+                    `\x1b[36m→\x1b[0m ${label}: ${tsLines} TS → ${swiftLines} Swift (${ratio})`
                   );
                 }
               } catch {
