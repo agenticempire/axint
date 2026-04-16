@@ -111,8 +111,8 @@ The Python parser never runs your code. It walks the Python AST the same way the
 | Info.plist fragment              | ✅          | ✅      |
 | Entitlements fragment            | ✅          | ✅      |
 | CLI (parse/compile/validate)     | ✅          | ✅      |
-| Return-type inference            | ✅          | 🟡 v0.3 |
-| MCP server                       | ✅          | 🟡 v0.3 |
+| Return-type inference            | ✅          | ✅      |
+| MCP server                       | ✅          | ✅      |
 
 ## Development
 

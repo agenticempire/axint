@@ -54,7 +54,7 @@ describe("scaffoldProject", () => {
     expect(pkg.scripts.sandbox).toContain("--sandbox");
   });
 
-  it("rewrites the template import to @axint/compiler/sdk", async () => {
+  it("rewrites the template import to the package root", async () => {
     await scaffoldProject({
       targetDir: workDir,
       projectName: "import-rewrite-test",

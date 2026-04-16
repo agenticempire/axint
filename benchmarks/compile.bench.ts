@@ -8,7 +8,7 @@ import {
 
 describe("Intent Compilation", () => {
   const intentSource = `
-import { defineIntent, param } from "axint";
+import { defineIntent, param } from "@axint/compiler";
 export default defineIntent({
   name: "CreateEvent",
   title: "Create Calendar Event",
@@ -41,7 +41,7 @@ export default defineIntent({
 
 describe("View Compilation", () => {
   const viewSource = `
-import { defineView, prop, state, view } from "axint";
+import { defineView, prop, state, view } from "@axint/compiler";
 export default defineView({
   name: "ProfileCard",
   props: {
@@ -84,7 +84,7 @@ export default defineView({
 
 describe("Widget Compilation", () => {
   const widgetSource = `
-import { defineWidget, entry, view } from "axint";
+import { defineWidget, entry, view } from "@axint/compiler";
 export default defineWidget({
   name: "StepCounter",
   displayName: "Step Counter",
@@ -121,7 +121,7 @@ export default defineWidget({
 
 describe("App Compilation", () => {
   const appSource = `
-import { defineApp } from "axint";
+import { defineApp } from "@axint/compiler";
 export default defineApp({
   name: "MyApp",
   scenes: [

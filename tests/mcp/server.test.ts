@@ -85,7 +85,7 @@ describe("axint.scaffold tool", () => {
 describe("axint.compile tool", () => {
   it("compiles a valid intent to Swift", () => {
     const source = `
-      import { defineIntent, param } from "axint";
+      import { defineIntent, param } from "@axint/compiler";
       export default defineIntent({
         name: "SendMessage",
         title: "Send Message",
@@ -157,7 +157,7 @@ describe("axint.compile tool", () => {
 describe("axint.validate tool", () => {
   it("returns no diagnostics for a valid intent", () => {
     const source = `
-      import { defineIntent, param } from "axint";
+      import { defineIntent, param } from "@axint/compiler";
       export default defineIntent({
         name: "GetWeather",
         title: "Get Weather",
@@ -174,7 +174,7 @@ describe("axint.validate tool", () => {
 
   it("reports error diagnostics for malformed intent", () => {
     const source = `
-      import { defineIntent, param } from "axint";
+      import { defineIntent, param } from "@axint/compiler";
       export default defineIntent({
         params: {},
         perform: async (_) => "done",
