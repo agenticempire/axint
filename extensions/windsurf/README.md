@@ -1,6 +1,6 @@
 # Axint — Windsurf Integration
 
-Compile TypeScript into native Apple App Intents from Windsurf.
+Compile TypeScript into native Apple capabilities from Windsurf.
 
 ## Install
 

@@ -93,21 +93,17 @@ program
         console.log(`  \x1b[1mNext:\x1b[0m`);
         if (dir !== ".") console.log(`    cd ${dir}`);
         if (options.install) {
-          console.log(
-            `    npx axint compile intents/${result.entryFile} --out ios/Intents/`
-          );
+          console.log(`    npm run compile`);
         } else {
           console.log(`    npm install`);
-          console.log(
-            `    npx axint compile intents/${result.entryFile} --out ios/Intents/`
-          );
+          console.log(`    npm run compile`);
         }
         console.log();
         console.log(
           `  \x1b[2mDocs:   https://github.com/agenticempire/axint#readme\x1b[0m`
         );
         console.log(
-          `  \x1b[2mMCP:    npx axint-mcp (add to Claude Code, Cursor, Windsurf)\x1b[0m`
+          `  \x1b[2mMCP:    .vscode/mcp.json is ready for Cursor, Claude Code, and Windsurf\x1b[0m`
         );
         console.log();
       } catch (err: unknown) {

@@ -4,12 +4,12 @@ Axint MCP Server for Python SDK.
 Exposes Axint capabilities as MCP tools that AI coding assistants can call.
 
 Tools:
-  - axint_scaffold: Generate starter Python intent code
-  - axint_compile: Compile Python intent → Swift App Intent
-  - axint_validate: Validate intent definition without codegen
-  - axint_compile_from_schema: JSON schema → Swift (token saver)
-  - axint_list_templates: List bundled reference templates
-  - axint_template: Return source of a specific template
+  - axint.scaffold / axint_scaffold
+  - axint.compile / axint_compile
+  - axint.validate / axint_validate
+  - axint.schema.compile / axint_compile_from_schema
+  - axint.templates.list / axint_list_templates
+  - axint.templates.get / axint_template
 """
 
 from __future__ import annotations
@@ -398,19 +398,28 @@ def build_server() -> Server:
         openWorldHint=False,
     )
 
+    aliases = {
+        "axint.scaffold": "axint_scaffold",
+        "axint.compile": "axint_compile",
+        "axint.validate": "axint_validate",
+        "axint.schema.compile": "axint_compile_from_schema",
+        "axint.templates.list": "axint_list_templates",
+        "axint.templates.get": "axint_template",
+    }
+
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         return [
             Tool(
-                name="axint_scaffold",
+                name="axint.scaffold",
                 description=(
                     "Generate a starter Python intent file from a name and description. "
                     "Returns a complete define_intent() source string ready to save as a "
                     ".py file — no files are written, no network requests made. On invalid "
                     "domain values, returns an error string. The output compiles directly "
-                    "with axint_compile. Use this when creating a new intent from scratch; "
-                    "use axint_template for a working reference example, or "
-                    "axint_compile_from_schema to generate Swift without writing Python."
+                    "with axint.compile. Use this when creating a new intent from scratch; "
+                    "use axint.templates.get for a working reference example, or "
+                    "axint.schema.compile to generate Swift without writing Python."
                 ),
                 annotations=_tool_annotations,
                 inputSchema={
@@ -460,16 +469,16 @@ def build_server() -> Server:
                 },
             ),
             Tool(
-                name="axint_compile",
+                name="axint.compile",
                 description=(
                     "Compile Python source (define_intent() call) into native Swift "
                     "App Intent code. Returns { swift, info_plist?, entitlements? } as a "
                     "string — no files written, no network requests. On validation "
                     "failure, returns diagnostics (severity, AX error code, position, "
-                    "fix suggestion) instead of Swift. Use axint_validate for cheaper "
+                    "fix suggestion) instead of Swift. Use axint.validate for cheaper "
                     "pre-flight checks without compilation output; use "
-                    "axint_compile_from_schema to compile from JSON without writing "
-                    "Python; use axint_scaffold to generate the Python input."
+                    "axint.schema.compile to compile from JSON without writing "
+                    "Python; use axint.scaffold to generate the Python input."
                 ),
                 annotations=_tool_annotations,
                 inputSchema={
@@ -510,15 +519,15 @@ def build_server() -> Server:
                 },
             ),
             Tool(
-                name="axint_validate",
+                name="axint.validate",
                 description=(
                     "Validate a Python intent definition without generating Swift "
                     "output. Returns an array of diagnostics, each with severity "
                     "(error | warning), error code (AXnnn), line/column position, and "
                     "a suggested fix. Returns an empty array when validation passes. "
                     "No files written, no network requests, no side effects. Use this "
-                    "for cheap pre-flight checks before calling axint_compile, or to "
-                    "surface errors in an editor. Prefer axint_compile directly when "
+                    "for cheap pre-flight checks before calling axint.compile, or to "
+                    "surface errors in an editor. Prefer axint.compile directly when "
                     "you need the Swift output and can handle inline diagnostics."
                 ),
                 annotations=_tool_annotations,
@@ -530,7 +539,7 @@ def build_server() -> Server:
                             "description": (
                                 "Full Python source code containing a define_intent() call. "
                                 "Must be a complete file starting with an axint import, not a "
-                                "code fragment. Same format accepted by axint_compile."
+                                "code fragment. Same format accepted by axint.compile."
                             ),
                         },
                     },
@@ -538,7 +547,7 @@ def build_server() -> Server:
                 },
             ),
             Tool(
-                name="axint_compile_from_schema",
+                name="axint.schema.compile",
                 description=(
                     "Compile a minimal JSON schema directly to Swift, bypassing the "
                     "Python DSL entirely. Supports intents, views, widgets, and "
@@ -547,7 +556,7 @@ def build_server() -> Server:
                     "budgets. Returns Swift source with token usage stats; no files "
                     "written, no network requests. On invalid input, returns an error "
                     "message describing the issue. Use this for quick Swift generation "
-                    "without writing Python; use axint_compile when you need the "
+                    "without writing Python; use axint.compile when you need the "
                     "full DSL for complex intents with custom perform() logic."
                 ),
                 annotations=_tool_annotations,
@@ -704,28 +713,28 @@ def build_server() -> Server:
                 },
             ),
             Tool(
-                name="axint_list_templates",
+                name="axint.templates.list",
                 description=(
                     "List all bundled reference templates available in the axint SDK. "
                     "Returns an array of { id, name, description } objects — one per "
                     "template. No parameters, no files written, no network requests, "
                     "no side effects. Use this to discover template ids, then call "
-                    "axint_template with a specific id to retrieve the full source. "
-                    "Unlike axint_scaffold which generates from parameters, templates "
+                    "axint.templates.get with a specific id to retrieve the full source. "
+                    "Unlike axint.scaffold which generates from parameters, templates "
                     "are complete working examples with perform() logic included."
                 ),
                 annotations=_tool_annotations,
                 inputSchema={"type": "object", "properties": {}},
             ),
             Tool(
-                name="axint_template",
+                name="axint.templates.get",
                 description=(
                     "Return the full Python source code of a bundled reference "
                     "template by id. Returns a complete define_intent() file that "
-                    "compiles with axint_compile — no files written, no network "
+                    "compiles with axint.compile — no files written, no network "
                     "requests. Returns an error message if the id is not found. "
-                    "Call axint_list_templates first to discover valid ids. Unlike "
-                    "axint_scaffold which generates a skeleton, templates include "
+                    "Call axint.templates.list first to discover valid ids. Unlike "
+                    "axint.scaffold which generates a skeleton, templates include "
                     "complete perform() logic and are ready to use as-is."
                 ),
                 annotations=_tool_annotations,
@@ -747,6 +756,8 @@ def build_server() -> Server:
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> str:
+        name = aliases.get(name, name)
+
         if name == "axint_scaffold":
             return scaffold_intent(
                 name=arguments["name"],

@@ -1,6 +1,6 @@
 # Axint — VS Code Extension
 
-Compile TypeScript into native Apple App Intents from VS Code. Uses the Model Context Protocol to give Copilot and other AI assistants access to the Axint compiler.
+Compile TypeScript into native Apple capabilities from VS Code. Uses the Model Context Protocol to give Copilot and other AI assistants access to the Axint compiler.
 
 ## Install
 
@@ -12,14 +12,18 @@ ext install agenticempire.axint
 
 ## What It Does
 
-Registers an MCP server that exposes six tools to VS Code's AI features:
+Registers the Axint MCP server so VS Code agents can call the same ten tools
+and three built-in prompts available in the CLI integrations.
 
-- **axint_scaffold** — Generate a new intent from a description
-- **axint_compile** — Compile TypeScript to Swift
-- **axint_validate** — Check for issues
-- **axint_compile_from_schema** — Compile minimal JSON directly to Swift (intents, views, widgets)
-- **axint_list_templates** — Browse pre-built patterns
-- **axint_template** — Pull a complete working example
+Key tools:
+
+- **axint.feature** — Generate a complete Apple-native feature package
+- **axint.compile** — Compile TypeScript to Swift
+- **axint.validate** — Check for issues
+- **axint.schema.compile** — Compile minimal JSON directly to Swift
+- **axint.templates.list** — Browse pre-built patterns
+- **axint.templates.get** — Pull a complete working example
+- **axint.swift.validate** / **axint.swift.fix** — Verify and repair Swift output
 
 Works with GitHub Copilot in agent mode and any VS Code AI feature that supports MCP.
 

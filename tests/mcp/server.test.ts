@@ -115,7 +115,7 @@ describe("axint.compile tool", () => {
 
   it("returns diagnostics for missing required fields", () => {
     const source = `
-      import { defineIntent } from "axint";
+      import { defineIntent } from "@axint/compiler";
       export default defineIntent({
         name: "Incomplete",
       });
@@ -127,7 +127,7 @@ describe("axint.compile tool", () => {
 
   it("emits Info.plist fragment when requested", () => {
     const source = `
-      import { defineIntent, param } from "axint";
+      import { defineIntent, param } from "@axint/compiler";
       export default defineIntent({
         name: "PlayMusic",
         title: "Play Music",

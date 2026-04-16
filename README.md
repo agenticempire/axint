@@ -184,7 +184,7 @@ Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Windsurf, and
 }
 ```
 
-13 tools:
+10 tools + 3 built-in prompts:
 
 | Tool | What it does |
 | --- | --- |
@@ -196,11 +196,16 @@ Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Windsurf, and
 | `axint.scaffold` | Generate a starter TypeScript intent from a description |
 | `axint.swift.validate` | Validate existing Swift against build-time rules |
 | `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
-| `axint.create-intent` | Create a new intent from parameters |
-| `axint.create-widget` | Create a new widget from parameters |
 | `axint.templates.list` | List bundled reference templates |
 | `axint.templates.get` | Return the source of a specific template |
+
+Built-in prompts:
+
+| Prompt | What it does |
+| --- | --- |
 | `axint.quick-start` | Get a quick-start guide |
+| `axint.create-intent` | Start a new intent from guided parameters |
+| `axint.create-widget` | Start a new widget from guided parameters |
 
 `axint.schema.compile` is the key optimization — agents send ~20 tokens of JSON and get compiled Swift back directly, skipping TypeScript entirely.
 
@@ -267,13 +272,13 @@ axint/
 ├── src/
 │   ├── core/        # Parser, validator, generator, compiler, IR
 │   ├── sdk/         # defineIntent(), defineView(), defineWidget(), defineApp()
-│   ├── mcp/         # MCP server (13 tools)
+│   ├── mcp/         # MCP server (10 tools + 3 prompts)
 │   ├── cli/         # CLI (compile, watch, validate, eject, init, xcode)
-│   └── templates/   # 62 bundled reference templates
+│   └── templates/   # 25 bundled reference templates
 ├── python/          # Python SDK
 ├── extensions/      # Editor extensions (9 editors)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # ~500 vitest tests
+├── tests/           # 508 vitest tests
 ├── examples/        # Example definitions
 └── docs/            # Error reference, assets
 ```

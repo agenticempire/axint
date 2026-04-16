@@ -140,7 +140,7 @@ export async function scaffoldProject(opts: ScaffoldOptions): Promise<ScaffoldRe
   //    scaffolded dependency.
   await write(`intents/${template}.ts`, tpl.source);
 
-  // 7. .vscode/mcp.json — ready to `npx axint-mcp` from Cursor/Claude Code
+  // 7. .vscode/mcp.json — ready to launch the Axint MCP server from Cursor/Claude Code
   await write(
     ".vscode/mcp.json",
     JSON.stringify(
@@ -206,8 +206,8 @@ npm run sandbox               # stage 4: swift build in an SPM sandbox (macOS on
 ## Use with AI coding tools
 
 The \`.vscode/mcp.json\` file is pre-wired for Cursor, Claude Code, and Windsurf.
-Any agent that supports MCP can now call \`axint_compile\`, \`axint_validate\`,
-\`axint_scaffold\`, and \`axint_template\` against this project.
+Any agent that supports MCP can now call \`axint.compile\`, \`axint.validate\`,
+\`axint.feature\`, and \`axint.templates.get\` against this project.
 
 ## Next
 
