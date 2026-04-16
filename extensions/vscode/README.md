@@ -1,6 +1,6 @@
 # Axint — VS Code Extension
 
-Compile TypeScript into native Apple capabilities from VS Code. Uses the Model Context Protocol to give Copilot and other AI assistants access to the Axint compiler.
+Compile TypeScript into native Apple capabilities from VS Code. Axint now does more than register MCP: it can preview generated Swift, validate the current file, browse bundled templates, and jump directly into the registry and docs.
 
 ## Install
 
@@ -15,6 +15,14 @@ ext install agenticempire.axint
 Registers the Axint MCP server so VS Code agents can call the same ten tools
 and three built-in prompts available in the CLI integrations.
 
+It also adds command-palette workflows for:
+
+- **Axint: Preview Swift for Current File** — compile the active Axint source and open generated Swift beside it
+- **Axint: Validate Current File** — run the compiler/validator and surface diagnostics in Problems
+- **Axint: Browse Bundled Templates** — explore built-in Axint templates from inside VS Code
+- **Axint: Open Registry** — jump straight to `registry.axint.ai`
+- **Axint: Open Docs** — open `docs.axint.ai`
+
 Key tools:
 
 - **axint.feature** — Generate a complete Apple-native feature package
@@ -27,12 +35,21 @@ Key tools:
 
 Works with GitHub Copilot in agent mode and any VS Code AI feature that supports MCP.
 
+## Editor Workflow
+
+1. Open an Axint TypeScript file.
+2. Run `Axint: Preview Swift for Current File` from the command palette.
+3. Axint compiles the file with `@axint/compiler`, shows diagnostics in Problems, and opens generated Swift in a split editor.
+4. Use `Axint: Validate Current File` for a fast validation-only pass while editing.
+
+This gives you a tighter “edit -> compile -> inspect Swift” loop without leaving VS Code.
+
 ## Requirements
 
 - VS Code 1.102 or later
 - Node.js 22+
 
-The extension runs `npx @axint/compiler axint-mcp` under the hood — no global install needed.
+The extension runs `npx @axint/compiler axint-mcp` under the hood for MCP, and `npx @axint/compiler compile ... --json` for editor commands. No global install needed.
 
 ## Links
 

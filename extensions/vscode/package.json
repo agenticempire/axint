@@ -3,7 +3,7 @@
   "displayName": "Axint — App Intents Compiler",
   "version": "0.3.8",
   "publisher": "agenticempire",
-  "description": "Compile TypeScript into native Apple App Intents. Scaffold, compile, validate, and browse templates — all from your editor.",
+  "description": "Preview, validate, and browse Apple-native Axint surfaces from VS Code. Compile TypeScript into Swift, register MCP, and explore templates from your editor.",
   "license": "Apache-2.0",
   "icon": "icon.png",
   "files": [
@@ -36,23 +36,94 @@
     "vscode": "^1.102.0"
   },
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:axint.previewSwift",
+    "onCommand:axint.validateCurrentFile",
+    "onCommand:axint.showTemplates",
+    "onCommand:axint.openRegistry",
+    "onCommand:axint.openDocs"
+  ],
   "contributes": {
+    "commands": [
+      {
+        "command": "axint.previewSwift",
+        "title": "Preview Swift for Current File",
+        "category": "Axint",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "axint.validateCurrentFile",
+        "title": "Validate Current File",
+        "category": "Axint",
+        "icon": "$(check)"
+      },
+      {
+        "command": "axint.showTemplates",
+        "title": "Browse Bundled Templates",
+        "category": "Axint",
+        "icon": "$(library)"
+      },
+      {
+        "command": "axint.openRegistry",
+        "title": "Open Registry",
+        "category": "Axint",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "axint.openDocs",
+        "title": "Open Docs",
+        "category": "Axint",
+        "icon": "$(book)"
+      }
+    ],
     "mcpServerDefinitionProviders": [
       {
         "id": "axint.mcpServer",
         "label": "Axint App Intents Compiler"
       }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "axint.previewSwift",
+          "group": "navigation@90",
+          "when": "resourceScheme == file && editorTextFocus"
+        },
+        {
+          "command": "axint.validateCurrentFile",
+          "group": "navigation@91",
+          "when": "resourceScheme == file && editorTextFocus"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "axint.previewSwift",
+          "group": "navigation@90",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "axint.validateCurrentFile",
+          "group": "navigation@91",
+          "when": "resourceScheme == file"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "axint.previewSwift",
+        "key": "cmd+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "editorTextFocus"
+      }
     ]
   },
   "scripts": {
-    "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "build": "node ../../node_modules/typescript/bin/tsc -p ./tsconfig.json",
     "package": "vsce package",
     "publish": "vsce publish"
   },
   "devDependencies": {
     "@types/vscode": "^1.102.0",
-    "@vscode/vsce": "^3.0.0",
-    "esbuild": "^0.25.0"
+    "@vscode/vsce": "^3.0.0"
   }
 }
