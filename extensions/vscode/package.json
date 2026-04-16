@@ -6,6 +6,14 @@
   "description": "Compile TypeScript into native Apple App Intents. Scaffold, compile, validate, and browse templates — all from your editor.",
   "license": "Apache-2.0",
   "icon": "icon.png",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "package.json",
+    "icon.png"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/agenticempire/axint.git"
