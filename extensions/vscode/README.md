@@ -20,6 +20,7 @@ It also adds command-palette workflows for:
 - **Axint: Preview Swift for Current File** — compile the active Axint source and open generated Swift beside it
 - **Axint: Validate Current File** — run the compiler/validator and surface diagnostics in Problems
 - **Axint: Browse Bundled Templates** — explore built-in Axint templates from inside VS Code
+- **Axint: Open Current File in Cloud** — send the active TypeScript or Python source into Axint Cloud for a shareable validation report
 - **Axint: Open Registry** — jump straight to `registry.axint.ai`
 - **Axint: Open Docs** — open `docs.axint.ai`
 
@@ -41,8 +42,9 @@ Works with GitHub Copilot in agent mode and any VS Code AI feature that supports
 2. Run `Axint: Preview Swift for Current File` from the command palette.
 3. Axint compiles the file with `@axint/compiler`, shows diagnostics in Problems, and opens generated Swift in a split editor.
 4. Use `Axint: Validate Current File` for a fast validation-only pass while editing.
+5. Use `Axint: Open Current File in Cloud` when you want a shareable Cloud report, saved baseline, or a handoff into the private validation workflow.
 
-This gives you a tighter “edit -> compile -> inspect Swift” loop without leaving VS Code.
+This gives you a tighter `edit -> compile -> inspect Swift -> open Cloud report` loop without leaving VS Code.
 
 ## Requirements
 

@@ -3,7 +3,7 @@
   "displayName": "Axint — App Intents Compiler",
   "version": "0.3.8",
   "publisher": "agenticempire",
-  "description": "Preview, validate, and browse Apple-native Axint surfaces from VS Code. Compile TypeScript into Swift, register MCP, and explore templates from your editor.",
+  "description": "Preview, validate, browse templates, and open shareable Axint Cloud reports from VS Code. Compile TypeScript or Python into Apple-native surfaces from your editor.",
   "license": "Apache-2.0",
   "icon": "icon.png",
   "files": [
@@ -41,7 +41,8 @@
     "onCommand:axint.validateCurrentFile",
     "onCommand:axint.showTemplates",
     "onCommand:axint.openRegistry",
-    "onCommand:axint.openDocs"
+    "onCommand:axint.openDocs",
+    "onCommand:axint.openCloudReport"
   ],
   "contributes": {
     "commands": [
@@ -74,6 +75,12 @@
         "title": "Open Docs",
         "category": "Axint",
         "icon": "$(book)"
+      },
+      {
+        "command": "axint.openCloudReport",
+        "title": "Open Current File in Cloud",
+        "category": "Axint",
+        "icon": "$(cloud-upload)"
       }
     ],
     "mcpServerDefinitionProviders": [
@@ -93,6 +100,11 @@
           "command": "axint.validateCurrentFile",
           "group": "navigation@91",
           "when": "resourceScheme == file && editorTextFocus"
+        },
+        {
+          "command": "axint.openCloudReport",
+          "group": "navigation@92",
+          "when": "resourceScheme == file && editorTextFocus"
         }
       ],
       "explorer/context": [
@@ -104,6 +116,11 @@
         {
           "command": "axint.validateCurrentFile",
           "group": "navigation@91",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "axint.openCloudReport",
+          "group": "navigation@92",
           "when": "resourceScheme == file"
         }
       ]
