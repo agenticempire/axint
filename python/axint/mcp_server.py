@@ -22,11 +22,11 @@ Tools:
 from __future__ import annotations
 
 import asyncio
-from contextlib import suppress
 import json
 import re
 import subprocess
 import sys
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal
 
