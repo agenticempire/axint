@@ -6,6 +6,7 @@
 - Document the current Axint MCP surface: 10 tools + 3 built-in prompts
 - Package the extension for marketplace-ready installation via `agenticempire.axint`
 - Add command-palette workflows for Swift preview, validation, template browse, docs, and registry
+- Add `Open Current File in Cloud` so the active file can jump directly into Axint Cloud with a shareable report state
 
 ## [0.3.2] - 2026-04-12
 

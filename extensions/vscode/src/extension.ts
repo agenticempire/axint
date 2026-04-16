@@ -7,6 +7,7 @@ const exec = promisify(execFile);
 const AXINT_BINARY = process.platform === "win32" ? "npx.cmd" : "npx";
 const AXINT_PACKAGE = "@axint/compiler";
 const SUPPORTED_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"]);
+const CLOUD_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".py"]);
 
 type AxintDiagnostic = {
   code: string;
@@ -46,7 +47,10 @@ export function activate(context: vscode.ExtensionContext) {
     ],
   });
 
-  async function resolveActiveSourceFile(): Promise<vscode.Uri | undefined> {
+  async function resolveActiveSourceFile(
+    allowedExtensions = SUPPORTED_EXTENSIONS,
+    unsupportedMessage = "Axint commands currently support .ts, .tsx, .mts, and .cts source files.",
+  ): Promise<vscode.Uri | undefined> {
     const uri = vscode.window.activeTextEditor?.document.uri;
     if (!uri || uri.scheme !== "file") {
       void vscode.window.showInformationMessage(
@@ -56,10 +60,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     const ext = path.extname(uri.fsPath).toLowerCase();
-    if (!SUPPORTED_EXTENSIONS.has(ext)) {
-      void vscode.window.showWarningMessage(
-        "Axint commands currently support .ts, .tsx, .mts, and .cts source files.",
-      );
+    if (!allowedExtensions.has(ext)) {
+      void vscode.window.showWarningMessage(unsupportedMessage);
       return undefined;
     }
 
@@ -217,6 +219,51 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
+  function inferCloudLanguage(filePath: string): "typescript" | "python" {
+    return path.extname(filePath).toLowerCase() === ".py" ? "python" : "typescript";
+  }
+
+  function inferCloudSurface(source: string): "intent" | "view" | "widget" {
+    if (/defineWidget\s*\(/.test(source)) return "widget";
+    if (/defineView\s*\(/.test(source) || /\bview\./.test(source)) return "view";
+    return "intent";
+  }
+
+  function encodeCloudState(state: Record<string, unknown>): string {
+    return Buffer.from(JSON.stringify(state), "utf8").toString("base64url");
+  }
+
+  async function openCurrentFileInCloud() {
+    const uri = await resolveActiveSourceFile(
+      CLOUD_EXTENSIONS,
+      "Open a TypeScript or Python Axint source file to send it to Axint Cloud.",
+    );
+    if (!uri) return;
+
+    const activeDocument =
+      vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()
+        ? vscode.window.activeTextEditor.document
+        : await vscode.workspace.openTextDocument(uri);
+
+    const filePath = uri.fsPath;
+    const source = activeDocument.getText();
+    const language = inferCloudLanguage(filePath);
+    const surface = inferCloudSurface(source);
+    const hash = encodeCloudState({
+      v: 1,
+      mode: "upload",
+      source,
+      surface,
+      language,
+      fileName: path.basename(filePath),
+    });
+
+    await vscode.env.openExternal(vscode.Uri.parse(`https://axint.ai/cloud#report=${hash}`));
+    void vscode.window.showInformationMessage(
+      "Opened the current file in Axint Cloud.",
+    );
+  }
+
   const commands = [
     vscode.commands.registerCommand("axint.previewSwift", async () => {
       await compileCurrentFile(true);
@@ -232,6 +279,9 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand("axint.openDocs", async () => {
       await vscode.env.openExternal(vscode.Uri.parse("https://docs.axint.ai"));
+    }),
+    vscode.commands.registerCommand("axint.openCloudReport", async () => {
+      await openCurrentFileInCloud();
     }),
   ];
 
