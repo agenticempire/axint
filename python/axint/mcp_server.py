@@ -22,6 +22,7 @@ Tools:
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 import json
 import re
 import subprocess
@@ -678,22 +679,14 @@ def _format_schema_output(swift_code: str, input_tokens: int) -> str:
 
 def _parse_all(source: str, file: str) -> dict[str, list[Any]]:
     result: dict[str, list[Any]] = {"intents": [], "views": [], "widgets": [], "apps": []}
-    try:
+    with suppress(ParserError):
         result["intents"] = parse_source(source, file=file)
-    except ParserError:
-        pass
-    try:
+    with suppress(ParserError):
         result["views"] = parse_view_source(source, file=file)
-    except ParserError:
-        pass
-    try:
+    with suppress(ParserError):
         result["widgets"] = parse_widget_source(source, file=file)
-    except ParserError:
-        pass
-    try:
+    with suppress(ParserError):
         result["apps"] = parse_app_source(source, file=file)
-    except ParserError:
-        pass
     return result
 
 
@@ -1465,7 +1458,8 @@ def build_server() -> Server:
             if not TEMPLATES:
                 return "No templates registered."
             return "\n".join(
-                f"{template['id']}  —  {template['title']}{f' [{template['domain']}]' if template.get('domain') else ''}"
+                f"{template['id']}  —  {template['title']}"
+                f"{' [' + template['domain'] + ']' if template.get('domain') else ''}"
                 for template in TEMPLATES
             )
 
