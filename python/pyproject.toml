@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [
-    { name = "Agentic Empire", email = "hello@axint.ai" },
+    { name = "Axint contributors" },
 ]
 keywords = [
     "apple",

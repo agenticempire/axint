@@ -290,8 +290,8 @@ axint/
 Current priorities — full roadmap in [`ROADMAP.md`](ROADMAP.md):
 
 - `defineExtension()` — app extension compilation
-- Axint Cloud — hosted compilation with team workspaces
-- Registry ecosystem — shareable, versioned packages at [registry.axint.ai](https://registry.axint.ai)
+- `IntentDialog` + richer Apple parameter types
+- `swift-format` integration for generated output
 
 ---
 
@@ -316,7 +316,3 @@ Apache 2.0, no CLA.
 [Apache 2.0](LICENSE) — fork it, extend it, ship it.
 
 ---
-
-<p align="center">
-  Built by <a href="https://agenticempire.co">Agentic Empire</a> · <a href="https://axint.ai">axint.ai</a>
-</p>

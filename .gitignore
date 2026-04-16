@@ -60,6 +60,12 @@ python/**/__pycache__/
 # Hosted separately — not part of the compiler repo
 registry/
 site/
+launch/
+docs/launch/
+.github-org-profile/
+profile/
+.github-org-temp/
+.scratch/
 
 # Audit reports (generated, not source)
 *.audit.html
