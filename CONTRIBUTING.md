@@ -64,17 +64,16 @@ TypeScript Intent Definition
 - **New target surfaces** — Support for SiriKit, Shortcuts, or other Apple execution surfaces beyond App Intents.
 - **Dependency additions** — Any new runtime dependency needs justification.
 
-### Redirected to Axint Cloud
+### Out of Scope for This Repo
 
-Some features are better suited to the commercial layer rather than the open-source core:
+The open-source repository is for the compiler, SDKs, CLI, MCP server, templates, tests, and editor integrations.
 
-- Hosted/cloud compilation services
-- Team collaboration features
-- Usage analytics and dashboards
-- Enterprise SSO/audit logging
-- Managed deployment pipelines
+Please do not open PRs that add private product materials or internal operating docs here, such as:
 
-If you're interested in contributing to Axint Cloud, reach out at hello@axint.ai.
+- Launch copy or GTM assets
+- Private website or registry implementation details
+- Hosted service playbooks or commercial planning docs
+- Internal analytics, sales, or partnership materials
 
 ## Development Setup
 
@@ -154,8 +153,7 @@ Be respectful. Be constructive. We're building something together. Toxic behavio
 ## Questions?
 
 - **GitHub Discussions** — For architecture questions and ideas
-- **Discord** — [Join the server](https://discord.gg/axint) for real-time chat with other contributors
-- **hello@axint.ai** — For anything else
+- **GitHub Issues** — For bugs, regressions, and feature requests
 
 ---
 

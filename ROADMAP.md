@@ -30,8 +30,6 @@ We ship small, tight releases. Everything on this page is open for contribution 
 - **`axint eject`** (`src/core/eject.ts`) — generates standalone Swift with zero Axint dependency. Strips regeneration markers, adds Apple documentation references. Optional XCTest scaffold generation. 12 tests.
 - **EntityQuery + DynamicOptionsProvider** — initial SDK support (`defineEntity()`, `param.entity()`, `param.dynamicOptions()`), IR types (`entityQuery`, `dynamicOptions`, `IREntity`), validator rules AX110–AX113, and two new templates (`search-tasks`, `dynamic-playlist`). Dynamic options inner type extraction and property-based entity query codegen shipped in v0.3.2.
 - **WWDC API adapter pipeline** (`scripts/wwdc-diff.ts`) — nightly CI scanning Apple SDK headers for API changes with priority-ranked adapter recommendations and auto GitHub issue creation on detected changes.
-- **Launch kit** (`launch/`) — HN post draft, Twitter thread, beta-tester seeding plan, Discord channel layout, pre-launch → launch-day → post-launch checklist.
-
 ### v0.2.2
 
 - **`axint init` scaffolder** — one command drops a complete Axint project with pinned deps, tsconfig, a starter intent, and an MCP config pre-wired for Cursor, Claude Code, and Windsurf.
@@ -144,12 +142,6 @@ Full support for Apple's type hierarchy: `IntentParameter<Measurement<Unit>>`, `
 
 _Target: v0.4.0_
 
-### Axint Cloud (hosted compilation)
-
-A hosted compile + preview service so teams without a Mac or Xcode can ship App Intents. Source stays on-device; only the TypeScript source is sent to the API.
-
-_Target: v0.4.0 · Commercial tier_
-
 ### GitHub template repo (`axint-starter`)
 
 A template repository that new contributors can clone for a 30-second setup: TypeScript config, a starter intent, and CI wired up.
@@ -164,7 +156,7 @@ Every change on this roadmap is measured against four rules:
 
 1. **Sub-millisecond compile** — the browser playground compiles on every keystroke. If a feature breaks that, it doesn't ship.
 2. **Idiomatic Swift output** — the generated code has to look like what a senior Apple engineer would write by hand.
-3. **Zero telemetry** — no data leaves the user's device unless they explicitly call the (future) Cloud API.
+3. **Zero telemetry** — no data leaves the user's device unless they explicitly invoke a remote service themselves.
 4. **Apache 2.0, no CLA** — every line stays forkable, vendorable, and shippable inside commercial products.
 
 ---
@@ -181,6 +173,4 @@ Every change on this roadmap is measured against four rules:
 
 - **GitHub Discussions** — [github.com/agenticempire/axint/discussions](https://github.com/agenticempire/axint/discussions) for architecture questions and feature ideas
 - **Issues** — [github.com/agenticempire/axint/issues](https://github.com/agenticempire/axint/issues) for bug reports and "help wanted" items
-- **Email** — [hello@axint.ai](mailto:hello@axint.ai) for partnership and commercial questions
-
 Your name in the CHANGELOG, forever.
