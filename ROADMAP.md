@@ -1,6 +1,6 @@
 # Axint Roadmap
 
-_Last updated: April 2026 · Current release: [v0.3.7](https://github.com/agenticempire/axint/releases) · 53 days to WWDC 2026_
+_Last updated: April 2026 · Current release: [v0.3.8](https://github.com/agenticempire/axint/releases) · 52 days to WWDC 2026_
 
 Axint is the open-source compiler that turns TypeScript definitions into native Apple platform code — App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds. This roadmap tracks what's shipped, what's next, and where we need help.
 
@@ -17,16 +17,16 @@ We ship small, tight releases. Everything on this page is open for contribution 
 
 ### v0.3.3
 
-- **Python MCP server** (`axintai-mcp`) — full parity with the TS MCP server, all six tools over stdio.
+- **Python MCP server** (`axint-mcp-py`) — parity with the TS MCP server's core compile/validate/template flow over stdio.
 - **Smithery listing** — MCP HTTP transport for the Smithery registry.
-- **402 tests** — jumped from 249 to 402 with validator, diagnostics, and generator edge case coverage.
+- **402 tests** — jumped from 249 to 402 with validator, diagnostics, and generator edge case coverage. The suite has continued to grow since then.
 - **Type safety overhaul** — replaced all unsafe `as` casts with narrowing type guards across the parser and generator.
 - **defineView() + defineWidget() + defineApp()** — three new compilation surfaces shipped end-to-end.
 - **Architecture docs** (`ARCHITECTURE.md`) and shared parser utilities extraction.
 
 ### v0.3.0
 
-- **Xcode SPM build plugin** (`spm-plugin/`) — `AxintPlugin` Swift Package with `BuildToolPlugin` that auto-compiles `.ts` intents during `swift build` and Xcode builds. Discovers `axint` via `npx` or `PATH`.
+- **Xcode SPM build plugin** (`spm-plugin/`) — `AxintCompilePlugin` and `AxintValidatePlugin` for `swift build` and Xcode builds. Discovers `axint` via `npx` or `PATH`.
 - **`axint eject`** (`src/core/eject.ts`) — generates standalone Swift with zero Axint dependency. Strips regeneration markers, adds Apple documentation references. Optional XCTest scaffold generation. 12 tests.
 - **EntityQuery + DynamicOptionsProvider** — initial SDK support (`defineEntity()`, `param.entity()`, `param.dynamicOptions()`), IR types (`entityQuery`, `dynamicOptions`, `IREntity`), validator rules AX110–AX113, and two new templates (`search-tasks`, `dynamic-playlist`). Dynamic options inner type extraction and property-based entity query codegen shipped in v0.3.2.
 - **WWDC API adapter pipeline** (`scripts/wwdc-diff.ts`) — nightly CI scanning Apple SDK headers for API changes with priority-ranked adapter recommendations and auto GitHub issue creation on detected changes.
@@ -51,7 +51,7 @@ We ship small, tight releases. Everything on this page is open for contribution 
 - Numeric type fidelity: `param.int`, `param.double`, `param.float` → `Int`, `Double`, `Float`.
 - Return-type inference — `perform()` bodies emit `some IntentResult & ReturnsValue<T>`.
 - `emitInfoPlist` / `emitEntitlements` options on `CompilerOptions` (wired to CLI in v0.2.2).
-- `axint_scaffold`, `axint_list_templates`, `axint_template` MCP tools.
+- Legacy underscore MCP aliases alongside the current dotted tool names.
 - Ten reference templates: messaging, productivity, health, commerce, smart home.
 - Intent-level metadata (`entitlements`, `infoPlistKeys`, `isDiscoverable`).
 - New validator rules AX107–AX109; new parser diagnostics AX006–AX008.
@@ -60,7 +60,7 @@ We ship small, tight releases. Everything on this page is open for contribution 
 ### v0.1.x
 
 - Core type system and IR, parser, generator, validator with 12 diagnostic codes.
-- CLI (`compile`, `validate`, `--json`), MCP server (`axint_compile`, `axint_validate`).
+- CLI (`compile`, `validate`, `--json`), MCP server foundations, and the original parser/generator/validator loop.
 - 117 tests with snapshot + security coverage (98%+).
 - In-browser playground on [axint.ai](https://axint.ai).
 
@@ -94,7 +94,7 @@ _Status: scaffolding · Target: v0.3.0 · Impact: medium_
 
 ### VS Code / Cursor extension
 
-MCP-backed extension (`extensions/vscode/`) exposes six tools to VS Code's AI features — scaffold, compile, validate, schema mode, templates. Works with GitHub Copilot in agent mode and any VS Code AI feature that supports MCP.
+MCP-backed extension (`extensions/vscode/`) exposes the Axint MCP server to VS Code's AI features. Works with GitHub Copilot in agent mode and any VS Code AI feature that supports MCP.
 
 _Status: shipped · v0.3.0_
 

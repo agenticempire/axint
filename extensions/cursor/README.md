@@ -1,6 +1,6 @@
 # Axint — Cursor Integration
 
-Compile TypeScript into native Apple App Intents from Cursor.
+Compile TypeScript into native Apple capabilities from Cursor.
 
 ## Install
 

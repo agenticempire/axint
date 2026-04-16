@@ -93,7 +93,7 @@ src/mcp/
 src/cli/
   index.ts, scaffold.ts
 
-python/axintai/
+python/axint/
   sdk.py, ir.py, generator.py, validator.py, cli.py, parser.py
 
 spm-plugin/

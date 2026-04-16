@@ -22,14 +22,14 @@ src/
 │   ├── types.ts         # IR types, Swift type mappings, diagnostics
 │   └── index.ts         # Barrel export
 ├── sdk/
-│   └── index.ts         # defineIntent() API and param helpers (exported from `axint`)
+│   └── index.ts         # define*() APIs and helpers (exported from `@axint/compiler`)
 ├── mcp/
-│   ├── server.ts        # MCP server with axint_compile & axint_validate tools
+│   ├── server.ts        # MCP server with axint.* tools and built-in prompts
 │   └── index.ts         # Entry point (also serves as axint-mcp binary)
 ├── templates/
 │   └── index.ts         # Intent template registry (templates welcome!)
 └── cli/
-    └── index.ts         # CLI entry — compile and validate commands
+    └── index.ts         # CLI entry — init, compile, validate, watch, publish, xcode
 ```
 
 **Key data flow:**

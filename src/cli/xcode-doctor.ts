@@ -134,7 +134,7 @@ function toolchainChecks(): Check[] {
       label: "axint binary",
       status: "warn",
       detail: "not on PATH",
-      hint: "fine for npx-based usage; npm i -g axint to make local",
+      hint: "fine for npx-based usage; npm i -g @axint/compiler to make it local",
     });
   }
 

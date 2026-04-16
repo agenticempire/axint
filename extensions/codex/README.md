@@ -1,6 +1,6 @@
 # Axint for OpenAI Codex
 
-Use Axint inside OpenAI Codex to generate native Swift App Intents from TypeScript.
+Use Axint inside OpenAI Codex to generate native Swift Apple capabilities from TypeScript.
 
 ## Setup
 
@@ -17,7 +17,7 @@ Add to your Codex MCP configuration:
 }
 ```
 
-Codex will discover the thirteen Axint tools automatically:
+Codex will discover ten Axint tools plus three built-in prompts automatically:
 
 - `axint.scaffold` — generate a TypeScript intent from a description
 - `axint.compile` — compile TypeScript → Swift
@@ -29,6 +29,8 @@ Codex will discover the thirteen Axint tools automatically:
 - `axint.schema.compile` — minimal JSON → Swift (token-saving mode)
 - `axint.swift.validate` — validate existing Swift against build-time rules
 - `axint.swift.fix` — auto-fix mechanical Swift errors
+Built-in prompts:
+
 - `axint.quick-start` — quick-start guide
 - `axint.create-intent` — create a new intent
 - `axint.create-widget` — create a new widget

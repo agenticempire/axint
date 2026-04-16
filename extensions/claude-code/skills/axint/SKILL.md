@@ -1,6 +1,6 @@
-# Axint — TypeScript to Apple App Intents Compiler
+# Axint — Apple-Native Compiler
 
-You have the Axint MCP server connected. Use the axint tools to help users create, compile, and validate Apple App Intents from TypeScript.
+You have the Axint MCP server connected. Use the axint tools to help users create, compile, and validate Apple-native capabilities from TypeScript.
 
 ## Available Tools
 

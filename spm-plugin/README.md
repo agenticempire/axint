@@ -75,11 +75,11 @@ let package = Package(
 
 ### Xcode Projects (non-SPM)
 
-The plugin also supports Xcode projects that don't use SPM. Add the plugin via Xcode's package dependency UI:
+The plugin also supports Xcode projects that don't use SPM. Add the package via Xcode's package dependency UI:
 
 1. In Xcode, select your project
 2. Go to **Build Phases** for your target
-3. Add the AxintPlugin as a build tool plugin dependency
+3. Add `AxintCompilePlugin` (and optionally `AxintValidatePlugin`) as build tool plugin dependencies
 4. The plugin will automatically compile `.ts` files during build
 
 ### Organize Your Files

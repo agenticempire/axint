@@ -8,21 +8,21 @@ Double-click the `.mcpb` file, or drag it onto Claude Desktop.
 
 ## What It Does
 
-Axint gives Claude thirteen tools for working with Apple App Intents:
+Axint gives Claude ten MCP tools plus three built-in prompts for working with Apple-native capabilities:
 
 - **Scaffold** — Describe what you want, get a TypeScript intent file
 - **Compile** — Turn TypeScript into production-ready Swift
 - **Validate** — Catch issues before you touch Xcode
-- **List Templates** — Browse 12+ pre-built patterns (messaging, health, commerce, etc.)
+- **List Templates** — Browse bundled reference templates
 - **Get Template** — Pull a complete working example
 - **Feature** — Generate a complete feature package from a description
 - **Suggest** — Suggest Apple-native features for a domain
 - **Schema Compile** — Minimal JSON → Swift (token-saving mode)
 - **Swift Validate** — Validate existing Swift against build-time rules
 - **Swift Fix** — Auto-fix mechanical Swift errors
-- **Quick-Start** — Quick-start guide
-- **Create Intent** — Create a new intent
-- **Create Widget** — Create a new widget
+- **Quick-Start** — Built-in quick-start prompt
+- **Create Intent** — Built-in prompt for creating a new intent
+- **Create Widget** — Built-in prompt for creating a new widget
 
 ## Example
 

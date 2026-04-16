@@ -16,7 +16,7 @@ Vercel, and replace `0.1.1` with whichever version npm actually accepted.
 
 **Title:**
 
-> Show HN: Axint – a TypeScript → Swift App Intents compiler
+> Show HN: Axint – an Apple-native execution layer for AI agents
 
 **Body:**
 
@@ -114,7 +114,7 @@ Vercel, and replace `0.1.1` with whichever version npm actually accepted.
 >
 > → CLI: `axint compile intent.ts`
 > → library: `compileSource()` for your own tooling
-> → MCP server: Claude Code / Cursor / Windsurf can call it as a tool
+> → MCP server: Claude Code / Cursor / Windsurf can call `axint.compile`, `axint.validate`, and the rest directly
 
 **Post 5:**
 
