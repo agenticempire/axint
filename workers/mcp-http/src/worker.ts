@@ -1100,13 +1100,19 @@ export default {
       return jsonrpcError(null, -32000, "POST only");
     }
 
-    let body: { id?: unknown; method?: string; params?: Record<string, unknown> };
+    let parsed: unknown;
     try {
-      body = await request.json();
+      parsed = await request.json();
     } catch {
       return jsonrpcError(null, -32700, "Parse error");
     }
 
+    // `request.json()` succeeds on valid JSON that isn't an object — e.g.
+    // `"null"`, `42`, `[]`. Destructuring those would throw at runtime.
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return jsonrpcError(null, -32600, "Invalid Request");
+    }
+    const body = parsed as { id?: unknown; method?: string; params?: Record<string, unknown> };
     const { id, method, params } = body;
 
     if (method === "initialize") {

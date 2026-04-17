@@ -6,6 +6,64 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.3.9] — 2026-04-16
+
+CLI ergonomics, VSCode cloud handoff, and an MCP server refactor.
+
+### Added
+
+- **Compression ratio after compile** — `axint compile` prints `TS lines → Swift lines (ratio)` so authors can eyeball how their intent expanded. Skipped for `--from-ir` and `--stdout` runs. Labels as "Compression" or "Expansion" depending on which side is larger.
+- **Cloud handoff in the VSCode extension** — send the active intent to the cloud compiler from the command palette; the extension opens the resulting Swift side-by-side with your TS source.
+- **`swift.validate` and `swift.fix`** on the hosted MCP worker so remote MCP clients can lint and auto-fix generated Swift without running the CLI locally.
+- **Good-first-issue template** for new contributors.
+
+### Changed
+
+- **MCP server split** into `manifest`, `prompts`, and `schema-compile` modules — the old 900-line monolith is now three focused files. Tool surface and behavior are unchanged.
+- **`axint add` accepts bare `namespace/slug`** in addition to `@namespace/slug`. The registry web URLs drop the leading `@`, so a copy-paste from the browser now works.
+- **Release workflow** no longer hard-fails when a version has already been published to npm, PyPI, or GitHub releases — reruns are idempotent.
+
+### Fixed
+
+- **`axint add` install response parsing** — the API returns a flat shape (`ts_source`, `swift_output` at the root), the CLI was destructuring `data.version.swift_output` and writing `undefined` to disk. Install now writes the correct Swift output.
+
+## [0.3.8] — 2026-04-15
+
+Xcode agentic coding support, Swift validator, and the `axint.feature` tool.
+
+### Added
+
+- **`axint.feature`** — new MCP tool that takes a natural-language feature description and returns a full intent, view, or widget scaffold. Designed for Xcode-hosted AI assistants that want to go from idea to compilable Swift in one turn.
+- **Swift validator** with Swift 6 concurrency rules and Live Activities checks. Runs as part of `axint compile` and is exposed as its own MCP tool.
+- **`axint doctor`** — environment diagnostic command. Prints Swift toolchain, Node version, Python (if installed), MCP server status, and registry connectivity.
+- **Xcode Source Editor Extension** — right-click a `.intent.ts` file in Xcode and compile it without leaving the editor.
+- **Dot-notation prompt demo** so hosted MCP clients can preview the guided feature-authoring flow before wiring it up.
+
+### Changed
+
+- **Namespace cleanup across the CLI, SPM plugins, and lockfile** — the final `axintai` references from the old unscoped name are gone. Everything is on `@axint/compiler` (npm) and `axintai` (PyPI, for the Python SDK only).
+- **Dependabot disabled** — upstream version drift on the generator fixture packages was producing more noise than signal.
+- **Version references aligned** across `package.json`, `pyproject.toml`, docs, and `server.json`.
+
+## [0.3.7] — 2026-04-14
+
+Dot-notation MCP tools and prompts.
+
+### Added
+
+- **`axint.compile`, `axint.validate`, `axint.eject`, `axint.explain`** — dot-notation tool names that work alongside the existing `axint_compile` / `axint_validate` / etc. Hosted clients that prefer dotted namespaces (Smithery, Glama) now index cleanly.
+- **MCP prompts** — three guided prompts (`new-intent`, `new-view`, `new-widget`) that walk an LLM through authoring a surface from a plain-English brief.
+- **Enriched tool parameter descriptions** — every MCP input now has a docstring-style description, which measurably lifts Glama quality scores.
+
+## [0.3.5] — 2026-04-13
+
+MCP tool annotations and parameter descriptions.
+
+### Added
+
+- **Tool annotations** on every MCP tool (`readOnlyHint`, `destructiveHint`, `idempotentHint`) so agents can reason about side effects.
+- **Enriched parameter descriptions** across the MCP server to improve tool-use accuracy.
+
 ## [0.3.4] — 2026-04-13
 
 MCP registry hardening and remote transport support.

@@ -71,6 +71,9 @@ profile/
 *.audit.html
 *-audit*.html
 
+# Private launch checklist — never check in
+SUBMISSIONS.md
+
 # Registry tokens
 .mcpregistry_github_token
 .mcpregistry_registry_token

@@ -35,13 +35,10 @@ jobs:
           [ -n "$OUTPUT" ] || exit 1
           echo "CLI version: $OUTPUT"
 
-      # ── Publish to npm (primary registry) ────────────────────────
-      - name: Publish to npm
-        run: npm publish --access public --provenance || echo "Version already published — skipping"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # ── Python SDK (publish to PyPI) ─────────────────────────────
+      # ── Validate Python SDK before publishing anything ───────────
+      # Keep every validation step above the first publish. A Python
+      # test failure at this point aborts the run, so a broken SDK
+      # can't ride along with a successful npm publish.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -60,6 +57,12 @@ jobs:
         working-directory: python
         run: python -m build
 
+      # ── Publish ──────────────────────────────────────────────────
+      - name: Publish to npm
+        run: npm publish --access public --provenance || echo "Version already published — skipping"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish to PyPI
         if: env.TWINE_PASSWORD != ''
         working-directory: python
@@ -68,7 +71,6 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
 
-      # ── GitHub Release ───────────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
