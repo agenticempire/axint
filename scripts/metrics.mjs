@@ -117,11 +117,14 @@ function countUniqueDiagnostics() {
 }
 
 function runVitestCount() {
+  // Pin CI=1 so test.skipIf(isCI) blocks are excluded everywhere — otherwise the
+  // snapshot drifts between dev machines and CI and the whole check is noise.
   const out = execSync("npx vitest list --json", {
     cwd: ROOT,
     stdio: ["ignore", "pipe", "ignore"],
     encoding: "utf-8",
     maxBuffer: 32 * 1024 * 1024,
+    env: { ...process.env, CI: "1" },
   });
   const jsonStart = out.indexOf("[");
   if (jsonStart === -1) throw new Error("vitest list --json produced no array");
