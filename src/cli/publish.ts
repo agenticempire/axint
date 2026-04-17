@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { compileFile } from "../core/compiler.js";
+import { hashBundle } from "../core/bundle-hash.js";
 
 export function registerPublish(program: Command, version: string) {
   program
@@ -95,6 +96,19 @@ export function registerPublish(program: Command, version: string) {
         ? config.namespace
         : `@${config.namespace}`;
 
+      const tsSource = readFileSync(entryPath, "utf-8");
+      const plistFragment = result.output.infoPlistFragment ?? null;
+
+      // Hash the exact bytes the registry will return at install time so the
+      // server can verify we agree on what was published. `axint add` re-runs
+      // the same computation on fetch — any drift aborts before writing files.
+      const bundleHash = await hashBundle({
+        ts_source: tsSource,
+        py_source: pySource ?? null,
+        swift_output: result.output.swiftCode,
+        plist_fragment: plistFragment,
+      });
+
       const payload = {
         namespace,
         slug: config.slug,
@@ -108,12 +122,13 @@ export function registerPublish(program: Command, version: string) {
         license: config.license ?? "Apache-2.0",
         homepage: config.homepage,
         repository: config.repository,
-        ts_source: readFileSync(entryPath, "utf-8"),
+        ts_source: tsSource,
         py_source: pySource,
         swift_output: result.output.swiftCode,
-        plist_fragment: result.output.infoPlistFragment ?? null,
+        plist_fragment: plistFragment,
         ir: result.output.ir ?? {},
         compiler_version: version,
+        bundle_hash: bundleHash,
       };
 
       if (options.dryRun) {
@@ -125,6 +140,7 @@ export function registerPublish(program: Command, version: string) {
         console.log(
           `  Bundle size:   ${Buffer.from(JSON.stringify(payload)).byteLength} bytes`
         );
+        console.log(`  Bundle hash:   sha256:${bundleHash}`);
         console.log(`  Tags:          ${tags.join(", ") || "(none)"}`);
         console.log();
         return;
@@ -177,12 +193,20 @@ export function registerPublish(program: Command, version: string) {
           process.exit(1);
         }
 
-        const data = (await res.json()) as { url: string };
+        const data = (await res.json()) as { url: string; bundle_hash?: string };
+
+        if (data.bundle_hash && data.bundle_hash !== bundleHash) {
+          console.error(
+            `  \x1b[31m✗\x1b[0m Registry recorded a different bundle hash (client ${bundleHash} vs server ${data.bundle_hash}). Publish rejected for your safety.`
+          );
+          process.exit(1);
+        }
 
         console.log(`  \x1b[32m✓\x1b[0m Published!`);
         console.log();
         console.log(`    ${data.url}`);
         console.log();
+        console.log(`  \x1b[2mBundle hash: sha256:${bundleHash}\x1b[0m`);
         console.log(`  \x1b[2mInstall: axint add ${namespace}/${config.slug}\x1b[0m`);
         console.log();
       } catch (err: unknown) {

@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { hashBundle } from "../core/bundle-hash.js";
 
 export function registerAdd(program: Command, version: string) {
   program
@@ -59,7 +60,33 @@ export function registerAdd(program: Command, version: string) {
           ts_source?: string;
           py_source?: string | null;
           swift_output: string;
+          plist_fragment?: string | null;
+          bundle_hash?: string | null;
         };
+
+        // Refuse to write the bundle if the registry's advertised hash doesn't
+        // match what we compute locally. Published-before-hashing bundles
+        // return `bundle_hash: null` and skip verification; anything else is a
+        // hard fail so tampered bytes never land in the user's repo.
+        if (data.bundle_hash) {
+          const localHash = await hashBundle({
+            ts_source: data.ts_source ?? "",
+            py_source: data.py_source ?? null,
+            swift_output: data.swift_output,
+            plist_fragment: data.plist_fragment ?? null,
+          });
+          if (localHash !== data.bundle_hash) {
+            console.error(
+              `  \x1b[31m✗\x1b[0m [AX600] Bundle hash mismatch for ${data.namespace}/${data.slug}@${data.version}`
+            );
+            console.error(`    expected sha256:${data.bundle_hash}`);
+            console.error(`    got      sha256:${localHash}`);
+            console.error(
+              `    No files written. The registry response does not match its recorded hash.`
+            );
+            process.exit(1);
+          }
+        }
 
         const targetDir = resolve(options.to, slug);
         mkdirSync(targetDir, { recursive: true });
@@ -82,6 +109,11 @@ export function registerAdd(program: Command, version: string) {
         );
         console.log(`    → ${targetDir}/`);
         filesWritten.forEach((f) => console.log(`      ${f}`));
+        if (data.bundle_hash) {
+          console.log(
+            `    \x1b[2mverified sha256:${data.bundle_hash.slice(0, 12)}…\x1b[0m`
+          );
+        }
         console.log();
         console.log(`  \x1b[1mNext:\x1b[0m`);
         console.log(
