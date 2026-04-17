@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { hashBundle } from "../core/bundle-hash.js";
+import { registryBaseUrl } from "../core/env.js";
 
 export function registerAdd(program: Command, version: string) {
   program
@@ -29,7 +30,7 @@ export function registerAdd(program: Command, version: string) {
 
       const [, rawNamespace, slug, pkgVersion] = match;
       const namespace = `@${rawNamespace}`;
-      const registryUrl = process.env.AXINT_REGISTRY_URL ?? "https://registry.axint.ai";
+      const registryUrl = registryBaseUrl();
 
       console.log(
         `  \x1b[2m⏺\x1b[0m Fetching ${namespace}/${slug}${pkgVersion ? `@${pkgVersion}` : ""}…`

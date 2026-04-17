@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { compileFile } from "../core/compiler.js";
 import { hashBundle } from "../core/bundle-hash.js";
+import { registryBaseUrl } from "../core/env.js";
 
 export function registerPublish(program: Command, version: string) {
   program
@@ -167,7 +168,7 @@ export function registerPublish(program: Command, version: string) {
         process.exit(1);
       }
 
-      const registryUrl = creds.registry ?? "https://registry.axint.ai";
+      const registryUrl = creds.registry ?? registryBaseUrl();
 
       console.log(`  \x1b[2m⏺\x1b[0m Publishing to ${registryUrl}…`);
 
