@@ -14,21 +14,57 @@ import { createAxintServer } from "./server.js";
 const port = parseInt(process.env.PORT || "3001", 10);
 const logLevel = process.env.LOG_LEVEL || "info";
 const timeout = parseInt(process.env.TIMEOUT || "30000", 10);
+const maxBodyBytes = parseInt(process.env.MAX_BODY_BYTES || String(10 * 1024 * 1024), 10);
+
+// Comma-separated list of allowed origins, or "*" for any. Defaults to any —
+// tighten by setting ALLOWED_ORIGINS in the deploy environment.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "*")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+const allowAnyOrigin = allowedOrigins.includes("*");
 
 const shouldLog = (level: string) => {
   const levels = ["silent", "warn", "info", "debug"];
   return levels.indexOf(level) <= levels.indexOf(logLevel);
 };
 
+const resolveOrigin = (origin: string | undefined) => {
+  if (allowAnyOrigin) return "*";
+  if (origin && allowedOrigins.includes(origin)) return origin;
+  return null;
+};
+
 const httpServer = createServer(async (req, res) => {
-  // CORS headers for cross-origin MCP clients
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = Array.isArray(req.headers.origin)
+    ? req.headers.origin[0]
+    : req.headers.origin;
+  const allowed = resolveOrigin(origin);
+
+  // CORS headers — only echo back an origin we actually allow.
+  if (allowed) {
+    res.setHeader("Access-Control-Allow-Origin", allowed);
+    if (allowed !== "*") res.setHeader("Vary", "Origin");
+  }
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, Mcp-Session-Id");
   res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 
   if (req.method === "OPTIONS") {
-    res.writeHead(204).end();
+    res.writeHead(allowed ? 204 : 403).end();
+    return;
+  }
+
+  // Reject disallowed cross-origin requests before doing any work.
+  if (origin && !allowed) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Origin not allowed" },
+        id: null,
+      })
+    );
     return;
   }
 
@@ -64,11 +100,54 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  // Reject oversized bodies up front when Content-Length is declared — stops
+  // clients from streaming arbitrarily large payloads into memory.
+  const declaredLength = parseInt(
+    Array.isArray(req.headers["content-length"])
+      ? req.headers["content-length"][0]!
+      : req.headers["content-length"] || "0",
+    10
+  );
+  if (declaredLength > maxBodyBytes) {
+    res.writeHead(413, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Payload too large" },
+        id: null,
+      })
+    );
+    return;
+  }
+
   // Buffer the request body. Empty or malformed JSON yields a protocol-level
   // parse error (-32700) instead of crashing the handler — previously a stray
-  // `{` would unhandled-reject and the request would stall.
+  // `{` would unhandled-reject and the request would stall. A running byte
+  // count guards against chunked bodies that lie about their Content-Length.
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let received = 0;
+  let oversized = false;
+  for await (const chunk of req) {
+    const buf = chunk as Buffer;
+    received += buf.length;
+    if (received > maxBodyBytes) {
+      oversized = true;
+      break;
+    }
+    chunks.push(buf);
+  }
+  if (oversized) {
+    res.writeHead(413, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Payload too large" },
+        id: null,
+      })
+    );
+    req.destroy();
+    return;
+  }
 
   const raw = Buffer.concat(chunks).toString();
   let body: unknown;

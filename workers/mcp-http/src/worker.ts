@@ -60,28 +60,66 @@ import type {
 } from "../../../src/core/types.js";
 import { isPrimitiveType, isSceneKind } from "../../../src/core/types.js";
 
-const VERSION = "0.3.8";
+const VERSION = "0.3.9";
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Accept, Mcp-Session-Id",
-  "Access-Control-Expose-Headers": "Mcp-Session-Id",
+const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
+
+type Env = {
+  ALLOWED_ORIGINS?: string;
+  MAX_BODY_BYTES?: string;
 };
 
-function json(data: unknown, status = 200): Response {
+function resolveAllowedOrigin(origin: string | null, env: Env): string | null {
+  const raw = env.ALLOWED_ORIGINS?.trim();
+  if (!raw || raw === "*") return "*";
+  const list = raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  if (origin && list.includes(origin)) return origin;
+  return null;
+}
+
+function corsHeaders(origin: string | null, env: Env): Record<string, string> {
+  const allowed = resolveAllowedOrigin(origin, env);
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Accept, Mcp-Session-Id",
+    "Access-Control-Expose-Headers": "Mcp-Session-Id",
+  };
+  if (allowed) {
+    headers["Access-Control-Allow-Origin"] = allowed;
+    if (allowed !== "*") headers["Vary"] = "Origin";
+  }
+  return headers;
+}
+
+function resolveMaxBodyBytes(env: Env): number {
+  const raw = env.MAX_BODY_BYTES;
+  if (!raw) return DEFAULT_MAX_BODY_BYTES;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_BODY_BYTES;
+}
+
+function json(data: unknown, cors: Record<string, string>, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS },
+    headers: { "Content-Type": "application/json", ...cors },
   });
 }
 
-function jsonrpc(id: unknown, result: unknown): Response {
-  return json({ jsonrpc: "2.0", id, result });
+function jsonrpc(id: unknown, result: unknown, cors: Record<string, string>): Response {
+  return json({ jsonrpc: "2.0", id, result }, cors);
 }
 
-function jsonrpcError(id: unknown, code: number, message: string): Response {
-  return json({ jsonrpc: "2.0", id, error: { code, message } });
+function jsonrpcError(
+  id: unknown,
+  code: number,
+  message: string,
+  cors: Record<string, string>,
+  status = 200
+): Response {
+  return json({ jsonrpc: "2.0", id, error: { code, message } }, cors, status);
 }
 
 // --- Helpers ---
@@ -1081,85 +1119,107 @@ function handleTool(name: string, args: Record<string, unknown>) {
 // --- Fetch handler ---
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const origin = request.headers.get("Origin");
+    const cors = corsHeaders(origin, env);
+    const originAllowed = resolveAllowedOrigin(origin, env) !== null;
+
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: CORS });
+      return new Response(null, { status: originAllowed ? 204 : 403, headers: cors });
+    }
+
+    // Reject disallowed cross-origin requests before doing any work.
+    if (origin && !originAllowed) {
+      return jsonrpcError(null, -32000, "Origin not allowed", cors, 403);
     }
 
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
-      return json({ ok: true, server: "axint-mcp", version: VERSION });
+      return json({ ok: true, server: "axint-mcp", version: VERSION }, cors);
     }
 
     if (url.pathname !== "/mcp") {
-      return new Response("Not found", { status: 404, headers: CORS });
+      return new Response("Not found", { status: 404, headers: cors });
     }
 
     if (request.method !== "POST") {
-      return jsonrpcError(null, -32000, "POST only");
+      return jsonrpcError(null, -32000, "POST only", cors);
+    }
+
+    // Reject oversized bodies before parsing. Workers already caps at 100MB
+    // per request, but this lets us declare a tighter per-deploy limit.
+    const maxBytes = resolveMaxBodyBytes(env);
+    const declaredLength = parseInt(request.headers.get("Content-Length") || "0", 10);
+    if (declaredLength > maxBytes) {
+      return jsonrpcError(null, -32000, "Payload too large", cors, 413);
     }
 
     let parsed: unknown;
     try {
       parsed = await request.json();
     } catch {
-      return jsonrpcError(null, -32700, "Parse error");
+      return jsonrpcError(null, -32700, "Parse error", cors);
     }
 
     // `request.json()` succeeds on valid JSON that isn't an object — e.g.
     // `"null"`, `42`, `[]`. Destructuring those would throw at runtime.
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return jsonrpcError(null, -32600, "Invalid Request");
+      return jsonrpcError(null, -32600, "Invalid Request", cors);
     }
     const body = parsed as { id?: unknown; method?: string; params?: Record<string, unknown> };
     const { id, method, params } = body;
 
     if (method === "initialize") {
-      return jsonrpc(id, {
-        protocolVersion: "2025-03-26",
-        capabilities: { tools: {}, prompts: {} },
-        serverInfo: { name: "axint", version: VERSION },
-      });
+      return jsonrpc(
+        id,
+        {
+          protocolVersion: "2025-03-26",
+          capabilities: { tools: {}, prompts: {} },
+          serverInfo: { name: "axint", version: VERSION },
+        },
+        cors
+      );
     }
 
     if (method === "notifications/initialized") {
-      return new Response(null, { status: 204, headers: CORS });
+      return new Response(null, { status: 204, headers: cors });
     }
 
     if (method === "tools/list") {
-      return jsonrpc(id, { tools: TOOLS });
+      return jsonrpc(id, { tools: TOOLS }, cors);
     }
 
     if (method === "tools/call") {
       const toolName = (params as { name?: string })?.name;
       const toolArgs = ((params as { arguments?: Record<string, unknown> })?.arguments ||
         {}) as Record<string, unknown>;
-      if (!toolName) return jsonrpcError(id, -32602, "Missing tool name");
+      if (!toolName) return jsonrpcError(id, -32602, "Missing tool name", cors);
       try {
-        return jsonrpc(id, handleTool(toolName, toolArgs));
+        return jsonrpc(id, handleTool(toolName, toolArgs), cors);
       } catch (err) {
         return jsonrpc(
           id,
           textResult(
             `Tool error: ${err instanceof Error ? err.message : String(err)}`,
             true
-          )
+          ),
+          cors
         );
       }
     }
 
     if (method === "prompts/list") {
-      return jsonrpc(id, { prompts: PROMPTS });
+      return jsonrpc(id, { prompts: PROMPTS }, cors);
     }
 
     if (method === "prompts/get") {
       const promptName = (params as { name?: string })?.name;
       const promptArgs = (params as { arguments?: Record<string, string> })?.arguments;
-      if (!promptName) return jsonrpcError(id, -32602, "Missing prompt name");
-      return jsonrpc(id, getPromptMessages(promptName, promptArgs));
+      if (!promptName) return jsonrpcError(id, -32602, "Missing prompt name", cors);
+      return jsonrpc(id, getPromptMessages(promptName, promptArgs), cors);
     }
 
-    return jsonrpcError(id, -32601, `Unknown method: ${method}`);
+    return jsonrpcError(id, -32601, `Unknown method: ${method}`, cors);
   },
 };
