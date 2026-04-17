@@ -64,10 +64,28 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
-  // Buffer the request body
+  // Buffer the request body. Empty or malformed JSON yields a protocol-level
+  // parse error (-32700) instead of crashing the handler — previously a stray
+  // `{` would unhandled-reject and the request would stall.
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
-  const body = JSON.parse(Buffer.concat(chunks).toString());
+
+  const raw = Buffer.concat(chunks).toString();
+  let body: unknown;
+  try {
+    if (!raw.trim()) throw new Error("empty body");
+    body = JSON.parse(raw);
+  } catch {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32700, message: "Parse error" },
+        id: null,
+      })
+    );
+    return;
+  }
 
   // Stateless mode: new server + transport per request
   const server = createAxintServer();
