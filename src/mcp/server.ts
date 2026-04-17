@@ -41,7 +41,7 @@ import { PROMPT_MANIFEST, getPromptMessages } from "./prompts.js";
 import { handleCompileFromSchema, type SchemaCompileArgs } from "./schema-compile.js";
 
 // Read version from package.json so it stays in sync
-let pkg = { version: "0.3.8" };
+let pkg = { version: "0.3.9" };
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));

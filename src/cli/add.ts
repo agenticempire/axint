@@ -16,15 +16,18 @@ export function registerAdd(program: Command, version: string) {
       console.log(`  \x1b[38;5;208m◆\x1b[0m \x1b[1mAxint\x1b[0m · add`);
       console.log();
 
-      const match = pkg.match(/^(@[a-z0-9][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)(?:@(.+))?$/);
+      // Accept both `@namespace/slug` and `namespace/slug` (with optional `@version`).
+      // Web URLs drop the leading `@`, so users will copy either form — normalize here.
+      const match = pkg.match(/^@?([a-z0-9][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)(?:@(.+))?$/);
       if (!match) {
         console.error(
-          `  \x1b[31merror:\x1b[0m Invalid package format. Expected: @namespace/slug or @namespace/slug@version`
+          `  \x1b[31merror:\x1b[0m Invalid package format. Expected: @namespace/slug or namespace/slug (optionally @version)`
         );
         process.exit(1);
       }
 
-      const [, namespace, slug, pkgVersion] = match;
+      const [, rawNamespace, slug, pkgVersion] = match;
+      const namespace = `@${rawNamespace}`;
       const registryUrl = process.env.AXINT_REGISTRY_URL ?? "https://registry.axint.ai";
 
       console.log(
@@ -50,35 +53,32 @@ export function registerAdd(program: Command, version: string) {
         }
 
         const data = (await res.json()) as {
-          template: { name: string; full_name: string; primary_language: string };
-          version: {
-            version: string;
-            ts_source?: string;
-            py_source?: string;
-            swift_output: string;
-          };
-          bundle_sha256: string;
+          namespace: string;
+          slug: string;
+          version: string;
+          ts_source?: string;
+          py_source?: string | null;
+          swift_output: string;
         };
 
         const targetDir = resolve(options.to, slug);
         mkdirSync(targetDir, { recursive: true });
 
-        const ver = data.version;
         const filesWritten: string[] = [];
 
-        if (ver.ts_source) {
-          writeFileSync(resolve(targetDir, "intent.ts"), ver.ts_source, "utf-8");
+        if (data.ts_source) {
+          writeFileSync(resolve(targetDir, "intent.ts"), data.ts_source, "utf-8");
           filesWritten.push("intent.ts");
         }
-        if (ver.py_source) {
-          writeFileSync(resolve(targetDir, "intent.py"), ver.py_source, "utf-8");
+        if (data.py_source) {
+          writeFileSync(resolve(targetDir, "intent.py"), data.py_source, "utf-8");
           filesWritten.push("intent.py");
         }
-        writeFileSync(resolve(targetDir, "intent.swift"), ver.swift_output, "utf-8");
+        writeFileSync(resolve(targetDir, "intent.swift"), data.swift_output, "utf-8");
         filesWritten.push("intent.swift");
 
         console.log(
-          `  \x1b[32m✓\x1b[0m Installed ${data.template.full_name}@${ver.version}`
+          `  \x1b[32m✓\x1b[0m Installed ${data.namespace}/${data.slug}@${data.version}`
         );
         console.log(`    → ${targetDir}/`);
         filesWritten.forEach((f) => console.log(`      ${f}`));
