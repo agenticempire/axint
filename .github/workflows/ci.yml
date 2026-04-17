@@ -54,11 +54,16 @@ jobs:
           echo "CLI version: $OUTPUT"
 
       - name: Publish Axint Cloud CI report
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.AXINT_CLOUD_REPORT_TOKEN != '' }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           AXINT_CLOUD_REPORT_TOKEN: ${{ secrets.AXINT_CLOUD_REPORT_TOKEN }}
           AXINT_CLOUD_REPORT_URL: https://registry.axint.ai/api/v1/cloud/reports/ci
-        run: npx tsx scripts/publish-cloud-report.ts
+        run: |
+          if [ -z "$AXINT_CLOUD_REPORT_TOKEN" ]; then
+            echo "AXINT_CLOUD_REPORT_TOKEN not set — skipping"
+            exit 0
+          fi
+          npx tsx scripts/publish-cloud-report.ts
 
   # ── Swift Sandbox (macOS) ─────────────────────────────────────────
   test-swift-sandbox:
