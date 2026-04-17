@@ -16,6 +16,7 @@ import { parseIntentSource, ParserError } from "./parser.js";
 import { parseViewSource } from "./view-parser.js";
 import { parseWidgetSource } from "./widget-parser.js";
 import { parseAppSource } from "./app-parser.js";
+import { detectSurface, type Surface } from "./surface.js";
 import {
   generateSwift,
   generateInfoPlistFragment,
@@ -440,6 +441,97 @@ export function compileAppFromIR(
     },
     diagnostics,
   };
+}
+
+// ─── Surface Dispatcher ────────────────────────────────────────────
+
+/**
+ * Tagged result of compiling any surface. The CLI and MCP server
+ * switch on `surface` to pick the right output path, diagnostic
+ * presentation, and artifact emission.
+ */
+export type AnyCompileResult =
+  | ({ surface: "intent" } & CompileResult)
+  | ({ surface: "view" } & ViewCompileResult)
+  | ({ surface: "widget" } & WidgetCompileResult)
+  | ({ surface: "app" } & AppCompileResult);
+
+/**
+ * Compile a TypeScript source string, auto-detecting whether it
+ * defines an intent, view, widget, or app. Returns a diagnostic if
+ * no supported `define*` call is found.
+ */
+export function compileAnySource(
+  source: string,
+  fileName: string = "<stdin>",
+  options: Partial<CompilerOptions> = {}
+): AnyCompileResult {
+  const surface = detectSurface(source, fileName);
+
+  if (!surface) {
+    return {
+      surface: "intent",
+      success: false,
+      diagnostics: [
+        {
+          code: "AX001",
+          severity: "error",
+          message: `No defineIntent, defineView, defineWidget, or defineApp call found in ${fileName}`,
+          file: fileName,
+          suggestion:
+            "Add a top-level `defineIntent({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, or `defineApp({ ... })` call.",
+        },
+      ],
+    };
+  }
+
+  return dispatchCompile(surface, source, fileName, options);
+}
+
+/**
+ * Compile a TypeScript file from disk, auto-detecting the surface.
+ */
+export function compileAnyFile(
+  filePath: string,
+  options: Partial<CompilerOptions> = {}
+): AnyCompileResult {
+  let source: string;
+  try {
+    source = readFileSync(filePath, "utf-8");
+  } catch {
+    return {
+      surface: "intent",
+      success: false,
+      diagnostics: [
+        {
+          code: "AX000",
+          severity: "error",
+          message: `Cannot read file: ${filePath}`,
+          file: filePath,
+        },
+      ],
+    };
+  }
+
+  return compileAnySource(source, filePath, options);
+}
+
+function dispatchCompile(
+  surface: Surface,
+  source: string,
+  fileName: string,
+  options: Partial<CompilerOptions>
+): AnyCompileResult {
+  switch (surface) {
+    case "intent":
+      return { surface, ...compileSource(source, fileName, options) };
+    case "view":
+      return { surface, ...compileViewSource(source, fileName, options) };
+    case "widget":
+      return { surface, ...compileWidgetSource(source, fileName, options) };
+    case "app":
+      return { surface, ...compileAppSource(source, fileName, options) };
+  }
 }
 
 // ─── Cross-Language IR Bridge ───────────────────────────────────────

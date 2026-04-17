@@ -1,7 +1,13 @@
 import type { Command } from "commander";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
-import { compileFile, compileFromIR, irFromJSON } from "../core/compiler.js";
+import {
+  compileAnyFile,
+  compileFromIR,
+  irFromJSON,
+  type AnyCompileResult,
+} from "../core/compiler.js";
+import type { Diagnostic } from "../core/types.js";
 
 /**
  * Count non-blank lines in a source string. Blank lines (whitespace
@@ -30,22 +36,73 @@ export function compressionRatio(tsLines: number, swiftLines: number): string | 
   return `${(swiftLines / tsLines).toFixed(2)}x`;
 }
 
+interface UnifiedOutput {
+  outputPath: string;
+  swiftCode: string;
+  diagnostics: Diagnostic[];
+  irName: string;
+  infoPlistFragment?: string;
+  entitlementsFragment?: string;
+}
+
+/**
+ * Flatten the surface-specific result shape into a single output
+ * view so downstream CLI formatting doesn't have to fork on surface.
+ */
+function unifyOutput(result: AnyCompileResult): UnifiedOutput | null {
+  if (!result.success || !result.output) return null;
+
+  if (result.surface === "intent") {
+    return {
+      outputPath: result.output.outputPath,
+      swiftCode: result.output.swiftCode,
+      diagnostics: result.output.diagnostics,
+      irName: result.output.ir.name,
+      infoPlistFragment: result.output.infoPlistFragment,
+      entitlementsFragment: result.output.entitlementsFragment,
+    };
+  }
+
+  return {
+    outputPath: result.output.outputPath,
+    swiftCode: result.output.swiftCode,
+    diagnostics: result.output.diagnostics,
+    irName: result.output.ir.name,
+  };
+}
+
+function printDiagnostics(diagnostics: Diagnostic[]): void {
+  for (const d of diagnostics) {
+    const prefix =
+      d.severity === "error"
+        ? "\x1b[31merror\x1b[0m"
+        : d.severity === "warning"
+          ? "\x1b[33mwarning\x1b[0m"
+          : "\x1b[36minfo\x1b[0m";
+
+    console.error(`  ${prefix}[${d.code}]: ${d.message}`);
+    if (d.file) console.error(`    --> ${d.file}${d.line ? `:${d.line}` : ""}`);
+    if (d.suggestion) console.error(`    = help: ${d.suggestion}`);
+    console.error();
+  }
+}
+
 export function registerCompile(program: Command) {
   program
     .command("compile")
-    .description("Compile a TypeScript intent definition into Swift")
-    .argument("<file>", "Path to the TypeScript intent definition")
+    .description("Compile a TypeScript surface (intent, view, widget, or app) into Swift")
+    .argument("<file>", "Path to the TypeScript surface definition")
     .option("-o, --out <dir>", "Output directory for generated Swift", ".")
     .option("--no-validate", "Skip validation of generated Swift")
     .option("--stdout", "Print generated Swift to stdout instead of writing a file")
     .option("--json", "Output result as JSON (machine-readable)")
     .option(
       "--emit-info-plist",
-      "Emit a <Name>.plist.fragment.xml with NSAppIntentsDomains next to the Swift file"
+      "Emit a <Name>.plist.fragment.xml with NSAppIntentsDomains next to the Swift file (intents only)"
     )
     .option(
       "--emit-entitlements",
-      "Emit a <Name>.entitlements.fragment.xml next to the Swift file"
+      "Emit a <Name>.entitlements.fragment.xml next to the Swift file (intents only)"
     )
     .option(
       "--sandbox",
@@ -61,7 +118,7 @@ export function registerCompile(program: Command) {
     )
     .option(
       "--from-ir",
-      "Treat <file> as IR JSON (from Python SDK or any language) instead of TypeScript. Use - to read from stdin."
+      "Treat <file> as intent IR JSON (from Python SDK or any language) instead of TypeScript. Use - to read from stdin."
     )
     .action(
       async (
@@ -82,7 +139,10 @@ export function registerCompile(program: Command) {
         const filePath = resolve(file);
 
         try {
-          let result;
+          let surface: "intent" | "view" | "widget" | "app";
+          let output: UnifiedOutput | null;
+          let diagnostics: Diagnostic[];
+          let success: boolean;
 
           if (options.fromIr) {
             let irRaw: string;
@@ -115,31 +175,59 @@ export function registerCompile(program: Command) {
             }
 
             const ir = irFromJSON(irData);
-            result = compileFromIR(ir, {
+            const result = compileFromIR(ir, {
               outDir: options.out,
               validate: options.validate,
               emitInfoPlist: options.emitInfoPlist,
               emitEntitlements: options.emitEntitlements,
             });
+            surface = "intent";
+            diagnostics = result.diagnostics;
+            success = result.success;
+            output =
+              result.success && result.output
+                ? {
+                    outputPath: result.output.outputPath,
+                    swiftCode: result.output.swiftCode,
+                    diagnostics: result.output.diagnostics,
+                    irName: result.output.ir.name,
+                    infoPlistFragment: result.output.infoPlistFragment,
+                    entitlementsFragment: result.output.entitlementsFragment,
+                  }
+                : null;
           } else {
-            result = compileFile(filePath, {
+            const result = compileAnyFile(filePath, {
               outDir: options.out,
               validate: options.validate,
               emitInfoPlist: options.emitInfoPlist,
               emitEntitlements: options.emitEntitlements,
             });
+            surface = result.surface;
+            diagnostics = result.diagnostics;
+            success = result.success;
+            output = unifyOutput(result);
+
+            if (
+              result.surface !== "intent" &&
+              (options.emitInfoPlist || options.emitEntitlements)
+            ) {
+              console.error(
+                `\x1b[33mwarning:\x1b[0m --emit-info-plist and --emit-entitlements apply to intents only; ignored for ${result.surface}.`
+              );
+            }
           }
 
           if (options.json) {
             console.log(
               JSON.stringify(
                 {
-                  success: result.success,
-                  swift: result.output?.swiftCode ?? null,
-                  outputPath: result.output?.outputPath ?? null,
-                  infoPlistFragment: result.output?.infoPlistFragment ?? null,
-                  entitlementsFragment: result.output?.entitlementsFragment ?? null,
-                  diagnostics: result.diagnostics.map((d) => ({
+                  success,
+                  surface,
+                  swift: output?.swiftCode ?? null,
+                  outputPath: output?.outputPath ?? null,
+                  infoPlistFragment: output?.infoPlistFragment ?? null,
+                  entitlementsFragment: output?.entitlementsFragment ?? null,
+                  diagnostics: diagnostics.map((d) => ({
                     code: d.code,
                     severity: d.severity,
                     message: d.message,
@@ -152,27 +240,16 @@ export function registerCompile(program: Command) {
                 2
               )
             );
-            if (!result.success) process.exit(1);
+            if (!success) process.exit(1);
             return;
           }
 
-          for (const d of result.diagnostics) {
-            const prefix =
-              d.severity === "error"
-                ? "\x1b[31merror\x1b[0m"
-                : d.severity === "warning"
-                  ? "\x1b[33mwarning\x1b[0m"
-                  : "\x1b[36minfo\x1b[0m";
+          printDiagnostics(diagnostics);
 
-            console.error(`  ${prefix}[${d.code}]: ${d.message}`);
-            if (d.file) console.error(`    --> ${d.file}${d.line ? `:${d.line}` : ""}`);
-            if (d.suggestion) console.error(`    = help: ${d.suggestion}`);
-            console.error();
-          }
-
-          if (!result.success || !result.output) {
+          if (!success || !output) {
+            const errorCount = diagnostics.filter((d) => d.severity === "error").length;
             console.error(
-              `\x1b[31mCompilation failed with ${result.diagnostics.filter((d) => d.severity === "error").length} error(s)\x1b[0m`
+              `\x1b[31mCompilation failed with ${errorCount} error(s)\x1b[0m`
             );
             process.exit(1);
           }
@@ -180,12 +257,12 @@ export function registerCompile(program: Command) {
           if (options.format || options.strictFormat) {
             try {
               const { formatSwift } = await import("../core/format.js");
-              const fmt = await formatSwift(result.output.swiftCode, {
+              const fmt = await formatSwift(output.swiftCode, {
                 strict: options.strictFormat,
               });
               if (fmt.ran) {
-                result.output.swiftCode = fmt.formatted;
-              } else if (!options.json) {
+                output.swiftCode = fmt.formatted;
+              } else {
                 console.error(
                   `\x1b[33mwarning:\x1b[0m swift-format skipped — ${fmt.reason}`
                 );
@@ -202,13 +279,13 @@ export function registerCompile(program: Command) {
           }
 
           if (options.stdout) {
-            console.log(result.output.swiftCode);
+            console.log(output.swiftCode);
           } else {
-            const outPath = resolve(result.output.outputPath);
+            const outPath = resolve(output.outputPath);
             mkdirSync(dirname(outPath), { recursive: true });
-            writeFileSync(outPath, result.output.swiftCode, "utf-8");
+            writeFileSync(outPath, output.swiftCode, "utf-8");
             console.log(
-              `\x1b[32m✓\x1b[0m Compiled ${result.output.ir.name} → ${outPath}`
+              `\x1b[32m✓\x1b[0m Compiled ${surface} ${output.irName} → ${outPath}`
             );
 
             // Show TS-to-Swift compression so authors can eyeball whether
@@ -218,7 +295,7 @@ export function registerCompile(program: Command) {
               try {
                 const tsSource = readFileSync(filePath, "utf-8");
                 const tsLines = countNonBlankLines(tsSource);
-                const swiftLines = countNonBlankLines(result.output.swiftCode);
+                const swiftLines = countNonBlankLines(output.swiftCode);
                 const ratio = compressionRatio(tsLines, swiftLines);
                 if (ratio !== null) {
                   const label = swiftLines > tsLines ? "Expansion" : "Compression";
@@ -232,15 +309,23 @@ export function registerCompile(program: Command) {
               }
             }
 
-            if (options.emitInfoPlist && result.output.infoPlistFragment) {
+            if (
+              surface === "intent" &&
+              options.emitInfoPlist &&
+              output.infoPlistFragment
+            ) {
               const plistPath = outPath.replace(/\.swift$/, ".plist.fragment.xml");
-              writeFileSync(plistPath, result.output.infoPlistFragment, "utf-8");
+              writeFileSync(plistPath, output.infoPlistFragment, "utf-8");
               console.log(`\x1b[32m✓\x1b[0m Info.plist fragment → ${plistPath}`);
             }
 
-            if (options.emitEntitlements && result.output.entitlementsFragment) {
+            if (
+              surface === "intent" &&
+              options.emitEntitlements &&
+              output.entitlementsFragment
+            ) {
               const entPath = outPath.replace(/\.swift$/, ".entitlements.fragment.xml");
-              writeFileSync(entPath, result.output.entitlementsFragment, "utf-8");
+              writeFileSync(entPath, output.entitlementsFragment, "utf-8");
               console.log(`\x1b[32m✓\x1b[0m Entitlements fragment → ${entPath}`);
             }
           }
@@ -250,8 +335,8 @@ export function registerCompile(program: Command) {
               const { sandboxCompile } = await import("../core/sandbox.js");
               console.log();
               console.log(`\x1b[36m→\x1b[0m Stage 4: SPM sandbox compile...`);
-              const sandboxResult = await sandboxCompile(result.output.swiftCode, {
-                intentName: result.output.ir.name,
+              const sandboxResult = await sandboxCompile(output.swiftCode, {
+                intentName: output.irName,
               });
               if (sandboxResult.ok) {
                 console.log(
@@ -270,9 +355,7 @@ export function registerCompile(program: Command) {
             }
           }
 
-          const warnings = result.diagnostics.filter(
-            (d) => d.severity === "warning"
-          ).length;
+          const warnings = diagnostics.filter((d) => d.severity === "warning").length;
           if (warnings > 0) {
             console.log(`  ${warnings} warning(s)`);
           }
