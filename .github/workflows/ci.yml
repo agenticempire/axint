@@ -28,6 +28,8 @@ jobs:
 
       - run: npm ci
       - run: npm audit --audit-level=moderate || true
+      - run: npm run versions:check
+      - run: npm run metrics:check
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
@@ -127,3 +129,8 @@ jobs:
         run: |
           axint-py --version
           axint-py parse examples/create_event.py --json
+
+      - name: Check docs.axint.ai/python/install freshness
+        if: matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: .
+        run: python scripts/check-docs-freshness.py
