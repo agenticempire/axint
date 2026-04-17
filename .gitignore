@@ -70,6 +70,10 @@ profile/
 # Audit reports (generated, not source)
 *.audit.html
 *-audit*.html
+*-pathway-*.html
+
+# Packaged VS Code extensions (built artifact, not source)
+*.vsix
 
 # Private launch checklist — never check in
 SUBMISSIONS.md
