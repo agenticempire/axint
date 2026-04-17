@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { registryBaseUrl } from "../core/env.js";
 
 export function registerLogin(program: Command) {
   program
@@ -12,7 +13,7 @@ export function registerLogin(program: Command) {
 
       const configDir = join(homedir(), ".axint");
       const credPath = join(configDir, "credentials.json");
-      const registryUrl = process.env.AXINT_REGISTRY_URL ?? "https://registry.axint.ai";
+      const registryUrl = registryBaseUrl();
 
       console.log();
       console.log(`  \x1b[38;5;208m◆\x1b[0m \x1b[1mAxint\x1b[0m · login`);
