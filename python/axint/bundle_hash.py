@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 
 class _SwiftOutput(TypedDict):
@@ -28,9 +28,9 @@ class _SwiftOutput(TypedDict):
 # optional for the same reason they're optional on the TS side: a
 # Python-only or TS-only package legitimately omits the other source.
 class BundleContents(_SwiftOutput, total=False):
-    ts_source: Optional[str]
-    py_source: Optional[str]
-    plist_fragment: Optional[str]
+    ts_source: str | None
+    py_source: str | None
+    plist_fragment: str | None
 
 
 BUNDLE_HASH_ALGORITHM = "sha256"
