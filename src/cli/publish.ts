@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { compileFile } from "../core/compiler.js";
 import { hashBundle } from "../core/bundle-hash.js";
 import { registryBaseUrl } from "../core/env.js";
+import { loadAxintConfig } from "../core/axint-config.js";
 
 export function registerPublish(program: Command, version: string) {
   program
@@ -13,44 +14,36 @@ export function registerPublish(program: Command, version: string) {
     .option("--tag <tags...>", "Override tags")
     .action(async (options: { dryRun?: boolean; tag?: string[] }) => {
       const cwd = process.cwd();
-      const configPath = resolve(cwd, "axint.json");
 
       console.log();
       console.log(`  \x1b[38;5;208m◆\x1b[0m \x1b[1mAxint\x1b[0m · publish`);
       console.log();
 
-      if (!existsSync(configPath)) {
-        console.error(`  \x1b[31merror:\x1b[0m No axint.json found in ${cwd}`);
-        console.error(`  \x1b[2mRun \`axint init\` to create one.\x1b[0m`);
+      const loaded = await loadAxintConfig(cwd);
+      if (!loaded.ok) {
+        if (loaded.reason === "missing") {
+          console.error(`  \x1b[31merror:\x1b[0m No axint.json found in ${cwd}`);
+          console.error(`  \x1b[2mRun \`axint init\` to create one.\x1b[0m`);
+        } else if (loaded.reason === "parse") {
+          console.error(`  \x1b[31merror:\x1b[0m axint.json is not valid JSON`);
+          console.error(`  \x1b[2m${loaded.parseError}\x1b[0m`);
+        } else {
+          console.error(`  \x1b[31merror:\x1b[0m axint.json does not match the schema`);
+          for (const issue of loaded.issues ?? []) {
+            const location = issue.path
+              ? `  \x1b[31m✗\x1b[0m ${issue.path}: `
+              : `  \x1b[31m✗\x1b[0m `;
+            console.error(`${location}${issue.message}`);
+          }
+          console.error(
+            `  \x1b[2mSchema: https://docs.axint.ai/schema/axint.json\x1b[0m`
+          );
+        }
         process.exit(1);
       }
 
-      let config: {
-        name: string;
-        namespace: string;
-        slug: string;
-        version: string;
-        description?: string;
-        primary_language?: string;
-        surface_areas?: string[];
-        tags?: string[];
-        license?: string;
-        homepage?: string;
-        repository?: string;
-        entry?: string;
-        readme?: string;
-        siri_phrases?: string[];
-        permissions?: string[];
-      };
-
-      try {
-        config = JSON.parse(readFileSync(configPath, "utf-8"));
-      } catch {
-        console.error(`  \x1b[31merror:\x1b[0m Failed to parse axint.json`);
-        process.exit(1);
-      }
-
-      const entryFile = config.entry ?? "intent.ts";
+      const config = loaded.config;
+      const entryFile = config.entry;
       const entryPath = resolve(cwd, entryFile);
 
       if (!existsSync(entryPath)) {
@@ -93,9 +86,8 @@ export function registerPublish(program: Command, version: string) {
       }
 
       const tags = options.tag ?? config.tags ?? [];
-      const namespace = config.namespace.startsWith("@")
-        ? config.namespace
-        : `@${config.namespace}`;
+      // Schema enforces a leading @ — validate already rejected it otherwise.
+      const namespace = config.namespace;
 
       const tsSource = readFileSync(entryPath, "utf-8");
       const plistFragment = result.output.infoPlistFragment ?? null;
