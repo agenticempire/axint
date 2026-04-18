@@ -17,6 +17,7 @@ from typing import Any
 
 from .ir import (
     AppIR,
+    EntityIR,
     IntentIR,
     IntentParameter,
     ParamType,
@@ -260,6 +261,130 @@ def generate_entitlements_fragment(intent: IntentIR) -> str | None:
     lines.append("</dict>")
     lines.append("</plist>")
     lines.append("")
+
+    return "\n".join(lines)
+
+
+# ── Entity Generator ────────────────────────────────────────────────
+#
+# Kept byte-for-byte aligned with `generateEntity` / `generateEntityQuery` in
+# src/core/generator.ts. A Python-authored entity compiled here must produce
+# the same Swift source as one authored in TypeScript.
+
+_COMPARABLE_SWIFT_TYPES = {"Int", "Double", "Float", "Date"}
+
+
+def generate_entity(entity: EntityIR) -> str:
+    """Generate an AppEntity Swift struct from an EntityIR."""
+    property_names = {p.name for p in entity.properties}
+    lines: list[str] = [
+        f"struct {entity.name}: AppEntity {{",
+        f"    static var defaultQuery = {entity.name}Query()",
+        "",
+    ]
+
+    # Apple requires AppEntity to declare an `id`. If the user didn't, we add it.
+    if "id" not in property_names:
+        lines.append("    var id: String")
+
+    for prop in entity.properties:
+        lines.append(f"    var {prop.name}: {param_type_to_swift(prop.type)}")
+
+    lines.append("")
+    lines.append(
+        "    static let typeDisplayRepresentation: TypeDisplayRepresentation = TypeDisplayRepresentation("
+    )
+    lines.append(
+        f'        name: LocalizedStringResource("{escape_swift_string(entity.name)}")'
+    )
+    lines.append("    )")
+    lines.append("")
+
+    # Display representation references property names via Swift interpolation —
+    # we emit `\(propName)` which Swift resolves against the entity instance.
+    display = entity.display_representation
+    lines.append("    var displayRepresentation: DisplayRepresentation {")
+    lines.append("        DisplayRepresentation(")
+
+    has_subtitle = display.subtitle is not None
+    has_image = display.image is not None
+    title_trailing = "," if has_subtitle or has_image else ""
+    lines.append(f'            title: "\\({display.title})"{title_trailing}')
+
+    if has_subtitle:
+        subtitle_trailing = "," if has_image else ""
+        lines.append(f'            subtitle: "\\({display.subtitle})"{subtitle_trailing}')
+
+    if has_image:
+        lines.append(
+            f'            image: .init(systemName: "{escape_swift_string(display.image or "")}")'
+        )
+
+    lines.append("        )")
+    lines.append("    }")
+    lines.append("}")
+
+    return "\n".join(lines)
+
+
+def generate_entity_query(entity: EntityIR) -> str:
+    """Generate the EntityQuery conformance matching the entity's query_type."""
+    protocol = "EntityPropertyQuery" if entity.query_type == "property" else "EntityQuery"
+
+    lines: list[str] = [
+        f"struct {entity.name}Query: {protocol} {{",
+        f"    func entities(for identifiers: [{entity.name}.ID]) async throws -> [{entity.name}] {{",
+        "        // TODO: Fetch entities by IDs",
+        "        return []",
+        "    }",
+        "",
+    ]
+
+    if entity.query_type == "all":
+        lines.append(f"    func allEntities() async throws -> [{entity.name}] {{")
+        lines.append("        // TODO: Return all entities")
+        lines.append("        return []")
+        lines.append("    }")
+    elif entity.query_type == "id":
+        lines.append("    // ID-based query is provided by the entities(for:) method above")
+    elif entity.query_type == "string":
+        lines.append(
+            f"    func entities(matching string: String) async throws -> [{entity.name}] {{"
+        )
+        lines.append("        // TODO: Search entities by string")
+        lines.append("        return []")
+        lines.append("    }")
+    elif entity.query_type == "property":
+        primitives = [p for p in entity.properties if isinstance(p.type, str)]
+
+        lines.append("    static var properties = QueryProperties {")
+        for prop in primitives:
+            swift_type = param_type_to_swift(prop.type)
+            lines.append(f"        Property(\\{entity.name}.{prop.name}) {{")
+            lines.append("            EqualToComparator()")
+            if swift_type == "String":
+                lines.append("            ContainsComparator()")
+            if swift_type in _COMPARABLE_SWIFT_TYPES:
+                lines.append("            LessThanComparator()")
+                lines.append("            GreaterThanComparator()")
+            lines.append("        }")
+        lines.append("    }")
+        lines.append("")
+        lines.append("    static var sortingOptions = SortingOptions {")
+        for prop in primitives:
+            lines.append(f"        SortableBy(\\{entity.name}.{prop.name})")
+        lines.append("    }")
+        lines.append("")
+        lines.append(
+            f"    func entities(matching comparators: [{entity.name}Comparator], "
+            f"mode: ComparatorMode, sortedBy: [{entity.name}Sort], limit: Int?) "
+            f"async throws -> [{entity.name}] {{"
+        )
+        lines.append("        // TODO: Filter and sort entities using the comparators")
+        lines.append("        return []")
+        lines.append("    }")
+
+    lines.append("}")
 
     return "\n".join(lines)
 
