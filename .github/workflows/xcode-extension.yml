@@ -39,7 +39,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     defaults:
       run:
         working-directory: extensions/xcode/source-editor-extension
@@ -52,8 +52,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+      - name: Select latest Xcode
+        run: |
+          set -euo pipefail
+          LATEST=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$LATEST"
+          xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -66,6 +70,7 @@ jobs:
       - name: Build (unsigned smoke test)
         if: "!startsWith(github.ref, 'refs/tags/xcode-ext-v')"
         run: |
+          set -euo pipefail
           xcodebuild -project AxintForXcode.xcodeproj \
             -scheme "$SCHEME" \
             -configuration "$CONFIG" \
@@ -73,7 +78,7 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            build | xcpretty || true
+            build | xcpretty
 
       # ── Signed + notarized release path ──────────────────────────────
       - name: Import signing certificate
@@ -83,6 +88,7 @@ jobs:
           P12_PASSWORD: ${{ secrets.AXINT_SIGNING_CERT_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.AXINT_KEYCHAIN_PASSWORD }}
         run: |
+          set -euo pipefail
           KEYCHAIN_PATH=$RUNNER_TEMP/axint.keychain-db
           CERT_PATH=$RUNNER_TEMP/axint-cert.p12
           echo -n "$P12_BASE64" | base64 --decode -o "$CERT_PATH"
@@ -98,6 +104,7 @@ jobs:
         env:
           TEAM_ID: ${{ secrets.AXINT_DEVELOPMENT_TEAM }}
         run: |
+          set -euo pipefail
           ARCHIVE_PATH="$DERIVED/AxintForXcode.xcarchive"
           EXPORT_PATH="$DERIVED/export"
 
@@ -134,6 +141,7 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.AXINT_NOTARY_PASSWORD }}
           TEAM_ID: ${{ secrets.AXINT_NOTARY_TEAM_ID }}
         run: |
+          set -euo pipefail
           APP_PATH="$DERIVED/export/AxintForXcode.app"
           ZIP_PATH="$DERIVED/AxintForXcode.zip"
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"

@@ -36,6 +36,7 @@ jobs:
 
       - name: Show Xcode version
         run: |
+          set -euo pipefail
           xcodebuild -version
           xcrun --sdk macosx --show-sdk-path
           xcrun --sdk macosx --show-sdk-version
