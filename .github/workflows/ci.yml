@@ -113,6 +113,9 @@ jobs:
       - name: Type check with mypy
         run: mypy axint
 
+      - name: Type check with pyright
+        run: pyright
+
       - name: Run tests with coverage
         run: pytest -v --tb=short --cov=axint --cov-report=json --cov-report=lcov --cov-report=term
 
