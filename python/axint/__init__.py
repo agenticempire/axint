@@ -31,6 +31,8 @@ __version__ = "0.3.8"
 
 from .generator import (
     generate_entitlements_fragment,
+    generate_entity,
+    generate_entity_query,
     generate_info_plist_fragment,
     generate_swift,
     generate_swift_app,
@@ -137,6 +139,8 @@ __all__ = [
     "define_widget",
     "entry",
     "generate_entitlements_fragment",
+    "generate_entity",
+    "generate_entity_query",
     "generate_info_plist_fragment",
     "generate_swift",
     "generate_swift_app",
