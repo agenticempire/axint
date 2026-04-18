@@ -30,9 +30,6 @@ function hasAppIntentsSDK(): boolean {
 }
 
 const APP_INTENTS_AVAILABLE = IS_MACOS && SWIFT_AVAILABLE && hasAppIntentsSDK();
-// AppIntents framework only exists on macOS — Linux runners have Swift
-// but not the Apple frameworks, so we must check both plus SDK version.
-const describeOnMac = APP_INTENTS_AVAILABLE ? describe : describe.skip;
 
 describe("sandboxCompile", () => {
   const hello = `import Foundation
@@ -63,7 +60,7 @@ struct HelloWorldIntent: AppIntent {
   });
 });
 
-describeOnMac("sandboxCompile (Swift toolchain present)", () => {
+describe("sandboxCompile (Swift toolchain present)", () => {
   const hello = `import Foundation
 import AppIntents
 
@@ -76,6 +73,12 @@ struct HelloWorldIntent: AppIntent {
 `;
 
   it("builds a minimal Swift source inside an SPM sandbox", async () => {
+    // The macOS `test-swift-sandbox` job exercises this for real.
+    // Linux runners don't have the AppIntents SDK, so we early-return —
+    // skipping via vitest hides the test from `list --json` and drifts
+    // the metrics snapshot between dev machines and CI.
+    if (!APP_INTENTS_AVAILABLE) return;
+
     const result = await sandboxCompile(hello, { intentName: "HelloWorld" });
     expect(result.ok).toBe(true);
     expect(result.durationMs).toBeGreaterThan(0);

@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { scaffoldProject } from "../../src/cli/scaffold.js";
+import { validateAxintConfig } from "../../src/core/axint-config.js";
 
 describe("scaffoldProject", () => {
   let workDir: string;
@@ -135,6 +136,31 @@ describe("scaffoldProject", () => {
       install: false,
     });
     expect(result.files.length).toBeGreaterThan(0);
+  });
+
+  it("writes a canonical axint.json that passes schema validation", async () => {
+    await scaffoldProject({
+      targetDir: workDir,
+      projectName: "My Cool App",
+      template: "create-event",
+      version: "0.3.9",
+      install: false,
+    });
+
+    const raw = await readFile(join(workDir, "axint.json"), "utf-8");
+    const config = JSON.parse(raw);
+
+    expect(config.$schema).toBe("https://docs.axint.ai/schema/axint.json");
+    expect(config.namespace).toBe("@your-handle");
+    expect(config.slug).toBe("my-cool-app");
+    expect(config.version).toBe("0.0.1");
+    expect(config.name).toBe("My Cool App");
+    expect(config.entry).toBe("intents/create-event.ts");
+    expect(config.license).toBe("Apache-2.0");
+    expect(config.primary_language).toBe("typescript");
+
+    const result = validateAxintConfig(config);
+    expect(result.ok).toBe(true);
   });
 
   it("writes a project README naming the scaffolded template", async () => {
