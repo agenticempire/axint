@@ -51,6 +51,7 @@ jobs:
 
       - name: Verify CLI works
         run: |
+          set -euo pipefail
           OUTPUT=$(node dist/cli/index.js --version)
           [ -n "$OUTPUT" ] || exit 1
           echo "CLI version: $OUTPUT"
@@ -61,7 +62,8 @@ jobs:
           AXINT_CLOUD_REPORT_TOKEN: ${{ secrets.AXINT_CLOUD_REPORT_TOKEN }}
           AXINT_CLOUD_REPORT_URL: https://registry.axint.ai/api/v1/cloud/reports/ci
         run: |
-          if [ -z "$AXINT_CLOUD_REPORT_TOKEN" ]; then
+          set -euo pipefail
+          if [ -z "${AXINT_CLOUD_REPORT_TOKEN:-}" ]; then
             echo "AXINT_CLOUD_REPORT_TOKEN not set — skipping"
             exit 0
           fi
@@ -130,6 +132,7 @@ jobs:
 
       - name: Verify CLI works
         run: |
+          set -euo pipefail
           axint-py --version
           axint-py parse examples/create_event.py --json
 

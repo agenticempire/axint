@@ -26,11 +26,12 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-      - run: npm audit --audit-level=moderate || true
+      - run: npm audit --audit-level=moderate
       - run: npm run build
 
       - name: Verify CLI works
         run: |
+          set -euo pipefail
           OUTPUT=$(node dist/cli/index.js --version)
           [ -n "$OUTPUT" ] || exit 1
           echo "CLI version: $OUTPUT"
@@ -50,6 +51,7 @@ jobs:
       - name: Run Python tests
         working-directory: python
         run: |
+          set -euo pipefail
           pip install -e '.[dev]'
           pytest -v
 
@@ -59,17 +61,25 @@ jobs:
 
       # ── Publish ──────────────────────────────────────────────────
       - name: Publish to npm
-        run: npm publish --access public --provenance || echo "Version already published — skipping"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "::notice::$NAME@$VERSION already published, skipping"
+            exit 0
+          fi
+          npm publish --access public --provenance
 
       - name: Publish to PyPI
-        if: env.TWINE_PASSWORD != ''
+        if: ${{ secrets.PYPI_TOKEN != '' }}
         working-directory: python
-        run: twine upload dist/* --skip-existing
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload dist/* --skip-existing
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
