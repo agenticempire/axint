@@ -12,6 +12,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # Bridge secrets to env so step `if:` conditions can gate on their presence.
+      # `secrets` context isn't available in step-level `if` expressions.
+      HAS_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -74,7 +78,7 @@ jobs:
           npm publish --access public --provenance
 
       - name: Publish to PyPI
-        if: ${{ secrets.PYPI_TOKEN != '' }}
+        if: env.HAS_PYPI_TOKEN == 'true'
         working-directory: python
         env:
           TWINE_USERNAME: __token__
