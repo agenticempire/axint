@@ -46,23 +46,25 @@ create_event = define_intent(
 
 ## Compile it
 
+The Python SDK installs a CLI at `axint-py` (the TypeScript compiler owns the `axint` name on npm).
+
 ```bash
 # Parse and inspect the IR
-axint parse intents/create_event.py
-axint parse intents/create_event.py --json
+axint-py parse intents/create_event.py
+axint-py parse intents/create_event.py --json
 
 # Compile Python → Swift (native, no Node.js needed)
-axint compile intents/create_event.py --stdout
-axint compile intents/create_event.py --out ios/Intents/
+axint-py compile intents/create_event.py --stdout
+axint-py compile intents/create_event.py --out ios/Intents/
 
 # With companion fragments
-axint compile intents/create_event.py --out ios/Intents/ --emit-info-plist --emit-entitlements
+axint-py compile intents/create_event.py --out ios/Intents/ --emit-info-plist --emit-entitlements
 
 # Validate without generating Swift
-axint validate intents/create_event.py
+axint-py validate intents/create_event.py
 
 # Machine-readable output
-axint compile intents/create_event.py --json
+axint-py compile intents/create_event.py --json
 ```
 
 ## Use it as a library
@@ -88,7 +90,7 @@ swift_code = generate_swift(ir)
 The Python SDK produces compatible IR JSON that the TypeScript compiler can consume. You can pipe it in for additional validation and Swift generation:
 
 ```bash
-axint parse intent.py --json | axint compile - --from-ir --stdout
+axint-py parse intent.py --json | axint compile - --from-ir --stdout
 ```
 
 ## Why Python?
@@ -102,11 +104,16 @@ The Python parser never runs your code. It walks the Python AST the same way the
 | Feature                          | TypeScript | Python |
 |----------------------------------|------------|--------|
 | `define_intent` / `defineIntent` | ✅          | ✅      |
+| `define_entity` / `defineEntity` | ✅          | ✅      |
+| `define_view` / `defineView`     | ✅          | ✅      |
+| `define_widget` / `defineWidget` | ✅          | ✅      |
+| `define_app` / `defineApp`       | ✅          | ✅      |
 | `param.string/int/double/...`    | ✅          | ✅      |
 | `entitlements`, `infoPlistKeys`  | ✅          | ✅      |
 | `isDiscoverable`                 | ✅          | ✅      |
 | Multi-intent files               | ✅          | ✅      |
 | Swift codegen (native)           | ✅          | ✅      |
+| `EntityQuery` codegen            | ✅          | ✅      |
 | IR validation                    | ✅          | ✅      |
 | Info.plist fragment              | ✅          | ✅      |
 | Entitlements fragment            | ✅          | ✅      |
