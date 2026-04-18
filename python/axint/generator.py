@@ -17,11 +17,13 @@ from typing import Any
 
 from .ir import (
     AppIR,
+    AppSceneIR,
     EntityIR,
     IntentIR,
     IntentParameter,
     ParamType,
     ViewIR,
+    ViewStateIR,
     WidgetIR,
 )
 
@@ -451,31 +453,21 @@ def generate_swift_view(view: ViewIR) -> str:
     return "\n".join(lines)
 
 
-def _generate_view_state_property(state: object) -> str:
+def _generate_view_state_property(state: ViewStateIR) -> str:
     """Generate a state property declaration."""
-    if not hasattr(state, "name") or not hasattr(state, "kind") or not hasattr(state, "type"):
-        return ""
+    swift_type = param_type_to_swift(state.type)
 
-    name = state.name
-    kind = state.kind
-    param_type = state.type
-    default_value = getattr(state, "default", None)
-
-    swift_type = param_type_to_swift(param_type)
-
-    if kind == "binding":
-        return f"    @Binding var {name}: {swift_type}"
-    elif kind == "environment":
-        env_key = getattr(state, "environment_key", None)
-        key_str = env_key or f".{name}"
-        return f"    @Environment({key_str}) var {name}"
-    elif kind == "observed":
-        return f"    @ObservedObject var {name}: {swift_type}"
-    else:
-        if default_value is not None:
-            default_str = _format_swift_literal(default_value, param_type)
-            return f"    @State private var {name}: {swift_type} = {default_str}"
-        return f"    @State private var {name}: {swift_type}"
+    if state.kind == "binding":
+        return f"    @Binding var {state.name}: {swift_type}"
+    if state.kind == "environment":
+        key_str = state.environment_key or f".{state.name}"
+        return f"    @Environment({key_str}) var {state.name}"
+    if state.kind == "observed":
+        return f"    @ObservedObject var {state.name}: {swift_type}"
+    if state.default is not None:
+        default_str = _format_swift_literal(state.default, state.type)
+        return f"    @State private var {state.name}: {swift_type} = {default_str}"
+    return f"    @State private var {state.name}: {swift_type}"
 
 
 def _generate_body_node(node: dict[str, Any], depth: int) -> list[str]:
@@ -762,10 +754,10 @@ def generate_swift_app(app: AppIR) -> str:
 
     lines.append("    var body: some Scene {")
 
-    ungrouped = [s for s in app.scenes if not hasattr(s, "platform") or not s.platform]
-    mac_only = [s for s in app.scenes if hasattr(s, "platform") and s.platform == "macOS"]
-    ios_only = [s for s in app.scenes if hasattr(s, "platform") and s.platform == "iOS"]
-    vision_only = [s for s in app.scenes if hasattr(s, "platform") and s.platform == "visionOS"]
+    ungrouped = [s for s in app.scenes if not s.platform]
+    mac_only = [s for s in app.scenes if s.platform == "macOS"]
+    ios_only = [s for s in app.scenes if s.platform == "iOS"]
+    vision_only = [s for s in app.scenes if s.platform == "visionOS"]
 
     for scene in ungrouped:
         scene_lines = _generate_scene(scene, 2)
@@ -799,18 +791,15 @@ def generate_swift_app(app: AppIR) -> str:
     return "\n".join(lines)
 
 
-def _generate_scene(scene: object, depth: int) -> list[str]:
+def _generate_scene(scene: AppSceneIR, depth: int) -> list[str]:
     """Generate a scene declaration."""
     lines: list[str] = []
     indent = "    " * depth
 
-    if not hasattr(scene, "kind"):
-        return lines
-
     kind = scene.kind
-    view = getattr(scene, "view", "")
-    title = getattr(scene, "title", None)
-    name = getattr(scene, "name", None)
+    view = scene.view
+    title = scene.title
+    name = scene.name
 
     if kind == "windowGroup":
         args: list[str] = []

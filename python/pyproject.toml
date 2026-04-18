@@ -45,6 +45,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.11",
+    "pyright>=1.1.400",
     "pyyaml>=6.0",
     "types-PyYAML>=6.0",
 ]
@@ -89,3 +90,13 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = "mcp.*"
 ignore_missing_imports = true
+
+[tool.pyright]
+include = ["axint"]
+exclude = ["axint/mcp_server.py"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+reportMissingImports = "error"
+reportAttributeAccessIssue = "error"
+reportArgumentType = "error"
+reportReturnType = "error"
