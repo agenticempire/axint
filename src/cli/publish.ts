@@ -184,12 +184,12 @@ export function registerPublish(program: Command, version: string) {
         });
 
         if (!res.ok) {
-          const err = (await res.json().catch(() => ({ detail: res.statusText }))) as {
-            detail?: string;
-            title?: string;
+          // Server uses `{error: string}` — see axint-registry/packages/api/src/index.ts.
+          const err = (await res.json().catch(() => ({ error: res.statusText }))) as {
+            error?: string;
           };
           console.error(
-            `  \x1b[31m✗\x1b[0m ${err.title ?? "Publish failed"}: ${err.detail ?? res.statusText}`
+            `  \x1b[31m✗\x1b[0m Publish failed: ${err.error ?? res.statusText}`
           );
           process.exit(1);
         }

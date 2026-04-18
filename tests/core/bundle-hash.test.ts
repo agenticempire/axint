@@ -109,4 +109,14 @@ describe("hashBundle", () => {
     });
     expect(hash).toBe("9f708e7e282ec5e3a578a18f1d4bc003e144265ea9bc0845337c65c96399bf04");
   });
+
+  it("is stable for a python-only bundle", async () => {
+    // Same vector asserted in axint-registry/packages/api/src/bundle-hash.test.ts
+    // and in axint/python/tests/test_bundle_hash.py.
+    const hash = await hashBundle({
+      py_source: "py",
+      swift_output: "sw",
+    });
+    expect(hash).toBe("7757c15e7a4abc2cb54dd27f4b37cb0752ea0f2f3975fb02b05c68a5b59f0c83");
+  });
 });

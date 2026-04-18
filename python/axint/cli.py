@@ -807,15 +807,51 @@ def _registry_publish() -> int:
         )
         return 1
 
-    payload = {
-        "namespace": config.get("namespace", "user"),
+    # README is optional — ship it if the author has one.
+    readme: str | None = None
+    readme_path = cwd / config.get("readme", "README.md")
+    if readme_path.exists():
+        readme = readme_path.read_text(encoding="utf-8")
+
+    # Matches the TS CLI: @ prefix is the registry convention.
+    namespace = config.get("namespace", "user")
+    if not namespace.startswith("@"):
+        namespace = f"@{namespace}"
+
+    plist_fragment = generate_info_plist_fragment(ir) or None
+
+    # Same contract as axint/src/core/bundle-hash.ts. Server recomputes
+    # this on receipt and rejects the publish if the bytes disagree.
+    from .bundle_hash import hash_bundle
+
+    bundle_hash = hash_bundle(
+        {
+            "ts_source": None,
+            "py_source": source,
+            "swift_output": swift_code,
+            "plist_fragment": plist_fragment,
+        }
+    )
+
+    payload: dict[str, Any] = {
+        "namespace": namespace,
         "slug": config.get("slug", ir.name.lower()),
         "name": config.get("name", ir.name),
         "version": config.get("version", "0.0.1"),
         "description": config.get("description", ""),
+        "readme": readme,
+        "primary_language": config.get("primary_language", "python"),
+        "surface_areas": config.get("surface_areas", []),
+        "tags": config.get("tags", []),
+        "license": config.get("license", "Apache-2.0"),
+        "homepage": config.get("homepage"),
+        "repository": config.get("repository"),
         "py_source": source,
         "swift_output": swift_code,
+        "plist_fragment": plist_fragment,
+        "ir": _ir_to_dict(ir),
         "compiler_version": __version__,
+        "bundle_hash": bundle_hash,
     }
 
     print(f"  \033[2m⏺\033[0m Publishing to {registry_url}…")
@@ -834,22 +870,59 @@ def _registry_publish() -> int:
         )
         with urlopen(req, timeout=30) as resp:
             result = json.loads(resp.read().decode("utf-8"))
-            url = result.get("url", registry_url)
+
+        url = result.get("url", registry_url)
+        server_hash = result.get("bundle_hash")
+        if server_hash and server_hash != bundle_hash:
+            print(
+                f"  \033[31m✗\033[0m Registry recorded a different bundle hash "
+                f"(client {bundle_hash} vs server {server_hash}). Publish rejected for your safety.",
+                file=sys.stderr,
+            )
+            return 1
 
         print("  \033[32m✓\033[0m Published!")
         print()
         print(f"    {url}")
         print()
+        print(f"  \033[2mBundle hash: sha256:{bundle_hash}\033[0m")
+        print(f"  \033[2mInstall: axint add {namespace}/{payload['slug']}\033[0m")
+        print()
         return 0
 
     except HTTPError as e:
-        err = json.loads(e.read().decode("utf-8"))
-        detail = err.get("detail", e.reason)
-        print(f"  \033[31m✗\033[0m Publish failed: {detail}", file=sys.stderr)
+        # Server returns `{error: string}`. We also fall back to the HTTP
+        # reason for the case where the response body isn't JSON at all.
+        try:
+            err = json.loads(e.read().decode("utf-8"))
+            message = err.get("error") or e.reason
+        except Exception:
+            message = e.reason
+        print(f"  \033[31m✗\033[0m Publish failed: {message}", file=sys.stderr)
+        return 1
+    except URLError as e:
+        print(f"  \033[31merror:\033[0m Could not reach {registry_url}: {e.reason}", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"\033[31merror:\033[0m {e}", file=sys.stderr)
         return 1
+
+
+def _ir_to_dict(ir: Any) -> dict[str, Any]:
+    """Serialize an IR dataclass to the shape the registry stores.
+
+    The registry accepts an opaque `ir` field — we send the same JSON
+    the TS SDK does so downstream tooling can diff both sides. Any IR
+    type that dataclasses.asdict() can walk is fine; we gracefully
+    degrade to an empty dict when the dataclass machinery can't see it.
+    """
+    import dataclasses
+
+    # is_dataclass returns True for both instances and classes — narrow
+    # to an instance before asdict() to keep the types honest.
+    if dataclasses.is_dataclass(ir) and not isinstance(ir, type):
+        return dataclasses.asdict(ir)
+    return {}
 
 
 def _registry_add(package: str, target_dir: str) -> int:
