@@ -15,7 +15,7 @@
  */
 
 export interface BundleContents {
-  ts_source: string;
+  ts_source?: string | null;
   py_source?: string | null;
   swift_output: string;
   plist_fragment?: string | null;
@@ -26,7 +26,7 @@ export function canonicalizeBundle(bundle: BundleContents): string {
     plist_fragment: bundle.plist_fragment ?? null,
     py_source: bundle.py_source ?? null,
     swift_output: bundle.swift_output,
-    ts_source: bundle.ts_source,
+    ts_source: bundle.ts_source ?? null,
   };
   return JSON.stringify(normalized);
 }
