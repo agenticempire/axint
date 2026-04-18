@@ -25,6 +25,7 @@ export function readCanonicalVersion() {
 export const SURFACES = [
   pkgJson("package.json"),
   pyproject("python/pyproject.toml"),
+  pyModule("python/axint/__init__.py"),
   pkgJson("extensions/vscode/package.json"),
   pkgJson("extensions/claude-desktop/server/package.json"),
   serverJson("server.json"),
@@ -84,6 +85,24 @@ function serverJson(relPath) {
       data.version = version;
       for (const pkg of data.packages ?? []) pkg.version = version;
       writeFileSync(abs, JSON.stringify(data, null, 2) + "\n");
+    },
+  };
+}
+
+function pyModule(relPath) {
+  const abs = resolve(ROOT, relPath);
+  const pattern = /^__version__\s*=\s*"([^"]+)"/m;
+  return {
+    file: relPath,
+    read() {
+      const match = readFileSync(abs, "utf-8").match(pattern);
+      if (!match) throw new Error(`${relPath} has no __version__ constant`);
+      return [{ where: "__version__", value: match[1] }];
+    },
+    write(version) {
+      const text = readFileSync(abs, "utf-8");
+      if (!pattern.test(text)) throw new Error(`${relPath} has no __version__ constant`);
+      writeFileSync(abs, text.replace(pattern, `__version__ = "${version}"`));
     },
   };
 }
