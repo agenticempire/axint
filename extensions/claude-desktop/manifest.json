@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "axint",
   "display_name": "Axint — Apple Compiler for AI",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "Compile TypeScript into native Swift for Apple platforms — App Intents, SwiftUI views, WidgetKit widgets, and full apps.",
-  "long_description": "Axint is the open-source compiler that turns TypeScript into native Swift for Apple platforms. Compile App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds — all from Claude Desktop. AI agents write 5–15× less code while shipping production-ready Apple-native output.\n\nIncludes 12+ pre-built templates covering messaging, productivity, health, commerce, media, navigation, and smart home domains.",
+  "long_description": "Axint turns TypeScript and Python into validated Swift for Apple-native features. Compile App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds from Claude Desktop, then inspect and ship ordinary generated Swift.\n\nIncludes 25 bundled templates spanning messaging, productivity, health, commerce, media, navigation, smart home, and more.",
   "author": {
     "name": "Axint contributors",
     "url": "https://axint.ai"

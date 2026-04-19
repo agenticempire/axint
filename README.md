@@ -5,13 +5,12 @@
 <h1 align="center">Axint</h1>
 
 <p align="center">
-  <strong>The Apple-native execution layer for AI agents.</strong>
+  <strong>Axint turns TypeScript and Python into validated Swift for Apple-native features.</strong>
 </p>
 
 <p align="center">
-  Context tells agents what to build. Axint makes it shippable on Apple.<br>
-  Open-source compiler that turns TypeScript into validated Swift —<br>
-  App Intents, SwiftUI views, WidgetKit widgets, and full apps.
+  Open-source compiler for App Intents, SwiftUI views, WidgetKit widgets, and full apps.<br>
+  Compact definitions in, validated Swift out.
 </p>
 
 <p align="center">
@@ -24,73 +23,14 @@
 
 <p align="center">
   <a href="https://axint.ai">Website</a> ·
-  <a href="#first-minute">First minute</a> ·
-  <a href="#sixty-second-compile-demo">Compile demo</a> ·
-  <a href="#sixty-second-mcp-demo">MCP demo</a> ·
+  <a href="https://axint.ai/#playground">Playground</a> ·
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#mcp-server">MCP Server</a> ·
   <a href="https://docs.axint.ai">Docs</a> ·
   <a href="https://registry.axint.ai">Registry</a>
 </p>
 
 ---
-
-## First minute
-
-If you are evaluating Axint cold, start here:
-
-- **Prereqs** — Node.js 22+ for the TypeScript toolchain. Xcode is optional for the first compile pass.
-- **What you will see** — one TypeScript file compiled to real Swift, then the same compiler surfaced over MCP.
-- **What is real already** — 648 tests, 130 diagnostics, 10 MCP tools, 3 built-in prompts, and four Apple surfaces from one compiler pipeline.
-
-### Sixty-second compile demo
-
-```bash
-npm install -g @axint/compiler
-
-cat > hello-intent.ts <<'TS'
-import { defineIntent, param } from "@axint/compiler";
-
-export default defineIntent({
-  name: "LogWater",
-  title: "Log Water",
-  description: "Track a glass of water from Siri or Shortcuts.",
-  domain: "health",
-  params: {
-    ounces: param.int("How many ounces?"),
-  },
-  perform: async ({ ounces }) => `Logged ${ounces} oz of water`,
-});
-TS
-
-axint compile hello-intent.ts --stdout
-```
-
-What success looks like:
-
-- `struct LogWaterIntent: AppIntent`
-- generated `@Parameter` properties
-- a real `perform()` signature
-- zero handwritten Swift
-
-### Sixty-second MCP demo
-
-```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
-  | npx -y @axint/compiler axint-mcp
-```
-
-That returns the same tool surface agents use in Claude Code, Codex, Cursor, Windsurf, and Xcode-adjacent MCP setups. The fastest evaluator path is:
-
-1. `tools/list`
-2. `axint.schema.compile`
-3. `axint.scaffold`
-
-### Why this matters
-
-Apple surfaces are boilerplate-heavy enough that agents waste tokens recreating framework glue instead of shipping product logic. Axint moves that work into a compiler:
-
-- `defineIntent()` replaces 50–200 lines of Swift for Siri and Shortcuts work.
-- `defineView()`, `defineWidget()`, and `defineApp()` extend the same model across SwiftUI, WidgetKit, and app shells.
-- MCP gives coding agents a direct compiler surface instead of asking them to improvise Apple syntax from scratch.
 
 ## Why Axint
 
@@ -107,7 +47,7 @@ defineWidget()  →  WidgetKit widget
 defineApp()     →  Full app scaffold
 ```
 
-The result: agents ship Apple features at 5–15× fewer tokens than hand-written Swift.
+The result: teams and AI tools can author Apple-native features in a much smaller surface than hand-written Swift, then validate and ship ordinary generated Swift.
 
 ---
 
