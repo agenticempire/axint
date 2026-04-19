@@ -6,10 +6,60 @@ import {
   compileWidgetFromIR,
   compileAppFromIR,
 } from "../../src/core/compiler.js";
+import { handleToolCall } from "../../src/mcp/server.js";
 import { scaffoldIntent } from "../../src/mcp/scaffold.js";
 import { TEMPLATES, getTemplate } from "../../src/templates/index.js";
 import { validateSwiftSource } from "../../src/core/swift-validator.js";
 import { fixSwiftSource } from "../../src/core/swift-fixer.js";
+
+const VIEW_SOURCE = `
+  import { defineView, prop, state, view } from "@axint/sdk";
+
+  export default defineView({
+    name: "GreetingCard",
+    props: {
+      username: prop.string("User name"),
+    },
+    state: {
+      count: state.int("Tap count", { default: 0 }),
+    },
+    body: [
+      view.vstack([
+        view.text("Hello, \\\\(username)!"),
+        view.button("Tap", "count += 1"),
+      ]),
+    ],
+  });
+`;
+
+const WIDGET_SOURCE = `
+  import { defineWidget, entry, view } from "@axint/sdk";
+
+  export default defineWidget({
+    name: "StepCounter",
+    displayName: "Step Counter",
+    description: "Shows daily steps",
+    families: ["systemSmall"],
+    entry: {
+      steps: entry.int("Step count", { default: 0 }),
+    },
+    body: [
+      view.text("\\\\(steps)"),
+    ],
+    refreshInterval: 15,
+  });
+`;
+
+const APP_SOURCE = `
+  import { defineApp } from "@axint/sdk";
+
+  export default defineApp({
+    name: "TrailPlanner",
+    scenes: [
+      { kind: "windowGroup", view: "ContentView" },
+    ],
+  });
+`;
 
 // ── axint.scaffold ──────────────────────────────────────────────────
 
@@ -182,6 +232,68 @@ describe("axint.validate tool", () => {
     `;
     const result = compileSource(source, "<validate>");
     expect(result.diagnostics.some((d) => d.severity === "error")).toBe(true);
+  });
+});
+
+describe("axint MCP multi-surface tool dispatch", () => {
+  it("compiles defineView() through the axint.compile MCP tool", async () => {
+    const result = await handleToolCall("axint.compile", {
+      source: VIEW_SOURCE,
+      fileName: "greeting-card.ts",
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("struct GreetingCard: View");
+  });
+
+  it("validates defineView() through the axint.validate MCP tool", async () => {
+    const result = await handleToolCall("axint.validate", {
+      source: VIEW_SOURCE,
+      fileName: "greeting-card.ts",
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("Valid Axint definition. No issues found.");
+  });
+
+  it("compiles defineWidget() through the axint.compile MCP tool", async () => {
+    const result = await handleToolCall("axint.compile", {
+      source: WIDGET_SOURCE,
+      fileName: "step-counter.ts",
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("struct StepCounterWidget: Widget");
+  });
+
+  it("validates defineWidget() through the axint.validate MCP tool", async () => {
+    const result = await handleToolCall("axint.validate", {
+      source: WIDGET_SOURCE,
+      fileName: "step-counter.ts",
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("Valid Axint definition. No issues found.");
+  });
+
+  it("compiles defineApp() through the axint.compile MCP tool", async () => {
+    const result = await handleToolCall("axint.compile", {
+      source: APP_SOURCE,
+      fileName: "trail-planner-app.ts",
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("struct TrailPlannerApp: App");
+  });
+
+  it("validates defineApp() through the axint.validate MCP tool", async () => {
+    const result = await handleToolCall("axint.validate", {
+      source: APP_SOURCE,
+      fileName: "trail-planner-app.ts",
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("Valid Axint definition. No issues found.");
   });
 });
 

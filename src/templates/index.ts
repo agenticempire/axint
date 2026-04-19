@@ -371,6 +371,69 @@ export default defineIntent({
 `,
 };
 
+const planTrail: IntentTemplate = {
+  id: "plan-trail",
+  name: "plan-trail",
+  title: "Plan Trail",
+  domain: "navigation",
+  category: "navigation",
+  description:
+    "Plan a trail outing with entity queries, dynamic options, and an interactive parameter summary.",
+  source: `import { defineIntent, defineEntity, param } from "@axint/compiler";
+
+defineEntity({
+  name: "Trail",
+  display: {
+    title: "name",
+    subtitle: "region",
+    image: "figure.hiking",
+  },
+  properties: {
+    id: param.string("Trail identifier"),
+    name: param.string("Trail name"),
+    region: param.string("Trail region"),
+    distanceKm: param.double("Distance in kilometers"),
+    openNow: param.boolean("Whether the trail is currently open"),
+  },
+  query: "property",
+});
+
+export default defineIntent({
+  name: "PlanTrail",
+  title: "Plan Trail",
+  description: "Build a trail plan from a runtime activity picker and a queryable trail entity.",
+  domain: "navigation",
+  parameterSummary: {
+    switch: "includeNearby",
+    cases: [
+      {
+        value: true,
+        summary: {
+          when: "region",
+          then: "Plan \${activity} on \${trail} near \${region}",
+          otherwise: "Plan \${activity} on \${trail} near me",
+        },
+      },
+      {
+        value: false,
+        summary: "Plan \${activity} on \${trail}",
+      },
+    ],
+    default: "Plan trail",
+  },
+  params: {
+    activity: param.dynamicOptions("ActivityOptions", param.string("Activity type")),
+    trail: param.entity("Trail", "Trail to open"),
+    includeNearby: param.boolean("Limit results to nearby trails", { default: true }),
+    region: param.string("Trail region", { required: false }),
+  },
+  perform: async ({ activity, trail }) => {
+    return { planned: true, activity, trail };
+  },
+});
+`,
+};
+
 const setTimer: IntentTemplate = {
   id: "set-timer",
   name: "set-timer",
@@ -781,6 +844,7 @@ export const TEMPLATES: IntentTemplate[] = [
   placeOrder,
   searchTasks,
   dynamicPlaylist,
+  planTrail,
   setTimer,
   searchNotes,
   createReminder,

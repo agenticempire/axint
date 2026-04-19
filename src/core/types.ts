@@ -63,6 +63,27 @@ export interface IREntity {
   queryType: "all" | "id" | "string" | "property";
 }
 
+export type IRParameterSummary =
+  | {
+      kind: "summary";
+      template: string;
+    }
+  | {
+      kind: "when";
+      parameter: string;
+      then: IRParameterSummary;
+      otherwise?: IRParameterSummary;
+    }
+  | {
+      kind: "switch";
+      parameter: string;
+      cases: Array<{
+        value: string | number | boolean;
+        summary: IRParameterSummary;
+      }>;
+      default?: IRParameterSummary;
+    };
+
 // ─── View IR Types ──────────────────────────────────────────────────
 
 /** SwiftUI property wrapper kind for state management */
@@ -140,6 +161,8 @@ export interface IRIntent {
   infoPlistKeys?: Record<string, string>;
   /** Whether the intent should be exposed to Spotlight indexing */
   isDiscoverable?: boolean;
+  /** Optional Shortcuts parameter summary */
+  parameterSummary?: IRParameterSummary;
   /** App Entities used by this intent */
   entities?: IREntity[];
   /** Whether to donate this intent to Spotlight/Siri when performed */
@@ -343,7 +366,7 @@ export function irTypeToSwift(type: IRType): string {
     case "entityQuery":
       return `${type.entityName}Query`;
     case "dynamicOptions":
-      return `[DynamicOptionsResult<${irTypeToSwift(type.valueType)}>]`;
+      return irTypeToSwift(type.valueType);
     case "enum":
       return type.name;
   }

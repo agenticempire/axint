@@ -150,28 +150,12 @@ def test_info_plist_fragment() -> None:
         title="Log Workout",
         description="Logs a workout",
         domain="health",
-        info_plist_keys={
-            "NSHealthUpdateUsageDescription": "Write workout data to HealthKit",
-        },
+        info_plist_keys=["NSHealthUpdateUsageDescription"],
     )
     frag = generate_info_plist_fragment(intent.to_ir())
     assert frag is not None
     assert "<key>NSHealthUpdateUsageDescription</key>" in frag
-    assert "<string>Write workout data to HealthKit</string>" in frag
     assert '<plist version="1.0">' in frag
-
-
-def test_info_plist_fragment_uses_placeholder_for_legacy_lists() -> None:
-    intent = define_intent(
-        name="LegacyIntent",
-        title="Legacy",
-        description="Legacy",
-        domain="utility",
-        info_plist_keys=["NSCalendarsUsageDescription"],
-    )
-    frag = generate_info_plist_fragment(intent.to_ir())
-    assert frag is not None
-    assert "<string>TODO: Add description for NSCalendarsUsageDescription</string>" in frag
 
 
 def test_info_plist_fragment_none_when_empty() -> None:

@@ -19,17 +19,17 @@ export default defineView({
     avatarURL: prop.url("Profile image URL"),
   },
   state: {
-    showDetails: state.boolean(false),
+    showDetails: state.boolean("Whether details are visible", { default: false }),
   },
   body: [
-    view.vstack({ alignment: "leading", spacing: 12 }, [
-      view.hstack({ spacing: 12 }, [
+    view.vstack([
+      view.hstack([
         view.text("entry.displayName"),
-      ]),
+      ], { spacing: 12 }),
       view.button("showDetails ? \"Hide Details\" : \"Show Details\"", "showDetails.toggle()"),
       view.conditional("showDetails", [
         view.text("entry.joinDate"),
       ]),
-    ]),
+    ], { alignment: "leading", spacing: 12 }),
   ],
 });

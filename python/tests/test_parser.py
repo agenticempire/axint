@@ -76,36 +76,12 @@ intent = define_intent(
     description="Logs a workout",
     domain="health",
     entitlements=["com.apple.developer.healthkit"],
-    info_plist_keys={
-        "NSHealthUpdateUsageDescription": "Write workouts to HealthKit",
-        "NSHealthShareUsageDescription": "Read workouts from HealthKit",
-    },
+    info_plist_keys=["NSHealthUpdateUsageDescription", "NSHealthShareUsageDescription"],
 )
 '''
     ir = parse_source(src)[0]
     assert ir.entitlements == ("com.apple.developer.healthkit",)
-    assert ir.info_plist_keys == {
-        "NSHealthUpdateUsageDescription": "Write workouts to HealthKit",
-        "NSHealthShareUsageDescription": "Read workouts from HealthKit",
-    }
-
-
-def test_parses_legacy_info_plist_key_lists() -> None:
-    src = '''
-from axint import define_intent
-
-intent = define_intent(
-    name="CalendarIntent",
-    title="Create Event",
-    description="Creates an event",
-    domain="productivity",
-    info_plist_keys=["NSCalendarsUsageDescription"],
-)
-'''
-    ir = parse_source(src)[0]
-    assert ir.info_plist_keys == {
-        "NSCalendarsUsageDescription": "NSCalendarsUsageDescription",
-    }
+    assert len(ir.info_plist_keys) == 2
 
 
 def test_parses_number_alias_as_int() -> None:

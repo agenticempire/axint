@@ -186,6 +186,13 @@ export interface IntentDefinition<
   infoPlistKeys?: Record<string, string>;
   /** Whether the intent should be exposed to Spotlight indexing. */
   isDiscoverable?: boolean;
+  /**
+   * Optional interactive parameter summary shown in Shortcuts.
+   *
+   * Use `${paramName}` placeholders to reference intent parameters.
+   * For conditional summaries, use `when` / `switch` blocks.
+   */
+  parameterSummary?: ParameterSummaryDefinition;
   /** Parameter definitions using `param.*` helpers. */
   params: TParams;
   /**
@@ -230,6 +237,22 @@ export function defineIntent<
 >(config: IntentDefinition<TParams>): IntentDefinition<TParams> {
   return config;
 }
+
+export type ParameterSummaryDefinition =
+  | string
+  | {
+      when: string;
+      then: ParameterSummaryDefinition;
+      otherwise?: ParameterSummaryDefinition;
+    }
+  | {
+      switch: string;
+      cases: Array<{
+        value: string | number | boolean;
+        summary: ParameterSummaryDefinition;
+      }>;
+      default?: ParameterSummaryDefinition;
+    };
 
 // ─── View Definition ────────────────────────────────────────────────
 
@@ -430,8 +453,14 @@ export interface EntityDefinition {
   display: EntityDisplay;
   /** Entity properties using `param.*` helpers. */
   properties: Record<string, ReturnType<(typeof param)[keyof typeof param]>>;
-  /** Query type: "string" for StringQuery, "property" for PropertyQuery. */
-  query?: "string" | "property";
+  /**
+   * Query type:
+   * - "all" for EnumerableEntityQuery
+   * - "id" for EntityQuery
+   * - "string" for EntityStringQuery
+   * - "property" for EntityPropertyQuery
+   */
+  query?: "all" | "id" | "string" | "property";
 }
 
 /**

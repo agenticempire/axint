@@ -69,6 +69,7 @@
     "lint": "eslint src/ tests/",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
+    "typecheck:examples": "tsc --noEmit -p tsconfig.examples.json",
     "clean": "rm -rf dist",
     "gen:swift-fixer": "tsx scripts/gen-swift-fixer.ts",
     "gen:swift-fixer:check": "tsx scripts/gen-swift-fixer.ts --check",

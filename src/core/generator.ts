@@ -14,7 +14,13 @@
  * by the user (or a future axint-link command).
  */
 
-import type { IRIntent, IRParameter, IRType, IREntity } from "./types.js";
+import type {
+  IRIntent,
+  IRParameter,
+  IRType,
+  IREntity,
+  IRParameterSummary,
+} from "./types.js";
 import { irTypeToSwift } from "./types.js";
 
 // ─── String Escaping ─────────────────────────────────────────────────
@@ -73,6 +79,11 @@ export function generateSwift(intent: IRIntent): string {
     }
   }
 
+  for (const provider of collectDynamicOptionsProviders(intent.parameters)) {
+    lines.push(generateDynamicOptionsProvider(provider.providerName, provider.valueType));
+    lines.push(``);
+  }
+
   // Struct declaration
   lines.push(`struct ${intent.name}Intent: AppIntent {`);
 
@@ -94,6 +105,13 @@ export function generateSwift(intent: IRIntent): string {
   }
 
   if (intent.parameters.length > 0) {
+    lines.push(``);
+  }
+
+  if (intent.parameterSummary) {
+    lines.push(`    static var parameterSummary: some ParameterSummary {`);
+    lines.push(...generateParameterSummary(intent.parameterSummary, 8));
+    lines.push(`    }`);
     lines.push(``);
   }
 
@@ -149,6 +167,11 @@ export function generateEntity(entity: IREntity): string {
   // Properties
   for (const prop of entity.properties) {
     const swiftType = irTypeToSwift(prop.type);
+    if (prop.name === "id") {
+      lines.push(`    var id: ${swiftType}`);
+      continue;
+    }
+    lines.push(`    @Property(title: "${escapeSwiftString(prop.title)}")`);
     lines.push(`    var ${prop.name}: ${swiftType}`);
   }
 
@@ -197,12 +220,30 @@ export function generateEntityQuery(entity: IREntity): string {
   const lines: string[] = [];
   const queryType = entity.queryType;
 
-  const protocol = queryType === "property" ? "EntityPropertyQuery" : "EntityQuery";
+  const protocol =
+    queryType === "all"
+      ? "EnumerableEntityQuery"
+      : queryType === "string"
+        ? "EntityStringQuery"
+        : queryType === "property"
+          ? "EntityPropertyQuery"
+          : "EntityQuery";
   lines.push(`struct ${entity.name}Query: ${protocol} {`);
+  if (queryType === "all" || queryType === "property") {
+    lines.push(
+      `    static var findIntentDescription: IntentDescription = IntentDescription("Find ${escapeSwiftString(entity.name)}")`
+    );
+    lines.push(``);
+  }
   lines.push(
     `    func entities(for identifiers: [${entity.name}.ID]) async throws -> [${entity.name}] {`
   );
   lines.push(`        // TODO: Fetch entities by IDs`);
+  lines.push(`        return []`);
+  lines.push(`    }`);
+  lines.push(``);
+  lines.push(`    func suggestedEntities() async throws -> [${entity.name}] {`);
+  lines.push(`        // TODO: Return suggested entities for pickers and shortcuts`);
   lines.push(`        return []`);
   lines.push(`    }`);
   lines.push(``);
@@ -225,12 +266,20 @@ export function generateEntityQuery(entity: IREntity): string {
     lines.push(`    }`);
   } else if (queryType === "property") {
     // Property-based query: generate EntityPropertyQuery with sortable/filterable properties
-    const queryableProps = entity.properties.filter((p) => p.type.kind === "primitive");
+    const queryableProps = entity.properties
+      .map((prop) => ({
+        prop,
+        type: queryablePropertyType(prop.type),
+      }))
+      .filter((entry) => entry.prop.name !== "id")
+      .filter(
+        (entry): entry is { prop: IRParameter; type: IRType } => entry.type !== null
+      );
 
     lines.push(`    static var properties = QueryProperties {`);
-    for (const prop of queryableProps) {
-      const swiftType = irTypeToSwift(prop.type);
-      lines.push(`        Property(\\${entity.name}.${prop.name}) {`);
+    for (const entry of queryableProps) {
+      const swiftType = irTypeToSwift(entry.type);
+      lines.push(`        Property(\\.$${entry.prop.name}) {`);
       lines.push(`            EqualToComparator()`);
       if (swiftType === "String") {
         lines.push(`            ContainsComparator()`);
@@ -244,8 +293,8 @@ export function generateEntityQuery(entity: IREntity): string {
     lines.push(`    }`);
     lines.push(``);
     lines.push(`    static var sortingOptions = SortingOptions {`);
-    for (const prop of queryableProps) {
-      lines.push(`        SortableBy(\\${entity.name}.${prop.name})`);
+    for (const entry of queryableProps) {
+      lines.push(`        SortableBy(\\.$${entry.prop.name})`);
     }
     lines.push(`    }`);
     lines.push(``);
@@ -259,6 +308,17 @@ export function generateEntityQuery(entity: IREntity): string {
 
   lines.push(`}`);
 
+  return lines.join("\n");
+}
+
+function generateDynamicOptionsProvider(providerName: string, valueType: IRType): string {
+  const lines: string[] = [];
+  lines.push(`struct ${providerName}: DynamicOptionsProvider {`);
+  lines.push(`    func results() async throws -> [${irTypeToSwift(valueType)}] {`);
+  lines.push(`        // TODO: Return runtime-backed options for this parameter.`);
+  lines.push(`        return []`);
+  lines.push(`    }`);
+  lines.push(`}`);
   return lines.join("\n");
 }
 
@@ -344,6 +404,10 @@ function generateParameter(param: IRParameter): string {
   attrs.push(`title: "${escapeSwiftString(param.title)}"`);
   if (param.description) {
     attrs.push(`description: "${escapeSwiftString(param.description)}"`);
+  }
+  const dynamicOptions = dynamicOptionsConfig(param.type);
+  if (dynamicOptions) {
+    attrs.push(`optionsProvider: ${dynamicOptions.providerName}()`);
   }
 
   const decorator = `    @Parameter(${attrs.join(", ")})`;
@@ -435,4 +499,96 @@ function formatSwiftDefault(value: unknown, _type: IRType): string {
   }
   if (typeof value === "boolean") return value ? "true" : "false";
   return `"${escapeSwiftString(String(value))}"`; // Safe fallback
+}
+
+function collectDynamicOptionsProviders(parameters: IRParameter[]) {
+  const seen = new Set<string>();
+  const providers: Array<{ providerName: string; valueType: IRType }> = [];
+  for (const param of parameters) {
+    const config = dynamicOptionsConfig(param.type);
+    if (!config || seen.has(config.providerName)) continue;
+    seen.add(config.providerName);
+    providers.push(config);
+  }
+  return providers;
+}
+
+function dynamicOptionsConfig(
+  type: IRType
+): { providerName: string; valueType: IRType } | null {
+  if (type.kind === "dynamicOptions") {
+    return {
+      providerName: type.providerName,
+      valueType: type.valueType,
+    };
+  }
+  if (type.kind === "optional") {
+    return dynamicOptionsConfig(type.innerType);
+  }
+  return null;
+}
+
+function queryablePropertyType(type: IRType): IRType | null {
+  if (type.kind === "primitive") return type;
+  if (type.kind === "optional" && type.innerType.kind === "primitive") {
+    return type.innerType;
+  }
+  return null;
+}
+
+function generateParameterSummary(summary: IRParameterSummary, indent: number): string[] {
+  const pad = " ".repeat(indent);
+  const childIndent = indent + 4;
+  if (summary.kind === "summary") {
+    return [`${pad}Summary("${renderParameterSummaryTemplate(summary.template)}")`];
+  }
+
+  if (summary.kind === "when") {
+    const lines = [`${pad}When(\\.$${summary.parameter}, .hasAnyValue) {`];
+    lines.push(...generateParameterSummary(summary.then, childIndent));
+    if (summary.otherwise) {
+      lines.push(`${pad}} otherwise: {`);
+      lines.push(...generateParameterSummary(summary.otherwise, childIndent));
+      lines.push(`${pad}}`);
+    } else {
+      lines.push(`${pad}}`);
+    }
+    return lines;
+  }
+
+  const lines = [`${pad}Switch(\\.$${summary.parameter}) {`];
+  for (const item of summary.cases) {
+    lines.push(`${pad}    Case(${formatParameterSummaryCaseValue(item.value)}) {`);
+    lines.push(...generateParameterSummary(item.summary, childIndent + 4));
+    lines.push(`${pad}    }`);
+  }
+  if (summary.default) {
+    lines.push(`${pad}    DefaultCase {`);
+    lines.push(...generateParameterSummary(summary.default, childIndent + 4));
+    lines.push(`${pad}    }`);
+  }
+  lines.push(`${pad}}`);
+  return lines;
+}
+
+function renderParameterSummaryTemplate(template: string): string {
+  const pattern = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+  let cursor = 0;
+  let rendered = "";
+  for (const match of template.matchAll(pattern)) {
+    const [token, paramName] = match;
+    const start = match.index ?? 0;
+    rendered += escapeSwiftString(template.slice(cursor, start));
+    rendered += `\\(\\.$${paramName})`;
+    cursor = start + token.length;
+  }
+  rendered += escapeSwiftString(template.slice(cursor));
+  return rendered;
+}
+
+function formatParameterSummaryCaseValue(value: string | number | boolean): string {
+  if (typeof value === "string") {
+    return `"${escapeSwiftString(value)}"`;
+  }
+  return String(value);
 }

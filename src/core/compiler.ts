@@ -39,7 +39,9 @@ import type {
   IRApp,
   IRType,
   IRParameter,
+  IREntity,
   IRPrimitiveType,
+  IRParameterSummary,
 } from "./types.js";
 
 export interface CompileResult {
@@ -556,18 +558,9 @@ const VALID_PRIMITIVES = new Set<string>([
  * This is the key function that bridges the Python → TypeScript gap.
  */
 export function irFromJSON(data: Record<string, unknown>): IRIntent {
-  const parameters: IRParameter[] = ((data.parameters as unknown[]) ?? []).map(
-    (p: unknown) => {
-      const param = p as Record<string, unknown>;
-      return {
-        name: param.name as string,
-        type: normalizeIRType(param.type),
-        title: (param.title as string) ?? (param.description as string) ?? "",
-        description: (param.description as string) ?? "",
-        isOptional: (param.optional as boolean) ?? (param.isOptional as boolean) ?? false,
-        defaultValue: param.default ?? param.defaultValue,
-      };
-    }
+  const entities = normalizeEntities(data.entities);
+  const parameters: IRParameter[] = ((data.parameters as unknown[]) ?? []).map((p) =>
+    normalizeIRParameter(p as Record<string, unknown>, entities)
   );
 
   return {
@@ -583,7 +576,67 @@ export function irFromJSON(data: Record<string, unknown>): IRIntent {
     entitlements: (data.entitlements as string[]) ?? undefined,
     infoPlistKeys: (data.infoPlistKeys as Record<string, string>) ?? undefined,
     isDiscoverable: (data.isDiscoverable as boolean) ?? true,
+    parameterSummary: normalizeParameterSummary(data.parameterSummary),
+    entities: entities.length > 0 ? entities : undefined,
+    donateOnPerform: data.donateOnPerform as boolean | undefined,
+    customResultType: data.customResultType as string | undefined,
   };
+}
+
+function normalizeIRParameter(
+  param: Record<string, unknown>,
+  entities: IREntity[]
+): IRParameter {
+  return {
+    name: param.name as string,
+    type: normalizeIRParameterType(param, entities),
+    title: (param.title as string) ?? (param.description as string) ?? "",
+    description: (param.description as string) ?? "",
+    isOptional: (param.optional as boolean) ?? (param.isOptional as boolean) ?? false,
+    defaultValue: param.default ?? param.defaultValue,
+  };
+}
+
+function normalizeIRParameterType(
+  param: Record<string, unknown>,
+  entities: IREntity[]
+): IRType {
+  const rawType = param.type;
+
+  if (typeof rawType === "string") {
+    const normalized = rawType === "number" ? "int" : rawType;
+    if (VALID_PRIMITIVES.has(normalized)) {
+      return { kind: "primitive", value: normalized as IRPrimitiveType };
+    }
+    if (normalized === "entity") {
+      const entityName = (param.entityName as string | undefined) ?? "Entity";
+      const entity = entities.find((entry) => entry.name === entityName);
+      return {
+        kind: "entity",
+        entityName,
+        properties: entity?.properties ?? [],
+      };
+    }
+    if (normalized === "enum") {
+      const cases = readStringArray(param.enumCases);
+      return {
+        kind: "enum",
+        name: enumTypeName(param.name as string | undefined),
+        cases,
+      };
+    }
+    if (normalized === "dynamicOptions") {
+      return {
+        kind: "dynamicOptions",
+        providerName:
+          (param.providerName as string | undefined) ?? "DynamicOptionsProvider",
+        valueType: normalizeIRType(param.valueType ?? param.innerType ?? "string"),
+      };
+    }
+    return { kind: "primitive", value: "string" };
+  }
+
+  return normalizeIRType(rawType, entities);
 }
 
 /**
@@ -591,7 +644,7 @@ export function irFromJSON(data: Record<string, unknown>): IRIntent {
  * plain strings ("string", "int", etc.) while the TS IR uses
  * `{ kind: "primitive", value: "string" }`. This function handles both.
  */
-function normalizeIRType(type: unknown): IRType {
+function normalizeIRType(type: unknown, entities: IREntity[] = []): IRType {
   if (typeof type === "string") {
     const normalized = type === "number" ? "int" : type;
     if (VALID_PRIMITIVES.has(normalized)) {
@@ -601,14 +654,186 @@ function normalizeIRType(type: unknown): IRType {
   }
   if (type && typeof type === "object") {
     const t = type as Record<string, unknown>;
-    if (t.kind === "primitive") return type as IRType;
+    if (t.kind === "primitive") {
+      return {
+        kind: "primitive",
+        value: String(t.value === "number" ? "int" : t.value) as IRPrimitiveType,
+      };
+    }
     if (t.kind === "array")
-      return { kind: "array", elementType: normalizeIRType(t.elementType) };
+      return { kind: "array", elementType: normalizeIRType(t.elementType, entities) };
     if (t.kind === "optional")
-      return { kind: "optional", innerType: normalizeIRType(t.innerType) };
-    if (t.kind === "entity") return type as IRType;
-    if (t.kind === "enum") return type as IRType;
+      return { kind: "optional", innerType: normalizeIRType(t.innerType, entities) };
+    if (t.kind === "entity") {
+      const entityName = t.entityName as string;
+      const entity = entities.find((entry) => entry.name === entityName);
+      return {
+        kind: "entity",
+        entityName,
+        properties:
+          normalizeIRParameters(t.properties, entities) ?? entity?.properties ?? [],
+      };
+    }
+    if (t.kind === "entityQuery") {
+      return {
+        kind: "entityQuery",
+        entityName: t.entityName as string,
+        queryType: (t.queryType as "all" | "id" | "string" | "property") ?? "id",
+      };
+    }
+    if (t.kind === "dynamicOptions") {
+      return {
+        kind: "dynamicOptions",
+        providerName: (t.providerName as string | undefined) ?? "DynamicOptionsProvider",
+        valueType: normalizeIRType(t.valueType ?? t.innerType ?? "string", entities),
+      };
+    }
+    if (t.kind === "enum") {
+      return {
+        kind: "enum",
+        name: (t.name as string | undefined) ?? enumTypeName(undefined),
+        cases: readStringArray(t.cases),
+      };
+    }
   }
   // Default fallback
   return { kind: "primitive", value: "string" };
+}
+
+function normalizeEntities(value: unknown): IREntity[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => {
+    const entity = entry as Record<string, unknown>;
+    const display = (entity.displayRepresentation ?? {}) as Record<string, unknown>;
+    return {
+      name: entity.name as string,
+      displayRepresentation: {
+        title: (display.title as string | undefined) ?? "name",
+        subtitle: display.subtitle as string | undefined,
+        image: display.image as string | undefined,
+      },
+      properties: normalizeIRParameters(entity.properties, []) ?? [],
+      queryType:
+        (entity.queryType as "all" | "id" | "string" | "property" | undefined) ?? "id",
+    };
+  });
+}
+
+function normalizeIRParameters(
+  value: unknown,
+  entities: IREntity[]
+): IRParameter[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.map((entry) =>
+    normalizeIRParameter(entry as Record<string, unknown>, entities)
+  );
+}
+
+function normalizeParameterSummary(value: unknown): IRParameterSummary | undefined {
+  if (typeof value === "string") {
+    return { kind: "summary", template: value };
+  }
+  if (!value || typeof value !== "object") return undefined;
+
+  const summary = value as Record<string, unknown>;
+  if (summary.kind === "summary" && typeof summary.template === "string") {
+    return {
+      kind: "summary",
+      template: summary.template,
+    };
+  }
+  if (summary.kind === "when" && typeof summary.parameter === "string") {
+    return {
+      kind: "when",
+      parameter: summary.parameter,
+      then: normalizeParameterSummary(summary.then) ?? { kind: "summary", template: "" },
+      otherwise: normalizeParameterSummary(summary.otherwise),
+    };
+  }
+  if (summary.kind === "switch" && typeof summary.parameter === "string") {
+    const cases = Array.isArray(summary.cases)
+      ? summary.cases
+          .map((entry) => {
+            const item = entry as Record<string, unknown>;
+            if (!("value" in item)) return null;
+            const caseSummary = normalizeParameterSummary(item.summary);
+            if (!caseSummary) return null;
+            return {
+              value: item.value as string | number | boolean,
+              summary: caseSummary,
+            };
+          })
+          .filter(
+            (
+              entry
+            ): entry is {
+              value: string | number | boolean;
+              summary: IRParameterSummary;
+            } => entry !== null
+          )
+      : [];
+
+    return {
+      kind: "switch",
+      parameter: summary.parameter,
+      cases,
+      default: normalizeParameterSummary(summary.default),
+    };
+  }
+  if (typeof summary.when === "string") {
+    return {
+      kind: "when",
+      parameter: summary.when,
+      then: normalizeParameterSummary(summary.then) ?? { kind: "summary", template: "" },
+      otherwise: normalizeParameterSummary(summary.otherwise),
+    };
+  }
+
+  if (typeof summary.switch === "string") {
+    const cases = Array.isArray(summary.cases)
+      ? summary.cases
+          .map((entry) => {
+            const item = entry as Record<string, unknown>;
+            if (!("value" in item)) return null;
+            const summaryValue = normalizeParameterSummary(item.summary);
+            if (!summaryValue) return null;
+            return {
+              value: item.value as string | number | boolean,
+              summary: summaryValue,
+            };
+          })
+          .filter(
+            (
+              entry
+            ): entry is {
+              value: string | number | boolean;
+              summary: IRParameterSummary;
+            } => entry !== null
+          )
+      : [];
+
+    return {
+      kind: "switch",
+      parameter: summary.switch,
+      cases,
+      default: normalizeParameterSummary(summary.default),
+    };
+  }
+
+  return undefined;
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function enumTypeName(name: string | undefined): string {
+  const base = (name ?? "Choice").replace(/[^A-Za-z0-9]+/g, " ");
+  const pascal = base
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0]!.toUpperCase() + part.slice(1))
+    .join("");
+  return `${pascal || "Choice"}Option`;
 }

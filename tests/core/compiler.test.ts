@@ -72,4 +72,55 @@ defineIntent({
     const result = compileSource(VALID_SOURCE, "test.ts");
     expect(result.output!.swiftCode).toMatchSnapshot();
   });
+
+  it("compiles entity query depth features into Swift", () => {
+    const source = `
+import { defineIntent, defineEntity, param } from "@axint/sdk";
+
+defineEntity({
+  name: "Trail",
+  display: {
+    title: "name",
+    subtitle: "region",
+    image: "figure.hiking",
+  },
+  properties: {
+    id: param.string("Trail ID"),
+    name: param.string("Trail name"),
+    region: param.string("Trail region"),
+    distanceKm: param.double("Distance in kilometers"),
+  },
+  query: "property",
+});
+
+export default defineIntent({
+  name: "PlanTrail",
+  title: "Plan Trail",
+  description: "Plans a trail outing",
+  parameterSummary: {
+    when: "region",
+    then: "Plan \${trail} in \${region}",
+    otherwise: "Plan \${trail}",
+  },
+  params: {
+    activity: param.dynamicOptions("ActivityOptions", param.string("Activity type")),
+    trail: param.entity("Trail", "Trail to open"),
+    region: param.string("Region", { required: false }),
+  },
+  perform: async () => {
+    return { ok: true };
+  },
+});
+`;
+    const result = compileSource(source, "trail-depth.ts");
+    expect(result.success).toBe(true);
+    expect(result.output?.swiftCode).toContain("struct Trail: AppEntity");
+    expect(result.output?.swiftCode).toContain("struct TrailQuery: EntityPropertyQuery");
+    expect(result.output?.swiftCode).toContain(
+      "struct ActivityOptions: DynamicOptionsProvider"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "static var parameterSummary: some ParameterSummary"
+    );
+  });
 });

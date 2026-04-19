@@ -151,4 +151,117 @@ defineIntent({
     const ir = parseIntentSource(source, "defaults.ts");
     expect(ir.parameters[0].defaultValue).toBe(5);
   });
+
+  it("parses dynamic options from the inner parameter signature", () => {
+    const source = `
+defineIntent({
+  name: "ChoosePlaylist",
+  title: "Choose Playlist",
+  description: "Loads a playlist from runtime options",
+  params: {
+    playlist: param.dynamicOptions("PlaylistOptions", param.string("Playlist name", { required: false, title: "Playlist" })),
+  },
+  perform: async () => {},
+});
+`;
+    const ir = parseIntentSource(source, "dynamic-options.ts");
+    expect(ir.parameters).toHaveLength(1);
+    expect(ir.parameters[0].title).toBe("Playlist");
+    expect(ir.parameters[0].type).toEqual({
+      kind: "optional",
+      innerType: {
+        kind: "dynamicOptions",
+        providerName: "PlaylistOptions",
+        valueType: { kind: "primitive", value: "string" },
+      },
+    });
+  });
+
+  it("parses parameter summary strings with placeholders", () => {
+    const source = `
+defineIntent({
+  name: "OpenTrail",
+  title: "Open Trail",
+  description: "Opens a trail",
+  parameterSummary: "Open \${trail} in \${region}",
+  params: {
+    trail: param.string("Trail"),
+    region: param.string("Region"),
+  },
+  perform: async () => {},
+});
+`;
+    const ir = parseIntentSource(source, "summary.ts");
+    expect(ir.parameterSummary).toEqual({
+      kind: "summary",
+      template: "Open ${trail} in ${region}",
+    });
+  });
+
+  it("parses conditional and switch parameter summaries", () => {
+    const source = `
+defineIntent({
+  name: "PlanTrail",
+  title: "Plan Trail",
+  description: "Plans a trail",
+  parameterSummary: {
+    switch: "includeNearby",
+    cases: [
+      {
+        value: true,
+        summary: {
+          when: "region",
+          then: "Plan \${trail} near \${region}",
+          otherwise: "Plan \${trail} near me",
+        },
+      },
+      {
+        value: false,
+        summary: "Plan \${trail}",
+      },
+    ],
+    default: "Plan trail",
+  },
+  params: {
+    trail: param.string("Trail"),
+    region: param.string("Region", { required: false }),
+    includeNearby: param.boolean("Nearby", { default: true }),
+  },
+  perform: async () => {},
+});
+`;
+    const ir = parseIntentSource(source, "summary-switch.ts");
+    expect(ir.parameterSummary).toEqual({
+      kind: "switch",
+      parameter: "includeNearby",
+      cases: [
+        {
+          value: true,
+          summary: {
+            kind: "when",
+            parameter: "region",
+            then: {
+              kind: "summary",
+              template: "Plan ${trail} near ${region}",
+            },
+            otherwise: {
+              kind: "summary",
+              template: "Plan ${trail} near me",
+            },
+          },
+        },
+        {
+          value: false,
+          summary: {
+            kind: "summary",
+            template: "Plan ${trail}",
+          },
+        },
+      ],
+      default: {
+        kind: "summary",
+        template: "Plan trail",
+      },
+    });
+  });
 });
