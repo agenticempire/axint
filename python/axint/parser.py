@@ -1401,10 +1401,10 @@ def _parse_string_map_or_list(
             )
         )
         return {}
-    out: dict[str, str] = {}
+    list_out: dict[str, str] = {}
     for elt in node.elts:
         if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-            out[elt.value] = elt.value
+            list_out[elt.value] = elt.value
         else:
             diagnostics.append(
                 ParserDiagnostic(
@@ -1415,7 +1415,7 @@ def _parse_string_map_or_list(
                     line=getattr(elt, "lineno", line),
                 )
             )
-    return out
+    return list_out
 
 
 def _parse_str_list(
