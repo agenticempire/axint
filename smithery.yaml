@@ -1,5 +1,5 @@
 # Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
-# The compression layer for AI on Apple — AI agents write 5-15× less code
+# Axint turns TypeScript and Python into validated Swift for Apple-native features.
 
 startCommand:
   type: http

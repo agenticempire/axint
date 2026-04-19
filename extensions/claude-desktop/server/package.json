@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@axint/compiler": "^0.3.8"
+    "@axint/compiler": "^0.3.9"
   }
 }
