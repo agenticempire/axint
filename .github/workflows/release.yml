@@ -45,7 +45,7 @@ jobs:
       # test failure at this point aborts the run, so a broken SDK
       # can't ride along with a successful npm publish.
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
