@@ -28,13 +28,24 @@ export default defineConfig([
       js: "#!/usr/bin/env node",
     },
   },
-  // MCP server (needs shebang for axint-mcp binary + DTS for library use)
+  // Importable MCP module (pure exports, no shebang)
   {
     entry: {
       "mcp/index": "src/mcp/index.ts",
     },
     format: ["esm"],
     dts: true,
+    splitting: false,
+    sourcemap: true,
+    target: "node22",
+  },
+  // MCP stdio binary (side-effectful axint-mcp entrypoint)
+  {
+    entry: {
+      "mcp/register": "src/mcp/register.ts",
+    },
+    format: ["esm"],
+    dts: false,
     splitting: false,
     sourcemap: true,
     target: "node22",

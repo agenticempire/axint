@@ -25,7 +25,8 @@ src/
 │   └── index.ts         # define*() APIs and helpers (exported from `@axint/compiler`)
 ├── mcp/
 │   ├── server.ts        # MCP server with axint.* tools and built-in prompts
-│   └── index.ts         # Entry point (also serves as axint-mcp binary)
+│   ├── index.ts         # Pure import surface for manifests + server helpers
+│   └── register.ts      # Side-effectful axint-mcp binary entry point
 ├── templates/
 │   └── index.ts         # Intent template registry (templates welcome!)
 └── cli/

@@ -213,7 +213,7 @@ Built-in prompts:
 
 ## Diagnostics
 
-150 diagnostic codes across eight validators with fix suggestions and color-coded output:
+130 diagnostic codes across the validator surface with fix suggestions and color-coded output:
 
 | Range | Domain |
 | --- | --- |

@@ -11,4 +11,4 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist dist/
-ENTRYPOINT ["node", "dist/mcp/index.js"]
+ENTRYPOINT ["node", "dist/mcp/register.js"]

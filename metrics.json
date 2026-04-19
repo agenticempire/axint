@@ -5,7 +5,7 @@
   "bundledTemplates": 25,
   "diagnostics": 130,
   "tests": {
-    "typescript": 542,
+    "typescript": 543,
     "python": 105
   },
   "registryPackages": 8,

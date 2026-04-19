@@ -35,7 +35,7 @@
   },
   "bin": {
     "axint": "dist/cli/index.js",
-    "axint-mcp": "dist/mcp/index.js",
+    "axint-mcp": "dist/mcp/register.js",
     "axint-mcp-http": "dist/mcp/http.js"
   },
   "main": "./dist/core/index.js",

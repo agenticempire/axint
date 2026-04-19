@@ -255,7 +255,7 @@ export const TOOL_MANIFEST = [
     name: "axint.validate",
     description:
       "Validate a TypeScript intent definition without generating Swift. " +
-      "Runs the full Axint validation pipeline (150 diagnostic rules) and " +
+      "Runs the full Axint validation pipeline (130 diagnostic rules) and " +
       "returns a JSON array of diagnostics: { severity: 'error'|'warning', " +
       "code: 'AXnnn', line: number, column: number, message: string, " +
       "suggestion?: string }. Returns an empty array [] when validation " +

@@ -1,6 +1,6 @@
 # Axint Roadmap
 
-_Last updated: April 2026 · Current release: [v0.3.8](https://github.com/agenticempire/axint/releases) · 52 days to WWDC 2026_
+_Last updated: April 2026 · Current release: [v0.3.9](https://github.com/agenticempire/axint/releases) · ahead of WWDC 2026_
 
 Axint is the open-source compiler that turns TypeScript definitions into native Apple platform code — App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds. This roadmap tracks what's shipped, what's next, and where we need help.
 
