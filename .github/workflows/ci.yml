@@ -31,6 +31,7 @@ jobs:
       - run: npm run versions:check
       - run: npm run metrics:check
       - run: npm run typecheck
+      - run: npm run typecheck:examples
       - run: npm run lint
       - run: npm run build
       - name: Run tests with coverage

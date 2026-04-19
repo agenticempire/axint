@@ -74,16 +74,6 @@ _Float = float
 _Bool = bool
 
 
-def _normalize_info_plist_keys(
-    raw: dict[str, str] | list[str] | tuple[str, ...] | None,
-) -> dict[str, str]:
-    if raw is None:
-        return {}
-    if isinstance(raw, dict):
-        return {str(key): str(value) for key, value in raw.items()}
-    return {str(key): str(key) for key in raw}
-
-
 def _infer_return_type(perform_fn: Callable[[], Any] | None) -> str | None:
     """
     Infer the return type from a perform function's type annotation.
@@ -191,7 +181,7 @@ class IntentDefinition:
     params: dict[str, IntentParameterSpec] = field(default_factory=dict)
     perform: Callable[[], Any] | None = None
     entitlements: tuple[str, ...] = ()
-    info_plist_keys: dict[str, str] = field(default_factory=dict)
+    info_plist_keys: tuple[str, ...] = ()
     is_discoverable: bool = True
 
     def to_ir(self, *, source_file: str | None = None, source_line: int | None = None) -> IntentIR:
@@ -301,7 +291,7 @@ def define_intent(
     params: dict[str, IntentParameterSpec] | None = None,
     perform: Callable[[], Any] | None = None,
     entitlements: list[str] | tuple[str, ...] | None = None,
-    info_plist_keys: dict[str, str] | list[str] | tuple[str, ...] | None = None,
+    info_plist_keys: list[str] | tuple[str, ...] | None = None,
     is_discoverable: bool = True,
 ) -> IntentDefinition:
     """
@@ -328,9 +318,7 @@ def define_intent(
     entitlements
         Apple entitlement identifiers this intent requires.
     info_plist_keys
-        Info.plist keys to emit next to the generated Swift. Prefer a
-        `{key: usage_description}` mapping; list/tuple input is accepted for
-        backwards compatibility and uses placeholder descriptions.
+        Info.plist keys to emit next to the generated Swift.
     is_discoverable
         Whether Siri can surface this intent proactively.
     """
@@ -342,7 +330,7 @@ def define_intent(
         params=dict(params or {}),
         perform=perform,
         entitlements=tuple(entitlements or ()),
-        info_plist_keys=_normalize_info_plist_keys(info_plist_keys),
+        info_plist_keys=tuple(info_plist_keys or ()),
         is_discoverable=is_discoverable,
     )
 

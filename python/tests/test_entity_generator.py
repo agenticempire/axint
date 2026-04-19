@@ -45,6 +45,8 @@ def test_generate_entity_skips_synthesized_id_when_present() -> None:
     )
     # Should appear exactly once — we don't double-declare it.
     assert swift.count("var id: String") == 1
+    assert '@Property(title: "uuid")' not in swift
+    assert '@Property(title: "display name")' in swift
     assert "var name: String" in swift
 
 
@@ -79,11 +81,16 @@ def test_generate_entity_query_id_protocol() -> None:
 
 def test_generate_entity_query_all() -> None:
     swift = generate_entity_query(_entity(query_type="all"))
+    assert "struct ContactQuery: EnumerableEntityQuery {" in swift
+    assert "func suggestedEntities() async throws -> [Contact]" in swift
+    assert 'static var findIntentDescription: IntentDescription = IntentDescription("Find Contact")' in swift
     assert "func allEntities() async throws -> [Contact]" in swift
 
 
 def test_generate_entity_query_string() -> None:
     swift = generate_entity_query(_entity(query_type="string"))
+    assert "struct ContactQuery: EntityStringQuery {" in swift
+    assert "func suggestedEntities() async throws -> [Contact]" in swift
     assert "func entities(matching string: String) async throws -> [Contact]" in swift
 
 
@@ -98,18 +105,19 @@ def test_generate_entity_query_property() -> None:
         )
     )
     assert "struct ContactQuery: EntityPropertyQuery {" in swift
+    assert 'static var findIntentDescription: IntentDescription = IntentDescription("Find Contact")' in swift
     assert "static var properties = QueryProperties {" in swift
     # String props get Equal + Contains comparators.
-    assert "Property(\\Contact.name) {" in swift
+    assert "Property(\\.$name) {" in swift
     assert "EqualToComparator()" in swift
     assert "ContainsComparator()" in swift
     # Numeric props get Equal + Less + Greater.
-    assert "Property(\\Contact.age) {" in swift
+    assert "Property(\\.$age) {" in swift
     assert "LessThanComparator()" in swift
     assert "GreaterThanComparator()" in swift
     # Both go into the sort options block.
-    assert "SortableBy(\\Contact.name)" in swift
-    assert "SortableBy(\\Contact.age)" in swift
+    assert "SortableBy(\\.$name)" in swift
+    assert "SortableBy(\\.$age)" in swift
     # And the filter/sort function signature is emitted.
     assert "mode: ComparatorMode" in swift
     assert "limit: Int?" in swift

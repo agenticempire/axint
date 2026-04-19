@@ -230,12 +230,9 @@ def generate_info_plist_fragment(intent: IntentIR) -> str | None:
         '<plist version="1.0">',
         "<dict>",
     ]
-    for key, description in intent.info_plist_keys.items():
-        resolved_description = (
-            f"TODO: Add description for {key}" if not description or description == key else description
-        )
+    for key in intent.info_plist_keys:
         lines.append(f"    <key>{escape_xml(key)}</key>")
-        lines.append(f"    <string>{escape_xml(resolved_description)}</string>")
+        lines.append(f"    <string>TODO: Add description for {escape_xml(key)}</string>")
     lines.append("</dict>")
     lines.append("</plist>")
     lines.append("")
@@ -293,6 +290,13 @@ def generate_entity(entity: EntityIR) -> str:
         lines.append("    var id: String")
 
     for prop in entity.properties:
+        if prop.name == "id":
+            lines.append(f"    var id: {param_type_to_swift(prop.type)}")
+            continue
+        if prop.description:
+            lines.append(
+                f'    @Property(title: "{escape_swift_string(prop.description)}")'
+            )
         lines.append(f"    var {prop.name}: {param_type_to_swift(prop.type)}")
 
     lines.append("")
@@ -334,16 +338,35 @@ def generate_entity(entity: EntityIR) -> str:
 
 def generate_entity_query(entity: EntityIR) -> str:
     """Generate the EntityQuery conformance matching the entity's query_type."""
-    protocol = "EntityPropertyQuery" if entity.query_type == "property" else "EntityQuery"
+    if entity.query_type == "all":
+        protocol = "EnumerableEntityQuery"
+    elif entity.query_type == "string":
+        protocol = "EntityStringQuery"
+    elif entity.query_type == "property":
+        protocol = "EntityPropertyQuery"
+    else:
+        protocol = "EntityQuery"
 
-    lines: list[str] = [
-        f"struct {entity.name}Query: {protocol} {{",
-        f"    func entities(for identifiers: [{entity.name}.ID]) async throws -> [{entity.name}] {{",
-        "        // TODO: Fetch entities by IDs",
-        "        return []",
-        "    }",
-        "",
-    ]
+    lines: list[str] = [f"struct {entity.name}Query: {protocol} {{"]
+    if entity.query_type in {"all", "property"}:
+        lines.append(
+            f'    static var findIntentDescription: IntentDescription = IntentDescription("Find {escape_swift_string(entity.name)}")'
+        )
+        lines.append("")
+    lines.extend(
+        [
+            f"    func entities(for identifiers: [{entity.name}.ID]) async throws -> [{entity.name}] {{",
+            "        // TODO: Fetch entities by IDs",
+            "        return []",
+            "    }",
+            "",
+            f"    func suggestedEntities() async throws -> [{entity.name}] {{",
+            "        // TODO: Return suggested entities for pickers and shortcuts",
+            "        return []",
+            "    }",
+            "",
+        ]
+    )
 
     if entity.query_type == "all":
         lines.append(f"    func allEntities() async throws -> [{entity.name}] {{")
@@ -360,12 +383,12 @@ def generate_entity_query(entity: EntityIR) -> str:
         lines.append("        return []")
         lines.append("    }")
     elif entity.query_type == "property":
-        primitives = [p for p in entity.properties if isinstance(p.type, str)]
+        primitives = [p for p in entity.properties if isinstance(p.type, str) and p.name != "id"]
 
         lines.append("    static var properties = QueryProperties {")
         for prop in primitives:
             swift_type = param_type_to_swift(prop.type)
-            lines.append(f"        Property(\\{entity.name}.{prop.name}) {{")
+            lines.append(f"        Property(\\.${prop.name}) {{")
             lines.append("            EqualToComparator()")
             if swift_type == "String":
                 lines.append("            ContainsComparator()")
@@ -377,7 +400,7 @@ def generate_entity_query(entity: EntityIR) -> str:
         lines.append("")
         lines.append("    static var sortingOptions = SortingOptions {")
         for prop in primitives:
-            lines.append(f"        SortableBy(\\{entity.name}.{prop.name})")
+            lines.append(f"        SortableBy(\\.${prop.name})")
         lines.append("    }")
         lines.append("")
         lines.append(

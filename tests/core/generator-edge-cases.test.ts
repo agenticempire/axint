@@ -381,7 +381,7 @@ describe("generateSwift — enum types", () => {
 });
 
 describe("generateSwift — dynamic options", () => {
-  it("handles dynamic options parameter as array", () => {
+  it("emits a DynamicOptionsProvider and uses the inner type on the parameter", () => {
     const swift = generateSwift(
       makeIntent({
         parameters: [
@@ -399,10 +399,15 @@ describe("generateSwift — dynamic options", () => {
         ],
       })
     );
-    expect(swift).toContain("var contact: [DynamicOptionsResult<String>]");
+    expect(swift).toContain("struct ContactProvider: DynamicOptionsProvider");
+    expect(swift).toContain("func results() async throws -> [String]");
+    expect(swift).toContain(
+      '@Parameter(title: "Contact", description: "Select a contact", optionsProvider: ContactProvider())'
+    );
+    expect(swift).toContain("var contact: String");
   });
 
-  it("handles optional dynamic options as optional array", () => {
+  it("handles optional dynamic options as optional value types", () => {
     const swift = generateSwift(
       makeIntent({
         parameters: [
@@ -423,7 +428,62 @@ describe("generateSwift — dynamic options", () => {
         ],
       })
     );
-    expect(swift).toContain("var file: [DynamicOptionsResult<String>]?");
+    expect(swift).toContain("struct FileProvider: DynamicOptionsProvider");
+    expect(swift).toContain("var file: String?");
+  });
+});
+
+describe("generateSwift — parameter summaries", () => {
+  it("renders summary placeholders against intent parameters", () => {
+    const swift = generateSwift(
+      makeIntent({
+        parameterSummary: {
+          kind: "summary",
+          template: "Open ${trail} in ${region}",
+        },
+      })
+    );
+
+    expect(swift).toContain("static var parameterSummary: some ParameterSummary");
+    expect(swift).toContain('Summary("Open \\(\\.$trail) in \\(\\.$region)")');
+  });
+
+  it("renders switch and when blocks for interactive summaries", () => {
+    const swift = generateSwift(
+      makeIntent({
+        parameterSummary: {
+          kind: "switch",
+          parameter: "includeNearby",
+          cases: [
+            {
+              value: true,
+              summary: {
+                kind: "when",
+                parameter: "region",
+                then: {
+                  kind: "summary",
+                  template: "Plan ${trail} near ${region}",
+                },
+                otherwise: {
+                  kind: "summary",
+                  template: "Plan ${trail} near me",
+                },
+              },
+            },
+          ],
+          default: {
+            kind: "summary",
+            template: "Plan ${trail}",
+          },
+        },
+      })
+    );
+
+    expect(swift).toContain("Switch(\\.$includeNearby)");
+    expect(swift).toContain("Case(true)");
+    expect(swift).toContain("When(\\.$region, .hasAnyValue)");
+    expect(swift).toContain('Summary("Plan \\(\\.$trail) near \\(\\.$region)")');
+    expect(swift).toContain("DefaultCase");
   });
 });
 
@@ -495,7 +555,9 @@ describe("generateEntity", () => {
     };
     const swift = generateEntity(entity);
     expect(swift).toContain("struct Contact: AppEntity");
+    expect(swift).toContain('@Property(title: "Name")');
     expect(swift).toContain("var name: String");
+    expect(swift).toContain('@Property(title: "Email")');
     expect(swift).toContain("var email: String");
     expect(swift).toContain("static var defaultQuery = ContactQuery()");
   });
@@ -544,6 +606,7 @@ describe("generateEntity", () => {
     const swift = generateEntity(entity);
     const idCount = (swift.match(/var id: String/g) || []).length;
     expect(idCount).toBe(1);
+    expect(swift).not.toContain('@Property(title: "ID")');
   });
 
   it("generates TypeDisplayRepresentation with entity name", () => {
@@ -671,9 +734,13 @@ describe("generateEntityQuery", () => {
       queryType: "all" as const,
     };
     const swift = generateEntityQuery(entity);
-    expect(swift).toContain("struct EventQuery: EntityQuery");
+    expect(swift).toContain("struct EventQuery: EnumerableEntityQuery");
     expect(swift).toContain("func entities(for identifiers: [Event.ID])");
+    expect(swift).toContain("func suggestedEntities()");
     expect(swift).toContain("func allEntities()");
+    expect(swift).toContain(
+      'static var findIntentDescription: IntentDescription = IntentDescription("Find Event")'
+    );
   });
 
   it("generates EntityQuery for 'id' query type", () => {
@@ -715,6 +782,8 @@ describe("generateEntityQuery", () => {
       queryType: "string" as const,
     };
     const swift = generateEntityQuery(entity);
+    expect(swift).toContain("struct LocationQuery: EntityStringQuery");
+    expect(swift).toContain("func suggestedEntities()");
     expect(swift).toContain("func entities(matching string: String)");
     expect(swift).not.toContain("allEntities()");
   });
@@ -743,8 +812,13 @@ describe("generateEntityQuery", () => {
     };
     const swift = generateEntityQuery(entity);
     expect(swift).toContain("struct ProductQuery: EntityPropertyQuery");
+    expect(swift).toContain(
+      'static var findIntentDescription: IntentDescription = IntentDescription("Find Product")'
+    );
     expect(swift).toContain("static var properties = QueryProperties");
     expect(swift).toContain("static var sortingOptions = SortingOptions");
+    expect(swift).toContain("Property(\\.$name)");
+    expect(swift).toContain("SortableBy(\\.$name)");
     expect(swift).toContain("func entities(matching comparators:");
   });
 
@@ -939,6 +1013,6 @@ describe("generateSwift — with entities", () => {
     });
     const swift = generateSwift(intent);
     expect(swift).toContain("struct Item: AppEntity");
-    expect(swift).toContain("struct ItemQuery: EntityQuery");
+    expect(swift).toContain("struct ItemQuery: EnumerableEntityQuery");
   });
 });

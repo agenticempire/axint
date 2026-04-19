@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@axint/compiler": ["./src/core/index.ts"],
+      "@axint/sdk": ["./src/sdk/index.ts"]
+    }
+  },
+  "include": ["examples/**/*.ts"]
+}

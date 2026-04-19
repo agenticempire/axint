@@ -20,6 +20,7 @@ import type {
   IRType,
   IREntity,
   DisplayRepresentation,
+  IRParameterSummary,
 } from "./types.js";
 import { PARAM_TYPES, LEGACY_PARAM_ALIASES, isPrimitiveType } from "./types.js";
 import {
@@ -99,6 +100,13 @@ export function parseIntentSource(
   const domain = readStringLiteral(props.get("domain"));
   const category = readStringLiteral(props.get("category"));
   const isDiscoverable = readBooleanLiteral(props.get("isDiscoverable"));
+  const parameterSummary = props.get("parameterSummary")
+    ? parseParameterSummaryDefinition(
+        props.get("parameterSummary")!,
+        filePath,
+        sourceFile
+      )
+    : undefined;
 
   if (!name) {
     throw new ParserError(
@@ -170,6 +178,7 @@ export function parseIntentSource(
     entitlements: entitlements.length > 0 ? entitlements : undefined,
     infoPlistKeys: Object.keys(infoPlistKeys).length > 0 ? infoPlistKeys : undefined,
     isDiscoverable: isDiscoverable ?? undefined,
+    parameterSummary,
     entities: entities.length > 0 ? entities : undefined,
     donateOnPerform: donateOnPerform ?? undefined,
     customResultType: customResultType ?? undefined,
@@ -283,6 +292,123 @@ function validateQueryType(
   return narrowed;
 }
 
+function parseParameterSummaryDefinition(
+  node: ts.Node,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRParameterSummary {
+  const inlineSummary = readStringLiteral(node);
+  if (inlineSummary !== null) {
+    return {
+      kind: "summary",
+      template: inlineSummary,
+    };
+  }
+
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX024",
+      "parameterSummary must be a string or object literal",
+      filePath,
+      posOf(sourceFile, node),
+      'Use a template string like "Open ${book}" or an object with when/switch blocks.'
+    );
+  }
+
+  const props = propertyMap(node);
+  const whenParam = readStringLiteral(props.get("when"));
+  if (whenParam) {
+    const thenNode = props.get("then");
+    if (!thenNode) {
+      throw new ParserError(
+        "AX025",
+        "parameterSummary.when requires a then branch",
+        filePath,
+        posOf(sourceFile, node)
+      );
+    }
+
+    return {
+      kind: "when",
+      parameter: whenParam,
+      then: parseParameterSummaryDefinition(thenNode, filePath, sourceFile),
+      otherwise: props.get("otherwise")
+        ? parseParameterSummaryDefinition(props.get("otherwise")!, filePath, sourceFile)
+        : undefined,
+    };
+  }
+
+  const switchParam = readStringLiteral(props.get("switch"));
+  if (switchParam) {
+    const casesNode = props.get("cases");
+    if (!casesNode || !ts.isArrayLiteralExpression(casesNode)) {
+      throw new ParserError(
+        "AX026",
+        "parameterSummary.switch requires a cases array",
+        filePath,
+        posOf(sourceFile, node)
+      );
+    }
+
+    const cases = casesNode.elements.map((element) => {
+      if (!ts.isObjectLiteralExpression(element)) {
+        throw new ParserError(
+          "AX027",
+          "parameterSummary.cases entries must be object literals",
+          filePath,
+          posOf(sourceFile, element)
+        );
+      }
+      const caseProps = propertyMap(element);
+      const valueNode = caseProps.get("value");
+      const summaryNode = caseProps.get("summary");
+      if (!valueNode || !summaryNode) {
+        throw new ParserError(
+          "AX028",
+          "parameterSummary switch cases require value and summary",
+          filePath,
+          posOf(sourceFile, element)
+        );
+      }
+
+      const value = evaluateLiteral(valueNode);
+      if (
+        typeof value !== "string" &&
+        typeof value !== "number" &&
+        typeof value !== "boolean"
+      ) {
+        throw new ParserError(
+          "AX029",
+          "parameterSummary switch case values must be string, number, or boolean literals",
+          filePath,
+          posOf(sourceFile, valueNode)
+        );
+      }
+
+      return {
+        value,
+        summary: parseParameterSummaryDefinition(summaryNode, filePath, sourceFile),
+      };
+    });
+
+    return {
+      kind: "switch",
+      parameter: switchParam,
+      cases,
+      default: props.get("default")
+        ? parseParameterSummaryDefinition(props.get("default")!, filePath, sourceFile)
+        : undefined,
+    };
+  }
+
+  throw new ParserError(
+    "AX030",
+    "parameterSummary object must use either when/then or switch/cases",
+    filePath,
+    posOf(sourceFile, node)
+  );
+}
+
 // ─── Parameter Extraction ────────────────────────────────────────────
 
 function extractParameters(
@@ -390,16 +516,27 @@ function extractParamCall(
 
   // For entity and dynamicOptions, the structure differs:
   // - param.entity("EntityName", "description", config?)
-  // - param.dynamicOptions("Provider", param.string(...), "description", config?)
+  // - param.dynamicOptions("Provider", param.string(...))
   let descriptionArg: ts.Expression | undefined;
   let configArg: ts.Expression | undefined;
 
   if (typeName === "entity" && expr.arguments.length >= 2) {
     descriptionArg = expr.arguments[1];
     configArg = expr.arguments[2];
-  } else if (typeName === "dynamicOptions" && expr.arguments.length >= 3) {
-    descriptionArg = expr.arguments[2];
-    configArg = expr.arguments[3];
+  } else if (typeName === "dynamicOptions" && expr.arguments.length >= 2) {
+    const innerArg = expr.arguments[1];
+    if (
+      ts.isCallExpression(innerArg) &&
+      ts.isPropertyAccessExpression(innerArg.expression) &&
+      ts.isIdentifier(innerArg.expression.expression) &&
+      innerArg.expression.expression.text === "param"
+    ) {
+      descriptionArg = innerArg.arguments[0];
+      configArg = innerArg.arguments[1];
+    } else {
+      descriptionArg = expr.arguments[2];
+      configArg = expr.arguments[3];
+    }
   } else {
     descriptionArg = expr.arguments[0];
     configArg = expr.arguments[1];

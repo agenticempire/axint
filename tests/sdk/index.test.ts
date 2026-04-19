@@ -52,6 +52,14 @@ describe("param helpers", () => {
     expect(p.title).toBe("Item Count");
   });
 
+  it("param.dynamicOptions preserves provider and inner type metadata", () => {
+    const p = param.dynamicOptions("PlaylistOptions", param.string("Playlist"));
+    expect(p.type).toBe("dynamicOptions");
+    expect(p.providerName).toBe("PlaylistOptions");
+    expect(p.innerType).toBe("string");
+    expect(p.description).toBe("Playlist");
+  });
+
   it("config spread doesn't override type or description", () => {
     // Even if someone passes type in config, the positional type wins
     const p = param.string("Name", { description: "override" } as Partial<{
@@ -132,5 +140,29 @@ describe("defineIntent", () => {
 
     const output = await config.perform({ msg: "hello" });
     expect(output).toEqual({ echo: "hello" });
+  });
+
+  it("preserves parameter summary definitions", () => {
+    const config = defineIntent({
+      name: "OpenTrail",
+      title: "Open Trail",
+      description: "Opens a trail plan",
+      parameterSummary: {
+        when: "region",
+        then: "Open ${trail} in ${region}",
+        otherwise: "Open ${trail}",
+      },
+      params: {
+        trail: param.string("Trail"),
+        region: param.string("Region", { required: false }),
+      },
+      perform: async ({ trail, region }) => ({ trail, region }),
+    });
+
+    expect(config.parameterSummary).toEqual({
+      when: "region",
+      then: "Open ${trail} in ${region}",
+      otherwise: "Open ${trail}",
+    });
   });
 });

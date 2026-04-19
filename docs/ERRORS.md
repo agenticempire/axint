@@ -1,109 +1,488 @@
 # Axint Error Code Reference
 
-Axint uses a Rust-inspired diagnostic system with error codes, locations, and fix suggestions.
+Axint emits structured diagnostics with:
 
-## Parser Errors (AX001–AX005)
+- a stable `AX###` code
+- a severity (`error`, `warning`, or `info`)
+- a file / line when available
+- a concrete suggestion when Axint can infer one
 
-These errors occur when Axint cannot parse your TypeScript intent definition.
+This page focuses on the errors people are most likely to hit in real projects and shows:
 
-### AX001 — No `defineIntent()` call found
+1. what triggers the diagnostic
+2. what the message looks like
+3. the smallest fix that gets you moving again
 
-Your file must contain a `defineIntent({...})` call.
+## Parser Errors (AX001–AX030)
 
+These happen before Axint can build IR from your source.
+
+### AX001 — No supported `define*()` call found
+
+**Trigger**
+
+```typescript
+const x = 42;
 ```
+
+**Typical diagnostic**
+
+```text
 error[AX001]: No defineIntent() call found in src/intents/my-intent.ts
-  --> src/intents/my-intent.ts
-  = help: Ensure your file exports a defineIntent({...}) call.
 ```
 
-**Fix:** Make sure your file calls `defineIntent()`:
+**Fix**
 
 ```typescript
 import { defineIntent, param } from "@axint/compiler";
-export default defineIntent({ /* ... */ });
+
+export default defineIntent({
+  name: "CreateEvent",
+  title: "Create Event",
+  description: "Creates a calendar event",
+  params: {
+    title: param.string("Event title"),
+  },
+  perform: async ({ title }) => ({ title }),
+});
 ```
 
-### AX002 — Missing required field: `name`
+### AX002 / AX003 / AX004 — Missing required intent fields
 
-Every intent needs a `name` field.
+**Trigger**
 
+```typescript
+export default defineIntent({
+  name: "CreateEvent",
+  params: {},
+  perform: async () => "ok",
+});
 ```
-error[AX002]: Missing required field: name
-  = help: Add a name field: name: "MyIntent"
+
+**Typical diagnostics**
+
+```text
+error[AX003]: Missing required field: title
+error[AX004]: Missing required field: description
 ```
 
-**Fix:** Add a PascalCase name: `name: "CreateEvent"`
+**Fix**
 
-### AX003 — Missing required field: `title`
-
-Every intent needs a `title` for Siri and Shortcuts display.
-
-**Fix:** Add a human-readable title: `title: "Create Calendar Event"`
-
-### AX004 — Missing required field: `description`
-
-Every intent needs a `description` explaining what it does.
-
-**Fix:** Add a description: `description: "Creates a new event in the user's calendar"`
-
-### AX005 — Unknown param type
-
-You used a param type that Axint doesn't support yet.
-
+```typescript
+export default defineIntent({
+  name: "CreateEvent",
+  title: "Create Event",
+  description: "Creates a calendar event",
+  params: {},
+  perform: async () => "ok",
+});
 ```
+
+### AX005 — Unknown parameter helper
+
+**Trigger**
+
+```typescript
+params: {
+  count: param.int64("Count"),
+}
+```
+
+**Typical diagnostic**
+
+```text
 error[AX005]: Unknown param type: param.int64
-  = help: Supported types: string, number, boolean, date, duration, url
 ```
 
-**Supported types:** `param.string()`, `param.number()`, `param.boolean()`, `param.date()`, `param.duration()`, `param.url()`
+**Fix**
 
-## Validation Errors (AX100–AX106)
-
-These errors check your intent against Apple App Intents constraints.
-
-### AX100 — Intent name not PascalCase
-
-Swift requires struct names in PascalCase. Axint appends `Intent` to your name, so `SendMessage` becomes `SendMessageIntent`.
-
-```
-error[AX100]: Intent name "sendMessage" must be PascalCase (e.g., "CreateEvent")
-  = help: Rename to "SendMessage"
+```typescript
+params: {
+  count: param.int("Count"),
+}
 ```
 
-**Why PascalCase?** Swift structs follow PascalCase convention. App Intents registered with Siri use the struct name for identity.
+Supported helpers today:
 
-### AX101 — Empty title
+- `param.string`
+- `param.int`
+- `param.double`
+- `param.float`
+- `param.boolean`
+- `param.date`
+- `param.duration`
+- `param.url`
+- `param.entity`
+- `param.dynamicOptions`
 
-The title appears in Siri and the Shortcuts app. It cannot be empty.
+### AX024–AX030 — Invalid `parameterSummary`
 
-### AX102 — Empty description
+These errors happen when the `parameterSummary` block is shaped incorrectly.
 
-The description helps users understand what the intent does in the Shortcuts gallery.
+**Trigger**
+
+```typescript
+parameterSummary: {
+  when: "region",
+}
+```
+
+**Typical diagnostic**
+
+```text
+error[AX025]: parameterSummary.when requires a then branch
+```
+
+**Fix**
+
+```typescript
+parameterSummary: {
+  when: "region",
+  then: "Plan ${trail} in ${region}",
+  otherwise: "Plan ${trail}",
+}
+```
+
+You can also use the simple string form:
+
+```typescript
+parameterSummary: "Open ${trail} in ${region}"
+```
+
+## Intent Validation Errors (AX100–AX113)
+
+These validate intent and entity IR against Apple-facing constraints.
+
+### AX100 — Intent name must be PascalCase
+
+**Trigger**
+
+```typescript
+name: "sendMessage"
+```
+
+**Typical diagnostic**
+
+```text
+error[AX100]: Intent name "sendMessage" must be PascalCase
+```
+
+**Fix**
+
+```typescript
+name: "SendMessage"
+```
+
+### AX101 / AX102 — Empty title or description
+
+**Trigger**
+
+```typescript
+title: "",
+description: "",
+```
+
+**Fix**
+
+```typescript
+title: "Send Message",
+description: "Sends a message to a contact",
+```
 
 ### AX103 — Invalid Swift identifier in parameter name
 
-Parameter names become Swift properties. They must start with a letter or underscore and contain only alphanumeric characters.
+**Trigger**
 
-### AX104 — Empty parameter description (warning)
+```typescript
+params: {
+  "trail-name": param.string("Trail"),
+}
+```
 
-Parameters without descriptions display without context in Siri. This is a warning, not an error.
+**Fix**
 
-### AX105 — Too many parameters (warning)
+```typescript
+params: {
+  trailName: param.string("Trail"),
+}
+```
 
-Apple recommends 10 or fewer parameters per intent for usability. Consider splitting into multiple intents or grouping parameters into an entity.
+### AX104 / AX105 / AX106 — Quality warnings
 
-### AX106 — Title exceeds 60 characters (warning)
+These are warnings, not blockers:
 
-Siri may truncate titles longer than 60 characters. Consider shortening.
+- `AX104`: parameter description is empty
+- `AX105`: too many parameters for a single intent
+- `AX106`: title is likely too long for Siri / Shortcuts UI
 
-## Swift Validation Errors (AX200–AX202)
+The usual fix is to shorten labels or split one overloaded intent into smaller, clearer intents.
 
-These errors validate the generated Swift code (you shouldn't see these unless there's a generator bug).
+### AX110 — Entity name must be PascalCase
 
-### AX200 — Missing `import AppIntents`
+**Trigger**
 
-### AX201 — No AppIntent conformance
+```typescript
+defineEntity({
+  name: "trail",
+  display: { title: "name" },
+  properties: {
+    id: param.string("ID"),
+    name: param.string("Name"),
+  },
+});
+```
 
-### AX202 — Missing `perform()` function
+**Fix**
 
-If you encounter AX200–AX202, please [file a bug](https://github.com/agenticempire/axint/issues/new).
+```typescript
+defineEntity({
+  name: "Trail",
+  display: { title: "name" },
+  properties: {
+    id: param.string("ID"),
+    name: param.string("Name"),
+  },
+});
+```
+
+### AX111 / AX112 / AX113 — Entity structure problems
+
+Common causes:
+
+- `AX111`: the entity has no properties
+- `AX112`: `display.title` points at a property that does not exist
+- `AX113`: `query` is not one of `"id"`, `"all"`, `"string"`, or `"property"`
+
+**Bad**
+
+```typescript
+defineEntity({
+  name: "Trail",
+  display: { title: "label" },
+  properties: {},
+  query: "search",
+});
+```
+
+**Good**
+
+```typescript
+defineEntity({
+  name: "Trail",
+  display: { title: "name", subtitle: "region" },
+  properties: {
+    id: param.string("Trail ID"),
+    name: param.string("Trail name"),
+    region: param.string("Region"),
+  },
+  query: "property",
+});
+```
+
+## View Errors (AX301–AX322)
+
+### AX301 — Missing or invalid view name
+
+**Trigger**
+
+```typescript
+export default defineView({
+  body: [],
+});
+```
+
+**Fix**
+
+```typescript
+export default defineView({
+  name: "ProfileCard",
+  body: [
+    view.text("Hello"),
+  ],
+});
+```
+
+### AX308 / AX322 — Broken view body or empty output
+
+If a view parses but renders no useful body, simplify first:
+
+```typescript
+body: [
+  view.vstack([
+    view.text("Profile"),
+  ], { spacing: 12 }),
+]
+```
+
+Then reintroduce conditionals, loops, or raw Swift one piece at a time.
+
+## Widget Errors (AX401–AX422)
+
+### AX402 — Missing widget metadata
+
+**Trigger**
+
+```typescript
+export default defineWidget({
+  name: "StepCounter",
+  families: ["systemSmall"],
+  entry: {},
+  body: [],
+});
+```
+
+**Fix**
+
+```typescript
+export default defineWidget({
+  name: "StepCounter",
+  displayName: "Step Counter",
+  description: "Shows daily step progress",
+  families: ["systemSmall"],
+  entry: {
+    steps: entry.int("Current step count", { default: 0 }),
+  },
+  body: [
+    view.text("\\(steps)"),
+  ],
+});
+```
+
+### AX411 / AX412 — Unsupported families or empty body
+
+Make sure you:
+
+- choose valid families like `systemSmall`, `systemMedium`, `accessoryInline`
+- emit at least one body node
+
+## App Errors (AX500–AX522)
+
+### AX510 — App name must be PascalCase
+
+**Bad**
+
+```typescript
+name: "weatherApp"
+```
+
+**Good**
+
+```typescript
+name: "WeatherApp"
+```
+
+### AX511 / AX514 — Missing scenes or bad platform guards
+
+**Bad**
+
+```typescript
+export default defineApp({
+  name: "WeatherApp",
+  scenes: [
+    scene.settings("SettingsView"),
+  ],
+});
+```
+
+**Better**
+
+```typescript
+export default defineApp({
+  name: "WeatherApp",
+  scenes: [
+    scene.windowGroup("ContentView"),
+    scene.settings("SettingsView", { platform: "macOS" }),
+  ],
+});
+```
+
+## Registry / Bundle Safety Errors
+
+### AX600 — Bundle hash mismatch during `axint add`
+
+Axint computes the bundle hash locally and compares it with the registry response before writing files.
+
+**Typical diagnostic**
+
+```text
+[AX600] Bundle hash mismatch for @namespace/slug@1.0.0
+```
+
+**What it means**
+
+- the published bytes changed
+- the registry response is inconsistent
+- or your local fetch response is tampered with
+
+**Fix**
+
+Do not force past it. Re-publish the package or inspect the registry response first.
+
+## Swift Validation / Auto-Fix Errors (AX700+)
+
+These apply when you validate generated or hand-written Swift with `axint swift validate`.
+
+### AX701 — Missing `perform()`
+
+**Trigger**
+
+```swift
+struct SendMessageIntent: AppIntent {
+    static let title: LocalizedStringResource = "Send Message"
+}
+```
+
+**Fix**
+
+```swift
+struct SendMessageIntent: AppIntent {
+    static let title: LocalizedStringResource = "Send Message"
+
+    func perform() async throws -> some IntentResult {
+        .result()
+    }
+}
+```
+
+### AX703 — `@State let` should be mutable
+
+**Trigger**
+
+```swift
+@State let count: Int = 0
+```
+
+**Fix**
+
+```swift
+@State var count: Int = 0
+```
+
+### AX720 — Legacy main-thread dispatch in Swift 6
+
+**Trigger**
+
+```swift
+DispatchQueue.main.async {
+    self.status = "done"
+}
+```
+
+**Fix**
+
+```swift
+Task { @MainActor in
+    self.status = "done"
+}
+```
+
+## When To File A Bug
+
+Please open an issue if:
+
+- the diagnostic points at valid code
+- the suggested fix is wrong
+- `AX200`–`AX202` show up from generated Swift
+- TypeScript and Python generate materially different Swift for the same feature
+
+Repo: [github.com/agenticempire/axint/issues](https://github.com/agenticempire/axint/issues)
