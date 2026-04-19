@@ -52,7 +52,9 @@ def test_define_intent_full() -> None:
             "is_all_day": param.boolean("Whether the event is all-day", optional=True, default=False),
         },
         entitlements=["com.apple.developer.calendars"],
-        info_plist_keys=["NSCalendarsUsageDescription"],
+        info_plist_keys={
+            "NSCalendarsUsageDescription": "Create events in the user's calendar",
+        },
         is_discoverable=True,
     )
     ir = intent.to_ir()
@@ -64,7 +66,9 @@ def test_define_intent_full() -> None:
     assert ir.parameters[3].optional is True
     assert ir.parameters[3].default is False
     assert ir.entitlements == ("com.apple.developer.calendars",)
-    assert ir.info_plist_keys == ("NSCalendarsUsageDescription",)
+    assert ir.info_plist_keys == {
+        "NSCalendarsUsageDescription": "Create events in the user's calendar",
+    }
 
 
 def test_ir_to_dict_matches_ts_schema() -> None:
@@ -83,6 +87,19 @@ def test_ir_to_dict_matches_ts_schema() -> None:
     assert d["isDiscoverable"] is True  # camelCase — not snake_case
     assert d["parameters"][0]["name"] == "light_id"
     assert d["parameters"][0]["type"] == "string"
+
+
+def test_define_intent_accepts_legacy_info_plist_key_lists() -> None:
+    intent = define_intent(
+        name="LegacyIntent",
+        title="Legacy",
+        description="Legacy",
+        domain="utility",
+        info_plist_keys=["NSCalendarsUsageDescription"],
+    )
+    assert intent.to_ir().info_plist_keys == {
+        "NSCalendarsUsageDescription": "NSCalendarsUsageDescription",
+    }
 
 
 def test_ir_round_trip() -> None:

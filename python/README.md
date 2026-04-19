@@ -40,7 +40,9 @@ create_event = define_intent(
         "is_all_day": param.boolean("Whether the event is all-day", optional=True, default=False),
     },
     entitlements=["com.apple.developer.calendars"],
-    info_plist_keys=["NSCalendarsUsageDescription"],
+    info_plist_keys={
+        "NSCalendarsUsageDescription": "Create events in the user's calendar",
+    },
 )
 ```
 
