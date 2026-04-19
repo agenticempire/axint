@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.9] - 2026-04-19
+
+- Align marketplace packaging with `@axint/compiler` v0.3.9
+- Keep install surfaces in sync with the current MCP/Cloud/docs perimeter
+
 ## [0.3.8] - 2026-04-16
 
 - Align marketplace packaging with `@axint/compiler` v0.3.8
