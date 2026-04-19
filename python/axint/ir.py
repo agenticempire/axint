@@ -10,7 +10,7 @@ a pile of one-off generators.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 ParamType = Literal[
@@ -44,15 +44,15 @@ WidgetRefreshPolicy = Literal["atEnd", "after", "never"]
 SceneKind = Literal["windowGroup", "window", "documentGroup", "settings"]
 
 
-def _parse_plist_keys(raw: Any) -> tuple[str, ...]:
-    """Accept dict (TS format) or list (Python format) for backwards compat."""
+def _parse_plist_keys(raw: Any) -> dict[str, str]:
+    """Accept dict (preferred) or list (legacy) for backwards compat."""
     if raw is None:
-        return ()
+        return {}
     if isinstance(raw, dict):
-        return tuple(raw.keys())
+        return {str(k): str(v) for k, v in raw.items()}
     if isinstance(raw, (list, tuple)):
-        return tuple(str(k) for k in raw)
-    return ()
+        return {str(k): str(k) for k in raw}
+    return {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,7 +177,7 @@ class IntentIR:
     domain: str
     parameters: tuple[IntentParameter, ...] = ()
     entitlements: tuple[str, ...] = ()
-    info_plist_keys: tuple[str, ...] = ()
+    info_plist_keys: dict[str, str] = field(default_factory=dict)
     is_discoverable: bool = True
     return_type: str | None = None
     source_file: str | None = None
@@ -195,10 +195,7 @@ class IntentIR:
         if self.entitlements:
             out["entitlements"] = list(self.entitlements)
         if self.info_plist_keys:
-            # TS side expects Record<string, string> — emit as dict with
-            # usage-description values. The Python SDK currently only stores
-            # key names, so we use the key itself as the placeholder value.
-            out["infoPlistKeys"] = {k: k for k in self.info_plist_keys}
+            out["infoPlistKeys"] = dict(self.info_plist_keys)
         if self.return_type is not None:
             out["returnType"] = self.return_type
         if self.source_file is not None:

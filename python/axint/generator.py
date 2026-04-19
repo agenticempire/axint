@@ -230,9 +230,12 @@ def generate_info_plist_fragment(intent: IntentIR) -> str | None:
         '<plist version="1.0">',
         "<dict>",
     ]
-    for key in intent.info_plist_keys:
+    for key, description in intent.info_plist_keys.items():
+        resolved_description = (
+            f"TODO: Add description for {key}" if not description or description == key else description
+        )
         lines.append(f"    <key>{escape_xml(key)}</key>")
-        lines.append(f"    <string>TODO: Add description for {escape_xml(key)}</string>")
+        lines.append(f"    <string>{escape_xml(resolved_description)}</string>")
     lines.append("</dict>")
     lines.append("</plist>")
     lines.append("")
