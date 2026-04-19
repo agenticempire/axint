@@ -255,7 +255,7 @@ Full reference: [`docs/ERRORS.md`](docs/ERRORS.md)
 
 ## Playground
 
-No install required — [axint.ai/#playground](https://axint.ai/#playground) runs the entire compiler in-browser with zero server round-trip.
+No install required — [axint.ai/#playground](https://axint.ai/#playground) runs the same compiler in a server-backed playground, returning Swift live without a local install.
 
 ---
 
@@ -278,7 +278,7 @@ axint/
 ├── python/          # Python SDK
 ├── extensions/      # Editor extensions (9 editors)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # 508 vitest tests
+├── tests/           # 543 vitest tests
 ├── examples/        # Example definitions
 └── docs/            # Error reference, assets
 ```
