@@ -24,11 +24,22 @@
 <p align="center">
   <a href="https://axint.ai">Website</a> ·
   <a href="https://axint.ai/#playground">Playground</a> ·
+  <a href="https://github.com/agenticempire/axint-examples">Examples</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#mcp-server">MCP Server</a> ·
   <a href="https://docs.axint.ai">Docs</a> ·
-  <a href="https://registry.axint.ai">Registry</a>
+  <a href="https://registry.axint.ai">Registry</a> ·
+  <a href="https://github.com/agenticempire/axint/discussions">Discussions</a>
 </p>
+
+---
+
+## Start Here
+
+- Try Axint live in the [playground](https://axint.ai/#playground) or browse the public [axint-examples](https://github.com/agenticempire/axint-examples) repo.
+- Need install help? Start with the [canonical install discussion](https://github.com/agenticempire/axint/discussions/14).
+- Want to contribute? Look at [good first issue](https://github.com/agenticempire/axint/issues?q=is%3Aopen+label%3A%22good+first+issue%22) and [help wanted](https://github.com/agenticempire/axint/issues?q=is%3Aopen+label%3A%22help+wanted%22) tasks.
+- If Axint is useful, [star the repo](https://github.com/agenticempire/axint/stargazers), follow [@agenticempire on X](https://x.com/agenticempire), and share what you build in [Discussions](https://github.com/agenticempire/axint/discussions/15).
 
 ---
 
@@ -90,17 +101,20 @@ import { defineView, prop, state, view } from "@axint/compiler";
 export default defineView({
   name: "EventCard",
   props: {
-    title: prop.string(),
-    date: prop.date(),
+    title: prop.string("Event title"),
+    date: prop.date("Event date"),
   },
   state: {
-    isExpanded: state.boolean(false),
+    isExpanded: state.boolean("Whether details are visible", { default: false }),
   },
   body: [
-    view.vstack({ alignment: "leading", spacing: 8 }, [
-      view.text("entry.title"),
-      view.conditional("isExpanded", [view.text("entry.date")]),
-    ]),
+    view.vstack(
+      [
+        view.text("entry.title"),
+        view.conditional("isExpanded", [view.text("entry.date")]),
+      ],
+      { alignment: "leading", spacing: 8 }
+    ),
   ],
 });
 ```
@@ -116,14 +130,14 @@ export default defineWidget({
   description: "Shows time until the next event.",
   families: ["systemSmall", "systemMedium"],
   entry: {
-    eventName: entry.string("Untitled"),
-    minutesUntil: entry.int(0),
+    eventName: entry.string("Event name", { default: "Untitled" }),
+    minutesUntil: entry.int("Minutes until event", { default: 0 }),
   },
   body: [
-    view.vstack({ alignment: "center", spacing: 4 }, [
-      view.text("entry.eventName"),
-      view.text("entry.minutesUntil"),
-    ]),
+    view.vstack([view.text("entry.eventName"), view.text("entry.minutesUntil")], {
+      alignment: "center",
+      spacing: 4,
+    }),
   ],
 });
 ```
@@ -185,24 +199,24 @@ Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Windsurf, and
 
 10 tools + 3 built-in prompts:
 
-| Tool | What it does |
-| --- | --- |
-| `axint.compile` | Full pipeline: TypeScript → Swift + plist + entitlements |
-| `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents) |
-| `axint.validate` | Dry-run validation with diagnostics |
-| `axint.feature` | Generate a complete feature package from a description |
-| `axint.suggest` | Suggest Apple-native features for a domain |
-| `axint.scaffold` | Generate a starter TypeScript intent from a description |
-| `axint.swift.validate` | Validate existing Swift against build-time rules |
-| `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
-| `axint.templates.list` | List bundled reference templates |
-| `axint.templates.get` | Return the source of a specific template |
+| Tool                   | What it does                                                    |
+| ---------------------- | --------------------------------------------------------------- |
+| `axint.compile`        | Full pipeline: TypeScript → Swift + plist + entitlements        |
+| `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents)             |
+| `axint.validate`       | Dry-run validation with diagnostics                             |
+| `axint.feature`        | Generate a complete feature package from a description          |
+| `axint.suggest`        | Suggest Apple-native features for a domain                      |
+| `axint.scaffold`       | Generate a starter TypeScript intent from a description         |
+| `axint.swift.validate` | Validate existing Swift against build-time rules                |
+| `axint.swift.fix`      | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
+| `axint.templates.list` | List bundled reference templates                                |
+| `axint.templates.get`  | Return the source of a specific template                        |
 
 Built-in prompts:
 
-| Prompt | What it does |
-| --- | --- |
-| `axint.quick-start` | Get a quick-start guide |
+| Prompt                | What it does                              |
+| --------------------- | ----------------------------------------- |
+| `axint.quick-start`   | Get a quick-start guide                   |
 | `axint.create-intent` | Start a new intent from guided parameters |
 | `axint.create-widget` | Start a new widget from guided parameters |
 
@@ -214,17 +228,17 @@ Built-in prompts:
 
 130 diagnostic codes across the validator surface with fix suggestions and color-coded output:
 
-| Range | Domain |
-| --- | --- |
-| `AX000`–`AX023` | Compiler / Parser |
-| `AX100`–`AX113` | Intent |
-| `AX200`–`AX202` | Swift output |
-| `AX300`–`AX322` | View |
-| `AX400`–`AX422` | Widget |
-| `AX500`–`AX522` | App |
-| `AX700`–`AX749` | Swift build rules |
+| Range           | Domain              |
+| --------------- | ------------------- |
+| `AX000`–`AX023` | Compiler / Parser   |
+| `AX100`–`AX113` | Intent              |
+| `AX200`–`AX202` | Swift output        |
+| `AX300`–`AX322` | View                |
+| `AX400`–`AX422` | Widget              |
+| `AX500`–`AX522` | App                 |
+| `AX700`–`AX749` | Swift build rules   |
 | `AX720`–`AX735` | Swift 6 concurrency |
-| `AX740`–`AX749` | Live Activities |
+| `AX740`–`AX749` | Live Activities     |
 
 ```
 error[AX100]: Intent name "sendMessage" must be PascalCase
@@ -238,17 +252,17 @@ Full reference: [`docs/ERRORS.md`](docs/ERRORS.md)
 
 ## Type mappings
 
-| TypeScript | Swift | Default value |
-| --- | --- | --- |
-| `string` | `String` | ✓ |
-| `int` | `Int` | ✓ |
-| `double` | `Double` | ✓ |
-| `float` | `Float` | ✓ |
-| `boolean` | `Bool` | ✓ |
-| `date` | `Date` | — |
-| `duration` | `Measurement<UnitDuration>` | ✓ (`"1h"`) |
-| `url` | `URL` | — |
-| `optional<T>` | `T?` | ✓ |
+| TypeScript    | Swift                       | Default value |
+| ------------- | --------------------------- | ------------- |
+| `string`      | `String`                    | ✓             |
+| `int`         | `Int`                       | ✓             |
+| `double`      | `Double`                    | ✓             |
+| `float`       | `Float`                     | ✓             |
+| `boolean`     | `Bool`                      | ✓             |
+| `date`        | `Date`                      | —             |
+| `duration`    | `Measurement<UnitDuration>` | ✓ (`"1h"`)    |
+| `url`         | `URL`                       | —             |
+| `optional<T>` | `T?`                        | ✓             |
 
 ---
 
