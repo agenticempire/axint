@@ -306,7 +306,7 @@ def _ir_from_call(call: ast.Call, *, file: str | None) -> IntentIR:
     entitlements = _parse_str_list(
         kwargs.get("entitlements"), "entitlements", diagnostics, file, call.lineno
     )
-    info_plist_keys = _parse_string_map_or_list(
+    info_plist_keys = _parse_str_list(
         kwargs.get("info_plist_keys"), "info_plist_keys", diagnostics, file, call.lineno
     )
 
@@ -326,7 +326,7 @@ def _ir_from_call(call: ast.Call, *, file: str | None) -> IntentIR:
         domain=domain,
         parameters=tuple(params),
         entitlements=tuple(entitlements),
-        info_plist_keys=info_plist_keys,
+        info_plist_keys=tuple(info_plist_keys),
         is_discoverable=is_discoverable,
         source_file=file,
         source_line=call.lineno,
@@ -1355,67 +1355,6 @@ def _parse_param_call(
         optional=opt,
         default=dflt,
     )
-
-
-def _parse_string_map_or_list(
-    node: ast.expr | None,
-    field: str,
-    diagnostics: list[ParserDiagnostic],
-    file: str | None,
-    line: int,
-) -> dict[str, str]:
-    if node is None:
-        return {}
-    if isinstance(node, ast.Dict):
-        out: dict[str, str] = {}
-        for key_node, value_node in zip(node.keys, node.values, strict=True):
-            if key_node is None:
-                diagnostics.append(
-                    ParserDiagnostic(
-                        code="AXP008",
-                        severity="error",
-                        message=f"`{field}=` keys must be string literals",
-                        file=file,
-                        line=line,
-                    )
-                )
-                continue
-            key = _literal_str(key_node, field, diagnostics, file, getattr(key_node, "lineno", line))
-            value = _literal_str(
-                value_node,
-                field,
-                diagnostics,
-                file,
-                getattr(value_node, "lineno", line),
-            )
-            out[key] = value
-        return out
-    if not isinstance(node, (ast.List, ast.Tuple)):
-        diagnostics.append(
-            ParserDiagnostic(
-                code="AXP008",
-                severity="error",
-                message=f"`{field}=` must be a list/tuple of strings or a dict of string pairs",
-                file=file,
-                line=line,
-            )
-        )
-        return {}
-    list_out: dict[str, str] = {}
-    for elt in node.elts:
-        if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-            list_out[elt.value] = elt.value
-        else:
-            diagnostics.append(
-                ParserDiagnostic(
-                    code="AXP008",
-                    severity="error",
-                    message=f"`{field}=` entries must be string literals",
-                    file=file,
-                    line=getattr(elt, "lineno", line),
-                )
-            )
-    return list_out
 
 
 def _parse_str_list(
