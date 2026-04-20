@@ -173,10 +173,12 @@ npm run gen:swift-fixer:check
    - `docs/COVERAGE.md`
    - `docs/RELEASE_NOTES.md`
 
-5. Keep package releases aligned.
+5. If headline numbers or public proof changed, sync the downstream public surfaces that read from the truth bundle before announcing the release.
+
+6. Keep package releases aligned.
    If an intentional release goes out, npm and PyPI should move together so the public version story stays coherent.
 
-6. Only tag and publish once the repo state, docs, and metrics all agree.
+7. Only tag and publish once the repo state, docs, metrics, and downstream public proof all agree.
 
 ## Adding a New Template
 
