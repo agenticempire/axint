@@ -1,11 +1,11 @@
 {
   "version": "0.3.9",
-  "mcpTools": 10,
+  "mcpTools": 11,
   "mcpPrompts": 3,
   "bundledTemplates": 26,
   "diagnostics": 130,
   "tests": {
-    "typescript": 574,
+    "typescript": 578,
     "python": 105
   },
   "registryPackages": 8,
