@@ -101,59 +101,154 @@ function parseScenes(
   const scenes: IRScene[] = [];
 
   for (const element of arr.elements) {
-    if (!ts.isObjectLiteralExpression(element)) {
+    const parsed = parseSceneElement(element, sourceFile, filePath);
+    if (!parsed) {
       throw new ParserError(
         "AX504",
-        "Each scene must be an object literal",
+        "Each scene must be an object literal or scene.* helper call",
         filePath,
         posOf(sourceFile, element),
-        "Use: { kind: 'windowGroup', view: 'ContentView' }"
+        "Use: { kind: 'windowGroup', view: 'ContentView' } or scene.windowGroup('ContentView')"
       );
     }
-
-    const kind = extractStringProp(element, "kind", sourceFile, filePath) as
-      | SceneKind
-      | undefined;
-    if (!kind || !isValidSceneKind(kind)) {
-      throw new ParserError(
-        "AX505",
-        `Invalid scene kind: "${kind}". Must be one of: windowGroup, window, documentGroup, settings`,
-        filePath,
-        posOf(sourceFile, element),
-        'Use kind: "windowGroup" or kind: "settings"'
-      );
-    }
-
-    const rootView = extractStringProp(element, "view", sourceFile, filePath);
-    if (!rootView) {
-      throw new ParserError(
-        "AX506",
-        "Each scene requires a `view` property referencing the root SwiftUI view",
-        filePath,
-        posOf(sourceFile, element),
-        'Add view: "ContentView"'
-      );
-    }
-
-    const title = extractStringProp(element, "title", sourceFile, filePath);
-    const sceneName = extractStringProp(element, "name", sourceFile, filePath);
-    const platformGuard = extractStringProp(element, "platform", sourceFile, filePath) as
-      | "macOS"
-      | "iOS"
-      | "visionOS"
-      | undefined;
 
     scenes.push({
-      sceneKind: kind,
-      rootView,
-      title,
-      name: sceneName,
-      platformGuard,
-      isDefault: scenes.length === 0 && kind === "windowGroup",
+      ...parsed,
+      isDefault: scenes.length === 0 && parsed.sceneKind === "windowGroup",
     });
   }
 
   return scenes;
+}
+
+function parseSceneElement(
+  element: ts.Expression,
+  sourceFile: ts.SourceFile,
+  filePath: string
+): Omit<IRScene, "isDefault"> | null {
+  if (ts.isObjectLiteralExpression(element)) {
+    return parseSceneObject(element, sourceFile, filePath);
+  }
+
+  if (ts.isCallExpression(element)) {
+    return parseSceneHelperCall(element, sourceFile, filePath);
+  }
+
+  return null;
+}
+
+function parseSceneObject(
+  element: ts.ObjectLiteralExpression,
+  sourceFile: ts.SourceFile,
+  filePath: string
+): Omit<IRScene, "isDefault"> {
+  const kind = extractStringProp(element, "kind", sourceFile, filePath) as
+    | SceneKind
+    | undefined;
+  if (!kind || !isValidSceneKind(kind)) {
+    throw new ParserError(
+      "AX505",
+      `Invalid scene kind: "${kind}". Must be one of: windowGroup, window, documentGroup, settings`,
+      filePath,
+      posOf(sourceFile, element),
+      'Use kind: "windowGroup" or kind: "settings"'
+    );
+  }
+
+  const rootView = extractStringProp(element, "view", sourceFile, filePath);
+  if (!rootView) {
+    throw new ParserError(
+      "AX506",
+      "Each scene requires a `view` property referencing the root SwiftUI view",
+      filePath,
+      posOf(sourceFile, element),
+      'Add view: "ContentView"'
+    );
+  }
+
+  const title = extractStringProp(element, "title", sourceFile, filePath);
+  const sceneName = extractStringProp(element, "name", sourceFile, filePath);
+  const platformGuard = extractStringProp(element, "platform", sourceFile, filePath) as
+    | "macOS"
+    | "iOS"
+    | "visionOS"
+    | undefined;
+
+  return {
+    sceneKind: kind,
+    rootView,
+    title,
+    name: sceneName,
+    platformGuard,
+  };
+}
+
+function parseSceneHelperCall(
+  element: ts.CallExpression,
+  sourceFile: ts.SourceFile,
+  filePath: string
+): Omit<IRScene, "isDefault"> | null {
+  if (
+    !ts.isPropertyAccessExpression(element.expression) ||
+    element.expression.expression.getText(sourceFile) !== "scene"
+  ) {
+    return null;
+  }
+
+  const helper = element.expression.name.text;
+  if (!isValidSceneKind(helper)) {
+    throw new ParserError(
+      "AX505",
+      `Invalid scene helper: "scene.${helper}()". Must be one of: scene.windowGroup(), scene.window(), scene.documentGroup(), scene.settings()`,
+      filePath,
+      posOf(sourceFile, element),
+      "Use one of the supported scene.* helpers."
+    );
+  }
+
+  const [viewArg, optionsArg] = element.arguments;
+  const rootView = viewArg ? readStringLiteral(viewArg) : undefined;
+  if (!rootView) {
+    throw new ParserError(
+      "AX506",
+      "Each scene requires a root SwiftUI view",
+      filePath,
+      posOf(sourceFile, element),
+      "Pass a view name like scene.windowGroup('ContentView')"
+    );
+  }
+
+  let title: string | undefined;
+  let sceneName: string | undefined;
+  let platformGuard: "macOS" | "iOS" | "visionOS" | undefined;
+
+  if (optionsArg !== undefined) {
+    if (!ts.isObjectLiteralExpression(optionsArg)) {
+      throw new ParserError(
+        "AX504",
+        "scene.* helpers accept an optional object literal as the second argument",
+        filePath,
+        posOf(sourceFile, optionsArg),
+        "Use scene.settings('SettingsView', { platform: 'macOS' })"
+      );
+    }
+
+    title = extractStringProp(optionsArg, "title", sourceFile, filePath);
+    sceneName = extractStringProp(optionsArg, "name", sourceFile, filePath);
+    platformGuard = extractStringProp(optionsArg, "platform", sourceFile, filePath) as
+      | "macOS"
+      | "iOS"
+      | "visionOS"
+      | undefined;
+  }
+
+  return {
+    sceneKind: helper,
+    rootView,
+    title,
+    name: sceneName,
+    platformGuard,
+  };
 }
 
 function parseAppStorage(
