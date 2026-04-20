@@ -195,7 +195,7 @@ class IntentIR:
         if self.entitlements:
             out["entitlements"] = list(self.entitlements)
         if self.info_plist_keys:
-            out["infoPlistKeys"] = {k: v for k, v in self.info_plist_keys}
+            out["infoPlistKeys"] = dict(self.info_plist_keys)
         if self.return_type is not None:
             out["returnType"] = self.return_type
         if self.source_file is not None:

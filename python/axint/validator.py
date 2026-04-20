@@ -212,7 +212,7 @@ def validate_intent(intent: IntentIR) -> list[ValidatorDiagnostic]:
                 )
             )
 
-    info_plist_keys = {key: value for key, value in intent.info_plist_keys}
+    info_plist_keys = dict(intent.info_plist_keys)
     has_healthkit_entitlement = any(
         entitlement in HEALTHKIT_ENTITLEMENT_KEYS for entitlement in intent.entitlements
     )
