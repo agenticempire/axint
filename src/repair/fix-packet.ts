@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 import type { Diagnostic } from "../core/types.js";
 
 export type FixPacketVerdict = "pass" | "needs_review" | "fail";
-export type FixPacketSurface = "intent" | "view" | "widget" | "app";
+export type FixPacketSurface = "intent" | "view" | "widget" | "app" | "swift";
 export type FixPacketFormat = "json" | "markdown" | "prompt";
-export type FixPacketCommand = "compile" | "watch" | "mcp";
+export type FixPacketCommand = "compile" | "watch" | "mcp" | "validate_swift";
 
 export interface FixPacketDiagnostic {
   code: string;
@@ -24,7 +24,7 @@ export interface FixPacket {
   command: FixPacketCommand;
   source: {
     surface: FixPacketSurface;
-    language: "typescript" | "json";
+    language: "typescript" | "json" | "swift";
     fileName: string;
     filePath?: string;
     sourceLines: number | null;
@@ -65,7 +65,7 @@ export interface FixPacketInput {
   source?: string;
   fileName?: string;
   filePath?: string;
-  language?: "typescript" | "json";
+  language?: "typescript" | "json" | "swift";
   outputPath?: string;
   infoPlistPath?: string;
   entitlementsPath?: string;
@@ -281,7 +281,9 @@ export function buildFixPacket(
       ? basename(input.filePath)
       : input.language === "json"
         ? "input.json"
-        : "input.ts");
+        : input.language === "swift"
+          ? "input.swift"
+          : "input.ts");
 
   const packet: FixPacket = {
     schemaVersion: 1,

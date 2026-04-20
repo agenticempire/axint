@@ -3,6 +3,7 @@ import { readFileSync, statSync, readdirSync } from "node:fs";
 import { resolve, join, extname } from "node:path";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
+import { emitFixPacketArtifacts } from "../repair/fix-packet.js";
 
 export function registerValidateSwift(program: Command) {
   program
@@ -13,51 +14,104 @@ export function registerValidateSwift(program: Command) {
     .argument("<path>", "Swift file or directory to validate")
     .option("--quiet", "Only print errors, not the success banner")
     .option("--json", "Emit a machine-readable JSON report to stdout")
-    .action(async (pathArg: string, options: { quiet?: boolean; json?: boolean }) => {
-      const target = resolve(pathArg);
-      const files = collectSwiftFiles(target);
+    .option(
+      "--no-fix-packet",
+      "Skip writing the local Fix Packet under .axint/fix/latest.{json,md}"
+    )
+    .option(
+      "--fix-packet-dir <dir>",
+      "Directory for the emitted Fix Packet artifacts",
+      ".axint/fix"
+    )
+    .action(
+      async (
+        pathArg: string,
+        options: {
+          quiet?: boolean;
+          json?: boolean;
+          fixPacket?: boolean;
+          fixPacketDir: string;
+        }
+      ) => {
+        const target = resolve(pathArg);
+        const files = collectSwiftFiles(target);
 
-      if (files.length === 0) {
-        console.error(`\x1b[31merror:\x1b[0m no .swift files found at ${pathArg}`);
-        process.exit(1);
+        if (files.length === 0) {
+          console.error(`\x1b[31merror:\x1b[0m no .swift files found at ${pathArg}`);
+          process.exit(1);
+        }
+
+        const all: Diagnostic[] = [];
+        for (const file of files) {
+          const source = readFileSync(file, "utf-8");
+          const result = validateSwiftSource(source, file);
+          all.push(...result.diagnostics);
+        }
+
+        const errors = all.filter((d) => d.severity === "error");
+        let packetArtifacts: ReturnType<typeof emitFixPacketArtifacts> | null = null;
+
+        if (options.fixPacket !== false) {
+          try {
+            packetArtifacts = emitFixPacketArtifacts(
+              {
+                success: errors.length === 0,
+                surface: "swift",
+                diagnostics: all,
+                source: files.length === 1 ? readFileSync(files[0], "utf-8") : undefined,
+                fileName:
+                  files.length === 1
+                    ? files[0].split(/[\\/]/).pop()
+                    : (target.split(/[\\/]/).pop() ?? "swift-validation"),
+                filePath: files.length === 1 ? files[0] : target,
+                language: "swift",
+                packetDir: options.fixPacketDir,
+                command: "validate_swift",
+              },
+              process.cwd()
+            );
+          } catch (packetErr: unknown) {
+            console.error(
+              `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${(packetErr as Error).message}`
+            );
+          }
+        }
+
+        if (options.json) {
+          const payload = {
+            ok: errors.length === 0,
+            filesScanned: files.length,
+            diagnostics: all,
+            fixPacketPath: packetArtifacts?.jsonPath ?? null,
+          };
+          process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
+          process.exit(errors.length > 0 ? 1 : 0);
+        }
+
+        for (const d of all) {
+          printDiagnostic(d);
+        }
+
+        if (errors.length > 0) {
+          if (packetArtifacts) {
+            console.error(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+          }
+          console.error(
+            `\n\x1b[31m✗\x1b[0m ${errors.length} error${errors.length === 1 ? "" : "s"} in ${files.length} file${files.length === 1 ? "" : "s"}`
+          );
+          process.exit(1);
+        }
+
+        if (!options.quiet) {
+          if (packetArtifacts) {
+            console.log(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+          }
+          console.log(
+            `\x1b[32m✓\x1b[0m ${files.length} Swift file${files.length === 1 ? "" : "s"} passed axint validation`
+          );
+        }
       }
-
-      const all: Diagnostic[] = [];
-      for (const file of files) {
-        const source = readFileSync(file, "utf-8");
-        const result = validateSwiftSource(source, file);
-        all.push(...result.diagnostics);
-      }
-
-      const errors = all.filter((d) => d.severity === "error");
-
-      if (options.json) {
-        const payload = {
-          ok: errors.length === 0,
-          filesScanned: files.length,
-          diagnostics: all,
-        };
-        process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
-        process.exit(errors.length > 0 ? 1 : 0);
-      }
-
-      for (const d of all) {
-        printDiagnostic(d);
-      }
-
-      if (errors.length > 0) {
-        console.error(
-          `\n\x1b[31m✗\x1b[0m ${errors.length} error${errors.length === 1 ? "" : "s"} in ${files.length} file${files.length === 1 ? "" : "s"}`
-        );
-        process.exit(1);
-      }
-
-      if (!options.quiet) {
-        console.log(
-          `\x1b[32m✓\x1b[0m ${files.length} Swift file${files.length === 1 ? "" : "s"} passed axint validation`
-        );
-      }
-    });
+    );
 }
 
 function collectSwiftFiles(target: string): string[] {
