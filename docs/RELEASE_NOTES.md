@@ -32,6 +32,7 @@ This release wave sharpens the Xcode workflow and expands Apple-native Swift cov
 - Metrics now expose Xcode fix rule counts and names so coverage can be tracked more explicitly
 - Intent validation now catches a common App Review / HealthKit setup failure before you leave the compiler loop
 - The bundled examples are now part of the proof surface: they compile in CI, and the HealthKit example shows the same entitlement + privacy contract the validator enforces
+- The Python SDK now accepts real Info.plist usage-description copy, ships a HealthKit example, and mirrors the HealthKit/privacy diagnostics that landed in TypeScript
 
 ### Why it matters
 

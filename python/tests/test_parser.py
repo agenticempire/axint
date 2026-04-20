@@ -82,6 +82,35 @@ intent = define_intent(
     ir = parse_source(src)[0]
     assert ir.entitlements == ("com.apple.developer.healthkit",)
     assert len(ir.info_plist_keys) == 2
+    assert ir.info_plist_keys[0][0] == "NSHealthUpdateUsageDescription"
+
+
+def test_parses_info_plist_key_mapping() -> None:
+    src = '''
+from axint import define_intent
+
+intent = define_intent(
+    name="HealthIntent",
+    title="Log Workout",
+    description="Logs a workout",
+    domain="health",
+    info_plist_keys={
+        "NSHealthUpdateUsageDescription": "Save workout data you log from this shortcut.",
+        "NSHealthShareUsageDescription": "Read prior workout data to compare progress.",
+    },
+)
+'''
+    ir = parse_source(src)[0]
+    assert ir.info_plist_keys == (
+        (
+            "NSHealthUpdateUsageDescription",
+            "Save workout data you log from this shortcut.",
+        ),
+        (
+            "NSHealthShareUsageDescription",
+            "Read prior workout data to compare progress.",
+        ),
+    )
 
 
 def test_parses_number_alias_as_int() -> None:

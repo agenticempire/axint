@@ -59,7 +59,7 @@
   ],
   "tests": {
     "typescript": 613,
-    "python": 105
+    "python": 114
   },
   "registryPackages": 8,
   "distributionSurfaces": 4

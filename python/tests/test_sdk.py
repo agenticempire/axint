@@ -52,7 +52,9 @@ def test_define_intent_full() -> None:
             "is_all_day": param.boolean("Whether the event is all-day", optional=True, default=False),
         },
         entitlements=["com.apple.developer.calendars"],
-        info_plist_keys=["NSCalendarsUsageDescription"],
+        info_plist_keys={
+            "NSCalendarsUsageDescription": "Create and edit calendar events you request.",
+        },
         is_discoverable=True,
     )
     ir = intent.to_ir()
@@ -64,7 +66,22 @@ def test_define_intent_full() -> None:
     assert ir.parameters[3].optional is True
     assert ir.parameters[3].default is False
     assert ir.entitlements == ("com.apple.developer.calendars",)
-    assert ir.info_plist_keys == ("NSCalendarsUsageDescription",)
+    assert ir.info_plist_keys == (
+        ("NSCalendarsUsageDescription", "Create and edit calendar events you request."),
+    )
+
+
+def test_define_intent_legacy_info_plist_list_keeps_placeholder_shape() -> None:
+    intent = define_intent(
+        name="CreateCalendarEventIntent",
+        title="Create Calendar Event",
+        description="Creates a new event on the user's calendar",
+        domain="productivity",
+        info_plist_keys=["NSCalendarsUsageDescription"],
+    )
+    assert intent.info_plist_keys == (
+        ("NSCalendarsUsageDescription", "NSCalendarsUsageDescription"),
+    )
 
 
 def test_ir_to_dict_matches_ts_schema() -> None:

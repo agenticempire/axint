@@ -306,8 +306,8 @@ def _ir_from_call(call: ast.Call, *, file: str | None) -> IntentIR:
     entitlements = _parse_str_list(
         kwargs.get("entitlements"), "entitlements", diagnostics, file, call.lineno
     )
-    info_plist_keys = _parse_str_list(
-        kwargs.get("info_plist_keys"), "info_plist_keys", diagnostics, file, call.lineno
+    info_plist_keys = _parse_plist_key_map(
+        kwargs.get("info_plist_keys"), diagnostics, file, call.lineno
     )
 
     is_discoverable = True
@@ -1387,6 +1387,65 @@ def _parse_str_list(
                     code="AXP008",
                     severity="error",
                     message=f"`{field}=` entries must be string literals",
+                    file=file,
+                    line=getattr(elt, "lineno", line),
+                )
+            )
+    return out
+
+
+def _parse_plist_key_map(
+    node: ast.expr | None,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> list[tuple[str, str]]:
+    if node is None:
+        return []
+
+    if isinstance(node, ast.Dict):
+        out: list[tuple[str, str]] = []
+        for key_node, value_node in zip(node.keys, node.values, strict=False):
+            if key_node is None:
+                diagnostics.append(
+                    ParserDiagnostic(
+                        code="AXP008",
+                        severity="error",
+                        message="`info_plist_keys=` keys must be string literals",
+                        file=file,
+                        line=line,
+                    )
+                )
+                continue
+
+            key = _literal_str(key_node, "info_plist_keys key", diagnostics, file, line)
+            value = _literal_str(value_node, "info_plist_keys value", diagnostics, file, line)
+            if key and value:
+                out.append((key, value))
+        return out
+
+    if not isinstance(node, (ast.List, ast.Tuple)):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP008",
+                severity="error",
+                message="`info_plist_keys=` must be a dict or a list/tuple of strings",
+                file=file,
+                line=line,
+            )
+        )
+        return []
+
+    out: list[tuple[str, str]] = []
+    for elt in node.elts:
+        if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+            out.append((elt.value, elt.value))
+        else:
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP008",
+                    severity="error",
+                    message="`info_plist_keys=` entries must be string literals",
                     file=file,
                     line=getattr(elt, "lineno", line),
                 )

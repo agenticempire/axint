@@ -118,3 +118,62 @@ def test_accepts_valid_entitlement() -> None:
     diagnostics = validate_intent(intent.to_ir())
     ent_warns = [d for d in diagnostics if d.code == "AX108"]
     assert ent_warns == []
+
+
+def test_warns_when_healthkit_entitlement_lacks_usage_descriptions() -> None:
+    intent = define_intent(
+        name="HealthIntent",
+        title="Log Workout",
+        description="Logs a workout",
+        domain="health",
+        entitlements=["com.apple.developer.healthkit"],
+    )
+    diagnostics = validate_intent(intent.to_ir())
+    assert any(d.code == "AX114" for d in diagnostics)
+
+
+def test_warns_when_healthkit_usage_descriptions_lack_entitlement() -> None:
+    intent = define_intent(
+        name="HealthIntent",
+        title="Log Workout",
+        description="Logs a workout",
+        domain="health",
+        info_plist_keys={
+            "NSHealthShareUsageDescription": "Read prior workout data to compare progress.",
+        },
+    )
+    diagnostics = validate_intent(intent.to_ir())
+    assert any(d.code == "AX115" for d in diagnostics)
+
+
+def test_warns_when_privacy_usage_copy_is_placeholder() -> None:
+    intent = define_intent(
+        name="HealthIntent",
+        title="Log Workout",
+        description="Logs a workout",
+        domain="health",
+        info_plist_keys={
+            "NSHealthShareUsageDescription": "TODO: explain why this app reads HealthKit data",
+            "NSHealthUpdateUsageDescription": "",
+        },
+    )
+    diagnostics = validate_intent(intent.to_ir())
+    assert len([d for d in diagnostics if d.code == "AX116"]) == 2
+
+
+def test_accepts_healthkit_entitlement_with_real_usage_copy() -> None:
+    intent = define_intent(
+        name="HealthIntent",
+        title="Log Workout",
+        description="Logs a workout",
+        domain="health",
+        entitlements=["com.apple.developer.healthkit"],
+        info_plist_keys={
+            "NSHealthShareUsageDescription": "Read prior workout data to compare your progress.",
+            "NSHealthUpdateUsageDescription": "Save new workout data you log from this shortcut.",
+        },
+    )
+    diagnostics = validate_intent(intent.to_ir())
+    assert not any(d.code == "AX114" for d in diagnostics)
+    assert not any(d.code == "AX115" for d in diagnostics)
+    assert not any(d.code == "AX116" for d in diagnostics)
