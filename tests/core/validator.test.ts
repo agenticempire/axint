@@ -138,6 +138,32 @@ describe("validateIntent", () => {
     expect(diagnostics.filter((d) => d.code === "AX116")).toHaveLength(2);
   });
 
+  it("warns when a Cloud-style HealthKit shorthand entitlement is used (AX117)", () => {
+    const diagnostics = validateIntent(
+      makeIntent({
+        entitlements: ["healthkit.write"],
+      })
+    );
+
+    const warning = diagnostics.find((d) => d.code === "AX117");
+    expect(warning).toBeDefined();
+    expect(warning?.suggestion).toContain("com.apple.developer.healthkit");
+  });
+
+  it("warns when a Cloud-style HealthKit plist shorthand key is used (AX118)", () => {
+    const diagnostics = validateIntent(
+      makeIntent({
+        infoPlistKeys: {
+          HealthUsageDescription: "Logs water intake to Health.",
+        },
+      })
+    );
+
+    const warning = diagnostics.find((d) => d.code === "AX118");
+    expect(warning).toBeDefined();
+    expect(diagnostics.some((d) => d.code === "AX109")).toBe(false);
+  });
+
   it("accepts well-formed HealthKit entitlements and privacy strings together", () => {
     const diagnostics = validateIntent(
       makeIntent({

@@ -149,7 +149,7 @@ You can also use the simple string form:
 parameterSummary: "Open ${trail} in ${region}"
 ```
 
-## Intent Validation Errors (AX100–AX116)
+## Intent Validation Errors (AX100–AX118)
 
 These validate intent and entity IR against Apple-facing constraints.
 
@@ -273,6 +273,47 @@ warning[AX116]: Privacy usage description "NSHealthShareUsageDescription" is emp
 ```
 
 If the usage strings were missing entirely, Axint would emit `AX114`. If the entitlement were missing but the HealthKit keys stayed behind, it would emit `AX115`.
+
+### AX117 / AX118 — probable HealthKit shorthand from real Cloud failures
+
+These warnings catch a real class of copy/paste mistakes we saw in Cloud reports:
+
+- `AX117`: shorthand entitlement strings like `healthkit.write` instead of the real Apple entitlement key
+- `AX118`: shorthand plist keys like `HealthUsageDescription` instead of `NSHealthShareUsageDescription` / `NSHealthUpdateUsageDescription`
+
+**Bad**
+
+```typescript
+export default defineIntent({
+  name: "LogWater",
+  title: "Log Water Intake",
+  description: "Records a serving of water to the health journal",
+  entitlements: ["healthkit.write"],
+  infoPlistKeys: {
+    HealthUsageDescription: "Logs water intake",
+  },
+  params: {},
+  perform: async () => ({ ok: true }),
+});
+```
+
+**Typical diagnostics**
+
+```text
+warning[AX117]: Entitlement "healthkit.write" looks like shorthand for HealthKit, not the real Apple entitlement key
+warning[AX118]: Info.plist key "HealthUsageDescription" looks like shorthand, not Apple's real HealthKit usage-description key
+warning[AX114]: HealthKit entitlements were declared, but no HealthKit privacy usage descriptions were provided
+```
+
+**Fix**
+
+```typescript
+entitlements: ["com.apple.developer.healthkit"],
+infoPlistKeys: {
+  NSHealthShareUsageDescription: "Read hydration history to personalize reminders.",
+  NSHealthUpdateUsageDescription: "Save newly logged water intake to Health.",
+},
+```
 
 **Fix**
 

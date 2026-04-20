@@ -205,6 +205,7 @@ describe("DIAGNOSTIC_CODES registry", () => {
   it("has intent validator range codes (AX100-AX199)", () => {
     expect(getDiagnostic("AX100")).toBeDefined();
     expect(getDiagnostic("AX109")).toBeDefined();
+    expect(getDiagnostic("AX118")).toBeDefined();
   });
 
   it("has intent generator range codes (AX200-AX299)", () => {

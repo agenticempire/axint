@@ -232,6 +232,20 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "Privacy usage description is empty or still placeholder copy",
     category: "intent-validator",
   },
+  AX117: {
+    code: "AX117",
+    severity: "warning",
+    message:
+      "HealthKit entitlement uses shorthand instead of the real Apple entitlement key",
+    category: "intent-validator",
+  },
+  AX118: {
+    code: "AX118",
+    severity: "warning",
+    message:
+      "HealthKit Info.plist usage-description key uses shorthand instead of Apple's real key",
+    category: "intent-validator",
+  },
 
   // ─── Intent Generator (AX200–AX299) ──────────────────────
   AX200: {

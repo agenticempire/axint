@@ -18,11 +18,24 @@ const HEALTHKIT_ENTITLEMENT_KEYS = new Set([
   "com.apple.developer.healthkit.background-delivery",
 ]);
 
+const HEALTHKIT_ENTITLEMENT_ALIASES = new Map<string, string>([
+  ["healthkit", "com.apple.developer.healthkit"],
+  ["healthkit.read", "com.apple.developer.healthkit"],
+  ["healthkit.write", "com.apple.developer.healthkit"],
+]);
+
 const HEALTHKIT_USAGE_DESCRIPTION_KEYS = [
   "NSHealthShareUsageDescription",
   "NSHealthUpdateUsageDescription",
   "NSHealthClinicalHealthRecordsShareUsageDescription",
 ];
+
+const HEALTHKIT_USAGE_DESCRIPTION_ALIASES = new Map<string, string[]>([
+  [
+    "HealthUsageDescription",
+    ["NSHealthShareUsageDescription", "NSHealthUpdateUsageDescription"],
+  ],
+]);
 
 const PRIVACY_USAGE_DESCRIPTION_PATTERN = /^NS[A-Za-z0-9]+UsageDescription$/;
 
@@ -129,6 +142,18 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
 
   // Rule: Entitlement strings must look like reverse-DNS identifiers
   for (const ent of intent.entitlements ?? []) {
+    const canonicalEntitlement = HEALTHKIT_ENTITLEMENT_ALIASES.get(ent);
+    if (canonicalEntitlement) {
+      diagnostics.push({
+        code: "AX117",
+        severity: "warning",
+        message: `Entitlement "${ent}" looks like shorthand for HealthKit, not the real Apple entitlement key`,
+        file: intent.sourceFile,
+        suggestion: `Use "${canonicalEntitlement}" so the capability matches Apple's entitlement name`,
+      });
+      continue;
+    }
+
     if (!/^[a-zA-Z0-9._-]+$/.test(ent) || !ent.includes(".")) {
       diagnostics.push({
         code: "AX108",
@@ -143,6 +168,18 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
 
   // Rule: Info.plist keys must start with "NS" or other known prefixes
   for (const key of Object.keys(infoPlistKeys)) {
+    const healthKitAliases = HEALTHKIT_USAGE_DESCRIPTION_ALIASES.get(key);
+    if (healthKitAliases) {
+      diagnostics.push({
+        code: "AX118",
+        severity: "warning",
+        message: `Info.plist key "${key}" looks like shorthand, not Apple's real HealthKit usage-description key`,
+        file: intent.sourceFile,
+        suggestion: `Use ${healthKitAliases.join(" and/or ")} with user-facing copy that matches the HealthKit access you request`,
+      });
+      continue;
+    }
+
     if (!/^(NS|UI|LS|CF|CA|CK)[A-Za-z0-9]+$/.test(key)) {
       diagnostics.push({
         code: "AX109",
@@ -155,8 +192,10 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
     }
   }
 
-  const hasHealthKitEntitlement = (intent.entitlements ?? []).some((entitlement) =>
-    HEALTHKIT_ENTITLEMENT_KEYS.has(entitlement)
+  const hasHealthKitEntitlement = (intent.entitlements ?? []).some(
+    (entitlement) =>
+      HEALTHKIT_ENTITLEMENT_KEYS.has(entitlement) ||
+      HEALTHKIT_ENTITLEMENT_ALIASES.has(entitlement)
   );
   const declaredHealthKitUsageKeys = HEALTHKIT_USAGE_DESCRIPTION_KEYS.filter(
     (key) => key in infoPlistKeys
