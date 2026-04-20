@@ -19,7 +19,7 @@
  *   axint xcode verify            Verify the MCP connection is working
  *   axint xcode fix <path>        Auto-fix mechanical Swift validator errors
  *   axint xcode doctor            Audit environment for Apple-platform agentic coding
- *   axint xcode check             Print the latest Xcode Axint Check summary or AI prompt
+ *   axint xcode check             Print the latest Xcode Axint Check summary, prompt, or artifact path
  *   axint xcode packet            Print the latest Xcode Fix Packet or AI prompt
  *   axint xcode extension install Install the notarized Axint Source Editor Extension
  *   axint xcode extension status  Report whether the extension is installed
@@ -50,7 +50,7 @@ const VERSION = pkg.version as string;
 
 const program = new Command();
 const XCODE_PACKET_KINDS = ["any", "compile", "validate"] as const;
-const XCODE_CHECK_FORMATS = ["markdown", "json", "prompt"] as const;
+const XCODE_CHECK_FORMATS = ["markdown", "json", "prompt", "path"] as const;
 const XCODE_PACKET_FORMATS = ["markdown", "prompt", "json", "path"] as const;
 
 function parseChoice<T extends string>(
@@ -217,7 +217,7 @@ xcode
   )
   .option(
     "--format <format>",
-    "Output format (markdown, json, prompt)",
+    "Output format (markdown, json, prompt, path)",
     (value) => parseChoice("format", value, XCODE_CHECK_FORMATS),
     "markdown"
   )
