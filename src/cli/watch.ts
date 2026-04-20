@@ -3,12 +3,14 @@ import {
   writeFileSync,
   mkdirSync,
   existsSync,
+  readFileSync,
   watch as fsWatch,
   statSync,
 } from "node:fs";
 import { resolve, dirname, basename } from "node:path";
 import { spawn } from "node:child_process";
 import { compileFile } from "../core/compiler.js";
+import { emitFixPacketArtifacts } from "../repair/fix-packet.js";
 
 async function runSwiftBuild(projectPath: string): Promise<boolean> {
   return new Promise((resolve) => {
@@ -69,6 +71,15 @@ export function registerWatch(program: Command) {
       "--swift-project <path>",
       "Path to the Swift project root (defaults to --out parent directory)"
     )
+    .option(
+      "--no-fix-packet",
+      "Skip writing the local Fix Packet under .axint/fix/latest.{json,md}"
+    )
+    .option(
+      "--fix-packet-dir <dir>",
+      "Directory for the emitted Fix Packet artifacts",
+      ".axint/fix"
+    )
     .action(
       async (
         file: string,
@@ -81,6 +92,8 @@ export function registerWatch(program: Command) {
           strictFormat: boolean;
           swiftBuild: boolean;
           swiftProject?: string;
+          fixPacket: boolean;
+          fixPacketDir: string;
         }
       ) => {
         const target = resolve(file);
@@ -108,6 +121,58 @@ export function registerWatch(program: Command) {
 
         const swiftProjectPath = options.swiftProject ?? dirname(resolve(options.out));
 
+        function emitPacket(
+          filePath: string,
+          result: ReturnType<typeof compileFile>,
+          _swiftCode?: string
+        ): ReturnType<typeof emitFixPacketArtifacts> | null {
+          if (!options.fixPacket) return null;
+          try {
+            const source = readFileSync(filePath, "utf-8");
+            return emitFixPacketArtifacts(
+              {
+                success: result.success,
+                surface: "intent",
+                diagnostics: result.diagnostics,
+                source,
+                fileName: basename(filePath),
+                filePath,
+                language: "typescript",
+                outputPath:
+                  result.success && result.output
+                    ? resolve(result.output.outputPath)
+                    : undefined,
+                infoPlistPath:
+                  result.success &&
+                  result.output?.infoPlistFragment &&
+                  options.emitInfoPlist
+                    ? resolve(result.output.outputPath).replace(
+                        /\.swift$/,
+                        ".plist.fragment.xml"
+                      )
+                    : undefined,
+                entitlementsPath:
+                  result.success &&
+                  result.output?.entitlementsFragment &&
+                  options.emitEntitlements
+                    ? resolve(result.output.outputPath).replace(
+                        /\.swift$/,
+                        ".entitlements.fragment.xml"
+                      )
+                    : undefined,
+                packetDir: options.fixPacketDir,
+                command: "watch",
+              },
+              process.cwd()
+            );
+          } catch (packetErr: unknown) {
+            console.error(
+              `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${(packetErr as Error).message}`
+            );
+            return null;
+          }
+        }
+
         function compileOne(filePath: string): boolean {
           const t0 = performance.now();
           const result = compileFile(filePath, {
@@ -130,6 +195,10 @@ export function registerWatch(program: Command) {
           }
 
           if (!result.success || !result.output) {
+            const packetArtifacts = emitPacket(filePath, result);
+            if (packetArtifacts) {
+              console.error(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+            }
             const errors = result.diagnostics.filter(
               (d) => d.severity === "error"
             ).length;
@@ -154,6 +223,10 @@ export function registerWatch(program: Command) {
           console.log(
             `\x1b[32m✓\x1b[0m ${result.output.ir.name} → ${outPath} \x1b[90m(${dt}ms)\x1b[0m`
           );
+          const packetArtifacts = emitPacket(filePath, result, result.output.swiftCode);
+          if (packetArtifacts) {
+            console.log(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+          }
           return true;
         }
 
@@ -183,6 +256,10 @@ export function registerWatch(program: Command) {
           }
 
           if (!result.success || !result.output) {
+            const packetArtifacts = emitPacket(filePath, result);
+            if (packetArtifacts) {
+              console.error(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+            }
             const errors = result.diagnostics.filter(
               (d) => d.severity === "error"
             ).length;
@@ -225,6 +302,10 @@ export function registerWatch(program: Command) {
           console.log(
             `\x1b[32m✓\x1b[0m ${result.output.ir.name} → ${outPath} \x1b[90m(${dt}ms)\x1b[0m`
           );
+          const packetArtifacts = emitPacket(filePath, result, swiftCode);
+          if (packetArtifacts) {
+            console.log(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+          }
           return true;
         }
 

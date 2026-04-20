@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, basename } from "node:path";
 import {
   compileAnyFile,
   compileFromIR,
@@ -8,6 +8,7 @@ import {
   type AnyCompileResult,
 } from "../core/compiler.js";
 import type { Diagnostic } from "../core/types.js";
+import { emitFixPacketArtifacts } from "../repair/fix-packet.js";
 
 /**
  * Count non-blank lines in a source string. Blank lines (whitespace
@@ -120,6 +121,15 @@ export function registerCompile(program: Command) {
       "--from-ir",
       "Treat <file> as intent IR JSON (from Python SDK or any language) instead of TypeScript. Use - to read from stdin."
     )
+    .option(
+      "--no-fix-packet",
+      "Skip writing the local Fix Packet under .axint/fix/latest.{json,md}"
+    )
+    .option(
+      "--fix-packet-dir <dir>",
+      "Directory for the emitted Fix Packet artifacts",
+      ".axint/fix"
+    )
     .action(
       async (
         file: string,
@@ -134,6 +144,8 @@ export function registerCompile(program: Command) {
           format: boolean;
           strictFormat: boolean;
           fromIr: boolean;
+          fixPacket: boolean;
+          fixPacketDir: string;
         }
       ) => {
         const filePath = resolve(file);
@@ -143,6 +155,9 @@ export function registerCompile(program: Command) {
           let output: UnifiedOutput | null;
           let diagnostics: Diagnostic[];
           let success: boolean;
+          let inputSource: string | undefined;
+          let inputFilePath: string | undefined;
+          const language: "typescript" | "json" = options.fromIr ? "json" : "typescript";
 
           if (options.fromIr) {
             let irRaw: string;
@@ -155,6 +170,8 @@ export function registerCompile(program: Command) {
             } else {
               irRaw = readFileSync(filePath, "utf-8");
             }
+            inputSource = irRaw;
+            inputFilePath = file === "-" ? undefined : filePath;
 
             let parsed: unknown;
             try {
@@ -196,6 +213,13 @@ export function registerCompile(program: Command) {
                   }
                 : null;
           } else {
+            try {
+              inputSource = readFileSync(filePath, "utf-8");
+              inputFilePath = filePath;
+            } catch {
+              inputSource = undefined;
+              inputFilePath = filePath;
+            }
             const result = compileAnyFile(filePath, {
               outDir: options.out,
               validate: options.validate,
@@ -213,6 +237,64 @@ export function registerCompile(program: Command) {
             ) {
               console.error(
                 `\x1b[33mwarning:\x1b[0m --emit-info-plist and --emit-entitlements apply to intents only; ignored for ${result.surface}.`
+              );
+            }
+          }
+
+          let packetArtifacts: ReturnType<typeof emitFixPacketArtifacts> | null = null;
+          if (options.fixPacket) {
+            try {
+              const resolvedOutputPath =
+                success && output && !options.stdout
+                  ? resolve(output.outputPath)
+                  : undefined;
+              packetArtifacts = emitFixPacketArtifacts(
+                {
+                  success,
+                  surface,
+                  diagnostics,
+                  source: inputSource,
+                  fileName:
+                    file === "-"
+                      ? "stdin.ir.json"
+                      : inputFilePath
+                        ? basename(inputFilePath)
+                        : basename(filePath),
+                  filePath: inputFilePath,
+                  language,
+                  outputPath: resolvedOutputPath,
+                  infoPlistPath:
+                    success &&
+                    output &&
+                    !options.stdout &&
+                    surface === "intent" &&
+                    options.emitInfoPlist &&
+                    output.infoPlistFragment
+                      ? resolve(output.outputPath).replace(
+                          /\.swift$/,
+                          ".plist.fragment.xml"
+                        )
+                      : undefined,
+                  entitlementsPath:
+                    success &&
+                    output &&
+                    !options.stdout &&
+                    surface === "intent" &&
+                    options.emitEntitlements &&
+                    output.entitlementsFragment
+                      ? resolve(output.outputPath).replace(
+                          /\.swift$/,
+                          ".entitlements.fragment.xml"
+                        )
+                      : undefined,
+                  packetDir: options.fixPacketDir,
+                  command: "compile",
+                },
+                process.cwd()
+              );
+            } catch (packetErr: unknown) {
+              console.error(
+                `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${(packetErr as Error).message}`
               );
             }
           }
@@ -247,6 +329,9 @@ export function registerCompile(program: Command) {
           printDiagnostics(diagnostics);
 
           if (!success || !output) {
+            if (packetArtifacts) {
+              console.error(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+            }
             const errorCount = diagnostics.filter((d) => d.severity === "error").length;
             console.error(
               `\x1b[31mCompilation failed with ${errorCount} error(s)\x1b[0m`
@@ -291,10 +376,9 @@ export function registerCompile(program: Command) {
             // Show TS-to-Swift compression so authors can eyeball whether
             // a definition expanded the way they expected. Skipped for
             // --from-ir since "TS lines" isn't meaningful there.
-            if (!options.fromIr) {
+            if (!options.fromIr && inputSource) {
               try {
-                const tsSource = readFileSync(filePath, "utf-8");
-                const tsLines = countNonBlankLines(tsSource);
+                const tsLines = countNonBlankLines(inputSource);
                 const swiftLines = countNonBlankLines(output.swiftCode);
                 const ratio = compressionRatio(tsLines, swiftLines);
                 if (ratio !== null) {
@@ -327,6 +411,10 @@ export function registerCompile(program: Command) {
               const entPath = outPath.replace(/\.swift$/, ".entitlements.fragment.xml");
               writeFileSync(entPath, output.entitlementsFragment, "utf-8");
               console.log(`\x1b[32m✓\x1b[0m Entitlements fragment → ${entPath}`);
+            }
+
+            if (packetArtifacts) {
+              console.log(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
             }
           }
 

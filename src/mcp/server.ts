@@ -10,6 +10,7 @@
  *   - axint.suggest:          Suggest Apple-native features for an app domain
  *   - axint.scaffold:         Generate a starter TypeScript intent file
  *   - axint.compile:          Compile TypeScript intent → Swift App Intent
+ *   - axint.fix-packet: Read the latest emitted Fix Packet / AI repair prompt
  *   - axint.validate:         Validate an intent definition without codegen
  *   - axint.schema.compile:   Compile minimal JSON schema → Swift (token saver)
  *   - axint.swift.validate:   Validate an existing Swift source against AX700+ rules
@@ -39,6 +40,11 @@ import { fixSwiftSource } from "../core/swift-fixer.js";
 import { TOOL_MANIFEST } from "./manifest.js";
 import { PROMPT_MANIFEST, getPromptMessages } from "./prompts.js";
 import { handleCompileFromSchema, type SchemaCompileArgs } from "./schema-compile.js";
+import {
+  readLatestFixPacket,
+  renderFixPacketMarkdown,
+  type FixPacketFormat,
+} from "../repair/fix-packet.js";
 
 // Read version from package.json so it stays in sync
 let pkg = { version: "0.3.9" };
@@ -64,6 +70,11 @@ type ScaffoldArgs = {
 };
 
 type TemplateArgs = { id: string };
+type FixPacketArgs = {
+  cwd?: string;
+  packetDir?: string;
+  format?: FixPacketFormat;
+};
 type ToolResult = {
   content: Array<{ type: string; text: string }>;
   isError?: boolean;
@@ -176,6 +187,27 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
     return errorText(errorTextValue);
   }
 
+  if (name === "axint.fix-packet") {
+    const a = args as FixPacketArgs;
+    const packet = readLatestFixPacket({
+      cwd: a.cwd,
+      packetDir: a.packetDir,
+    });
+    if (!packet) {
+      return errorText(
+        "No Fix Packet found. Run `axint compile` or `axint watch` first so Axint can emit .axint/fix/latest.json."
+      );
+    }
+
+    const format = a.format ?? "json";
+    if (format === "prompt") {
+      return diagnosticsText(packet.ai.prompt);
+    }
+    if (format === "markdown") {
+      return diagnosticsText(renderFixPacketMarkdown(packet));
+    }
+    return diagnosticsText(JSON.stringify(packet, null, 2));
+  }
   if (name === "axint.validate") {
     const a = args as { source: string; fileName?: string };
     const result = compileAnySource(a.source, a.fileName || "<validate>");
