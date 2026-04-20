@@ -27,6 +27,16 @@ struct AxintCompilePlugin: BuildToolPlugin {
         for sourceFile in tsFiles {
             let inputPath = sourceFile.path
             let inputFileName = inputPath.lastComponent
+            let inputStem = (inputFileName as NSString).deletingPathExtension
+            let fixPacketDirectory = context.pluginWorkDirectory
+                .appending("fix")
+                .appending(inputStem)
+
+            try FileManager.default.createDirectory(
+                at: fixPacketDirectory.asURL,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
 
             let compileArgs: [String] = prefixArgs + [
                 "compile",
@@ -34,6 +44,7 @@ struct AxintCompilePlugin: BuildToolPlugin {
                 "--out", outputDirectory.string,
                 "--emit-info-plist",
                 "--emit-entitlements",
+                "--fix-packet-dir", fixPacketDirectory.string,
             ]
 
             let command = Command.prebuildCommand(
@@ -124,12 +135,25 @@ extension AxintCompilePlugin: XcodeBuildToolPlugin {
         )
 
         return tsFiles.map { sourceFile in
+            let inputFileName = sourceFile.path.lastComponent
+            let inputStem = (inputFileName as NSString).deletingPathExtension
+            let fixPacketDirectory = context.pluginWorkDirectory
+                .appending("fix")
+                .appending(inputStem)
+
+            try? FileManager.default.createDirectory(
+                at: fixPacketDirectory.asURL,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+
             let compileArgs: [String] = prefixArgs + [
                 "compile",
                 sourceFile.path.string,
                 "--out", outputDirectory.string,
                 "--emit-info-plist",
                 "--emit-entitlements",
+                "--fix-packet-dir", fixPacketDirectory.string,
             ]
 
             return .prebuildCommand(

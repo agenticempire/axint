@@ -12,6 +12,7 @@ TypeScript files can contain `defineIntent()`, `defineView()`, `defineWidget()`,
 - Automatic TypeScript → Swift compilation via `swift build`
 - Works in SPM projects and Xcode projects (with or without SPM)
 - Generates `.swift`, `.plist.fragment.xml`, and `.entitlements.fragment.xml` files
+- Emits a per-file Fix Packet (`latest.json` and `latest.md`) for AI/Xcode repair loops
 - Supports all Axint surfaces (intents, views, widgets, apps)
 - Minimal configuration required
 - Clear error messages if dependencies are missing
@@ -111,7 +112,8 @@ The plugin will:
 1. Detect all `.ts` files in your target
 2. Run `axint compile` on each file
 3. Generate `.swift`, `.plist.fragment.xml`, and `.entitlements.fragment.xml` files in the build directory
-4. Make them available for linking
+4. Emit a per-file Fix Packet with the exact next-step prompt and repair metadata
+5. Make the generated Swift available for linking
 
 ## Output Files
 
@@ -122,6 +124,29 @@ For each `.ts` intent file, the plugin generates:
 - **`{Name}Intent.entitlements.fragment.xml`** — Entitlements required by the intent
 
 These are generated in the plugin's work directory and automatically included in your build.
+
+## Fix Packet Flow
+
+Every `.ts` file compiled by `AxintCompilePlugin` now also writes a Fix Packet into the
+plugin work directory:
+
+- `fix/<file-name>/latest.json`
+- `fix/<file-name>/latest.md`
+
+That packet is the handoff contract for AI tools and Xcode helpers:
+
+- `latest.json` is the structured machine-readable artifact
+- `latest.md` is the human-readable repair summary
+
+The intended loop is:
+
+1. Build in Xcode or run `swift build`
+2. Let Axint compile the TypeScript surface
+3. Read the Fix Packet for the file that failed or needs review
+4. Hand the prompt/checklist back to your AI tool or use it directly in Xcode
+5. Rebuild after the fix
+
+This keeps the compiler output simple for humans while still giving AI tooling the full repair packet.
 
 ## Writing Definitions
 
