@@ -75,6 +75,7 @@
     "gen:swift-fixer:check": "tsx scripts/gen-swift-fixer.ts --check",
     "versions:sync": "node scripts/sync-versions.mjs",
     "versions:check": "node scripts/check-versions.mjs",
+    "release:check": "node scripts/check-release-parity.mjs",
     "metrics:emit": "node scripts/emit-metrics.mjs",
     "metrics:check": "node scripts/check-metrics.mjs",
     "boundary:check": "node scripts/check-public-boundary.mjs",

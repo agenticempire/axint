@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://docs.axint.ai
+    about: Install, Xcode, Fix Packet, and compiler coverage docs live here.
+  - name: Community discussions
+    url: https://github.com/agenticempire/axint/discussions
+    about: Ask usage questions, share examples, or discuss ideas before opening a tracked issue.
+  - name: Security policy
+    url: https://github.com/agenticempire/axint/security/policy
+    about: Report vulnerabilities privately through the coordinated security process.

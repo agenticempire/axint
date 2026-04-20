@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@axint/compiler"><img src="https://img.shields.io/npm/v/@axint/compiler?color=f05138&label=npm" alt="npm" /></a>
+  <a href="https://pypi.org/project/axint/"><img src="https://img.shields.io/pypi/v/axint?label=pypi&color=2563eb" alt="PyPI" /></a>
   <a href="https://github.com/agenticempire/axint/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License" /></a>
   <a href="https://github.com/agenticempire/axint/actions/workflows/ci.yml"><img src="https://github.com/agenticempire/axint/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://glama.ai/mcp/servers/agenticempire/axint"><img src="https://glama.ai/mcp/servers/agenticempire/axint/badges/score.svg" alt="axint MCP server" /></a>
@@ -37,6 +38,7 @@
 ## Start Here
 
 - Try Axint live in the [playground](https://axint.ai/#playground) or browse the public [axint-examples](https://github.com/agenticempire/axint-examples) repo.
+- Want maintained repo-native samples? Start with [examples/README.md](examples/README.md), [python/examples/README.md](python/examples/README.md), and [examples/swift/README.md](examples/swift/README.md).
 - Need install help? Start with the [canonical install discussion](https://github.com/agenticempire/axint/discussions/14).
 - Want to contribute? Look at [good first issue](https://github.com/agenticempire/axint/issues?q=is%3Aopen+label%3A%22good+first+issue%22) and [help wanted](https://github.com/agenticempire/axint/issues?q=is%3Aopen+label%3A%22help+wanted%22) tasks.
 - If Axint is useful, [star the repo](https://github.com/agenticempire/axint/stargazers), follow [@agenticempire on X](https://x.com/agenticempire), and share what you build in [Discussions](https://github.com/agenticempire/axint/discussions/15).
@@ -226,7 +228,7 @@ Built-in prompts:
 
 ## Diagnostics
 
-134 diagnostic codes across the validator surface with fix suggestions and color-coded output:
+139 diagnostic codes across the validator surface with fix suggestions and color-coded output:
 
 | Range           | Domain              |
 | --------------- | ------------------- |
@@ -276,11 +278,20 @@ No install required — [axint.ai/#playground](https://axint.ai/#playground) run
 
 Extensions for [Claude Code](extensions/claude-code), [Codex](extensions/codex), [VS Code / Cursor](extensions/vscode), [Windsurf](extensions/windsurf), [JetBrains](extensions/jetbrains), [Neovim](extensions/neovim), and [Xcode](extensions/xcode).
 
+## Examples
+
+- [TypeScript example index](examples/README.md) — maintained intent, view, widget, and app entry points
+- [Python example index](python/examples/README.md) — maintained SDK parity examples
+- [Swift repair examples](examples/swift/README.md) — validator, Fix Packet, and Xcode repair-loop samples
+
 ### Workflow docs
 
 - [Fix Packet](docs/FIX_PACKET.md) — the repair contract for CLI, MCP, and Xcode
 - [Coverage Snapshot](docs/COVERAGE.md) — what Axint currently covers and how to refresh the metrics
 - [Release Notes](docs/RELEASE_NOTES.md) — the latest Apple coverage and Xcode workflow improvements
+- [Architecture](ARCHITECTURE.md) — compiler, validator, MCP, Fix Packet, and Xcode pipeline map
+- [Security](SECURITY.md) — vulnerability reporting and dependency/audit policy
+- [Contributing](CONTRIBUTING.md) — first contribution path and public release checklist
 
 ---
 
@@ -297,8 +308,8 @@ axint/
 ├── python/          # Python SDK
 ├── extensions/      # Editor extensions (9 editors)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # 605 TypeScript tests + 105 Python tests
-├── examples/        # Example definitions
+├── tests/           # 623 TypeScript tests + 114 Python tests
+├── examples/        # TypeScript + Swift repair-loop examples
 └── docs/            # Error reference, assets
 ```
 

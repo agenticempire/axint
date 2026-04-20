@@ -52,6 +52,15 @@ jobs:
       - name: Install Python build tools
         run: pip install build twine
 
+      - name: Require PyPI token for coordinated releases
+        if: env.HAS_PYPI_TOKEN != 'true'
+        run: |
+          echo "::error::PYPI_TOKEN is required so npm and PyPI stay aligned on intentional releases."
+          exit 1
+
+      - name: Verify coordinated release preflight
+        run: npm run release:check
+
       - name: Run Python tests
         working-directory: python
         run: |
@@ -78,12 +87,14 @@ jobs:
           npm publish --access public --provenance
 
       - name: Publish to PyPI
-        if: env.HAS_PYPI_TOKEN == 'true'
         working-directory: python
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: twine upload dist/* --skip-existing
+
+      - name: Verify coordinated release post-publish
+        run: npm run release:check -- --require-both-live
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
