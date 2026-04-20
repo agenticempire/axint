@@ -226,6 +226,27 @@ describe("parseAppSource", () => {
     expect(ir.scenes[1].platformGuard).toBe("macOS");
   });
 
+  it("parses scene.* helpers in the scenes array", () => {
+    const source = `
+      import { defineApp, scene } from "@axint/compiler";
+      export default defineApp({
+        name: "WeatherApp",
+        scenes: [
+          scene.windowGroup("WeatherDashboard"),
+          scene.settings("SettingsView", { platform: "macOS", title: "Settings" }),
+        ],
+      });
+    `;
+    const ir = parseAppSource(source);
+    expect(ir.name).toBe("WeatherApp");
+    expect(ir.scenes).toHaveLength(2);
+    expect(ir.scenes[0].sceneKind).toBe("windowGroup");
+    expect(ir.scenes[0].rootView).toBe("WeatherDashboard");
+    expect(ir.scenes[1].sceneKind).toBe("settings");
+    expect(ir.scenes[1].platformGuard).toBe("macOS");
+    expect(ir.scenes[1].title).toBe("Settings");
+  });
+
   it("throws AX501 for missing defineApp", () => {
     expect(() => parseAppSource("const x = 1;")).toThrow(/No defineApp\(\) call found/);
   });
@@ -301,6 +322,24 @@ describe("compileAppSource", () => {
     expect(result.success).toBe(true);
     expect(result.output!.swiftCode).toContain("struct TodoAppApp: App");
     expect(result.output!.swiftCode).toContain("TodoListView()");
+  });
+
+  it("compiles helper-based scenes end-to-end", () => {
+    const source = `
+      import { defineApp, scene } from "@axint/compiler";
+      export default defineApp({
+        name: "WeatherApp",
+        scenes: [
+          scene.windowGroup("WeatherDashboard"),
+          scene.settings("SettingsView", { platform: "macOS" }),
+        ],
+      });
+    `;
+    const result = compileAppSource(source);
+    expect(result.success).toBe(true);
+    expect(result.output!.swiftCode).toContain("WeatherDashboard()");
+    expect(result.output!.swiftCode).toContain("SettingsView()");
+    expect(result.output!.swiftCode).toContain("#if os(macOS)");
   });
 
   it("returns parser errors as diagnostics", () => {

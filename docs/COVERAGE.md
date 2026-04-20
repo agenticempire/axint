@@ -23,6 +23,7 @@ This page is the quickest way to understand what Axint currently covers in Apple
 - [`ERRORS.md`](./ERRORS.md) is the full diagnostic registry
 - [`FIX_PACKET.md`](./FIX_PACKET.md) is the repair-contract spec for CLI, MCP, and Xcode flows
 - [`../extensions/xcode/README.md`](../extensions/xcode/README.md) is the Xcode workflow guide
+- [`../tests/examples/compile.test.ts`](../tests/examples/compile.test.ts) proves the bundled examples still compile across the supported Apple surfaces
 
 ## How to refresh the snapshot
 

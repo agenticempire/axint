@@ -58,7 +58,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 609,
+    "typescript": 613,
     "python": 105
   },
   "registryPackages": 8,
