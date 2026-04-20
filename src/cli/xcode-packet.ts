@@ -36,7 +36,7 @@ const SKIP_DIRS = new Set([
   "artifacts",
 ]);
 
-function defaultDerivedDataRoot(): string {
+export function defaultDerivedDataRoot(): string {
   return resolve(homedir(), "Library/Developer/Xcode/DerivedData");
 }
 

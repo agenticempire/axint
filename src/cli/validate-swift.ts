@@ -3,7 +3,10 @@ import { readFileSync, statSync, readdirSync } from "node:fs";
 import { resolve, join, extname } from "node:path";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
-import { emitFixPacketArtifacts } from "../repair/fix-packet.js";
+import {
+  printRepairArtifactLines,
+  tryEmitRepairArtifacts,
+} from "../repair/repair-artifacts.js";
 
 export function registerValidateSwift(program: Command) {
   program
@@ -49,30 +52,32 @@ export function registerValidateSwift(program: Command) {
         }
 
         const errors = all.filter((d) => d.severity === "error");
-        let packetArtifacts: ReturnType<typeof emitFixPacketArtifacts> | null = null;
+        let repairArtifacts:
+          | ReturnType<typeof tryEmitRepairArtifacts>["artifacts"]
+          | null = null;
 
         if (options.fixPacket !== false) {
-          try {
-            packetArtifacts = emitFixPacketArtifacts(
-              {
-                success: errors.length === 0,
-                surface: "swift",
-                diagnostics: all,
-                source: files.length === 1 ? readFileSync(files[0], "utf-8") : undefined,
-                fileName:
-                  files.length === 1
-                    ? files[0].split(/[\\/]/).pop()
-                    : (target.split(/[\\/]/).pop() ?? "swift-validation"),
-                filePath: files.length === 1 ? files[0] : target,
-                language: "swift",
-                packetDir: options.fixPacketDir,
-                command: "validate_swift",
-              },
-              process.cwd()
-            );
-          } catch (packetErr: unknown) {
+          const repairResult = tryEmitRepairArtifacts(
+            {
+              success: errors.length === 0,
+              surface: "swift",
+              diagnostics: all,
+              source: files.length === 1 ? readFileSync(files[0], "utf-8") : undefined,
+              fileName:
+                files.length === 1
+                  ? files[0].split(/[\\/]/).pop()
+                  : (target.split(/[\\/]/).pop() ?? "swift-validation"),
+              filePath: files.length === 1 ? files[0] : target,
+              language: "swift",
+              packetDir: options.fixPacketDir,
+              command: "validate_swift",
+            },
+            process.cwd()
+          );
+          repairArtifacts = repairResult.artifacts;
+          if (repairResult.error) {
             console.error(
-              `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${(packetErr as Error).message}`
+              `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${repairResult.error.message}`
             );
           }
         }
@@ -82,7 +87,8 @@ export function registerValidateSwift(program: Command) {
             ok: errors.length === 0,
             filesScanned: files.length,
             diagnostics: all,
-            fixPacketPath: packetArtifacts?.jsonPath ?? null,
+            fixPacketPath: repairArtifacts?.packet.jsonPath ?? null,
+            checkSummaryPath: repairArtifacts?.check.jsonPath ?? null,
           };
           process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
           process.exit(errors.length > 0 ? 1 : 0);
@@ -93,8 +99,8 @@ export function registerValidateSwift(program: Command) {
         }
 
         if (errors.length > 0) {
-          if (packetArtifacts) {
-            console.error(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+          if (repairArtifacts) {
+            printRepairArtifactLines(repairArtifacts, console.error);
           }
           console.error(
             `\n\x1b[31m✗\x1b[0m ${errors.length} error${errors.length === 1 ? "" : "s"} in ${files.length} file${files.length === 1 ? "" : "s"}`
@@ -103,8 +109,8 @@ export function registerValidateSwift(program: Command) {
         }
 
         if (!options.quiet) {
-          if (packetArtifacts) {
-            console.log(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+          if (repairArtifacts) {
+            printRepairArtifactLines(repairArtifacts, console.log);
           }
           console.log(
             `\x1b[32m✓\x1b[0m ${files.length} Swift file${files.length === 1 ? "" : "s"} passed axint validation`

@@ -49,10 +49,13 @@ describe("axint validate-swift", () => {
     );
 
     expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Axint Check");
     expect(result.stderr).toContain("Fix Packet");
 
     const packetPath = join(packetDir, "latest.json");
+    const checkPath = join(packetDir, "latest.check.json");
     expect(existsSync(packetPath)).toBe(true);
+    expect(existsSync(checkPath)).toBe(true);
 
     const packet = JSON.parse(readFileSync(packetPath, "utf-8")) as {
       command: string;
@@ -85,10 +88,13 @@ describe("axint validate-swift", () => {
     );
 
     expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Axint Check");
     expect(result.stdout).toContain("Fix Packet");
 
     const packetPath = join(packetDir, "latest.json");
+    const checkPath = join(packetDir, "latest.check.json");
     expect(existsSync(packetPath)).toBe(true);
+    expect(existsSync(checkPath)).toBe(true);
 
     const packet = JSON.parse(readFileSync(packetPath, "utf-8")) as {
       outcome: { verdict: string };

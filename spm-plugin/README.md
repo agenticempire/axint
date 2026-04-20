@@ -132,25 +132,35 @@ plugin work directory:
 
 - `fix/<file-name>/latest.json`
 - `fix/<file-name>/latest.md`
+- `fix/<file-name>/latest.check.json`
+- `fix/<file-name>/latest.check.md`
 
 That packet is the handoff contract for AI tools and Xcode helpers:
 
-- `latest.json` is the structured machine-readable artifact
-- `latest.md` is the human-readable repair summary
+- `latest.check.json` is the compact verdict layer for tooling and quick UI
+- `latest.check.md` is the compact human-first summary
+- `latest.json` is the structured machine-readable repair artifact
+- `latest.md` is the full human-readable repair brief
 
 The intended loop is:
 
 1. Build in Xcode or run `swift build`
 2. Let Axint compile the TypeScript surface
-3. Read the Fix Packet for the file that failed or needs review
-4. Hand the prompt/checklist back to your AI tool or use it directly in Xcode
+3. Read the Axint Check first so you can see pass / needs review / fail immediately
+4. Open the Fix Packet only when you need the full repair prompt/checklist
 5. Rebuild after the fix
 
 This keeps the compiler output simple for humans while still giving AI tooling the full repair packet.
 
 `AxintValidatePlugin` uses the same contract for Swift validation runs. When the validator
-finds AX7xx issues, it writes a target-level Fix Packet under `fix/validate/` so Xcode or
-an AI helper can read the repair checklist instead of only relying on raw console output.
+finds AX7xx issues, it writes a target-level Axint Check and Fix Packet under `fix/validate/`
+so Xcode or an AI helper can read the quick verdict first and the repair checklist second
+instead of only relying on raw console output.
+
+CLI helpers:
+
+- `axint xcode check --kind validate`
+- `axint xcode packet --kind validate --format prompt`
 
 ## Writing Definitions
 

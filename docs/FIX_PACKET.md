@@ -2,16 +2,19 @@
 
 The Fix Packet is Axint's local repair contract for compile and watch runs.
 
-Every `axint compile` and `axint watch` run emits:
+Every `axint compile`, `axint watch`, and `axint validate-swift` run emits:
 
 - `.axint/fix/latest.json`
 - `.axint/fix/latest.md`
+- `.axint/fix/latest.check.json`
+- `.axint/fix/latest.check.md`
 
 The goal is simple:
 
 1. Axint runs a compiler validation locally.
 2. Axint writes one durable packet with the verdict, findings, and AI-ready fix prompt.
-3. AI tools, Xcode helpers, or future plugins read that same packet instead of asking the user to copy diagnostics by hand.
+3. Axint also writes a lighter human-first check summary so the first read is a verdict, not a wall of raw diagnostics.
+4. AI tools, Xcode helpers, or future plugins read that same packet instead of asking the user to copy diagnostics by hand.
 
 ## What is in the packet
 
@@ -31,6 +34,11 @@ The JSON packet includes:
 
 The markdown packet is the same information rendered for human review and easy sharing.
 
+The `latest.check.*` files are the lightweight verdict layer:
+
+- `latest.check.json` — compact machine-readable summary for UI or workflow glue
+- `latest.check.md` — compact human-readable summary that leads with verdict, top findings, and next step
+
 The AI prompt is intentionally structured so it is more useful than a generic
 LLM debugging dump. It now gives the model:
 
@@ -45,7 +53,7 @@ If Axint cannot recognize a supported Apple-native Swift surface, the packet dro
 
 ## CLI flow
 
-`axint compile` and `axint watch` emit the packet automatically by default.
+`axint compile`, `axint watch`, and `axint validate-swift` emit both the Fix Packet and the lightweight Axint Check automatically by default.
 
 You can opt out with:
 
@@ -87,15 +95,21 @@ This packet is the intended bridge for future Xcode-native and plugin-native flo
 The target loop is:
 
 1. Axint compile or build plugin runs inside the Apple workflow.
-2. Axint emits the latest Fix Packet locally.
-3. Xcode assistant / plugin / MCP agent reads the packet.
-4. The assistant applies the repair or presents the fix prompt.
-5. Axint reruns until the packet becomes `pass`.
+2. Axint emits both the latest Axint Check and the richer Fix Packet locally.
+3. Xcode assistant / plugin / MCP agent reads the Axint Check first for the quick verdict.
+4. The assistant opens the Fix Packet when it needs the full AI repair brief.
+5. Axint reruns until the result becomes `pass`.
 
 That keeps the system consistent:
 
+- one quick-check format
 - one packet format
 - one repair prompt
 - one source of truth
 
 instead of separate diagnostics formats for CLI, MCP, and Xcode.
+
+The Xcode-facing commands now map directly to those two layers:
+
+- `axint xcode check` — quick verdict, top findings, next step, or AI prompt
+- `axint xcode packet` — full Fix Packet, markdown, JSON, prompt, or packet path

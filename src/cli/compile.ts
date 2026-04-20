@@ -8,7 +8,10 @@ import {
   type AnyCompileResult,
 } from "../core/compiler.js";
 import type { Diagnostic } from "../core/types.js";
-import { emitFixPacketArtifacts } from "../repair/fix-packet.js";
+import {
+  printRepairArtifactLines,
+  tryEmitRepairArtifacts,
+} from "../repair/repair-artifacts.js";
 
 /**
  * Count non-blank lines in a source string. Blank lines (whitespace
@@ -241,60 +244,62 @@ export function registerCompile(program: Command) {
             }
           }
 
-          let packetArtifacts: ReturnType<typeof emitFixPacketArtifacts> | null = null;
+          let repairArtifacts:
+            | ReturnType<typeof tryEmitRepairArtifacts>["artifacts"]
+            | null = null;
           if (options.fixPacket) {
-            try {
-              const resolvedOutputPath =
-                success && output && !options.stdout
-                  ? resolve(output.outputPath)
-                  : undefined;
-              packetArtifacts = emitFixPacketArtifacts(
-                {
-                  success,
-                  surface,
-                  diagnostics,
-                  source: inputSource,
-                  fileName:
-                    file === "-"
-                      ? "stdin.ir.json"
-                      : inputFilePath
-                        ? basename(inputFilePath)
-                        : basename(filePath),
-                  filePath: inputFilePath,
-                  language,
-                  outputPath: resolvedOutputPath,
-                  infoPlistPath:
-                    success &&
-                    output &&
-                    !options.stdout &&
-                    surface === "intent" &&
-                    options.emitInfoPlist &&
-                    output.infoPlistFragment
-                      ? resolve(output.outputPath).replace(
-                          /\.swift$/,
-                          ".plist.fragment.xml"
-                        )
-                      : undefined,
-                  entitlementsPath:
-                    success &&
-                    output &&
-                    !options.stdout &&
-                    surface === "intent" &&
-                    options.emitEntitlements &&
-                    output.entitlementsFragment
-                      ? resolve(output.outputPath).replace(
-                          /\.swift$/,
-                          ".entitlements.fragment.xml"
-                        )
-                      : undefined,
-                  packetDir: options.fixPacketDir,
-                  command: "compile",
-                },
-                process.cwd()
-              );
-            } catch (packetErr: unknown) {
+            const resolvedOutputPath =
+              success && output && !options.stdout
+                ? resolve(output.outputPath)
+                : undefined;
+            const repairResult = tryEmitRepairArtifacts(
+              {
+                success,
+                surface,
+                diagnostics,
+                source: inputSource,
+                fileName:
+                  file === "-"
+                    ? "stdin.ir.json"
+                    : inputFilePath
+                      ? basename(inputFilePath)
+                      : basename(filePath),
+                filePath: inputFilePath,
+                language,
+                outputPath: resolvedOutputPath,
+                infoPlistPath:
+                  success &&
+                  output &&
+                  !options.stdout &&
+                  surface === "intent" &&
+                  options.emitInfoPlist &&
+                  output.infoPlistFragment
+                    ? resolve(output.outputPath).replace(
+                        /\.swift$/,
+                        ".plist.fragment.xml"
+                      )
+                    : undefined,
+                entitlementsPath:
+                  success &&
+                  output &&
+                  !options.stdout &&
+                  surface === "intent" &&
+                  options.emitEntitlements &&
+                  output.entitlementsFragment
+                    ? resolve(output.outputPath).replace(
+                        /\.swift$/,
+                        ".entitlements.fragment.xml"
+                      )
+                    : undefined,
+                packetDir: options.fixPacketDir,
+                command: "compile",
+              },
+              process.cwd()
+            );
+            repairArtifacts = repairResult.artifacts;
+            if (repairResult.error) {
               console.error(
-                `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${(packetErr as Error).message}`
+                `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${repairResult.error.message}`
               );
             }
           }
@@ -317,6 +322,8 @@ export function registerCompile(program: Command) {
                     line: d.line,
                     suggestion: d.suggestion,
                   })),
+                  fixPacketPath: repairArtifacts?.packet.jsonPath ?? null,
+                  checkSummaryPath: repairArtifacts?.check.jsonPath ?? null,
                 },
                 null,
                 2
@@ -329,8 +336,8 @@ export function registerCompile(program: Command) {
           printDiagnostics(diagnostics);
 
           if (!success || !output) {
-            if (packetArtifacts) {
-              console.error(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+            if (repairArtifacts) {
+              printRepairArtifactLines(repairArtifacts, console.error);
             }
             const errorCount = diagnostics.filter((d) => d.severity === "error").length;
             console.error(
@@ -413,8 +420,8 @@ export function registerCompile(program: Command) {
               console.log(`\x1b[32m✓\x1b[0m Entitlements fragment → ${entPath}`);
             }
 
-            if (packetArtifacts) {
-              console.log(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+            if (repairArtifacts) {
+              printRepairArtifactLines(repairArtifacts, console.log);
             }
           }
 

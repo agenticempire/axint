@@ -10,7 +10,10 @@ import {
 import { resolve, dirname, basename } from "node:path";
 import { spawn } from "node:child_process";
 import { compileFile } from "../core/compiler.js";
-import { emitFixPacketArtifacts } from "../repair/fix-packet.js";
+import {
+  printRepairArtifactLines,
+  tryEmitRepairArtifacts,
+} from "../repair/repair-artifacts.js";
 
 async function runSwiftBuild(projectPath: string): Promise<boolean> {
   return new Promise((resolve) => {
@@ -123,54 +126,52 @@ export function registerWatch(program: Command) {
 
         function emitPacket(
           filePath: string,
-          result: ReturnType<typeof compileFile>,
-          _swiftCode?: string
-        ): ReturnType<typeof emitFixPacketArtifacts> | null {
+          result: ReturnType<typeof compileFile>
+        ): ReturnType<typeof tryEmitRepairArtifacts>["artifacts"] | null {
           if (!options.fixPacket) return null;
-          try {
-            const source = readFileSync(filePath, "utf-8");
-            return emitFixPacketArtifacts(
-              {
-                success: result.success,
-                surface: "intent",
-                diagnostics: result.diagnostics,
-                source,
-                fileName: basename(filePath),
-                filePath,
-                language: "typescript",
-                outputPath:
-                  result.success && result.output
-                    ? resolve(result.output.outputPath)
-                    : undefined,
-                infoPlistPath:
-                  result.success &&
-                  result.output?.infoPlistFragment &&
-                  options.emitInfoPlist
-                    ? resolve(result.output.outputPath).replace(
-                        /\.swift$/,
-                        ".plist.fragment.xml"
-                      )
-                    : undefined,
-                entitlementsPath:
-                  result.success &&
-                  result.output?.entitlementsFragment &&
-                  options.emitEntitlements
-                    ? resolve(result.output.outputPath).replace(
-                        /\.swift$/,
-                        ".entitlements.fragment.xml"
-                      )
-                    : undefined,
-                packetDir: options.fixPacketDir,
-                command: "watch",
-              },
-              process.cwd()
-            );
-          } catch (packetErr: unknown) {
+          const source = readFileSync(filePath, "utf-8");
+          const repairResult = tryEmitRepairArtifacts(
+            {
+              success: result.success,
+              surface: "intent",
+              diagnostics: result.diagnostics,
+              source,
+              fileName: basename(filePath),
+              filePath,
+              language: "typescript",
+              outputPath:
+                result.success && result.output
+                  ? resolve(result.output.outputPath)
+                  : undefined,
+              infoPlistPath:
+                result.success &&
+                result.output?.infoPlistFragment &&
+                options.emitInfoPlist
+                  ? resolve(result.output.outputPath).replace(
+                      /\.swift$/,
+                      ".plist.fragment.xml"
+                    )
+                  : undefined,
+              entitlementsPath:
+                result.success &&
+                result.output?.entitlementsFragment &&
+                options.emitEntitlements
+                  ? resolve(result.output.outputPath).replace(
+                      /\.swift$/,
+                      ".entitlements.fragment.xml"
+                    )
+                  : undefined,
+              packetDir: options.fixPacketDir,
+              command: "watch",
+            },
+            process.cwd()
+          );
+          if (repairResult.error) {
             console.error(
-              `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${(packetErr as Error).message}`
+              `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${repairResult.error.message}`
             );
-            return null;
           }
+          return repairResult.artifacts;
         }
 
         function compileOne(filePath: string): boolean {
@@ -197,7 +198,7 @@ export function registerWatch(program: Command) {
           if (!result.success || !result.output) {
             const packetArtifacts = emitPacket(filePath, result);
             if (packetArtifacts) {
-              console.error(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+              printRepairArtifactLines(packetArtifacts, console.error);
             }
             const errors = result.diagnostics.filter(
               (d) => d.severity === "error"
@@ -223,9 +224,9 @@ export function registerWatch(program: Command) {
           console.log(
             `\x1b[32m✓\x1b[0m ${result.output.ir.name} → ${outPath} \x1b[90m(${dt}ms)\x1b[0m`
           );
-          const packetArtifacts = emitPacket(filePath, result, result.output.swiftCode);
+          const packetArtifacts = emitPacket(filePath, result);
           if (packetArtifacts) {
-            console.log(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+            printRepairArtifactLines(packetArtifacts, console.log);
           }
           return true;
         }
@@ -258,7 +259,7 @@ export function registerWatch(program: Command) {
           if (!result.success || !result.output) {
             const packetArtifacts = emitPacket(filePath, result);
             if (packetArtifacts) {
-              console.error(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+              printRepairArtifactLines(packetArtifacts, console.error);
             }
             const errors = result.diagnostics.filter(
               (d) => d.severity === "error"
@@ -302,9 +303,9 @@ export function registerWatch(program: Command) {
           console.log(
             `\x1b[32m✓\x1b[0m ${result.output.ir.name} → ${outPath} \x1b[90m(${dt}ms)\x1b[0m`
           );
-          const packetArtifacts = emitPacket(filePath, result, swiftCode);
+          const packetArtifacts = emitPacket(filePath, result);
           if (packetArtifacts) {
-            console.log(`\x1b[36m→\x1b[0m Fix Packet → ${packetArtifacts.jsonPath}`);
+            printRepairArtifactLines(packetArtifacts, console.log);
           }
           return true;
         }
