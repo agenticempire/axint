@@ -31,6 +31,15 @@ The JSON packet includes:
 
 The markdown packet is the same information rendered for human review and easy sharing.
 
+The AI prompt is intentionally structured so it is more useful than a generic
+LLM debugging dump. It now gives the model:
+
+- what broke
+- why it matters for the Apple workflow
+- the concrete change direction for each top finding
+- generated artifact hints for Swift, plist, and entitlements when Axint has them
+- the next repair steps and Xcode checklist
+
 If Axint cannot recognize a supported Apple-native Swift surface, the packet drops to
 `confidence: low` instead of pretending the file is fully covered.
 

@@ -222,46 +222,101 @@ function buildCoverageAssessment(
   };
 }
 
+function buildFindingImpact(finding: FixPacketDiagnostic): string {
+  switch (finding.severity) {
+    case "error":
+      return "This blocks the Apple-native validation/build path until it is fixed.";
+    case "warning":
+      return "This is an Apple-facing warning. Review or fix it before you trust the result.";
+    case "info":
+      return "This is supporting context from Axint for the current Apple surface.";
+  }
+}
+
+function buildArtifactHints(packet: FixPacket): string[] {
+  const hints: string[] = [];
+  if (packet.artifacts.outputPath) {
+    hints.push(
+      `Generated Swift output: ${packet.artifacts.outputPath} (keep this in sync with the source edits).`
+    );
+  }
+  if (packet.artifacts.infoPlistPath) {
+    hints.push(
+      `Info.plist fragment: ${packet.artifacts.infoPlistPath} (use this when you need the exact Apple usage-description copy).`
+    );
+  }
+  if (packet.artifacts.entitlementsPath) {
+    hints.push(
+      `Entitlements fragment: ${packet.artifacts.entitlementsPath} (keep entitlements aligned with the code and plist copy).`
+    );
+  }
+  return hints;
+}
+
 function buildAiPrompt(packet: FixPacket): string {
   const lines: string[] = [
-    "You are fixing Apple-platform code after an Axint validation run.",
+    "You are repairing Apple-native code after an Axint validation run.",
+    "Goal: resolve the Apple-specific findings below, preserve the intended feature behavior, and bring the result back to pass.",
     "",
     "AX codes are Axint diagnostic IDs in the report. They are labels for the findings only; you do not need Axint installed to use them.",
     "",
-    `Verdict: ${packet.outcome.verdict}`,
-    `Headline: ${packet.outcome.headline}`,
-    `Source file: ${packet.source.filePath ?? packet.source.fileName}`,
-    `Surface: ${packet.source.surface}`,
-    `Confidence: ${packet.coverage.confidence}`,
-    `Compiler version: ${packet.compilerVersion}`,
+    "Current result:",
+    `- Verdict: ${packet.outcome.verdict}`,
+    `- Headline: ${packet.outcome.headline}`,
+    `- Source file: ${packet.source.filePath ?? packet.source.fileName}`,
+    `- Surface: ${packet.source.surface}`,
+    `- Confidence: ${packet.coverage.confidence}`,
+    `- Compiler version: ${packet.compilerVersion}`,
     "",
   ];
 
   if (packet.coverage.confidence === "low") {
-    lines.push(`Coverage note: ${packet.coverage.summary}`, "");
+    lines.push("Coverage note:", `- ${packet.coverage.summary}`, "");
   }
 
   if (packet.topFindings.length > 0) {
-    lines.push("Findings to address:");
+    lines.push("What broke:");
     for (const finding of packet.topFindings) {
       lines.push(`- ${finding.code} [${finding.severity}] ${finding.message}`);
+      lines.push(`  Why it matters: ${buildFindingImpact(finding)}`);
       if (finding.file || finding.line) {
         lines.push(
           `  Location: ${finding.file ?? packet.source.fileName}${finding.line ? `:${finding.line}` : ""}`
         );
       }
       if (finding.suggestion) {
-        lines.push(`  Suggested direction: ${finding.suggestion}`);
+        lines.push(`  Make this change: ${finding.suggestion}`);
       }
     }
     lines.push("");
   } else {
-    lines.push("No findings were emitted in this run.");
+    lines.push("What broke:");
+    lines.push("- No findings were emitted in this run.");
     lines.push("");
   }
 
+  const artifactHints = buildArtifactHints(packet);
+  if (artifactHints.length > 0) {
+    lines.push("Generated artifacts to use:");
+    for (const hint of artifactHints) {
+      lines.push(`- ${hint}`);
+    }
+    lines.push("");
+  }
+
+  lines.push("Repair plan:");
+  for (const step of packet.nextSteps) {
+    lines.push(`- ${step}`);
+  }
+  lines.push("");
+
   lines.push(
-    "Please update the source so the failing or warning findings are resolved, preserve the intended Apple behavior, and explain the concrete changes you made."
+    "When you answer:",
+    "- Update the source, plist copy, and entitlements only where needed to resolve the findings.",
+    "- Preserve unrelated behavior, naming, and product intent.",
+    "- Mention any remaining Apple-specific uncertainty instead of guessing.",
+    "",
+    "Please produce the concrete repair."
   );
 
   return lines.join("\n");
@@ -390,6 +445,7 @@ export function buildFixPacket(
 }
 
 export function renderFixPacketMarkdown(packet: FixPacket): string {
+  const artifactHints = buildArtifactHints(packet);
   const lines: string[] = [
     `# Axint Fix Packet`,
     "",
@@ -424,6 +480,20 @@ export function renderFixPacketMarkdown(packet: FixPacket): string {
 
   lines.push("## Next steps", "");
   for (const step of packet.nextSteps) {
+    lines.push(`- ${step}`);
+  }
+  lines.push("");
+
+  if (artifactHints.length > 0) {
+    lines.push("## Generated artifacts", "");
+    for (const hint of artifactHints) {
+      lines.push(`- ${hint}`);
+    }
+    lines.push("");
+  }
+
+  lines.push("## Xcode checklist", "");
+  for (const step of packet.xcode.checklist) {
     lines.push(`- ${step}`);
   }
   lines.push("", "## Copy this into your AI", "", "```text", packet.ai.prompt, "```", "");
