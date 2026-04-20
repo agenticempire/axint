@@ -11,12 +11,16 @@
  * This is the main entry point for the compilation process.
  */
 
-import { readFileSync } from "node:fs";
-import { parseIntentSource, ParserError } from "./parser.js";
+import { parseIntentSource } from "./parser.js";
 import { parseViewSource } from "./view-parser.js";
 import { parseWidgetSource } from "./widget-parser.js";
 import { parseAppSource } from "./app-parser.js";
 import { detectSurface, type Surface } from "./surface.js";
+import {
+  compileSourceWithParser,
+  readSourceFileOrDiagnostics,
+  runCompilePipeline,
+} from "./compile-pipeline.js";
 import {
   generateSwift,
   generateInfoPlistFragment,
@@ -57,25 +61,15 @@ export function compileFile(
   filePath: string,
   options: Partial<CompilerOptions> = {}
 ): CompileResult {
-  // 1. Read source
-  let source: string;
-  try {
-    source = readFileSync(filePath, "utf-8");
-  } catch (_err) {
+  const result = readSourceFileOrDiagnostics(filePath);
+  if (!result.ok) {
     return {
       success: false,
-      diagnostics: [
-        {
-          code: "AX000",
-          severity: "error",
-          message: `Cannot read file: ${filePath}`,
-          file: filePath,
-        },
-      ],
+      diagnostics: result.diagnostics,
     };
   }
 
-  return compileSource(source, filePath, options);
+  return compileSource(result.source, filePath, options);
 }
 
 /**
@@ -87,31 +81,13 @@ export function compileSource(
   fileName: string = "<stdin>",
   options: Partial<CompilerOptions> = {}
 ): CompileResult {
-  // 1. Parse → IR (catch ParserError as a diagnostic so the caller
-  //    sees a clean error list instead of an uncaught exception)
-  let ir;
-  try {
-    ir = parseIntentSource(source, fileName);
-  } catch (err) {
-    if (err instanceof ParserError) {
-      return {
-        success: false,
-        diagnostics: [
-          {
-            code: err.code,
-            severity: "error",
-            message: err.message,
-            file: err.file,
-            line: err.line,
-            suggestion: err.suggestion,
-          },
-        ],
-      };
-    }
-    throw err;
-  }
-
-  return compileFromIR(ir, options);
+  return compileSourceWithParser({
+    source,
+    fileName,
+    options,
+    parse: parseIntentSource,
+    compileFromIR,
+  });
 }
 
 /**
@@ -128,55 +104,26 @@ export function compileFromIR(
   ir: IRIntent,
   options: Partial<CompilerOptions> = {}
 ): CompileResult {
-  const diagnostics: Diagnostic[] = [];
-
-  // 1. Validate IR
-  const irDiagnostics = validateIntent(ir);
-  diagnostics.push(...irDiagnostics);
-
-  if (irDiagnostics.some((d) => d.severity === "error")) {
-    return { success: false, diagnostics };
-  }
-
-  // 2. Generate Swift
-  const swiftCode = generateSwift(ir);
-
-  // 3. Validate generated Swift
-  if (options.validate !== false) {
-    const swiftDiagnostics = validateSwiftSource(swiftCode);
-    diagnostics.push(...swiftDiagnostics);
-
-    if (swiftDiagnostics.some((d) => d.severity === "error")) {
-      return { success: false, diagnostics };
-    }
-  }
-
-  // 4. Optional fragments
-  const infoPlistFragment = options.emitInfoPlist
-    ? generateInfoPlistFragment(ir)
-    : undefined;
-  const entitlementsFragment = options.emitEntitlements
-    ? generateEntitlementsFragment(ir)
-    : undefined;
-
-  // 5. Build output
-  const intentFileName = `${ir.name}Intent.swift`;
-  const outputPath = options.outDir
-    ? `${options.outDir}/${intentFileName}`
-    : intentFileName;
-
-  return {
-    success: true,
-    output: {
+  return runCompilePipeline({
+    ir,
+    options,
+    validateIR: validateIntent,
+    generateSwift,
+    validateGeneratedSwift: (swiftCode) => validateSwiftSource(swiftCode),
+    outputFileName: (intent) => `${intent.name}Intent.swift`,
+    buildOutput: ({ outputPath, swiftCode, diagnostics }) => ({
       outputPath,
       swiftCode,
-      infoPlistFragment,
-      entitlementsFragment,
+      infoPlistFragment: options.emitInfoPlist
+        ? generateInfoPlistFragment(ir)
+        : undefined,
+      entitlementsFragment: options.emitEntitlements
+        ? generateEntitlementsFragment(ir)
+        : undefined,
       ir,
       diagnostics,
-    },
-    diagnostics,
-  };
+    }),
+  });
 }
 
 // ─── View Compilation ──────────────────────────────────────────────
@@ -200,29 +147,13 @@ export function compileViewSource(
   fileName: string = "<stdin>",
   options: Partial<CompilerOptions> = {}
 ): ViewCompileResult {
-  let ir: IRView;
-  try {
-    ir = parseViewSource(source, fileName);
-  } catch (err) {
-    if (err instanceof ParserError) {
-      return {
-        success: false,
-        diagnostics: [
-          {
-            code: err.code,
-            severity: "error",
-            message: err.message,
-            file: err.file,
-            line: err.line,
-            suggestion: err.suggestion,
-          },
-        ],
-      };
-    }
-    throw err;
-  }
-
-  return compileViewFromIR(ir, options);
+  return compileSourceWithParser({
+    source,
+    fileName,
+    options,
+    parse: parseViewSource,
+    compileFromIR: compileViewFromIR,
+  });
 }
 
 /**
@@ -232,39 +163,20 @@ export function compileViewFromIR(
   ir: IRView,
   options: Partial<CompilerOptions> = {}
 ): ViewCompileResult {
-  const diagnostics: Diagnostic[] = [];
-
-  const viewDiagnostics = validateView(ir);
-  diagnostics.push(...viewDiagnostics);
-
-  if (viewDiagnostics.some((d) => d.severity === "error")) {
-    return { success: false, diagnostics };
-  }
-
-  const swiftCode = generateSwiftUIView(ir);
-
-  if (options.validate !== false) {
-    const swiftDiagnostics = validateSwiftUISource(swiftCode);
-    diagnostics.push(...swiftDiagnostics);
-
-    if (swiftDiagnostics.some((d) => d.severity === "error")) {
-      return { success: false, diagnostics };
-    }
-  }
-
-  const viewFileName = `${ir.name}.swift`;
-  const outputPath = options.outDir ? `${options.outDir}/${viewFileName}` : viewFileName;
-
-  return {
-    success: true,
-    output: {
+  return runCompilePipeline({
+    ir,
+    options,
+    validateIR: validateView,
+    generateSwift: generateSwiftUIView,
+    validateGeneratedSwift: (swiftCode) => validateSwiftUISource(swiftCode),
+    outputFileName: (view) => `${view.name}.swift`,
+    buildOutput: ({ outputPath, swiftCode, diagnostics }) => ({
       outputPath,
       swiftCode,
       ir,
       diagnostics,
-    },
-    diagnostics,
-  };
+    }),
+  });
 }
 
 // ─── Widget Compilation ────────────────────────────────────────────
@@ -288,29 +200,13 @@ export function compileWidgetSource(
   fileName: string = "<stdin>",
   options: Partial<CompilerOptions> = {}
 ): WidgetCompileResult {
-  let ir: IRWidget;
-  try {
-    ir = parseWidgetSource(source, fileName);
-  } catch (err) {
-    if (err instanceof ParserError) {
-      return {
-        success: false,
-        diagnostics: [
-          {
-            code: err.code,
-            severity: "error",
-            message: err.message,
-            file: err.file,
-            line: err.line,
-            suggestion: err.suggestion,
-          },
-        ],
-      };
-    }
-    throw err;
-  }
-
-  return compileWidgetFromIR(ir, options);
+  return compileSourceWithParser({
+    source,
+    fileName,
+    options,
+    parse: parseWidgetSource,
+    compileFromIR: compileWidgetFromIR,
+  });
 }
 
 /**
@@ -320,41 +216,21 @@ export function compileWidgetFromIR(
   ir: IRWidget,
   options: Partial<CompilerOptions> = {}
 ): WidgetCompileResult {
-  const diagnostics: Diagnostic[] = [];
-
-  const widgetDiagnostics = validateWidget(ir);
-  diagnostics.push(...widgetDiagnostics);
-
-  if (widgetDiagnostics.some((d) => d.severity === "error")) {
-    return { success: false, diagnostics };
-  }
-
-  const swiftCode = generateSwiftWidget(ir);
-
-  if (options.validate !== false) {
-    const swiftDiagnostics = validateSwiftWidgetSource(swiftCode, ir.name);
-    diagnostics.push(...swiftDiagnostics);
-
-    if (swiftDiagnostics.some((d) => d.severity === "error")) {
-      return { success: false, diagnostics };
-    }
-  }
-
-  const widgetFileName = `${ir.name}Widget.swift`;
-  const outputPath = options.outDir
-    ? `${options.outDir}/${widgetFileName}`
-    : widgetFileName;
-
-  return {
-    success: true,
-    output: {
+  return runCompilePipeline({
+    ir,
+    options,
+    validateIR: validateWidget,
+    generateSwift: generateSwiftWidget,
+    validateGeneratedSwift: (swiftCode, widget) =>
+      validateSwiftWidgetSource(swiftCode, widget.name),
+    outputFileName: (widget) => `${widget.name}Widget.swift`,
+    buildOutput: ({ outputPath, swiftCode, diagnostics }) => ({
       outputPath,
       swiftCode,
       ir,
       diagnostics,
-    },
-    diagnostics,
-  };
+    }),
+  });
 }
 
 // ─── App Compilation ──────────────────────────────────────────────
@@ -378,29 +254,13 @@ export function compileAppSource(
   fileName: string = "<stdin>",
   options: Partial<CompilerOptions> = {}
 ): AppCompileResult {
-  let ir: IRApp;
-  try {
-    ir = parseAppSource(source, fileName);
-  } catch (err) {
-    if (err instanceof ParserError) {
-      return {
-        success: false,
-        diagnostics: [
-          {
-            code: err.code,
-            severity: "error",
-            message: err.message,
-            file: err.file,
-            line: err.line,
-            suggestion: err.suggestion,
-          },
-        ],
-      };
-    }
-    throw err;
-  }
-
-  return compileAppFromIR(ir, options);
+  return compileSourceWithParser({
+    source,
+    fileName,
+    options,
+    parse: parseAppSource,
+    compileFromIR: compileAppFromIR,
+  });
 }
 
 /**
@@ -410,39 +270,21 @@ export function compileAppFromIR(
   ir: IRApp,
   options: Partial<CompilerOptions> = {}
 ): AppCompileResult {
-  const diagnostics: Diagnostic[] = [];
-
-  const appDiagnostics = validateApp(ir);
-  diagnostics.push(...appDiagnostics);
-
-  if (appDiagnostics.some((d) => d.severity === "error")) {
-    return { success: false, diagnostics };
-  }
-
-  const swiftCode = generateSwiftApp(ir);
-
-  if (options.validate !== false) {
-    const swiftDiagnostics = validateSwiftAppSource(swiftCode, ir.name);
-    diagnostics.push(...swiftDiagnostics);
-
-    if (swiftDiagnostics.some((d) => d.severity === "error")) {
-      return { success: false, diagnostics };
-    }
-  }
-
-  const appFileName = `${ir.name}App.swift`;
-  const outputPath = options.outDir ? `${options.outDir}/${appFileName}` : appFileName;
-
-  return {
-    success: true,
-    output: {
+  return runCompilePipeline({
+    ir,
+    options,
+    validateIR: validateApp,
+    generateSwift: generateSwiftApp,
+    validateGeneratedSwift: (swiftCode, app) =>
+      validateSwiftAppSource(swiftCode, app.name),
+    outputFileName: (app) => `${app.name}App.swift`,
+    buildOutput: ({ outputPath, swiftCode, diagnostics }) => ({
       outputPath,
       swiftCode,
       ir,
       diagnostics,
-    },
-    diagnostics,
-  };
+    }),
+  });
 }
 
 // ─── Surface Dispatcher ────────────────────────────────────────────
@@ -497,25 +339,16 @@ export function compileAnyFile(
   filePath: string,
   options: Partial<CompilerOptions> = {}
 ): AnyCompileResult {
-  let source: string;
-  try {
-    source = readFileSync(filePath, "utf-8");
-  } catch {
+  const result = readSourceFileOrDiagnostics(filePath);
+  if (!result.ok) {
     return {
       surface: "intent",
       success: false,
-      diagnostics: [
-        {
-          code: "AX000",
-          severity: "error",
-          message: `Cannot read file: ${filePath}`,
-          file: filePath,
-        },
-      ],
+      diagnostics: result.diagnostics,
     };
   }
 
-  return compileAnySource(source, filePath, options);
+  return compileAnySource(result.source, filePath, options);
 }
 
 function dispatchCompile(
