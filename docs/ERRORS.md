@@ -458,6 +458,102 @@ struct SendMessageIntent: AppIntent {
 @State var count: Int = 0
 ```
 
+### AX716 — Missing `import AppIntents`
+
+**Trigger**
+
+```swift
+struct SendMessageIntent: AppIntent {
+    static var title: LocalizedStringResource = "Send Message"
+    func perform() async throws -> some IntentResult { .result() }
+}
+```
+
+**Fix**
+
+```swift
+import AppIntents
+
+struct SendMessageIntent: AppIntent {
+    static var title: LocalizedStringResource = "Send Message"
+    func perform() async throws -> some IntentResult { .result() }
+}
+```
+
+### AX717 — Missing `import WidgetKit`
+
+**Trigger**
+
+```swift
+import SwiftUI
+
+struct WeatherWidget: Widget {
+    var body: some WidgetConfiguration { ... }
+}
+```
+
+**Fix**
+
+```swift
+import SwiftUI
+import WidgetKit
+
+struct WeatherWidget: Widget {
+    var body: some WidgetConfiguration { ... }
+}
+```
+
+### AX718 — Missing `import SwiftUI`
+
+**Trigger**
+
+```swift
+struct CounterView: View {
+    @State var count: Int = 0
+    var body: some View { Text("\\(count)") }
+}
+```
+
+**Fix**
+
+```swift
+import SwiftUI
+
+struct CounterView: View {
+    @State var count: Int = 0
+    var body: some View { Text("\\(count)") }
+}
+```
+
+### AX719 — AppIntent inputs should use `@Parameter`
+
+**Trigger**
+
+```swift
+import AppIntents
+
+struct TrailCheck: AppIntent {
+    static var title: LocalizedStringResource = "Trail Check"
+    var trailName: String
+    func perform() async throws -> some IntentResult { .result() }
+}
+```
+
+**Fix**
+
+```swift
+import AppIntents
+
+struct TrailCheck: AppIntent {
+    static var title: LocalizedStringResource = "Trail Check"
+
+    @Parameter(title: "Trail")
+    var trailName: String
+
+    func perform() async throws -> some IntentResult { .result() }
+}
+```
+
 ### AX720 — Legacy main-thread dispatch in Swift 6
 
 **Trigger**

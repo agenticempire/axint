@@ -42,11 +42,18 @@ function diff(a, b, path = "") {
     const bv = b?.[key];
     if (isObject(av) && isObject(bv)) {
       out.push(...diff(av, bv, nextPath));
-    } else if (av !== bv) {
+    } else if (!sameValue(av, bv)) {
       out.push({ path: nextPath, committed: av, source: bv });
     }
   }
   return out;
+}
+
+function sameValue(a, b) {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  return a === b;
 }
 
 function isObject(v) {

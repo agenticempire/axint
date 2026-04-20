@@ -21,6 +21,7 @@ The JSON packet includes:
 - compiler version
 - source surface, file name, file path, and language
 - verdict: `pass`, `needs_review`, or `fail`
+- confidence: whether Axint recognized a supported Apple-native surface or is treating the result as low-confidence
 - counts for errors, warnings, and infos
 - top findings and full diagnostics
 - next steps
@@ -29,6 +30,9 @@ The JSON packet includes:
 - artifact paths for generated Swift, plist fragments, entitlements, and the packet files themselves
 
 The markdown packet is the same information rendered for human review and easy sharing.
+
+If Axint cannot recognize a supported Apple-native Swift surface, the packet drops to
+`confidence: low` instead of pretending the file is fully covered.
 
 ## CLI flow
 

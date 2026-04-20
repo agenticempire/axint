@@ -65,6 +65,54 @@ describe("Fix Packet", () => {
     expect(packet.nextSteps[0]).toContain("Copy the AI fix prompt");
   });
 
+  it("marks unknown Swift snippets as low confidence instead of bluffing", () => {
+    const packet = buildFixPacket({
+      success: true,
+      surface: "swift",
+      language: "swift",
+      fileName: "Helper.swift",
+      source: `
+        import Foundation
+
+        struct Helper {
+            let value: String
+        }
+      `,
+      diagnostics: [],
+      packetJsonPath: "/tmp/latest.json",
+      packetMarkdownPath: "/tmp/latest.md",
+    });
+
+    expect(packet.coverage.confidence).toBe("low");
+    expect(packet.coverage.summary).toContain(
+      "did not recognize a supported Apple-native Swift surface"
+    );
+    expect(packet.ai.prompt).toContain("Confidence: low");
+    expect(packet.nextSteps[0]).toContain("low confidence");
+  });
+
+  it("keeps recognized Apple-native Swift snippets at high confidence", () => {
+    const packet = buildFixPacket({
+      success: true,
+      surface: "swift",
+      language: "swift",
+      fileName: "SendMessage.swift",
+      source: `
+        import AppIntents
+
+        struct SendMessage: AppIntent {
+            static var title: LocalizedStringResource = "Send Message"
+            func perform() async throws -> some IntentResult { .result() }
+        }
+      `,
+      diagnostics: [],
+      packetJsonPath: "/tmp/latest.json",
+      packetMarkdownPath: "/tmp/latest.md",
+    });
+
+    expect(packet.coverage.confidence).toBe("high");
+  });
+
   it("emits latest json and markdown artifacts and can rediscover them from a child cwd", () => {
     const root = mkdtempSync(join(tmpdir(), "axint-fix-packet-"));
     tempDirs.push(root);

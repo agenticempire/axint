@@ -276,6 +276,12 @@ No install required — [axint.ai/#playground](https://axint.ai/#playground) run
 
 Extensions for [Claude Code](extensions/claude-code), [Codex](extensions/codex), [VS Code / Cursor](extensions/vscode), [Windsurf](extensions/windsurf), [JetBrains](extensions/jetbrains), [Neovim](extensions/neovim), and [Xcode](extensions/xcode).
 
+### Workflow docs
+
+- [Fix Packet](docs/FIX_PACKET.md) — the repair contract for CLI, MCP, and Xcode
+- [Coverage Snapshot](docs/COVERAGE.md) — what Axint currently covers and how to refresh the metrics
+- [Release Notes](docs/RELEASE_NOTES.md) — the latest Apple coverage and Xcode workflow improvements
+
 ---
 
 ## Project structure

@@ -520,6 +520,8 @@ describe("axint.templates.get tool", () => {
 describe("axint.swift.validate tool", () => {
   it("passes clean Swift source", () => {
     const source = `
+      import SwiftUI
+
       struct CounterView: View {
           @State var count: Int = 0
           var body: some View { Text("\\(count)") }
@@ -548,6 +550,38 @@ describe("axint.swift.validate tool", () => {
     `;
     const result = validateSwiftSource(source, "SendMessage.swift");
     expect(result.diagnostics.some((d) => d.code === "AX701")).toBe(true);
+  });
+
+  it("flags missing AppIntents and SwiftUI imports in Swift snippets", () => {
+    const source = `
+      struct SendMessage: AppIntent {
+          static var title: LocalizedStringResource = "Send Message"
+          func perform() async throws -> some IntentResult { .result() }
+      }
+
+      struct CounterView: View {
+          @State var count: Int = 0
+          var body: some View { Text("\\(count)") }
+      }
+    `;
+    const result = validateSwiftSource(source, "Mixed.swift");
+    const codes = result.diagnostics.map((d) => d.code);
+    expect(codes).toContain("AX716");
+    expect(codes).toContain("AX718");
+  });
+
+  it("flags AppIntent inputs missing @Parameter", () => {
+    const source = `
+      import AppIntents
+
+      struct TrailCheck: AppIntent {
+          static var title: LocalizedStringResource = "Trail Check"
+          var trailName: String
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    const result = validateSwiftSource(source, "TrailCheck.swift");
+    expect(result.diagnostics.some((d) => d.code === "AX719")).toBe(true);
   });
 
   it("attaches the supplied file name to diagnostics", () => {
@@ -588,6 +622,8 @@ describe("axint.swift.fix tool", () => {
 
   it("returns input unchanged when nothing is broken", () => {
     const source = `
+      import SwiftUI
+
       struct CounterView: View {
           @State var count: Int = 0
           var body: some View { Text("\\(count)") }
@@ -600,6 +636,9 @@ describe("axint.swift.fix tool", () => {
 
   it("fixes multiple issues in a single pass", () => {
     const source = `
+      import AppIntents
+      import SwiftUI
+
       struct CounterView: View {
           @State let count: Int = 0
           var body: some View { Text("\\(count)") }
@@ -612,6 +651,18 @@ describe("axint.swift.fix tool", () => {
     const result = fixSwiftSource(source, "Mixed.swift");
     const codes = result.fixed.map((d) => d.code).sort();
     expect(codes).toEqual(["AX701", "AX703"]);
+  });
+
+  it("adds missing AppIntents import in one pass", () => {
+    const source = `
+      struct SendMessage: AppIntent {
+          static var title: LocalizedStringResource = "Send Message"
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    const result = fixSwiftSource(source, "SendMessage.swift");
+    expect(result.source).toContain("import AppIntents");
+    expect(result.fixed.some((d) => d.code === "AX716")).toBe(true);
   });
 });
 

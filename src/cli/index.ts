@@ -19,15 +19,17 @@
  *   axint xcode verify            Verify the MCP connection is working
  *   axint xcode fix <path>        Auto-fix mechanical Swift validator errors
  *   axint xcode doctor            Audit environment for Apple-platform agentic coding
+ *   axint xcode packet            Print the latest Xcode Fix Packet or AI prompt
  *   axint xcode extension install Install the notarized Axint Source Editor Extension
  *   axint xcode extension status  Report whether the extension is installed
  *   axint --version               Show version
  */
 
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { XcodePacketKind, XcodePacketOutput } from "./xcode-packet.js";
 import { scaffoldProject } from "./scaffold.js";
 import { registerCompile } from "./compile.js";
 import { registerValidate } from "./validate.js";
@@ -45,6 +47,23 @@ const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "u
 const VERSION = pkg.version as string;
 
 const program = new Command();
+const XCODE_PACKET_KINDS = ["any", "compile", "validate"] as const;
+const XCODE_PACKET_FORMATS = ["markdown", "prompt", "json", "path"] as const;
+
+function parseChoice<T extends string>(
+  label: string,
+  value: string,
+  choices: readonly T[]
+): T {
+  const normalized = value.trim().toLowerCase();
+  if ((choices as readonly string[]).includes(normalized)) {
+    return normalized as T;
+  }
+
+  throw new InvalidArgumentError(
+    `invalid ${label}: ${value} (expected one of ${choices.join(", ")})`
+  );
+}
 
 program
   .name("axint")
@@ -179,6 +198,36 @@ xcode
     const { runXcodeDoctor } = await import("./xcode-doctor.js");
     await runXcodeDoctor();
   });
+
+xcode
+  .command("packet")
+  .description("Read the latest Xcode Fix Packet emitted by Axint build plugins")
+  .option(
+    "--root <dir>",
+    "DerivedData root, plugin work directory, or exact latest.json packet path"
+  )
+  .option(
+    "--kind <kind>",
+    "Packet type to read (any, compile, validate)",
+    (value) => parseChoice("kind", value, XCODE_PACKET_KINDS),
+    "any"
+  )
+  .option(
+    "--format <format>",
+    "Output format (markdown, prompt, json, path)",
+    (value) => parseChoice("format", value, XCODE_PACKET_FORMATS),
+    "markdown"
+  )
+  .action(
+    async (options: {
+      root?: string;
+      kind: XcodePacketKind;
+      format: XcodePacketOutput;
+    }) => {
+      const { runXcodePacket } = await import("./xcode-packet.js");
+      await runXcodePacket(options);
+    }
+  );
 
 const xcodeExtension = xcode
   .command("extension")
