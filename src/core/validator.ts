@@ -13,11 +13,25 @@ const MAX_PARAMETERS = 10;
 /** Maximum title length before Siri may truncate display */
 const MAX_TITLE_LENGTH = 60;
 
+const HEALTHKIT_ENTITLEMENT_KEYS = new Set([
+  "com.apple.developer.healthkit",
+  "com.apple.developer.healthkit.background-delivery",
+]);
+
+const HEALTHKIT_USAGE_DESCRIPTION_KEYS = [
+  "NSHealthShareUsageDescription",
+  "NSHealthUpdateUsageDescription",
+  "NSHealthClinicalHealthRecordsShareUsageDescription",
+];
+
+const PRIVACY_USAGE_DESCRIPTION_PATTERN = /^NS[A-Za-z0-9]+UsageDescription$/;
+
 /**
  * Validate an IR intent for App Intents framework compliance.
  */
 export function validateIntent(intent: IRIntent): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
+  const infoPlistKeys = intent.infoPlistKeys ?? {};
 
   // Rule: Intent name must be PascalCase and non-empty
   if (!intent.name || !/^[A-Z][a-zA-Z0-9]*$/.test(intent.name)) {
@@ -128,7 +142,7 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
   }
 
   // Rule: Info.plist keys must start with "NS" or other known prefixes
-  for (const key of Object.keys(intent.infoPlistKeys ?? {})) {
+  for (const key of Object.keys(infoPlistKeys)) {
     if (!/^(NS|UI|LS|CF|CA|CK)[A-Za-z0-9]+$/.test(key)) {
       diagnostics.push({
         code: "AX109",
@@ -139,6 +153,51 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
           'Apple keys generally start with "NS" (e.g., "NSCalendarsUsageDescription")',
       });
     }
+  }
+
+  const hasHealthKitEntitlement = (intent.entitlements ?? []).some((entitlement) =>
+    HEALTHKIT_ENTITLEMENT_KEYS.has(entitlement)
+  );
+  const declaredHealthKitUsageKeys = HEALTHKIT_USAGE_DESCRIPTION_KEYS.filter(
+    (key) => key in infoPlistKeys
+  );
+
+  if (hasHealthKitEntitlement && declaredHealthKitUsageKeys.length === 0) {
+    diagnostics.push({
+      code: "AX114",
+      severity: "warning",
+      message:
+        "HealthKit entitlements were declared, but no HealthKit privacy usage descriptions were provided",
+      file: intent.sourceFile,
+      suggestion:
+        "Add NSHealthShareUsageDescription and/or NSHealthUpdateUsageDescription with user-facing copy that matches the HealthKit access you request",
+    });
+  }
+
+  if (!hasHealthKitEntitlement && declaredHealthKitUsageKeys.length > 0) {
+    diagnostics.push({
+      code: "AX115",
+      severity: "warning",
+      message:
+        "HealthKit privacy usage descriptions were declared, but the HealthKit entitlement is missing",
+      file: intent.sourceFile,
+      suggestion:
+        "Enable the HealthKit capability (com.apple.developer.healthkit) or remove the stray NSHealth*UsageDescription keys if this intent does not use HealthKit",
+    });
+  }
+
+  for (const [key, value] of Object.entries(infoPlistKeys)) {
+    if (!PRIVACY_USAGE_DESCRIPTION_PATTERN.test(key)) continue;
+    if (!isPlaceholderUsageDescription(value)) continue;
+
+    diagnostics.push({
+      code: "AX116",
+      severity: "warning",
+      message: `Privacy usage description "${key}" is empty or still reads like placeholder copy`,
+      file: intent.sourceFile,
+      suggestion:
+        "Replace it with a concrete user-facing explanation of what the app reads or writes and why",
+    });
   }
 
   // Validate all entities
@@ -250,4 +309,20 @@ function toPascalCase(s: string): string {
   return s
     .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ""))
     .replace(/^(.)/, (c) => c.toUpperCase());
+}
+
+function isPlaceholderUsageDescription(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return true;
+
+  const normalized = trimmed.toLowerCase();
+  return (
+    normalized.startsWith("todo") ||
+    normalized.startsWith("tbd") ||
+    normalized === "placeholder" ||
+    normalized === "change me" ||
+    normalized.includes("<#") ||
+    normalized.includes("your usage description") ||
+    normalized.includes("insert usage description")
+  );
 }

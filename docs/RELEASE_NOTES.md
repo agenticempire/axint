@@ -14,6 +14,10 @@ This release wave sharpens the Xcode workflow and expands Apple-native Swift cov
   - `AX717` — missing `import WidgetKit`
   - `AX718` — missing `import SwiftUI`
   - `AX719` — AppIntent inputs missing `@Parameter`
+- New intent-validation diagnostics:
+  - `AX114` — HealthKit entitlement declared without matching privacy usage descriptions
+  - `AX115` — HealthKit privacy usage descriptions declared without the HealthKit entitlement
+  - `AX116` — privacy usage description is empty or still placeholder copy
 - New safe repair coverage:
   - insert missing Apple framework imports
   - inject missing `TimelineProvider` stubs
@@ -26,6 +30,7 @@ This release wave sharpens the Xcode workflow and expands Apple-native Swift cov
 - Xcode docs now explain the `build -> packet -> fix -> rerun` loop directly
 - Fix Packets now carry a low-confidence signal for Swift files that Axint does not recognize as supported Apple-native surfaces
 - Metrics now expose Xcode fix rule counts and names so coverage can be tracked more explicitly
+- Intent validation now catches a common App Review / HealthKit setup failure before you leave the compiler loop
 
 ### Why it matters
 

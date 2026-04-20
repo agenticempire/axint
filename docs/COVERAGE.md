@@ -15,6 +15,7 @@ This page is the quickest way to understand what Axint currently covers in Apple
   - App Shortcuts provider requirements
   - Swift 6 isolation and concurrency hazards
   - Live Activities / ActivityKit repair cases
+  - HealthKit entitlement and privacy usage-description mismatches
 
 ## Canonical proof sources
 
