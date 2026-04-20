@@ -678,6 +678,31 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "AppIntent description is missing or empty",
     category: "swift-validator",
   },
+  AX716: {
+    code: "AX716",
+    severity: "error",
+    message: "Missing import AppIntents for AppIntent or AppShortcutsProvider types",
+    category: "swift-validator",
+  },
+  AX717: {
+    code: "AX717",
+    severity: "error",
+    message:
+      "Missing import WidgetKit for Widget, TimelineProvider, or TimelineEntry types",
+    category: "swift-validator",
+  },
+  AX718: {
+    code: "AX718",
+    severity: "error",
+    message: "Missing import SwiftUI for View or App types",
+    category: "swift-validator",
+  },
+  AX719: {
+    code: "AX719",
+    severity: "error",
+    message: "AppIntent input properties should use @Parameter",
+    category: "swift-validator",
+  },
 
   // ─── Swift 6 Concurrency (AX720–AX734) ──────────────────
   AX720: {

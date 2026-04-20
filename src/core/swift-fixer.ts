@@ -62,6 +62,12 @@ function applyFix(source: string, d: Diagnostic): string | null {
       return addMainActorToClass(source, d, "ObservableObject");
     case "AX722":
       return addMainActorToClass(source, d, "@Observable");
+    case "AX716":
+      return addImport(source, "AppIntents");
+    case "AX717":
+      return addImport(source, "WidgetKit");
+    case "AX718":
+      return addImport(source, "SwiftUI");
     case "AX724":
       return stripMainActorFromActor(source, d);
     case "AX728":
@@ -74,7 +80,7 @@ function applyFix(source: string, d: Diagnostic): string | null {
     case "AX742":
       return addCodableHashableToContentState(source);
     case "AX748":
-      return addActivityKitImport(source);
+      return addImport(source, "ActivityKit");
     default:
       return null;
   }
@@ -199,16 +205,17 @@ function addCodableHashableToContentState(source: string): string {
   );
 }
 
-function addActivityKitImport(source: string): string {
-  if (/\bimport\s+ActivityKit\b/.test(source)) return source;
+function addImport(source: string, importName: string): string {
+  if (new RegExp(`\\bimport\\s+${escapeRegex(importName)}\\b`).test(source))
+    return source;
   const importRe = /^import\s+\w+.*$/gm;
   let lastIdx = -1;
   let m: RegExpExecArray | null;
   while ((m = importRe.exec(source)) !== null) {
     lastIdx = m.index + m[0].length;
   }
-  if (lastIdx === -1) return `import ActivityKit\n${source}`;
-  return source.slice(0, lastIdx) + "\nimport ActivityKit" + source.slice(lastIdx);
+  if (lastIdx === -1) return `import ${importName}\n${source}`;
+  return source.slice(0, lastIdx) + `\nimport ${importName}` + source.slice(lastIdx);
 }
 
 function escapeRegex(s: string): string {

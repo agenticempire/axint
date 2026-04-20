@@ -100,6 +100,20 @@ export const REGEX_FIX_RULES: readonly RegexFix[] = [
   },
   {
     kind: "regex",
+    code: "AX725",
+    description: "lazy var in actor → var",
+    pattern: "\\blazy\\s+var\\b",
+    replacement: "var",
+  },
+  {
+    kind: "regex",
+    code: "AX726",
+    description: "Task.detached → Task",
+    pattern: "\\bTask\\.detached\\s*\\{",
+    replacement: "Task {",
+  },
+  {
+    kind: "regex",
     code: "AX734",
     description: "DispatchQueue.global().async → Task.detached",
     pattern:
@@ -141,6 +155,36 @@ export const STRUCT_INJECT_FIX_RULES: readonly StructInjectFix[] = [
   },
   {
     kind: "struct-inject",
+    code: "AX705",
+    description: "inject placeholder(in:) into TimelineProvider",
+    conformance: "TimelineProvider",
+    sentinel: "func placeholder(",
+    stub: `    func placeholder(in context: Context) -> Entry {
+        fatalError("TODO: return placeholder entry")
+    }`,
+  },
+  {
+    kind: "struct-inject",
+    code: "AX706",
+    description: "inject getSnapshot(in:completion:) into TimelineProvider",
+    conformance: "TimelineProvider",
+    sentinel: "func getSnapshot(",
+    stub: `    func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
+        completion(placeholder(in: context))
+    }`,
+  },
+  {
+    kind: "struct-inject",
+    code: "AX707",
+    description: "inject getTimeline(in:completion:) into TimelineProvider",
+    conformance: "TimelineProvider",
+    sentinel: "func getTimeline(",
+    stub: `    func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
+        completion(Timeline(entries: [placeholder(in: context)], policy: .never))
+    }`,
+  },
+  {
+    kind: "struct-inject",
     code: "AX713",
     description: "inject let date: Date into TimelineEntry",
     conformance: "TimelineEntry",
@@ -155,6 +199,16 @@ export const STRUCT_INJECT_FIX_RULES: readonly StructInjectFix[] = [
     sentinel: "var body",
     stub: `    var body: some Scene {
         WindowGroup { ContentView() }
+    }`,
+  },
+  {
+    kind: "struct-inject",
+    code: "AX712",
+    description: "inject appShortcuts into AppShortcutsProvider",
+    conformance: "AppShortcutsProvider",
+    sentinel: "static var appShortcuts",
+    stub: `    static var appShortcuts: [AppShortcut] {
+        []
     }`,
   },
   {

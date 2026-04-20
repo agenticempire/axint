@@ -86,6 +86,24 @@ enum AxintFixer {
             }
         }
 
+        // AX725 — lazy var in actor → var
+        do {
+            let (next, count) = applyRegex(current, pattern: "\\blazy\\s+var\\b", template: "var")
+            if count > 0 {
+                current = next
+                applied.append(.init(code: "AX725", message: "lazy var in actor → var"))
+            }
+        }
+
+        // AX726 — Task.detached → Task
+        do {
+            let (next, count) = applyRegex(current, pattern: "\\bTask\\.detached\\s*\\{", template: "Task {")
+            if count > 0 {
+                current = next
+                applied.append(.init(code: "AX726", message: "Task.detached → Task"))
+            }
+        }
+
         // AX734 — DispatchQueue.global().async → Task.detached
         do {
             let (next, count) = applyRegex(current, pattern: "\\bDispatchQueue\\.global\\([^)]*\\)\\.async\\s*(?:\\(\\s*execute\\s*:\\s*)?\\{", template: "Task.detached {")
@@ -138,6 +156,51 @@ enum AxintFixer {
             applied.append(.init(code: "AX704", message: "inject static title into AppIntent"))
         }
 
+        // AX705 — inject placeholder(in:) into TimelineProvider
+        if let next = injectIntoStruct(
+            current,
+            conformance: "TimelineProvider",
+            sentinel: "func placeholder(",
+            stub: #"""
+    func placeholder(in context: Context) -> Entry {
+        fatalError("TODO: return placeholder entry")
+    }
+"""#
+        ) {
+            current = next
+            applied.append(.init(code: "AX705", message: "inject placeholder(in:) into TimelineProvider"))
+        }
+
+        // AX706 — inject getSnapshot(in:completion:) into TimelineProvider
+        if let next = injectIntoStruct(
+            current,
+            conformance: "TimelineProvider",
+            sentinel: "func getSnapshot(",
+            stub: #"""
+    func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
+        completion(placeholder(in: context))
+    }
+"""#
+        ) {
+            current = next
+            applied.append(.init(code: "AX706", message: "inject getSnapshot(in:completion:) into TimelineProvider"))
+        }
+
+        // AX707 — inject getTimeline(in:completion:) into TimelineProvider
+        if let next = injectIntoStruct(
+            current,
+            conformance: "TimelineProvider",
+            sentinel: "func getTimeline(",
+            stub: #"""
+    func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
+        completion(Timeline(entries: [placeholder(in: context)], policy: .never))
+    }
+"""#
+        ) {
+            current = next
+            applied.append(.init(code: "AX707", message: "inject getTimeline(in:completion:) into TimelineProvider"))
+        }
+
         // AX713 — inject let date: Date into TimelineEntry
         if let next = injectIntoStruct(
             current,
@@ -164,6 +227,21 @@ enum AxintFixer {
         ) {
             current = next
             applied.append(.init(code: "AX714", message: "inject Scene body into App"))
+        }
+
+        // AX712 — inject appShortcuts into AppShortcutsProvider
+        if let next = injectIntoStruct(
+            current,
+            conformance: "AppShortcutsProvider",
+            sentinel: "static var appShortcuts",
+            stub: #"""
+    static var appShortcuts: [AppShortcut] {
+        []
+    }
+"""#
+        ) {
+            current = next
+            applied.append(.init(code: "AX712", message: "inject appShortcuts into AppShortcutsProvider"))
         }
 
         // AX740 — inject ContentState into ActivityAttributes

@@ -107,6 +107,34 @@ targets: [
 
 Place `.ts` intent files in your target's source directory. Xcode runs the Axint compiler at build time and generates Swift files automatically.
 
+### Read the latest Xcode Fix Packet
+
+Both Axint Xcode plugins emit a Fix Packet into the plugin work directory inside DerivedData:
+
+- `AxintCompilePlugin` writes a per-file packet for generated Swift
+- `AxintValidatePlugin` writes a validator packet for Swift repair loops
+
+You do not need to hunt through DerivedData manually. Use:
+
+```bash
+axint xcode packet
+```
+
+That prints the latest packet as markdown. Useful variations:
+
+```bash
+axint xcode packet --kind validate --format prompt
+axint xcode packet --kind compile --format json
+axint xcode packet --format path
+```
+
+This makes the Xcode loop much smoother:
+
+1. Build in Xcode
+2. Run `axint xcode packet --kind validate --format prompt`
+3. Paste the prompt into your AI tool or use it as a manual repair checklist
+4. Rebuild until the packet drops to `pass`
+
 ## Example Prompts
 
 Once Axint is connected to your Xcode agent workflow, try:

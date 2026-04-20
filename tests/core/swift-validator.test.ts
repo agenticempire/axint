@@ -37,6 +37,8 @@ describe("swift validator — AX701 AppIntent.perform()", () => {
 
   it("accepts perform() even when the protocol is part of a composition", () => {
     const source = `
+      import AppIntents
+
       struct LogEvent: Sendable & AppIntent {
           static var title: LocalizedStringResource = "Log Event"
           func perform() async throws -> some IntentResult { .result() }
@@ -118,6 +120,8 @@ describe("swift validator — AX703 @State must be var", () => {
 describe("swift validator — robustness", () => {
   it("does not trip on protocol names inside comments or strings", () => {
     const source = `
+      import AppIntents
+
       // struct FakeWidget: Widget { ... }
       let note = "struct FakeIntent: AppIntent {}"
       struct RealIntent: AppIntent {
@@ -130,6 +134,10 @@ describe("swift validator — robustness", () => {
 
   it("handles multiple types in one file and reports each problem separately", () => {
     const source = `
+      import AppIntents
+      import SwiftUI
+      import WidgetKit
+
       struct A: AppIntent {
           static var title: LocalizedStringResource = "A"
       }
@@ -176,6 +184,8 @@ describe("swift validator — AX704 AppIntent.title", () => {
 describe("swift validator — AX705–AX707 TimelineProvider methods", () => {
   it("flags all three missing methods", () => {
     const source = `
+      import WidgetKit
+
       struct Provider: TimelineProvider {
           typealias Entry = SimpleEntry
       }
@@ -187,6 +197,8 @@ describe("swift validator — AX705–AX707 TimelineProvider methods", () => {
 
   it("accepts a complete TimelineProvider", () => {
     const source = `
+      import WidgetKit
+
       struct Provider: TimelineProvider {
           typealias Entry = SimpleEntry
           func placeholder(in context: Context) -> Entry { .init() }
@@ -243,6 +255,8 @@ describe("swift validator — AX708–AX711 property wrapper var", () => {
 
   it("accepts correct var declarations", () => {
     const source = `
+      import SwiftUI
+
       struct Row: View {
           @Binding var isOn: Bool
           @ObservedObject var model: ViewModel
@@ -267,6 +281,8 @@ describe("swift validator — AX712 AppShortcutsProvider", () => {
 
   it("accepts a provider with appShortcuts", () => {
     const source = `
+      import AppIntents
+
       struct Shortcuts: AppShortcutsProvider {
           static var appShortcuts: [AppShortcut] { [] }
       }
@@ -289,6 +305,8 @@ describe("swift validator — AX713 TimelineEntry.date", () => {
 
   it("accepts a TimelineEntry with date", () => {
     const source = `
+      import WidgetKit
+
       struct Entry: TimelineEntry {
           let date: Date
           let value: Int
@@ -311,6 +329,8 @@ describe("swift validator — AX714 App.body", () => {
 
   it("accepts an App with a scene body", () => {
     const source = `
+      import SwiftUI
+
       @main
       struct MyApp: App {
           var body: some Scene {
@@ -345,6 +365,142 @@ describe("swift validator — AX715 empty AppIntent description", () => {
       }
     `;
     expect(validate(source).diagnostics.filter((d) => d.code === "AX715")).toHaveLength(
+      0
+    );
+  });
+});
+
+// ─── AX716–AX719: imports and AppIntent input coverage ──────────────
+
+describe("swift validator — AX716 missing import AppIntents", () => {
+  it("flags AppIntent files without import AppIntents", () => {
+    const source = `
+      struct SendMessage: AppIntent {
+          static var title: LocalizedStringResource = "Send Message"
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    expect(validate(source).diagnostics.some((d) => d.code === "AX716")).toBe(true);
+  });
+
+  it("accepts AppIntent files with import AppIntents", () => {
+    const source = `
+      import AppIntents
+
+      struct SendMessage: AppIntent {
+          static var title: LocalizedStringResource = "Send Message"
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX716")).toHaveLength(
+      0
+    );
+  });
+});
+
+describe("swift validator — AX717 missing import WidgetKit", () => {
+  it("flags Widget files without import WidgetKit", () => {
+    const source = `
+      import SwiftUI
+
+      struct WeatherWidget: Widget {
+          var body: some WidgetConfiguration {
+              StaticConfiguration(kind: "Weather", provider: Provider()) { entry in
+                  Text("Hi")
+              }
+          }
+      }
+    `;
+    expect(validate(source).diagnostics.some((d) => d.code === "AX717")).toBe(true);
+  });
+
+  it("accepts Widget files with import WidgetKit", () => {
+    const source = `
+      import SwiftUI
+      import WidgetKit
+
+      struct WeatherWidget: Widget {
+          var body: some WidgetConfiguration {
+              StaticConfiguration(kind: "Weather", provider: Provider()) { entry in
+                  Text("Hi")
+              }
+          }
+      }
+    `;
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX717")).toHaveLength(
+      0
+    );
+  });
+});
+
+describe("swift validator — AX718 missing import SwiftUI", () => {
+  it("flags View files without import SwiftUI", () => {
+    const source = `
+      struct CounterView: View {
+          @State var count: Int = 0
+          var body: some View { Text("\\(count)") }
+      }
+    `;
+    expect(validate(source).diagnostics.some((d) => d.code === "AX718")).toBe(true);
+  });
+
+  it("accepts View files with import SwiftUI", () => {
+    const source = `
+      import SwiftUI
+
+      struct CounterView: View {
+          @State var count: Int = 0
+          var body: some View { Text("\\(count)") }
+      }
+    `;
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX718")).toHaveLength(
+      0
+    );
+  });
+});
+
+describe("swift validator — AX719 missing @Parameter on AppIntent inputs", () => {
+  it("flags instance properties without @Parameter when they look like intent inputs", () => {
+    const source = `
+      import AppIntents
+
+      struct TrailCheck: AppIntent {
+          static var title: LocalizedStringResource = "Trail Check"
+          var trailName: String
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    expect(validate(source).diagnostics.some((d) => d.code === "AX719")).toBe(true);
+  });
+
+  it("accepts AppIntent inputs annotated with @Parameter", () => {
+    const source = `
+      import AppIntents
+
+      struct TrailCheck: AppIntent {
+          static var title: LocalizedStringResource = "Trail Check"
+          @Parameter(title: "Trail")
+          var trailName: String
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX719")).toHaveLength(
+      0
+    );
+  });
+
+  it("does not flag initialized internal state or openAppWhenRun", () => {
+    const source = `
+      import AppIntents
+
+      struct TrailCheck: AppIntent {
+          static var title: LocalizedStringResource = "Trail Check"
+          var openAppWhenRun = true
+          let logger: Logger = Logger()
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX719")).toHaveLength(
       0
     );
   });

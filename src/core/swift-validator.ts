@@ -39,11 +39,14 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   const stripped = stripCommentsAndStrings(source);
   const decls = findTypeDeclarations(stripped, source);
 
+  checkRequiredFrameworkImports(decls, source, file, diagnostics);
+
   for (const decl of decls) {
     if (hasConformance(decl, "AppIntent")) {
       checkAppIntentHasPerform(decl, file, diagnostics);
       checkAppIntentHasTitle(decl, file, diagnostics);
       checkAppIntentHasDescription(decl, file, diagnostics);
+      checkAppIntentParametersUseParameterWrapper(decl, file, diagnostics);
     }
     if (hasConformance(decl, "Widget")) {
       checkWidgetHasBody(decl, file, diagnostics);
@@ -69,6 +72,60 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkLiveActivities(decls, source, file, diagnostics);
 
   return { file, diagnostics };
+}
+
+function checkRequiredFrameworkImports(
+  decls: SwiftDeclaration[],
+  source: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const hasAppIntentSurface = decls.some(
+    (decl) =>
+      hasConformance(decl, "AppIntent") || hasConformance(decl, "AppShortcutsProvider")
+  );
+  const hasWidgetSurface = decls.some(
+    (decl) =>
+      hasConformance(decl, "Widget") ||
+      hasConformance(decl, "TimelineProvider") ||
+      hasConformance(decl, "TimelineEntry")
+  );
+  const hasSwiftUISurface = decls.some(
+    (decl) => hasConformance(decl, "View") || hasConformance(decl, "App")
+  );
+
+  const hasAppIntentsImport = /^\s*import\s+AppIntents\b/m.test(source);
+  const hasWidgetKitImport = /^\s*import\s+WidgetKit\b/m.test(source);
+  const hasSwiftUIImport = /^\s*import\s+SwiftUI\b/m.test(source);
+
+  if (hasAppIntentSurface && !hasAppIntentsImport) {
+    diagnostics.push(
+      makeDiagnostic("AX716", file, 1, {
+        message:
+          "This file declares AppIntent-facing types but does not import AppIntents",
+        suggestion: "Add `import AppIntents` at the top of the file.",
+      })
+    );
+  }
+
+  if (hasWidgetSurface && !hasWidgetKitImport) {
+    diagnostics.push(
+      makeDiagnostic("AX717", file, 1, {
+        message:
+          "This file declares WidgetKit-facing types but does not import WidgetKit",
+        suggestion: "Add `import WidgetKit` at the top of the file.",
+      })
+    );
+  }
+
+  if (hasSwiftUISurface && !hasSwiftUIImport) {
+    diagnostics.push(
+      makeDiagnostic("AX718", file, 1, {
+        message: "This file declares SwiftUI-facing types but does not import SwiftUI",
+        suggestion: "Add `import SwiftUI` at the top of the file.",
+      })
+    );
+  }
 }
 
 // ─── Rule: AX701 — AppIntent must have a perform() function ──────────
@@ -193,6 +250,82 @@ function checkAppIntentHasDescription(
   }
 }
 
+// ─── Rule: AX719 — AppIntent input properties should use @Parameter ──
+
+const APP_INTENT_INSTANCE_PROPERTY =
+  /^\s*(?:public|internal|private|fileprivate|open)?\s*(?:var|let)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^=/{\n]+?)\s*$/;
+
+const APP_INTENT_KNOWN_NON_PARAMETER_PROPERTIES = new Set([
+  "openAppWhenRun",
+  "authenticationPolicy",
+  "isDiscoverable",
+]);
+
+function checkAppIntentParametersUseParameterWrapper(
+  decl: SwiftDeclaration,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const body = decl.source.slice(decl.bodyStart, decl.bodyEnd);
+  const bodyLineOffset = countNewlinesUpTo(decl.source, decl.bodyStart);
+  const lines = body.split("\n");
+
+  const pendingAttributes: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      pendingAttributes.length = 0;
+      continue;
+    }
+
+    if (trimmed.startsWith("@")) {
+      pendingAttributes.push(trimmed);
+      continue;
+    }
+
+    if (
+      /^\s*(?:static|func|init\b|subscript\b|typealias\b|enum\b|struct\b|class\b|actor\b)/.test(
+        line
+      )
+    ) {
+      pendingAttributes.length = 0;
+      continue;
+    }
+
+    const match = line.match(APP_INTENT_INSTANCE_PROPERTY);
+    if (!match) {
+      pendingAttributes.length = 0;
+      continue;
+    }
+
+    const [, name] = match;
+    const hasInitializer = /=/.test(line);
+    const hasParameterAttribute = pendingAttributes.some((attr) =>
+      attr.startsWith("@Parameter")
+    );
+
+    if (
+      !hasInitializer &&
+      !hasParameterAttribute &&
+      !APP_INTENT_KNOWN_NON_PARAMETER_PROPERTIES.has(name)
+    ) {
+      diagnostics.push(
+        makeDiagnostic("AX719", file, decl.startLine + bodyLineOffset + i, {
+          message: `AppIntent property '${name}' looks like an input but is missing @Parameter`,
+          suggestion: `Add \`@Parameter(title: "${humanizeIdentifier(
+            name
+          )}")\` above \`${name}\`, or initialize it if it is internal state rather than user input.`,
+        })
+      );
+    }
+
+    pendingAttributes.length = 0;
+  }
+}
+
 // ─── Rule: AX705–AX707 — TimelineProvider required methods ───────────
 
 function checkTimelineProviderMethods(
@@ -288,4 +421,13 @@ function checkAppHasBody(
       })
     );
   }
+}
+
+function humanizeIdentifier(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (char) => char.toUpperCase());
 }

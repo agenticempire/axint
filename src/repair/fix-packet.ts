@@ -7,6 +7,7 @@ export type FixPacketVerdict = "pass" | "needs_review" | "fail";
 export type FixPacketSurface = "intent" | "view" | "widget" | "app" | "swift";
 export type FixPacketFormat = "json" | "markdown" | "prompt";
 export type FixPacketCommand = "compile" | "watch" | "mcp" | "validate_swift";
+export type FixPacketConfidence = "high" | "low";
 
 export interface FixPacketDiagnostic {
   code: string;
@@ -37,6 +38,10 @@ export interface FixPacket {
     errors: number;
     warnings: number;
     infos: number;
+  };
+  coverage: {
+    confidence: FixPacketConfidence;
+    summary: string;
   };
   artifacts: {
     outputPath: string | null;
@@ -182,6 +187,41 @@ function buildNextSteps(verdict: FixPacketVerdict, sourceLabel: string): string[
   }
 }
 
+function buildCoverageAssessment(
+  input: FixPacketInput,
+  diagnostics: FixPacketDiagnostic[]
+) {
+  if (input.surface !== "swift") {
+    return {
+      confidence: "high" as const,
+      summary:
+        "Axint recognized a supported compiler surface and ran its normal Apple-native validation coverage.",
+    };
+  }
+
+  const source = input.source ?? "";
+  const hasRecognizedSwiftSurface =
+    /\bimport\s+(AppIntents|WidgetKit|SwiftUI|ActivityKit)\b/.test(source) ||
+    /\b(AppIntent|AppShortcutsProvider|Widget|WidgetBundle|TimelineProvider|TimelineEntry|View|App|ActivityAttributes)\b/.test(
+      source
+    ) ||
+    diagnostics.some((diagnostic) => /^AX7\d{2}$/.test(diagnostic.code));
+
+  if (hasRecognizedSwiftSurface) {
+    return {
+      confidence: "high" as const,
+      summary:
+        "Axint recognized Apple-native Swift surfaces in this file and applied its current Xcode repair rules.",
+    };
+  }
+
+  return {
+    confidence: "low" as const,
+    summary:
+      "Axint did not recognize a supported Apple-native Swift surface in this file. Treat this result as low confidence and verify it manually in Xcode.",
+  };
+}
+
 function buildAiPrompt(packet: FixPacket): string {
   const lines: string[] = [
     "You are fixing Apple-platform code after an Axint validation run.",
@@ -192,9 +232,14 @@ function buildAiPrompt(packet: FixPacket): string {
     `Headline: ${packet.outcome.headline}`,
     `Source file: ${packet.source.filePath ?? packet.source.fileName}`,
     `Surface: ${packet.source.surface}`,
+    `Confidence: ${packet.coverage.confidence}`,
     `Compiler version: ${packet.compilerVersion}`,
     "",
   ];
+
+  if (packet.coverage.confidence === "low") {
+    lines.push(`Coverage note: ${packet.coverage.summary}`, "");
+  }
 
   if (packet.topFindings.length > 0) {
     lines.push("Findings to address:");
@@ -306,6 +351,7 @@ export function buildFixPacket(
       warnings,
       infos,
     },
+    coverage: buildCoverageAssessment(input, diagnostics),
     artifacts: {
       outputPath: input.outputPath ?? null,
       infoPlistPath: input.infoPlistPath ?? null,
@@ -334,6 +380,11 @@ export function buildFixPacket(
 
   packet.ai.prompt = buildAiPrompt(packet);
   packet.xcode.checklist = buildXcodeChecklist(packet);
+  if (packet.coverage.confidence === "low") {
+    packet.nextSteps.unshift(
+      "Treat this result as low confidence until you verify the file in Xcode."
+    );
+  }
 
   return packet;
 }
@@ -346,12 +397,15 @@ export function renderFixPacketMarkdown(packet: FixPacket): string {
     `- Headline: ${packet.outcome.headline}`,
     `- Source: ${packet.source.filePath ?? packet.source.fileName}`,
     `- Surface: ${packet.source.surface}`,
+    `- Confidence: ${packet.coverage.confidence}`,
     `- Compiler: ${packet.compilerVersion}`,
     `- Generated: ${packet.createdAt}`,
     "",
     "## What happened",
     "",
     packet.outcome.detail,
+    "",
+    packet.coverage.summary,
     "",
     `- Errors: ${packet.outcome.errors}`,
     `- Warnings: ${packet.outcome.warnings}`,
