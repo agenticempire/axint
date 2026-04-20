@@ -286,6 +286,45 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.fix-packet",
+    description:
+      "Read the latest Fix Packet that Axint emitted locally after a compile or watch run. " +
+      "Returns the exact repair artifact that AI tools or Xcode helpers should consume next: " +
+      "verdict, top findings, full diagnostics, next steps, and an AI-ready fix prompt. " +
+      "Use this after axint compile or axint watch when you want the latest packet without " +
+      "copy-paste or another compile pass.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description:
+            "Optional working directory to search from. Axint walks upward from this directory " +
+            "until it finds .axint/fix/latest.json.",
+        },
+        packetDir: {
+          type: "string",
+          description:
+            "Optional explicit packet directory override. Use this if the latest packet lives " +
+            "somewhere other than .axint/fix.",
+        },
+        format: {
+          type: "string",
+          enum: ["json", "markdown", "prompt"],
+          description:
+            "Output format. json returns the full packet, markdown returns the human-readable " +
+            "report, and prompt returns only the AI repair prompt.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.schema.compile",
     description:
       "Compile a minimal JSON schema directly to Swift, bypassing the " +
