@@ -212,6 +212,26 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "Invalid entity query type",
     category: "entity-validator",
   },
+  AX114: {
+    code: "AX114",
+    severity: "warning",
+    message:
+      "HealthKit entitlements were declared without matching privacy usage descriptions",
+    category: "intent-validator",
+  },
+  AX115: {
+    code: "AX115",
+    severity: "warning",
+    message:
+      "HealthKit privacy usage descriptions were declared without the HealthKit entitlement",
+    category: "intent-validator",
+  },
+  AX116: {
+    code: "AX116",
+    severity: "warning",
+    message: "Privacy usage description is empty or still placeholder copy",
+    category: "intent-validator",
+  },
 
   // ─── Intent Generator (AX200–AX299) ──────────────────────
   AX200: {

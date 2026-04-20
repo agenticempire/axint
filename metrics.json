@@ -21,7 +21,7 @@
     "axint.create-intent"
   ],
   "bundledTemplates": 26,
-  "diagnostics": 134,
+  "diagnostics": 137,
   "xcodeFixRules": 32,
   "xcodeFixRuleCodes": [
     "AX701",
@@ -58,7 +58,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 605,
+    "typescript": 609,
     "python": 105
   },
   "registryPackages": 8,

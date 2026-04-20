@@ -101,6 +101,58 @@ describe("validateIntent", () => {
       expect(diagnostics.filter((d) => d.code === "AX100")).toHaveLength(0);
     }
   });
+
+  it("warns when HealthKit entitlement is present without usage descriptions (AX114)", () => {
+    const diagnostics = validateIntent(
+      makeIntent({
+        entitlements: ["com.apple.developer.healthkit"],
+      })
+    );
+    const warning = diagnostics.find((d) => d.code === "AX114");
+    expect(warning).toBeDefined();
+    expect(warning!.severity).toBe("warning");
+  });
+
+  it("warns when HealthKit usage descriptions are present without entitlement (AX115)", () => {
+    const diagnostics = validateIntent(
+      makeIntent({
+        infoPlistKeys: {
+          NSHealthShareUsageDescription: "Read workout history to chart progress.",
+        },
+      })
+    );
+    const warning = diagnostics.find((d) => d.code === "AX115");
+    expect(warning).toBeDefined();
+    expect(warning!.severity).toBe("warning");
+  });
+
+  it("warns when privacy usage descriptions are empty or placeholder copy (AX116)", () => {
+    const diagnostics = validateIntent(
+      makeIntent({
+        infoPlistKeys: {
+          NSHealthShareUsageDescription: "TODO: add real copy",
+          NSCalendarsUsageDescription: "",
+        },
+      })
+    );
+    expect(diagnostics.filter((d) => d.code === "AX116")).toHaveLength(2);
+  });
+
+  it("accepts well-formed HealthKit entitlements and privacy strings together", () => {
+    const diagnostics = validateIntent(
+      makeIntent({
+        entitlements: ["com.apple.developer.healthkit"],
+        infoPlistKeys: {
+          NSHealthShareUsageDescription: "Read workout history to personalize coaching.",
+          NSHealthUpdateUsageDescription: "Save newly completed workouts to Health.",
+        },
+      })
+    );
+
+    expect(diagnostics.some((d) => d.code === "AX114")).toBe(false);
+    expect(diagnostics.some((d) => d.code === "AX115")).toBe(false);
+    expect(diagnostics.some((d) => d.code === "AX116")).toBe(false);
+  });
 });
 
 describe("validateSwiftSource", () => {

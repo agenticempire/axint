@@ -149,7 +149,7 @@ You can also use the simple string form:
 parameterSummary: "Open ${trail} in ${region}"
 ```
 
-## Intent Validation Errors (AX100–AX113)
+## Intent Validation Errors (AX100–AX116)
 
 These validate intent and entity IR against Apple-facing constraints.
 
@@ -216,6 +216,80 @@ These are warnings, not blockers:
 - `AX106`: title is likely too long for Siri / Shortcuts UI
 
 The usual fix is to shorten labels or split one overloaded intent into smaller, clearer intents.
+
+### AX108 / AX109 — Entitlement and Info.plist shape warnings
+
+These warnings catch intent metadata that does not look like real Apple configuration:
+
+- `AX108`: entitlement strings do not look like reverse-DNS identifiers
+- `AX109`: Info.plist keys do not look like normal Apple keys
+
+**Example**
+
+```typescript
+entitlements: ["healthkit"],
+infoPlistKeys: {
+  HealthPermission: "Allow access",
+},
+```
+
+**Fix**
+
+```typescript
+entitlements: ["com.apple.developer.healthkit"],
+infoPlistKeys: {
+  NSHealthShareUsageDescription: "Read workout history to personalize coaching.",
+},
+```
+
+### AX114 / AX115 / AX116 — HealthKit and privacy copy mismatches
+
+These warnings catch one of the easiest ways to end up with a broken Apple integration:
+
+- `AX114`: HealthKit entitlement is present but no HealthKit usage descriptions were declared
+- `AX115`: `NSHealth*UsageDescription` keys were declared without the HealthKit entitlement
+- `AX116`: a privacy usage description is empty or still placeholder copy
+
+**Bad**
+
+```typescript
+export default defineIntent({
+  name: "LogWorkout",
+  title: "Log Workout",
+  description: "Logs a workout.",
+  entitlements: ["com.apple.developer.healthkit"],
+  infoPlistKeys: {
+    NSHealthShareUsageDescription: "TODO: explain why we read data",
+  },
+  params: {},
+  perform: async () => ({ ok: true }),
+});
+```
+
+**Typical diagnostics**
+
+```text
+warning[AX116]: Privacy usage description "NSHealthShareUsageDescription" is empty or still reads like placeholder copy
+```
+
+If the usage strings were missing entirely, Axint would emit `AX114`. If the entitlement were missing but the HealthKit keys stayed behind, it would emit `AX115`.
+
+**Fix**
+
+```typescript
+export default defineIntent({
+  name: "LogWorkout",
+  title: "Log Workout",
+  description: "Logs a workout.",
+  entitlements: ["com.apple.developer.healthkit"],
+  infoPlistKeys: {
+    NSHealthShareUsageDescription: "Read workout history to personalize coaching.",
+    NSHealthUpdateUsageDescription: "Save newly completed workouts to Health.",
+  },
+  params: {},
+  perform: async () => ({ ok: true }),
+});
+```
 
 ### AX110 — Entity name must be PascalCase
 
