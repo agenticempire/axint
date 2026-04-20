@@ -2,12 +2,16 @@ version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
+    target-branch: "main"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:00"
       timezone: "America/Los_Angeles"
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "javascript"
     commit-message:
       prefix: "deps"
     groups:
@@ -23,12 +27,16 @@ updates:
 
   - package-ecosystem: "pip"
     directory: "/python"
+    target-branch: "main"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:15"
       timezone: "America/Los_Angeles"
     open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "python"
     commit-message:
       prefix: "deps"
     groups:
@@ -38,11 +46,15 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "main"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:30"
       timezone: "America/Los_Angeles"
     open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "github-actions"
     commit-message:
       prefix: "deps"

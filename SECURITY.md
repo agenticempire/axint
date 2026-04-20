@@ -26,3 +26,12 @@ When using Axint in production:
 2. Validate all untrusted agent definitions before compilation
 3. Review generated App Intent code before deployment
 4. Use code signing for all compiled artifacts
+
+## Dependency and audit policy
+
+- Dependabot version updates are configured in `.github/dependabot.yml` for npm,
+  Python, and GitHub Actions on a grouped weekly cadence.
+- CI treats `npm audit --audit-level=moderate` as a real gate on the TypeScript
+  compiler job. Security issues should not be silently ignored in the default path.
+- If an advisory must be temporarily tolerated, document the rationale in a
+  visible pull request or follow-up issue instead of masking the audit step.
