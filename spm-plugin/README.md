@@ -148,6 +148,10 @@ The intended loop is:
 
 This keeps the compiler output simple for humans while still giving AI tooling the full repair packet.
 
+`AxintValidatePlugin` uses the same contract for Swift validation runs. When the validator
+finds AX7xx issues, it writes a target-level Fix Packet under `fix/validate/` so Xcode or
+an AI helper can read the repair checklist instead of only relying on raw console output.
+
 ## Writing Definitions
 
 Here's an example TypeScript intent definition:

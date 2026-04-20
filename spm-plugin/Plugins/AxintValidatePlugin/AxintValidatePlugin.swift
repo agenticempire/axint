@@ -24,8 +24,17 @@ struct AxintValidatePlugin: BuildToolPlugin {
 
         let workDir = context.pluginWorkDirectory
         let sentinel = workDir.appending("axint-validate.ok")
+        let fixPacketDirectory = workDir.appending("fix").appending("validate")
 
-        let args = prefixArgs + ["validate-swift", "--quiet"] + inputFiles.map { $0.string }
+        try FileManager.default.createDirectory(
+            at: fixPacketDirectory.asURL,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+
+        let args = prefixArgs
+            + ["validate-swift", "--quiet", "--fix-packet-dir", fixPacketDirectory.string]
+            + inputFiles.map { $0.string }
 
         return [
             .buildCommand(
@@ -94,8 +103,17 @@ extension AxintValidatePlugin: XcodeBuildToolPlugin {
 
         let workDir = context.pluginWorkDirectory
         let sentinel = workDir.appending("axint-validate.ok")
+        let fixPacketDirectory = workDir.appending("fix").appending("validate")
 
-        let args = prefixArgs + ["validate-swift", "--quiet"] + inputFiles.map { $0.string }
+        try? FileManager.default.createDirectory(
+            at: fixPacketDirectory.asURL,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+
+        let args = prefixArgs
+            + ["validate-swift", "--quiet", "--fix-packet-dir", fixPacketDirectory.string]
+            + inputFiles.map { $0.string }
 
         return [
             .buildCommand(
