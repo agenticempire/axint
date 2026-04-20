@@ -150,12 +150,28 @@ def test_info_plist_fragment() -> None:
         title="Log Workout",
         description="Logs a workout",
         domain="health",
-        info_plist_keys=["NSHealthUpdateUsageDescription"],
+        info_plist_keys={
+            "NSHealthUpdateUsageDescription": "Save workout data you log from this shortcut.",
+        },
     )
     frag = generate_info_plist_fragment(intent.to_ir())
     assert frag is not None
     assert "<key>NSHealthUpdateUsageDescription</key>" in frag
+    assert "Save workout data you log from this shortcut." in frag
     assert '<plist version="1.0">' in frag
+
+
+def test_info_plist_fragment_legacy_list_uses_placeholder_copy() -> None:
+    intent = define_intent(
+        name="HealthIntent",
+        title="Log Workout",
+        description="Logs a workout",
+        domain="health",
+        info_plist_keys=["NSHealthUpdateUsageDescription"],
+    )
+    frag = generate_info_plist_fragment(intent.to_ir())
+    assert frag is not None
+    assert "TODO: Add description for NSHealthUpdateUsageDescription" in frag
 
 
 def test_info_plist_fragment_none_when_empty() -> None:

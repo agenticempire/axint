@@ -181,7 +181,7 @@ class IntentDefinition:
     params: dict[str, IntentParameterSpec] = field(default_factory=dict)
     perform: Callable[[], Any] | None = None
     entitlements: tuple[str, ...] = ()
-    info_plist_keys: tuple[str, ...] = ()
+    info_plist_keys: tuple[tuple[str, str], ...] = ()
     is_discoverable: bool = True
 
     def to_ir(self, *, source_file: str | None = None, source_line: int | None = None) -> IntentIR:
@@ -205,6 +205,16 @@ class IntentDefinition:
 
 # Re-exported type alias so users can annotate their own variables.
 Intent = IntentDefinition
+
+
+def _normalize_info_plist_keys(
+    info_plist_keys: dict[str, str] | list[str] | tuple[str, ...] | None,
+) -> tuple[tuple[str, str], ...]:
+    if info_plist_keys is None:
+        return ()
+    if isinstance(info_plist_keys, dict):
+        return tuple((str(key), str(value)) for key, value in info_plist_keys.items())
+    return tuple((str(key), str(key)) for key in info_plist_keys)
 
 
 # ─── Entity Support ────────────────────────────────────────────────────────
@@ -291,7 +301,7 @@ def define_intent(
     params: dict[str, IntentParameterSpec] | None = None,
     perform: Callable[[], Any] | None = None,
     entitlements: list[str] | tuple[str, ...] | None = None,
-    info_plist_keys: list[str] | tuple[str, ...] | None = None,
+    info_plist_keys: dict[str, str] | list[str] | tuple[str, ...] | None = None,
     is_discoverable: bool = True,
 ) -> IntentDefinition:
     """
@@ -318,7 +328,9 @@ def define_intent(
     entitlements
         Apple entitlement identifiers this intent requires.
     info_plist_keys
-        Info.plist keys to emit next to the generated Swift.
+        Info.plist keys to emit next to the generated Swift. Pass a
+        dict to control the exact usage-description copy, or a list/tuple
+        for the legacy placeholder behavior.
     is_discoverable
         Whether Siri can surface this intent proactively.
     """
@@ -330,7 +342,7 @@ def define_intent(
         params=dict(params or {}),
         perform=perform,
         entitlements=tuple(entitlements or ()),
-        info_plist_keys=tuple(info_plist_keys or ()),
+        info_plist_keys=_normalize_info_plist_keys(info_plist_keys),
         is_discoverable=is_discoverable,
     )
 

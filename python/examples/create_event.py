@@ -24,5 +24,7 @@ create_event = define_intent(
         ),
     },
     entitlements=["com.apple.developer.calendars"],
-    info_plist_keys=["NSCalendarsUsageDescription"],
+    info_plist_keys={
+        "NSCalendarsUsageDescription": "Create and edit calendar events you request.",
+    },
 )

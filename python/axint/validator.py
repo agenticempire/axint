@@ -17,6 +17,19 @@ from .ir import AppIR, IntentIR, ViewIR, WidgetIR
 MAX_PARAMETERS = 10
 MAX_TITLE_LENGTH = 60
 
+HEALTHKIT_ENTITLEMENT_KEYS = {
+    "com.apple.developer.healthkit",
+    "com.apple.developer.healthkit.background-delivery",
+}
+
+HEALTHKIT_USAGE_DESCRIPTION_KEYS = {
+    "NSHealthShareUsageDescription",
+    "NSHealthUpdateUsageDescription",
+    "NSHealthClinicalHealthRecordsShareUsageDescription",
+}
+
+PRIVACY_USAGE_DESCRIPTION_PATTERN = re.compile(r"^NS[A-Za-z0-9]+UsageDescription$")
+
 SWIFT_KEYWORDS = {
     "associatedtype",
     "class",
@@ -198,6 +211,72 @@ def validate_intent(intent: IntentIR) -> list[ValidatorDiagnostic]:
                     suggestion='Use reverse-DNS, e.g., "com.apple.developer.siri"',
                 )
             )
+
+    info_plist_keys = dict(intent.info_plist_keys)
+    has_healthkit_entitlement = any(
+        entitlement in HEALTHKIT_ENTITLEMENT_KEYS for entitlement in intent.entitlements
+    )
+    declared_healthkit_usage_keys = [
+        key for key in HEALTHKIT_USAGE_DESCRIPTION_KEYS if key in info_plist_keys
+    ]
+
+    if has_healthkit_entitlement and not declared_healthkit_usage_keys:
+        diagnostics.append(
+            ValidatorDiagnostic(
+                code="AX114",
+                severity="warning",
+                message=(
+                    "HealthKit entitlements were declared, but no HealthKit privacy usage "
+                    "descriptions were provided"
+                ),
+                file=intent.source_file,
+                suggestion=(
+                    "Add NSHealthShareUsageDescription and/or "
+                    "NSHealthUpdateUsageDescription with user-facing copy that matches the "
+                    "HealthKit access you request"
+                ),
+            )
+        )
+
+    if declared_healthkit_usage_keys and not has_healthkit_entitlement:
+        diagnostics.append(
+            ValidatorDiagnostic(
+                code="AX115",
+                severity="warning",
+                message=(
+                    "HealthKit privacy usage descriptions were declared, but the HealthKit "
+                    "entitlement is missing"
+                ),
+                file=intent.source_file,
+                suggestion=(
+                    "Enable the HealthKit capability (com.apple.developer.healthkit) or "
+                    "remove the stray NSHealth*UsageDescription keys if this intent does not "
+                    "use HealthKit"
+                ),
+            )
+        )
+
+    for key, value in info_plist_keys.items():
+        if not PRIVACY_USAGE_DESCRIPTION_PATTERN.match(key):
+            continue
+        if not _is_placeholder_usage_description(key, value):
+            continue
+
+        diagnostics.append(
+            ValidatorDiagnostic(
+                code="AX116",
+                severity="warning",
+                message=(
+                    f'Privacy usage description "{key}" is empty or still reads like '
+                    "placeholder copy"
+                ),
+                file=intent.source_file,
+                suggestion=(
+                    "Replace it with a concrete user-facing explanation of what the app "
+                    "reads or writes and why"
+                ),
+            )
+        )
 
     return diagnostics
 
@@ -536,3 +615,22 @@ def _to_pascal_case(s: str) -> str:
         return "UnnamedIntent"
     parts = re.split(r"[-_\s]+", s)
     return "".join(part.capitalize() for part in parts if part)
+
+
+def _is_placeholder_usage_description(key: str, value: str) -> bool:
+    trimmed = value.strip()
+    if not trimmed:
+        return True
+    if trimmed == key:
+        return True
+
+    normalized = trimmed.lower()
+    return (
+        normalized.startswith("todo")
+        or normalized.startswith("tbd")
+        or normalized == "placeholder"
+        or normalized == "change me"
+        or "<#" in normalized
+        or "your usage description" in normalized
+        or "insert usage description" in normalized
+    )
