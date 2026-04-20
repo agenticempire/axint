@@ -1436,10 +1436,10 @@ def _parse_plist_key_map(
         )
         return []
 
-    out: list[tuple[str, str]] = []
+    legacy_keys: list[tuple[str, str]] = []
     for elt in node.elts:
         if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-            out.append((elt.value, elt.value))
+            legacy_keys.append((elt.value, elt.value))
         else:
             diagnostics.append(
                 ParserDiagnostic(
@@ -1450,7 +1450,7 @@ def _parse_plist_key_map(
                     line=getattr(elt, "lineno", line),
                 )
             )
-    return out
+    return legacy_keys
 
 
 def _literal_str(
