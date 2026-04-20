@@ -6,6 +6,7 @@ import {
   buildFixPacket,
   emitFixPacketArtifacts,
   readLatestFixPacket,
+  renderFixPacketMarkdown,
 } from "../../src/repair/fix-packet.js";
 
 const tempDirs: string[] = [];
@@ -18,11 +19,12 @@ afterEach(() => {
 });
 
 describe("Fix Packet", () => {
-  it("builds a needs_review packet with an AI prompt that explains AX codes", () => {
+  it("builds a needs_review packet with a structured Apple repair brief", () => {
     const packet = buildFixPacket({
       success: true,
       surface: "intent",
       fileName: "SetLights.ts",
+      filePath: "/tmp/SetLights.ts",
       diagnostics: [
         {
           code: "AX219",
@@ -33,6 +35,9 @@ describe("Fix Packet", () => {
           line: 12,
         },
       ],
+      outputPath: "/tmp/SetLights.intent.swift",
+      infoPlistPath: "/tmp/SetLights.Info.plist",
+      entitlementsPath: "/tmp/SetLights.entitlements",
       packetJsonPath: "/tmp/latest.json",
       packetMarkdownPath: "/tmp/latest.md",
     });
@@ -40,6 +45,12 @@ describe("Fix Packet", () => {
     expect(packet.outcome.verdict).toBe("needs_review");
     expect(packet.topFindings).toHaveLength(1);
     expect(packet.ai.prompt).toContain("AX codes are Axint diagnostic IDs");
+    expect(packet.ai.prompt).toContain("What broke:");
+    expect(packet.ai.prompt).toContain("Why it matters:");
+    expect(packet.ai.prompt).toContain("Make this change:");
+    expect(packet.ai.prompt).toContain("Generated artifacts to use:");
+    expect(packet.ai.prompt).toContain("/tmp/SetLights.Info.plist");
+    expect(packet.ai.prompt).toContain("Repair plan:");
     expect(packet.ai.prompt).toContain("AX219");
   });
 
@@ -137,7 +148,35 @@ describe("Fix Packet", () => {
 
     expect(packetText).toContain('"schemaVersion": 1');
     expect(markdownText).toContain("# Axint Fix Packet");
+    expect(markdownText).toContain("## Xcode checklist");
     expect(rediscovered?.source.fileName).toBe("GreetingCard.ts");
     expect(rediscovered?.outcome.verdict).toBe("pass");
+  });
+
+  it("renders generated artifact hints into markdown when they exist", () => {
+    const packet = buildFixPacket({
+      success: false,
+      surface: "intent",
+      fileName: "LogWorkout.ts",
+      diagnostics: [
+        {
+          code: "AX108",
+          severity: "error",
+          message: "entitlement string format mismatch",
+          suggestion: "Use the reserved HealthKit entitlement string.",
+        },
+      ],
+      outputPath: "/tmp/LogWorkout.intent.swift",
+      infoPlistPath: "/tmp/LogWorkout.Info.plist",
+      entitlementsPath: "/tmp/LogWorkout.entitlements",
+      packetJsonPath: "/tmp/latest.json",
+      packetMarkdownPath: "/tmp/latest.md",
+    });
+
+    const markdown = renderFixPacketMarkdown(packet);
+
+    expect(markdown).toContain("## Generated artifacts");
+    expect(markdown).toContain("/tmp/LogWorkout.Info.plist");
+    expect(markdown).toContain("## Xcode checklist");
   });
 });

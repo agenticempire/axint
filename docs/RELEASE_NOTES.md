@@ -29,6 +29,11 @@ This release wave sharpens the Xcode workflow and expands Apple-native Swift cov
 
 - Xcode docs now explain the `build -> packet -> fix -> rerun` loop directly
 - Fix Packets now carry a low-confidence signal for Swift files that Axint does not recognize as supported Apple-native surfaces
+- Fix Packets now read like a structured Apple repair brief instead of a flat error dump:
+  - `What broke`
+  - `Why it matters`
+  - `Make this change`
+  - generated artifact hints for Swift, plist, and entitlements when available
 - Metrics now expose Xcode fix rule counts and names so coverage can be tracked more explicitly
 - Intent validation now catches a common App Review / HealthKit setup failure before you leave the compiler loop
 - The bundled examples are now part of the proof surface: they compile in CI, and the HealthKit example shows the same entitlement + privacy contract the validator enforces
