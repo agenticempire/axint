@@ -184,20 +184,20 @@ axint watch my-intent.ts --out ios/Intents/ --format --swift-build
 
 ## MCP server
 
-Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Windsurf, and any MCP client.
+Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Codex, VS Code, Windsurf, Xcode, and any MCP client.
 
 ```json
 {
   "mcpServers": {
     "axint": {
-      "command": "axint-mcp",
-      "args": []
+      "command": "npx",
+      "args": ["-y", "@axint/compiler", "axint-mcp"]
     }
   }
 }
 ```
 
-10 tools + 3 built-in prompts:
+11 tools + 3 built-in prompts:
 
 | Tool                   | What it does                                                    |
 | ---------------------- | --------------------------------------------------------------- |
@@ -226,7 +226,7 @@ Built-in prompts:
 
 ## Diagnostics
 
-130 diagnostic codes across the validator surface with fix suggestions and color-coded output:
+134 diagnostic codes across the validator surface with fix suggestions and color-coded output:
 
 | Range           | Domain              |
 | --------------- | ------------------- |
@@ -291,13 +291,13 @@ axint/
 ├── src/
 │   ├── core/        # Parser, validator, generator, compiler, IR
 │   ├── sdk/         # defineIntent(), defineView(), defineWidget(), defineApp()
-│   ├── mcp/         # MCP server (10 tools + 3 prompts)
+│   ├── mcp/         # MCP server (11 tools + 3 prompts)
 │   ├── cli/         # CLI (compile, watch, validate, eject, init, xcode)
-│   └── templates/   # 25 bundled reference templates
+│   └── templates/   # 26 bundled reference templates
 ├── python/          # Python SDK
 ├── extensions/      # Editor extensions (9 editors)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # 543 vitest tests
+├── tests/           # 605 TypeScript tests + 105 Python tests
 ├── examples/        # Example definitions
 └── docs/            # Error reference, assets
 ```

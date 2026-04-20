@@ -8,7 +8,7 @@
 ## [0.3.8] - 2026-04-16
 
 - Align marketplace packaging with `@axint/compiler` v0.3.8
-- Document the current Axint MCP surface: 10 tools + 3 built-in prompts
+- Document the current Axint MCP surface: 11 tools + 3 built-in prompts
 - Package the extension for marketplace-ready installation via `agenticempire.axint`
 - Add command-palette workflows for Swift preview, validation, template browse, docs, and registry
 - Add `Open Current File in Cloud` so the active file can jump directly into Axint Cloud with a shareable report state

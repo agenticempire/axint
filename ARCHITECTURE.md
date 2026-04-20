@@ -6,6 +6,19 @@ Axint is a multi-language compiler that transforms high-level intent, view, widg
 
 The compilation flow is uniform across all surfaces:
 
+```mermaid
+flowchart LR
+    A["TypeScript / Python / JSON input"] --> B["Parse or normalize into IR"]
+    B --> C["IR validation"]
+    C --> D["Swift generation"]
+    D --> E["Swift validator + safe fixer"]
+    E --> F["Fix Packet"]
+    F --> G["CLI / MCP"]
+    F --> H["Xcode packet / plugin loop"]
+    G --> I["AI tool or local workflow"]
+    H --> I
+```
+
 ```
 Source (TS/Python)
   ↓
@@ -23,6 +36,12 @@ Format & Return
 ```
 
 The entry point is `compiler.ts`, which orchestrates the pipeline. For each surface—Intent, View, Widget, App—there's a dedicated parser, generator, and validator that plugs into this orchestration.
+
+The same repair contract now spans the whole loop:
+
+`compiler -> validator -> Swift -> Fix Packet -> MCP / Xcode / AI tool`
+
+That matters because Axint should not explain one diagnostic format in the CLI, a different one in Xcode, and a third one to AI tools. The packet is the bridge.
 
 ## Intermediate Representation (IR)
 
@@ -56,7 +75,27 @@ Each validator emits diagnostics with error codes (`AX100`–`AX202`) that point
 
 The Python SDK (`python/axint/`) produces the same IR JSON as the TypeScript SDK. Both serialize to the same shape. A Python user calls `axint.compile(intent)`, which internally returns IR JSON, which is then fed to the Swift generator (currently via a subprocess call to the TypeScript CLI, but can be refactored to a shared library).
 
-`compileFromIR()` is the key function: it accepts an IR object or JSON string, skips parsing entirely, and goes straight to validation and code generation. This is how the Python SDK and registry both use the compiler without reimplementing generation logic.
+`compileFromIR()` is the key function: it accepts an IR object or JSON string, skips parsing entirely, and goes straight to validation and code generation. This is how non-TypeScript consumers can reuse the compiler without reimplementing generation logic.
+
+## Fix Packet and Xcode loop
+
+Axint now treats the Fix Packet as the repair contract across:
+
+- `axint compile`
+- `axint watch`
+- `axint validate-swift`
+- MCP clients through `axint.fix-packet`
+- Xcode build artifacts through `axint xcode packet`
+
+The intended loop is:
+
+1. Build or validate
+2. Read one packet
+3. Copy the AI prompt or inspect the markdown
+4. Apply the fix
+5. Rerun until the verdict is clean
+
+When Axint cannot recognize a supported Apple-native Swift surface, the packet drops to low confidence instead of bluffing.
 
 ## Extension Points
 
@@ -71,9 +110,11 @@ To add a new surface (e.g., "Views with custom rendering backends"):
 
 The pattern is rigid by design—it forces new surfaces to think about parsing, validation, and generation as separate concerns.
 
-## Registry
+## Distribution surfaces
 
-The Axint package registry at [registry.axint.ai](https://registry.axint.ai) lets users publish and install intent/view/widget/app definitions. The CLI integrates with it via `axint publish`, `axint add`, and `axint search`. Authentication uses GitHub OAuth device flow.
+The public compiler repo ships the compiler, SDKs, CLI, MCP server, templates, tests, and editor integrations.
+
+Higher-level distribution and hosted workflows should consume these artifacts, not redefine them.
 
 ## Directory Map
 

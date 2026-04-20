@@ -96,6 +96,31 @@ npm run build
 npm run dev -- compile examples/calendar-assistant.ts --stdout
 ```
 
+## Fastest first contribution path
+
+If you want the cleanest first PR:
+
+1. Pick a small bug, doc fix, template improvement, or validator edge case.
+2. Reproduce it with the smallest possible fixture in `tests/`.
+3. Make the code change in the matching `src/` area.
+4. Run the narrowest checks first, then the repo-wide gates:
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+npm run metrics:check
+npm test
+```
+
+Good “first contribution” categories:
+
+- small validator or generator bug fixes
+- additional tests for real edge cases
+- template improvements
+- doc corrections
+- Xcode workflow polish
+
 ## Pull Request Process
 
 1. **Fork and branch.** Create a feature branch from `main`. Use a descriptive name: `feat/smart-home-template`, `fix/parameter-type-marshaling`, `docs/mcp-setup-guide`.
@@ -113,6 +138,45 @@ npm run dev -- compile examples/calendar-assistant.ts --stdout
 5. **Write a clear PR description.** Explain what changed and why. If it's a template, show an example of the TypeScript input and Swift output.
 
 6. **CI must pass.** All tests, linting, and type checks must pass before merge.
+
+## Release process
+
+Releases should feel boring and reproducible.
+
+Use this checklist:
+
+1. Sync versions and metrics:
+
+```bash
+npm run versions:check
+npm run metrics:check
+```
+
+2. Run the core repo gates:
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+npm test
+```
+
+3. If Xcode repair rules changed, confirm the checked-in fixer is current:
+
+```bash
+npm run gen:swift-fixer:check
+```
+
+4. If docs or public proof changed, update:
+   - `README.md`
+   - `docs/ERRORS.md`
+   - `docs/COVERAGE.md`
+   - `docs/RELEASE_NOTES.md`
+
+5. Keep package releases aligned.
+   If an intentional release goes out, npm and PyPI should move together so the public version story stays coherent.
+
+6. Only tag and publish once the repo state, docs, and metrics all agree.
 
 ## Adding a New Template
 

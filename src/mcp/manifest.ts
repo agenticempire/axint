@@ -255,7 +255,7 @@ export const TOOL_MANIFEST = [
     name: "axint.validate",
     description:
       "Validate a TypeScript intent definition without generating Swift. " +
-      "Runs the full Axint validation pipeline (130 diagnostic rules) and " +
+      "Runs the full Axint validation pipeline (134 diagnostic rules) and " +
       "returns a JSON array of diagnostics: { severity: 'error'|'warning', " +
       "code: 'AXnnn', line: number, column: number, message: string, " +
       "suggestion?: string }. Returns an empty array [] when validation " +
@@ -583,7 +583,7 @@ export const TOOL_MANIFEST = [
   {
     name: "axint.templates.list",
     description:
-      "List all 25 bundled reference templates in the Axint SDK. Returns " +
+      "List all 26 bundled reference templates in the Axint SDK. Returns " +
       "a JSON array of { id, name, description } objects — one per template. " +
       "Templates cover messaging, productivity, health, finance, commerce, " +
       "media, navigation, smart-home, and entity/query patterns. No input " +
