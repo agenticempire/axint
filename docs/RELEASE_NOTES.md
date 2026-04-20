@@ -6,6 +6,12 @@ This release wave sharpens the Xcode workflow and expands Apple-native Swift cov
 
 ### Added
 
+- `latest.check.json` / `latest.check.md`
+  - Every compile, watch, and validate-swift run now emits a lightweight Axint Check verdict next to the richer Fix Packet
+  - The summary leads with pass / needs review / fail, top findings, and the next step instead of dropping straight into raw packet detail
+- `axint xcode check`
+  - Reads the latest Xcode-side Axint Check from DerivedData or a plugin work directory
+  - Can print markdown, raw JSON, or the AI repair prompt directly
 - `axint xcode packet`
   - Reads the latest Fix Packet from Xcode DerivedData or a plugin work directory
   - Can print markdown, raw JSON, the AI repair prompt, or the packet path
@@ -29,7 +35,9 @@ This release wave sharpens the Xcode workflow and expands Apple-native Swift cov
 
 ### Improved
 
+- Compile, watch, and validate-swift now share one repair-artifact emission path, so the lightweight verdict summary and the full packet stay in lockstep instead of drifting across CLI surfaces
 - Xcode docs now explain the `build -> packet -> fix -> rerun` loop directly
+- Xcode docs now also explain the `build -> check -> packet -> fix -> rerun` loop so the Apple workflow starts with the simple verdict before it expands into repair detail
 - Fix Packets now carry a low-confidence signal for Swift files that Axint does not recognize as supported Apple-native surfaces
 - Fix Packets now read like a structured Apple repair brief instead of a flat error dump:
   - `What broke`
