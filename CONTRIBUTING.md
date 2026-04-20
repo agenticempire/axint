@@ -176,7 +176,16 @@ npm run gen:swift-fixer:check
 5. If headline numbers or public proof changed, sync the downstream public surfaces that read from the truth bundle before announcing the release.
 
 6. Keep package releases aligned.
-   If an intentional release goes out, npm and PyPI should move together so the public version story stays coherent.
+   Intentional releases now require npm and PyPI to move together. The release workflow:
+   - requires `PYPI_TOKEN`
+   - verifies both registries are in sync before publish
+   - verifies both registries are live after publish
+
+   You can run the same guard locally with:
+
+   ```bash
+   npm run release:check
+   ```
 
 7. Only tag and publish once the repo state, docs, metrics, and downstream public proof all agree.
 

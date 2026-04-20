@@ -103,11 +103,12 @@ describe.skipIf(isCI)("axint watch", () => {
     mkdirSync(tmpDir, { recursive: true });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     if (proc && !proc.killed) {
       proc.kill("SIGINT");
-      proc = null;
+      await waitForExit(proc);
     }
+    proc = null;
     if (existsSync(tmpDir)) {
       rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -197,3 +198,22 @@ describe.skipIf(isCI)("axint watch", () => {
     expect(existsSync(join(outDir, "GreetIntent.swift"))).toBe(true);
   }, 15_000);
 });
+
+function waitForExit(proc: ChildProcess, timeoutMs = 2_000): Promise<void> {
+  return new Promise((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      resolve();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      resolve();
+    }, timeoutMs);
+
+    proc.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
