@@ -6,7 +6,9 @@ import { registryBaseUrl } from "../core/env.js";
 export function registerLogin(program: Command) {
   program
     .command("login")
-    .description("Authenticate with the Axint Registry via GitHub")
+    .description(
+      "Authenticate with the Axint Registry via GitHub to unlock publish, richer terminal reports, and hosted Axint features"
+    )
     .action(async () => {
       const { homedir } = await import("node:os");
       const { join } = await import("node:path");
@@ -17,6 +19,10 @@ export function registerLogin(program: Command) {
 
       console.log();
       console.log(`  \x1b[38;5;208m◆\x1b[0m \x1b[1mAxint\x1b[0m · login`);
+      console.log();
+      console.log(
+        "  Sign in once to unlock richer terminal reports, `axint publish`, and hosted Axint features when available."
+      );
       console.log();
 
       try {
@@ -109,6 +115,9 @@ export function registerLogin(program: Command) {
 
         console.log(
           `  \x1b[32m✓\x1b[0m Logged in! Credentials saved to \x1b[2m${credPath}\x1b[0m`
+        );
+        console.log(
+          "  Future Axint checks will show the richer signed-in terminal report."
         );
         console.log();
       } catch (err: unknown) {

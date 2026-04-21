@@ -55,6 +55,10 @@ If Axint cannot recognize a supported Apple-native Swift surface, the packet dro
 
 `axint compile`, `axint watch`, and `axint validate-swift` emit both the Fix Packet and the lightweight Axint Check automatically by default.
 
+When you are anonymous, the terminal output keeps the report lean and shows a gentle
+`axint login` prompt. When you are signed in, the terminal output expands into the
+richer signed-in verdict view automatically.
+
 You can opt out with:
 
 ```bash

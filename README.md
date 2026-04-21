@@ -274,6 +274,22 @@ No install required — [axint.ai/#playground](https://axint.ai/#playground) run
 
 ---
 
+## Optional login
+
+`axint login` is optional. The open-source compiler stays useful without an account.
+
+If you do sign in, Axint can:
+
+- unlock richer terminal check reports
+- enable `axint publish` against the public Registry
+- connect future hosted report and Cloud features without changing the local compiler flow
+
+```bash
+axint login
+```
+
+---
+
 ## Editor extensions
 
 Extensions for [Claude Code](extensions/claude-code), [Codex](extensions/codex), [VS Code / Cursor](extensions/vscode), [Windsurf](extensions/windsurf), [JetBrains](extensions/jetbrains), [Neovim](extensions/neovim), and [Xcode](extensions/xcode).
@@ -308,7 +324,7 @@ axint/
 ├── python/          # Python SDK
 ├── extensions/      # Editor extensions (9 editors)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # 623 TypeScript tests + 114 Python tests
+├── tests/           # 626 TypeScript tests + 114 Python tests
 ├── examples/        # TypeScript + Swift repair-loop examples
 └── docs/            # Error reference, assets
 ```
