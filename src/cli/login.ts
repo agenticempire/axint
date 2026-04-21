@@ -7,7 +7,7 @@ export function registerLogin(program: Command) {
   program
     .command("login")
     .description(
-      "Authenticate with the Axint Registry via GitHub to unlock publish, richer terminal reports, and hosted Axint features"
+      "Authenticate with the Axint Registry via GitHub to unlock publish, better repair summaries, and future Axint Cloud benefits"
     )
     .action(async () => {
       const { homedir } = await import("node:os");
@@ -21,7 +21,7 @@ export function registerLogin(program: Command) {
       console.log(`  \x1b[38;5;208m◆\x1b[0m \x1b[1mAxint\x1b[0m · login`);
       console.log();
       console.log(
-        "  Sign in once to unlock richer terminal reports, `axint publish`, and hosted Axint features when available."
+        "  Sign in once to get better repair guidance in terminal, publish to the Registry, and connect future Axint Cloud runs to saved history and shareable links."
       );
       console.log();
 
@@ -117,7 +117,7 @@ export function registerLogin(program: Command) {
           `  \x1b[32m✓\x1b[0m Logged in! Credentials saved to \x1b[2m${credPath}\x1b[0m`
         );
         console.log(
-          "  Future Axint checks will show the richer signed-in terminal report."
+          "  Future Axint checks will show the fuller signed-in repair report and be ready for saved Cloud-linked history as hosted features land."
         );
         console.log();
       } catch (err: unknown) {

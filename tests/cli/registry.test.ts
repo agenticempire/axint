@@ -111,6 +111,10 @@ describe("registry CLI commands", () => {
       registry: "https://registry.example.test",
     });
     expect(spawnMock).toHaveBeenCalled();
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("better repair guidance in terminal");
+    expect(output).toContain("saved history");
+    expect(output).toContain("shareable links");
   });
 
   it("covers axint publish and sends the compiled bundle to the registry", async () => {

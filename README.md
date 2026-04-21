@@ -280,9 +280,9 @@ No install required — [axint.ai/#playground](https://axint.ai/#playground) run
 
 If you do sign in, Axint can:
 
-- unlock richer terminal check reports
+- unlock fuller repair summaries in the terminal
 - enable `axint publish` against the public Registry
-- connect future hosted report and Cloud features without changing the local compiler flow
+- connect Cloud runs to saved history, reopenable reports, and shareable links as hosted features roll out
 
 ```bash
 axint login

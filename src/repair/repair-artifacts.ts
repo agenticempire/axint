@@ -62,7 +62,7 @@ export function renderRepairArtifactLines(
     lines.push(...renderSignedInSummaryLines(artifacts.check.summary));
   } else {
     lines.push(
-      "  \x1b[2mTip:\x1b[0m Run `axint login` to unlock richer terminal reports, publish, and hosted Axint features when available."
+      "  \x1b[2mTip:\x1b[0m Run `axint login` to unlock fuller repair summaries in terminal, `axint publish`, and Axint Cloud features like saved runs, reopenable history, and shareable links as they roll out."
     );
   }
 
@@ -77,7 +77,7 @@ function renderSignedInSummaryLines(summary: CheckSummary): string[] {
   const topFinding = summary.topFindings[0];
 
   const lines = [
-    "  \x1b[35m↳\x1b[0m Signed in · richer terminal report enabled",
+    "  \x1b[35m↳\x1b[0m Signed in · fuller repair report enabled",
     `    Verdict: ${verdict} · ${summary.outcome.headline}`,
   ];
 
