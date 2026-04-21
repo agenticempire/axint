@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { compileFile } from "../core/compiler.js";
 import { hashBundle } from "../core/bundle-hash.js";
+import { loadAxintCredentials, resolveCredentialsPath } from "../core/credentials.js";
 import { registryBaseUrl } from "../core/env.js";
 import { loadAxintConfig } from "../core/axint-config.js";
 
@@ -139,9 +140,7 @@ export function registerPublish(program: Command, version: string) {
         return;
       }
 
-      const { homedir } = await import("node:os");
-      const { join } = await import("node:path");
-      const credPath = join(homedir(), ".axint", "credentials.json");
+      const credPath = resolveCredentialsPath();
 
       if (!existsSync(credPath)) {
         console.error(
@@ -150,10 +149,8 @@ export function registerPublish(program: Command, version: string) {
         process.exit(1);
       }
 
-      let creds: { access_token: string; registry: string };
-      try {
-        creds = JSON.parse(readFileSync(credPath, "utf-8"));
-      } catch {
+      const creds = loadAxintCredentials();
+      if (!creds) {
         console.error(
           `  \x1b[31merror:\x1b[0m Corrupt credentials file. Run \`axint login\` again.`
         );

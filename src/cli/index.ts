@@ -9,7 +9,7 @@
  *   axint validate-swift <path>   Validate existing Swift sources against Axint's build-time rules
  *   axint eject <file>            Eject intent to standalone Swift (no vendor lock-in)
  *   axint templates               List bundled intent templates
- *   axint login                   Authenticate with the Axint Registry
+ *   axint login                   Authenticate with the Axint Registry and unlock richer reports
  *   axint publish                 Publish an intent to the Registry
  *   axint add <package>           Install a template from the Registry
  *   axint search [query]          Search the Axint Registry for intent templates
