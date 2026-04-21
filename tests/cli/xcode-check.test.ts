@@ -140,6 +140,43 @@ describe("axint xcode check", () => {
     expect(result.stdout.trim()).toBe("exact AI repair prompt");
   });
 
+  it("returns the latest check artifact path when path output is requested", () => {
+    const compilePacketPath = join(
+      derivedDataRoot,
+      "Demo-abc",
+      "Build",
+      "Intermediates.noindex",
+      "Plugins",
+      "AxintCompilePlugin",
+      "fix",
+      "health-review",
+      "latest.json"
+    );
+
+    writePacket(
+      compilePacketPath,
+      {
+        command: "compile",
+        verdict: "needs_review",
+        fileName: "health-review.ts",
+        filePath: "/tmp/health-review.ts",
+        prompt: "repair prompt",
+      },
+      1_710_000_000_000
+    );
+
+    const result = spawnSync(
+      "node",
+      [CLI, "xcode", "check", "--root", derivedDataRoot, "--format", "path"],
+      { encoding: "utf-8" }
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe(
+      compilePacketPath.replace(/latest\.json$/, "latest.check.json")
+    );
+  });
+
   it("fails cleanly when no check is available yet", () => {
     const result = spawnSync(
       "node",

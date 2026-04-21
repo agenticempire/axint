@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import {
   buildCheckSummary,
   renderCheckSummaryMarkdown,
+  resolveCheckSummaryPaths,
   type CheckSummary,
 } from "../repair/check-summary.js";
 import type { FixPacket } from "../repair/fix-packet.js";
@@ -12,7 +13,7 @@ import {
   type XcodePacketKind,
 } from "./xcode-packet.js";
 
-export type XcodeCheckOutput = "markdown" | "json" | "prompt";
+export type XcodeCheckOutput = "markdown" | "json" | "prompt" | "path";
 
 interface XcodeCheckOptions {
   root?: string;
@@ -37,6 +38,10 @@ function renderCheckOutput(
 ): string {
   const summary = readExistingSummary(packetPath) ?? buildCheckSummary(packet);
   switch (format) {
+    case "path":
+      return readExistingSummary(packetPath)
+        ? packetPath.replace(/latest\.json$/, "latest.check.json")
+        : resolveCheckSummaryPaths(packet).jsonPath;
     case "json":
       return JSON.stringify(summary, null, 2);
     case "prompt":
