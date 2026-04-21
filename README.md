@@ -15,7 +15,6 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@axint/compiler"><img src="https://img.shields.io/npm/v/@axint/compiler?color=f05138&label=npm" alt="npm" /></a>
-  <a href="https://pypi.org/project/axint/"><img src="https://img.shields.io/pypi/v/axint?label=pypi&color=2563eb" alt="PyPI" /></a>
   <a href="https://github.com/agenticempire/axint/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License" /></a>
   <a href="https://github.com/agenticempire/axint/actions/workflows/ci.yml"><img src="https://github.com/agenticempire/axint/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://glama.ai/mcp/servers/agenticempire/axint"><img src="https://glama.ai/mcp/servers/agenticempire/axint/badges/score.svg" alt="axint MCP server" /></a>
@@ -25,23 +24,11 @@
 <p align="center">
   <a href="https://axint.ai">Website</a> ·
   <a href="https://axint.ai/#playground">Playground</a> ·
-  <a href="https://github.com/agenticempire/axint-examples">Examples</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#mcp-server">MCP Server</a> ·
   <a href="https://docs.axint.ai">Docs</a> ·
-  <a href="https://registry.axint.ai">Registry</a> ·
-  <a href="https://github.com/agenticempire/axint/discussions">Discussions</a>
+  <a href="https://registry.axint.ai">Registry</a>
 </p>
-
----
-
-## Start Here
-
-- Try Axint live in the [playground](https://axint.ai/#playground) or browse the public [axint-examples](https://github.com/agenticempire/axint-examples) repo.
-- Want maintained repo-native samples? Start with [examples/README.md](examples/README.md), [python/examples/README.md](python/examples/README.md), and [examples/swift/README.md](examples/swift/README.md).
-- Need install help? Start with the [canonical install discussion](https://github.com/agenticempire/axint/discussions/14).
-- Want to contribute? Look at [good first issue](https://github.com/agenticempire/axint/issues?q=is%3Aopen+label%3A%22good+first+issue%22) and [help wanted](https://github.com/agenticempire/axint/issues?q=is%3Aopen+label%3A%22help+wanted%22) tasks.
-- If Axint is useful, [star the repo](https://github.com/agenticempire/axint/stargazers), follow [@agenticempire on X](https://x.com/agenticempire), and share what you build in [Discussions](https://github.com/agenticempire/axint/discussions/15).
 
 ---
 
@@ -103,20 +90,17 @@ import { defineView, prop, state, view } from "@axint/compiler";
 export default defineView({
   name: "EventCard",
   props: {
-    title: prop.string("Event title"),
-    date: prop.date("Event date"),
+    title: prop.string(),
+    date: prop.date(),
   },
   state: {
-    isExpanded: state.boolean("Whether details are visible", { default: false }),
+    isExpanded: state.boolean(false),
   },
   body: [
-    view.vstack(
-      [
-        view.text("entry.title"),
-        view.conditional("isExpanded", [view.text("entry.date")]),
-      ],
-      { alignment: "leading", spacing: 8 }
-    ),
+    view.vstack({ alignment: "leading", spacing: 8 }, [
+      view.text("entry.title"),
+      view.conditional("isExpanded", [view.text("entry.date")]),
+    ]),
   ],
 });
 ```
@@ -132,14 +116,14 @@ export default defineWidget({
   description: "Shows time until the next event.",
   families: ["systemSmall", "systemMedium"],
   entry: {
-    eventName: entry.string("Event name", { default: "Untitled" }),
-    minutesUntil: entry.int("Minutes until event", { default: 0 }),
+    eventName: entry.string("Untitled"),
+    minutesUntil: entry.int(0),
   },
   body: [
-    view.vstack([view.text("entry.eventName"), view.text("entry.minutesUntil")], {
-      alignment: "center",
-      spacing: 4,
-    }),
+    view.vstack({ alignment: "center", spacing: 4 }, [
+      view.text("entry.eventName"),
+      view.text("entry.minutesUntil"),
+    ]),
   ],
 });
 ```
@@ -173,6 +157,16 @@ axint compile my-app.ts --out ios/App/
 
 ---
 
+## Public truth
+
+<!-- truth:readme-proof-line:start -->v0.3.9 · 11 MCP tools + 3 prompts · 134 diagnostic codes · 713 tests · 14 live packages · 28 bundled templates<!-- truth:readme-proof-line:end -->
+
+<!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
+
+If release numbers, diagnostics, package counts, or MCP surfaces change, update the canonical truth layer and re-run the sync instead of editing proof values by hand.
+
+---
+
 ## Watch mode
 
 Recompiles on every save with 150ms debounce, inline errors, and optional `swift build` after each successful compile:
@@ -186,61 +180,68 @@ axint watch my-intent.ts --out ios/Intents/ --format --swift-build
 
 ## MCP server
 
-Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Codex, VS Code, Windsurf, Xcode, and any MCP client.
+<!-- truth:readme-mcp-support:start -->Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Codex, VS Code, Windsurf, Xcode, and any MCP client.<!-- truth:readme-mcp-support:end -->
 
-```json
+<!-- truth:readme-mcp-json:start -->```json
 {
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": ["-y", "@axint/compiler", "axint-mcp"]
+      "args": [
+        "-y",
+        "@axint/compiler",
+        "axint-mcp"
+      ]
     }
   }
 }
-```
+```<!-- truth:readme-mcp-json:end -->
 
-11 tools + 3 built-in prompts:
+MCP tools and built-in prompts:
 
-| Tool                   | What it does                                                    |
-| ---------------------- | --------------------------------------------------------------- |
-| `axint.compile`        | Full pipeline: TypeScript → Swift + plist + entitlements        |
-| `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents)             |
-| `axint.validate`       | Dry-run validation with diagnostics                             |
-| `axint.feature`        | Generate a complete feature package from a description          |
-| `axint.suggest`        | Suggest Apple-native features for a domain                      |
-| `axint.scaffold`       | Generate a starter TypeScript intent from a description         |
-| `axint.swift.validate` | Validate existing Swift against build-time rules                |
-| `axint.swift.fix`      | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
-| `axint.templates.list` | List bundled reference templates                                |
-| `axint.templates.get`  | Return the source of a specific template                        |
+| Tool | What it does |
+| --- | --- |
+| `axint.compile` | Full pipeline: TypeScript → Swift + plist + entitlements |
+| `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents) |
+| `axint.validate` | Dry-run validation with diagnostics |
+| `axint.feature` | Generate a complete feature package from a description |
+| `axint.suggest` | Suggest Apple-native features for a domain |
+| `axint.scaffold` | Generate a starter TypeScript intent from a description |
+| `axint.swift.validate` | Validate existing Swift against build-time rules |
+| `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
+| `axint.fix-packet` | Read the latest AI-ready repair packet from a local compile or watch run |
+| `axint.templates.list` | List bundled reference templates |
+| `axint.templates.get` | Return the source of a specific template |
 
 Built-in prompts:
 
-| Prompt                | What it does                              |
-| --------------------- | ----------------------------------------- |
-| `axint.quick-start`   | Get a quick-start guide                   |
+| Prompt | What it does |
+| --- | --- |
+| `axint.quick-start` | Get a quick-start guide |
 | `axint.create-intent` | Start a new intent from guided parameters |
 | `axint.create-widget` | Start a new widget from guided parameters |
 
 `axint.schema.compile` is the key optimization — agents send ~20 tokens of JSON and get compiled Swift back directly, skipping TypeScript entirely.
 
+<!-- truth:readme-discovery-links:start -->Need a working repo instead of a raw snippet? Browse **[axint-examples](https://github.com/agenticempire/axint-examples)**. Still seeing older package names like `@axintai/compiler`? Use the current package identity: `@axint/compiler`.<!-- truth:readme-discovery-links:end -->
+
 ---
 
 ## Diagnostics
 
-139 diagnostic codes across the validator surface with fix suggestions and color-coded output:
+Diagnostic codes across the validator surface with fix suggestions and color-coded output:
 
-| Range           | Domain              |
-| --------------- | ------------------- |
-| `AX000`–`AX023` | Compiler / Parser   |
-| `AX100`–`AX113` | Intent              |
-| `AX200`–`AX202` | Swift output        |
-| `AX300`–`AX322` | View                |
-| `AX400`–`AX422` | Widget              |
-| `AX500`–`AX522` | App                 |
-| `AX700`–`AX749` | Swift build rules   |
+| Range | Domain |
+| --- | --- |
+| `AX000`–`AX023` | Compiler / Parser |
+| `AX100`–`AX113` | Intent |
+| `AX200`–`AX202` | Swift output |
+| `AX300`–`AX322` | View |
+| `AX400`–`AX422` | Widget |
+| `AX500`–`AX522` | App |
+| `AX700`–`AX749` | Swift build rules |
 | `AX720`–`AX735` | Swift 6 concurrency |
-| `AX740`–`AX749` | Live Activities     |
+| `AX740`–`AX749` | Live Activities |
 
 ```
 error[AX100]: Intent name "sendMessage" must be PascalCase
@@ -254,17 +255,17 @@ Full reference: [`docs/ERRORS.md`](docs/ERRORS.md)
 
 ## Type mappings
 
-| TypeScript    | Swift                       | Default value |
-| ------------- | --------------------------- | ------------- |
-| `string`      | `String`                    | ✓             |
-| `int`         | `Int`                       | ✓             |
-| `double`      | `Double`                    | ✓             |
-| `float`       | `Float`                     | ✓             |
-| `boolean`     | `Bool`                      | ✓             |
-| `date`        | `Date`                      | —             |
-| `duration`    | `Measurement<UnitDuration>` | ✓ (`"1h"`)    |
-| `url`         | `URL`                       | —             |
-| `optional<T>` | `T?`                        | ✓             |
+| TypeScript | Swift | Default value |
+| --- | --- | --- |
+| `string` | `String` | ✓ |
+| `int` | `Int` | ✓ |
+| `double` | `Double` | ✓ |
+| `float` | `Float` | ✓ |
+| `boolean` | `Bool` | ✓ |
+| `date` | `Date` | — |
+| `duration` | `Measurement<UnitDuration>` | ✓ (`"1h"`) |
+| `url` | `URL` | — |
+| `optional<T>` | `T?` | ✓ |
 
 ---
 
@@ -274,40 +275,9 @@ No install required — [axint.ai/#playground](https://axint.ai/#playground) run
 
 ---
 
-## Optional login
-
-`axint login` is optional. The open-source compiler stays useful without an account.
-
-If you do sign in, Axint can:
-
-- unlock fuller repair summaries in the terminal
-- enable `axint publish` against the public Registry
-- connect Cloud runs to saved history, reopenable reports, and shareable links as hosted features roll out
-
-```bash
-axint login
-```
-
----
-
 ## Editor extensions
 
-Extensions for [Claude Code](extensions/claude-code), [Codex](extensions/codex), [VS Code / Cursor](extensions/vscode), [Windsurf](extensions/windsurf), [JetBrains](extensions/jetbrains), [Neovim](extensions/neovim), and [Xcode](extensions/xcode).
-
-## Examples
-
-- [TypeScript example index](examples/README.md) — maintained intent, view, widget, and app entry points
-- [Python example index](python/examples/README.md) — maintained SDK parity examples
-- [Swift repair examples](examples/swift/README.md) — validator, Fix Packet, and Xcode repair-loop samples
-
-### Workflow docs
-
-- [Fix Packet](docs/FIX_PACKET.md) — the repair contract for CLI, MCP, and Xcode
-- [Coverage Snapshot](docs/COVERAGE.md) — what Axint currently covers and how to refresh the metrics
-- [Release Notes](docs/RELEASE_NOTES.md) — the latest Apple coverage and Xcode workflow improvements
-- [Architecture](ARCHITECTURE.md) — compiler, validator, MCP, Fix Packet, and Xcode pipeline map
-- [Security](SECURITY.md) — vulnerability reporting and dependency/audit policy
-- [Contributing](CONTRIBUTING.md) — first contribution path and public release checklist
+Extensions for [Claude Code](extensions/claude-code), [Claude Desktop](extensions/claude-desktop), [Codex](extensions/codex), [VS Code / Cursor](extensions/vscode), [Windsurf](extensions/windsurf), [JetBrains](extensions/jetbrains), [Neovim](extensions/neovim), and [Xcode](extensions/xcode).
 
 ---
 
@@ -318,14 +288,14 @@ axint/
 ├── src/
 │   ├── core/        # Parser, validator, generator, compiler, IR
 │   ├── sdk/         # defineIntent(), defineView(), defineWidget(), defineApp()
-│   ├── mcp/         # MCP server (11 tools + 3 prompts)
+│   ├── mcp/         # MCP server and prompt surface
 │   ├── cli/         # CLI (compile, watch, validate, eject, init, xcode)
-│   └── templates/   # 26 bundled reference templates
+│   └── templates/   # Bundled reference templates
 ├── python/          # Python SDK
 ├── extensions/      # Editor extensions (9 editors)
 ├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # 626 TypeScript tests + 114 Python tests
-├── examples/        # TypeScript + Swift repair-loop examples
+├── tests/           # Compiler, CLI, SDK, MCP, and Python coverage
+├── examples/        # Example definitions
 └── docs/            # Error reference, assets
 ```
 
