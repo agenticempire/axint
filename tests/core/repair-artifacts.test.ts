@@ -49,7 +49,9 @@ describe("repair artifact terminal lines", () => {
     expect(text).toContain("Axint Check");
     expect(text).toContain("Fix Packet");
     expect(text).toContain("axint login");
-    expect(text).toContain("richer terminal reports");
+    expect(text).toContain("fuller repair summaries");
+    expect(text).toContain("saved runs");
+    expect(text).toContain("shareable links");
   });
 
   it("shows the richer signed-in summary in terminal output", () => {
