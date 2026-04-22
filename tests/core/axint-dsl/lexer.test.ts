@@ -63,7 +63,10 @@ intent  Foo  { }  # trailing
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]?.code).toBe("AX007");
     expect(diagnostics[0]?.severity).toBe("error");
-    expect(diagnostics[0]?.fix).toBeNull();
+    // Per diagnostic-protocol.md, AX007 always carries a Fix. Deleting the
+    // malformed bytes is the remove_field no-close-match sub-case.
+    expect(diagnostics[0]?.fix?.kind).toBe("remove_field");
+    expect(diagnostics[0]?.fix?.suggestedEdit?.text).toBe("");
   });
 
   it("reports unknown escapes as AX007 but keeps the char for recovery", () => {

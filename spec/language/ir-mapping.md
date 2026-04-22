@@ -72,7 +72,7 @@ param name: T {
 |----------------------------------|------------------------------------------------------------|
 | `param name: T`                  | `name: "name"`, `type: <mapped IRType>`, `isOptional: false` |
 | `param name: T?`                 | same, with `isOptional: true` and type wrapped as needed   |
-| `{ description: "..." }`         | `description: "..."`, `title: "..."` (defaults to description when no explicit title) |
+| `{ description: "..." }`         | `description: "..."`, `title: "..."` (the TS surface and DSL both default `title` to the param name de-camelCased and capitalized — `eventTitle` → `"Event Title"`) |
 | `{ default: <literal> }`         | `defaultValue: <literal>`                                  |
 | `{ options: dynamic Provider }`  | `type: { kind: "dynamicOptions", valueType: <inner>, providerName: "Provider" }` |
 
