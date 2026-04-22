@@ -64,6 +64,7 @@ export {
   defineApp,
   defineLiveActivity,
   defineAppEnum,
+  defineAppShortcut,
   param,
   prop,
   state,
@@ -94,4 +95,6 @@ export type {
   DynamicIslandConfig,
   AppEnumDefinition,
   AppEnumCaseConfig,
+  AppShortcutDefinition,
+  AppShortcutEntryConfig,
 } from "../sdk/index.js";

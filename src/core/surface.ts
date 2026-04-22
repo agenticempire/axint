@@ -8,7 +8,14 @@
 
 import ts from "typescript";
 
-export type Surface = "intent" | "view" | "widget" | "app" | "liveActivity" | "appEnum";
+export type Surface =
+  | "intent"
+  | "view"
+  | "widget"
+  | "app"
+  | "liveActivity"
+  | "appEnum"
+  | "appShortcut";
 
 const DEFINE_TO_SURFACE: Readonly<Record<string, Surface>> = {
   defineIntent: "intent",
@@ -17,6 +24,7 @@ const DEFINE_TO_SURFACE: Readonly<Record<string, Surface>> = {
   defineApp: "app",
   defineLiveActivity: "liveActivity",
   defineAppEnum: "appEnum",
+  defineAppShortcut: "appShortcut",
 };
 
 export function detectSurface(

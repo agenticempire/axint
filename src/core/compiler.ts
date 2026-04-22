@@ -17,6 +17,7 @@ import { parseWidgetSource } from "./widget-parser.js";
 import { parseAppSource } from "./app-parser.js";
 import { parseLiveActivitySource } from "./live-activity-parser.js";
 import { parseAppEnumSource } from "./app-enum-parser.js";
+import { parseAppShortcutSource } from "./app-shortcut-parser.js";
 import { detectSurface, type Surface } from "./surface.js";
 import {
   compileSourceWithParser,
@@ -33,6 +34,7 @@ import { generateSwiftWidget } from "./widget-generator.js";
 import { generateSwiftApp } from "./app-generator.js";
 import { generateSwiftLiveActivity } from "./live-activity-generator.js";
 import { generateSwiftAppEnum } from "./app-enum-generator.js";
+import { generateSwiftAppShortcut } from "./app-shortcut-generator.js";
 import { validateIntent, validateSwiftSource } from "./validator.js";
 import { validateView, validateSwiftUISource } from "./view-validator.js";
 import { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
@@ -42,6 +44,10 @@ import {
   validateSwiftLiveActivitySource,
 } from "./live-activity-validator.js";
 import { validateAppEnum, validateSwiftAppEnumSource } from "./app-enum-validator.js";
+import {
+  validateAppShortcut,
+  validateSwiftAppShortcutSource,
+} from "./app-shortcut-validator.js";
 import type {
   CompilerOutput,
   CompilerOptions,
@@ -52,6 +58,7 @@ import type {
   IRApp,
   IRLiveActivity,
   IRAppEnum,
+  IRAppShortcut,
   IRType,
   IRParameter,
   IREntity,
@@ -405,6 +412,59 @@ export function compileAppEnumFromIR(
   });
 }
 
+// ─── App Shortcut Compilation ──────────────────────────────────────
+
+export interface AppShortcutCompileResult {
+  success: boolean;
+  output?: {
+    outputPath: string;
+    swiftCode: string;
+    ir: IRAppShortcut;
+    diagnostics: Diagnostic[];
+  };
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * Compile a TypeScript `defineAppShortcut()` source string into Swift.
+ */
+export function compileAppShortcutSource(
+  source: string,
+  fileName: string = "<stdin>",
+  options: Partial<CompilerOptions> = {}
+): AppShortcutCompileResult {
+  return compileSourceWithParser({
+    source,
+    fileName,
+    options,
+    parse: parseAppShortcutSource,
+    compileFromIR: compileAppShortcutFromIR,
+  });
+}
+
+/**
+ * Compile from a pre-built IRAppShortcut (skips parsing).
+ */
+export function compileAppShortcutFromIR(
+  ir: IRAppShortcut,
+  options: Partial<CompilerOptions> = {}
+): AppShortcutCompileResult {
+  return runCompilePipeline({
+    ir,
+    options,
+    validateIR: validateAppShortcut,
+    generateSwift: generateSwiftAppShortcut,
+    validateGeneratedSwift: (swiftCode) => validateSwiftAppShortcutSource(swiftCode),
+    outputFileName: (appShortcut) => `${appShortcut.name}.swift`,
+    buildOutput: ({ outputPath, swiftCode, diagnostics }) => ({
+      outputPath,
+      swiftCode,
+      ir,
+      diagnostics,
+    }),
+  });
+}
+
 // ─── Surface Dispatcher ────────────────────────────────────────────
 
 /**
@@ -418,7 +478,8 @@ export type AnyCompileResult =
   | ({ surface: "widget" } & WidgetCompileResult)
   | ({ surface: "app" } & AppCompileResult)
   | ({ surface: "liveActivity" } & LiveActivityCompileResult)
-  | ({ surface: "appEnum" } & AppEnumCompileResult);
+  | ({ surface: "appEnum" } & AppEnumCompileResult)
+  | ({ surface: "appShortcut" } & AppShortcutCompileResult);
 
 /**
  * Compile a TypeScript source string, auto-detecting whether it
@@ -440,10 +501,10 @@ export function compileAnySource(
         {
           code: "AX001",
           severity: "error",
-          message: `No defineIntent, defineView, defineWidget, defineApp, defineLiveActivity, or defineAppEnum call found in ${fileName}`,
+          message: `No defineIntent, defineView, defineWidget, defineApp, defineLiveActivity, defineAppEnum, or defineAppShortcut call found in ${fileName}`,
           file: fileName,
           suggestion:
-            "Add a top-level `defineIntent({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, `defineApp({ ... })`, `defineLiveActivity({ ... })`, or `defineAppEnum({ ... })` call.",
+            "Add a top-level `defineIntent({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, `defineApp({ ... })`, `defineLiveActivity({ ... })`, `defineAppEnum({ ... })`, or `defineAppShortcut({ ... })` call.",
         },
       ],
     };
@@ -490,6 +551,8 @@ function dispatchCompile(
       return { surface, ...compileLiveActivitySource(source, fileName, options) };
     case "appEnum":
       return { surface, ...compileAppEnumSource(source, fileName, options) };
+    case "appShortcut":
+      return { surface, ...compileAppShortcutSource(source, fileName, options) };
   }
 }
 
