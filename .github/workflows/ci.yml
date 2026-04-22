@@ -30,6 +30,7 @@ jobs:
       - run: npm audit --audit-level=moderate
       - run: npm run versions:check
       - run: npm run metrics:check
+      - run: npm run docs:check
       - run: npm run boundary:check
       - run: npm run typecheck
       - run: npm run typecheck:examples
