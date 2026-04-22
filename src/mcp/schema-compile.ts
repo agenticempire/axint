@@ -147,10 +147,11 @@ async function handleIntentSchema(
     }
   }
 
+  const resolvedTitle = args.title || args.name.replace(/([A-Z])/g, " $1").trim();
   const ir: IRIntent = {
     name: args.name,
-    title: args.title || args.name.replace(/([A-Z])/g, " $1").trim(),
-    description: args.description || "",
+    title: resolvedTitle,
+    description: args.description || resolvedTitle,
     domain: args.domain,
     parameters,
     returnType: { kind: "primitive", value: "string" },

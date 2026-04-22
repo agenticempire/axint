@@ -26,12 +26,18 @@ const INTENT_SOURCE = `
   });
 `;
 
+// A SwiftUI View that declares @State with `let` — the validator only
+// emits AX703 for View-conforming structs, because @State has no meaning
+// outside a View. This exercises the regex fixer's @State let → @State var
+// path through the MCP surface.
 const BROKEN_SWIFT = `
-import AppIntents
+import SwiftUI
 
-struct BrokenIntent: AppIntent {
-    static var title: LocalizedStringResource = "Broken"
+struct BrokenView: View {
     @State let count: Int = 0
+    var body: some View {
+        Text("\\(count)")
+    }
 }
 `;
 
