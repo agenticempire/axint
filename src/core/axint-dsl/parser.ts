@@ -191,18 +191,6 @@ class Parser {
 
     const endSpan = this.tokens[this.tokens.length - 1]!.span;
 
-    // Empty files emit AX001 per spec. An empty file means zero top-level
-    // declarations — comments, whitespace, and lexer noise don't count.
-    if (declarations.length === 0 && this.diagnostics.length === 0) {
-      const span = this.tokens[0]?.span ?? endSpan;
-      this.emit({
-        code: "AX001",
-        message: "expected `intent`, `entity`, or `enum` declaration",
-        span,
-        fix: null,
-      });
-    }
-
     return {
       kind: "File",
       span: spanBetween(startSpan, endSpan),
