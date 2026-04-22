@@ -23,9 +23,10 @@ export interface LexResult {
   readonly tokens: readonly Token[];
   /**
    * Lexer-level diagnostics (unterminated string, invalid escape, unknown
-   * byte). Empty on a well-formed file. All emit code AX007 with `fix: null`
-   * — the closed six-kind FixKind set has no principled repair for lexical
-   * failures, and the spec pins schemaVersion 1.
+   * byte). Empty on a well-formed file. All emit code AX007 with a
+   * `remove_field` fix that deletes the offending span — the no-close-match
+   * sub-case of the spec's AX007 fix catalog, and the only principled v1
+   * repair for a lexical failure.
    */
   readonly diagnostics: readonly Diagnostic[];
 }
@@ -326,14 +327,23 @@ class Lexer {
   }
 
   private makeDiagnostic(code: string, message: string, span: TokenSpan): Diagnostic {
+    // Every lexer diagnostic today is AX007 — malformed bytes the scanner
+    // can't tokenize. All three sub-cases (unknown escape, unterminated
+    // string, unexpected character) repair by deleting the garbage, which is
+    // the `remove_field` fix kind with `suggestedEdit.text: ""`.
+    const protocolSpan = toProtocolSpan(span);
     return {
       schemaVersion: 1,
       code,
       severity: "error",
       message,
       file: this.file,
-      span: toProtocolSpan(span),
-      fix: null,
+      span: protocolSpan,
+      fix: {
+        kind: "remove_field",
+        targetSpan: protocolSpan,
+        suggestedEdit: { text: "" },
+      },
     };
   }
 }

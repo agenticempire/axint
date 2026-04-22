@@ -56,7 +56,7 @@ import type {
   TopLevelDecl,
   TypeNode,
 } from "./ast.js";
-import type { Diagnostic, Fix } from "./diagnostic.js";
+import type { Diagnostic, DiagnosticSeverity, Fix } from "./diagnostic.js";
 import type { Token, TokenKind, TokenSpan } from "./token.js";
 import { toProtocolSpan, tokenize } from "./lexer.js";
 
@@ -212,7 +212,7 @@ class Parser {
           code: "AX001",
           message: `unexpected ${describeToken(this.peek())} at top level, expected \`intent\`, \`entity\`, or \`enum\``,
           span: this.peek().span,
-          fix: null,
+          fix: this.fixInsert(this.zeroWidthBefore(this.peek().span)),
         });
         return null;
       }
@@ -293,7 +293,7 @@ class Parser {
           code: "AX007",
           message: `unexpected ${describeToken(this.peek())} in entity body`,
           span: this.peek().span,
-          fix: null,
+          fix: this.fixRemove(this.peek().span),
         });
         this.recoverToFieldOrBlockEnd(ENTITY_BODY_KEYWORDS);
       }
@@ -379,7 +379,7 @@ class Parser {
           code: "AX007",
           message: `unexpected ${describeToken(this.peek())} in display block`,
           span: this.peek().span,
-          fix: null,
+          fix: this.fixRemove(this.peek().span),
         });
         this.recoverToFieldOrBlockEnd(DISPLAY_BODY_KEYWORDS);
       }
@@ -479,7 +479,7 @@ class Parser {
         code: "AX007",
         message: `unexpected ${describeToken(this.peek())} in property body — only \`description\` is allowed`,
         span: this.peek().span,
-        fix: null,
+        fix: this.fixRemove(this.peek().span),
       });
       this.recoverToFieldOrBlockEnd(PROPERTY_BODY_KEYWORDS);
     }
@@ -515,7 +515,7 @@ class Parser {
         code: "AX018",
         message: `expected query kind, got ${describeToken(next)}`,
         span: next.span,
-        fix: null,
+        fix: this.fixReplaceLiteral(next.span, [...QUERY_KINDS]),
       });
       this.recoverToEndOfLine(start.span.startLine);
       return null;
@@ -637,7 +637,7 @@ class Parser {
         code: "AX007",
         message: `unexpected ${describeToken(this.peek())} in intent body`,
         span: this.peek().span,
-        fix: null,
+        fix: this.fixRemove(this.peek().span),
       });
       this.recoverToFieldOrBlockEnd(INTENT_BODY_KEYWORDS);
     }
@@ -766,7 +766,7 @@ class Parser {
           code: "AX007",
           message: `unexpected ${describeToken(this.peek())} in param body`,
           span: this.peek().span,
-          fix: null,
+          fix: this.fixRemove(this.peek().span),
         });
         this.recoverToFieldOrBlockEnd(PARAM_BODY_KEYWORDS);
       }
@@ -833,7 +833,7 @@ class Parser {
         code: "AX007",
         message: `expected \`dynamic\` after \`options:\`, got ${describeToken(this.peek())}`,
         span: this.peek().span,
-        fix: null,
+        fix: this.fixRemove(this.peek().span),
       });
       this.recoverToEndOfLine(kw.span.startLine);
       return null;
@@ -886,7 +886,7 @@ class Parser {
           code: "AX007",
           message: `expected string literal in entitlements block, got ${describeToken(this.peek())}`,
           span: this.peek().span,
-          fix: null,
+          fix: this.fixRemove(this.peek().span),
         });
         this.advance();
       }
@@ -916,7 +916,7 @@ class Parser {
           code: "AX007",
           message: `expected key string in infoPlistKeys block, got ${describeToken(this.peek())}`,
           span: this.peek().span,
-          fix: null,
+          fix: this.fixRemove(this.peek().span),
         });
         this.advance();
         continue;
@@ -977,7 +977,7 @@ class Parser {
       code: "AX007",
       message: `expected \`:\`, \`when\`, or \`switch\` after \`summary\`, got ${describeToken(this.peek())}`,
       span: this.peek().span,
-      fix: null,
+      fix: this.fixRemove(this.peek().span),
     });
     return null;
   }
@@ -1017,7 +1017,7 @@ class Parser {
           code: "AX007",
           message: `unexpected ${describeToken(this.peek())} in summary when body`,
           span: this.peek().span,
-          fix: null,
+          fix: this.fixRemove(this.peek().span),
         });
         this.recoverToFieldOrBlockEnd(new Set<TokenKind>(["THEN", "OTHERWISE"]));
       }
@@ -1027,11 +1027,17 @@ class Parser {
     const endSpan = rbrace?.span ?? this.previousSpan();
 
     if (!then) {
+      // AX007 here is "parser saw a block body that doesn't include the
+      // required `then`." The spec's AX007 fix kinds (remove/rename/change_type)
+      // don't include insert, so we model the repair as deleting the empty
+      // block: a subsequent `axint check` then requires the author to write a
+      // fresh `when param { then "..." }` pair. A dedicated missing-then code
+      // would be cleaner — tracked as a future catalog split.
       this.emit({
         code: "AX007",
         message: "summary `when` is missing `then` branch",
         span: this.zeroWidthAfter(lbrace.span),
-        fix: null,
+        fix: this.fixRemove(this.zeroWidthAfter(lbrace.span)),
       });
       then = emptyStringLiteral(this.zeroWidthAfter(lbrace.span));
     }
@@ -1074,7 +1080,7 @@ class Parser {
           code: "AX007",
           message: `unexpected ${describeToken(this.peek())} in summary switch body`,
           span: this.peek().span,
-          fix: null,
+          fix: this.fixRemove(this.peek().span),
         });
         this.recoverToFieldOrBlockEnd(SWITCH_BODY_KEYWORDS);
       }
@@ -1122,7 +1128,7 @@ class Parser {
       code: "AX007",
       message: `expected string template or nested \`summary\`, got ${describeToken(this.peek())}`,
       span: this.peek().span,
-      fix: null,
+      fix: this.fixRemove(this.peek().span),
     });
     return null;
   }
@@ -1174,7 +1180,7 @@ class Parser {
       code: "AX005",
       message: `expected type, got ${describeToken(this.peek())}`,
       span: this.peek().span,
-      fix: null,
+      fix: this.fixChangeType(this.peek().span),
     });
     return null;
   }
@@ -1212,7 +1218,7 @@ class Parser {
       code: "AX005",
       message: `expected return type, got ${describeToken(this.peek())}`,
       span: this.peek().span,
-      fix: null,
+      fix: this.fixChangeType(this.peek().span),
     });
     return null;
   }
@@ -1267,7 +1273,7 @@ class Parser {
           code: "AX007",
           message: `expected literal, got ${describeToken(tok)}`,
           span: tok.span,
-          fix: null,
+          fix: this.fixRemove(tok.span),
         });
         return null;
     }
@@ -1312,7 +1318,7 @@ class Parser {
       code: "AX007",
       message: `expected ${description}, got ${describeToken(this.peek())}`,
       span: this.peek().span,
-      fix: null,
+      fix: this.fixRemove(this.peek().span),
     });
     return null;
   }
@@ -1322,11 +1328,19 @@ class Parser {
       const tok = this.consume();
       return { kind: "Ident", span: tok.span, name: tok.value };
     }
+    // AX002 (declaration-name sites) maps to replace_identifier per the spec;
+    // AX007 (positional sites like `param name`, `options provider`) maps to
+    // remove_field. Keep the code→fix-kind branching here so every caller
+    // stays a single call.
+    const fix =
+      code === "AX002"
+        ? this.fixReplaceIdentifier(this.peek().span)
+        : this.fixRemove(this.peek().span);
     this.emit({
       code,
       message: `expected ${description}, got ${describeToken(this.peek())}`,
       span: this.peek().span,
-      fix: null,
+      fix,
     });
     return null;
   }
@@ -1339,7 +1353,7 @@ class Parser {
       code: "AX007",
       message: `expected ${description} string, got ${describeToken(this.peek())}`,
       span: this.peek().span,
-      fix: null,
+      fix: this.fixRemove(this.peek().span),
     });
     return null;
   }
@@ -1359,7 +1373,7 @@ class Parser {
       code: "AX007",
       message: `expected ${description} boolean, got ${describeToken(this.peek())}`,
       span: this.peek().span,
-      fix: null,
+      fix: this.fixRemove(this.peek().span),
     });
     return null;
   }
@@ -1370,12 +1384,13 @@ class Parser {
     code: string;
     message: string;
     span: TokenSpan;
-    fix: Fix | null;
+    fix: Fix;
+    severity?: DiagnosticSeverity;
   }): void {
     this.diagnostics.push({
       schemaVersion: 1,
       code: args.code,
-      severity: "error",
+      severity: args.severity ?? "error",
       message: args.message,
       file: this.file,
       span: toProtocolSpan(args.span),
@@ -1403,6 +1418,62 @@ class Parser {
       endLine: span.startLine,
       endColumn: span.startColumn,
     };
+  }
+
+  // ─── Fix builders ──────────────────────────────────────────────────
+  //
+  // Every non-compiler-bug diagnostic carries a Fix with at minimum a kind and
+  // a targetSpan (spec/language/diagnostic-protocol.md §Applying an edit). These
+  // helpers keep each emission site to a single line and encode the common
+  // shapes: delete-the-wrong-token (`remove_field`), rewrite-the-type
+  // (`change_type`), insert-at-point (`insert_required_clause`), and the two
+  // identifier variants.
+
+  private fixRemove(span: TokenSpan): Fix {
+    return {
+      kind: "remove_field",
+      targetSpan: toProtocolSpan(span),
+      suggestedEdit: { text: "" },
+    };
+  }
+
+  private fixChangeType(span: TokenSpan): Fix {
+    return { kind: "change_type", targetSpan: toProtocolSpan(span) };
+  }
+
+  private fixInsert(span: TokenSpan): Fix {
+    return { kind: "insert_required_clause", targetSpan: toProtocolSpan(span) };
+  }
+
+  private fixReplaceIdentifier(span: TokenSpan): Fix {
+    return { kind: "replace_identifier", targetSpan: toProtocolSpan(span) };
+  }
+
+  private fixReplaceLiteral(
+    span: TokenSpan,
+    candidates?: readonly string[],
+    suggested?: string
+  ): Fix {
+    const targetSpan = toProtocolSpan(span);
+    if (suggested !== undefined && candidates !== undefined) {
+      return {
+        kind: "replace_literal",
+        targetSpan,
+        suggestedEdit: { text: suggested },
+        candidates: [...candidates],
+      };
+    }
+    if (candidates !== undefined) {
+      return { kind: "replace_literal", targetSpan, candidates: [...candidates] };
+    }
+    if (suggested !== undefined) {
+      return {
+        kind: "replace_literal",
+        targetSpan,
+        suggestedEdit: { text: suggested },
+      };
+    }
+    return { kind: "replace_literal", targetSpan };
   }
 
   // ─── Recovery ──────────────────────────────────────────────────────

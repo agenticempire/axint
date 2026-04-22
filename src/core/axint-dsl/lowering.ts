@@ -45,7 +45,7 @@ import type {
   TopLevelDecl,
   TypeNode,
 } from "./ast.js";
-import type { Diagnostic, Fix, Span } from "./diagnostic.js";
+import type { Diagnostic, DiagnosticSeverity, Fix, Span } from "./diagnostic.js";
 import { DIAGNOSTIC_SCHEMA_VERSION } from "./diagnostic.js";
 import { toProtocolSpan } from "./lexer.js";
 import type { TokenSpan } from "./token.js";
@@ -124,13 +124,14 @@ class LowerContext {
     code: string;
     message: string;
     span: TokenSpan | Span;
-    fix: Fix | null;
+    fix: Fix;
+    severity?: DiagnosticSeverity;
   }): void {
     const span = isTokenSpan(args.span) ? toProtocolSpan(args.span) : args.span;
     this.diagnostics.push({
       schemaVersion: DIAGNOSTIC_SCHEMA_VERSION,
       code: args.code,
-      severity: "error",
+      severity: args.severity ?? "error",
       message: args.message,
       file: this.sourceFile,
       span,
