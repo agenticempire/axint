@@ -88,3 +88,12 @@ SUBMISSIONS.md
 
 # Smithery build artifacts
 .smithery/
+
+# Python coverage (pytest-cov artifacts)
+python/.coverage
+python/coverage.json
+python/coverage.lcov
+
+# Local Claude plugin setup (not shipped)
+.agents/
+plugins/

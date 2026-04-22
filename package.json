@@ -79,7 +79,9 @@
     "metrics:emit": "node scripts/emit-metrics.mjs",
     "metrics:check": "node scripts/check-metrics.mjs",
     "boundary:check": "node scripts/check-public-boundary.mjs",
-    "prepublishOnly": "npm run versions:check && npm run metrics:check && npm run clean && npm run build",
+    "docs:check": "node scripts/check-readme-mcp-docs.mjs",
+    "roadmap:sync": "node scripts/sync-roadmap-metrics.mjs",
+    "prepublishOnly": "npm run versions:check && npm run metrics:check && npm run docs:check && npm run clean && npm run build",
     "prepare": "husky"
   },
   "lint-staged": {
