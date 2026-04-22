@@ -12,6 +12,7 @@ import {
   compileWidgetFromIR,
   compileAppFromIR,
 } from "../core/compiler.js";
+import { formatSwift } from "../core/format.js";
 import type {
   IRIntent,
   IRView,
@@ -50,6 +51,7 @@ export type SchemaCompileArgs = {
     name?: string;
     platform?: string;
   }>;
+  format?: boolean;
 };
 
 const VALID_PLATFORMS = new Set<string>(["macOS", "iOS", "visionOS"]);
@@ -81,15 +83,16 @@ export async function handleCompileFromSchema(args: SchemaCompileArgs) {
   try {
     const inputJson = JSON.stringify(args);
     const inputTokens = Math.ceil(inputJson.length / 4);
+    const shouldFormat = args.format !== false;
 
     if (args.type === "intent") {
-      return handleIntentSchema(args, inputTokens);
+      return handleIntentSchema(args, inputTokens, shouldFormat);
     } else if (args.type === "view") {
-      return handleViewSchema(args, inputTokens);
+      return handleViewSchema(args, inputTokens, shouldFormat);
     } else if (args.type === "widget") {
-      return handleWidgetSchema(args, inputTokens);
+      return handleWidgetSchema(args, inputTokens, shouldFormat);
     } else if (args.type === "app") {
-      return handleAppSchema(args, inputTokens);
+      return handleAppSchema(args, inputTokens, shouldFormat);
     }
 
     return {
@@ -109,7 +112,11 @@ export async function handleCompileFromSchema(args: SchemaCompileArgs) {
   }
 }
 
-async function handleIntentSchema(args: SchemaCompileArgs, inputTokens: number) {
+async function handleIntentSchema(
+  args: SchemaCompileArgs,
+  inputTokens: number,
+  shouldFormat: boolean
+) {
   if (!args.name) {
     return {
       content: [
@@ -161,10 +168,14 @@ async function handleIntentSchema(args: SchemaCompileArgs, inputTokens: number) 
     };
   }
 
-  return formatSchemaOutput(result.output.swiftCode, inputTokens);
+  return formatSchemaOutput(result.output.swiftCode, inputTokens, shouldFormat);
 }
 
-async function handleViewSchema(args: SchemaCompileArgs, inputTokens: number) {
+async function handleViewSchema(
+  args: SchemaCompileArgs,
+  inputTokens: number,
+  shouldFormat: boolean
+) {
   if (!args.name) {
     return {
       content: [
@@ -221,10 +232,14 @@ async function handleViewSchema(args: SchemaCompileArgs, inputTokens: number) {
     };
   }
 
-  return formatSchemaOutput(result.output.swiftCode, inputTokens);
+  return formatSchemaOutput(result.output.swiftCode, inputTokens, shouldFormat);
 }
 
-async function handleWidgetSchema(args: SchemaCompileArgs, inputTokens: number) {
+async function handleWidgetSchema(
+  args: SchemaCompileArgs,
+  inputTokens: number,
+  shouldFormat: boolean
+) {
   if (!args.name) {
     return {
       content: [
@@ -301,10 +316,14 @@ async function handleWidgetSchema(args: SchemaCompileArgs, inputTokens: number) 
     };
   }
 
-  return formatSchemaOutput(result.output.swiftCode, inputTokens);
+  return formatSchemaOutput(result.output.swiftCode, inputTokens, shouldFormat);
 }
 
-async function handleAppSchema(args: SchemaCompileArgs, inputTokens: number) {
+async function handleAppSchema(
+  args: SchemaCompileArgs,
+  inputTokens: number,
+  shouldFormat: boolean
+) {
   if (!args.name) {
     return {
       content: [
@@ -367,14 +386,16 @@ async function handleAppSchema(args: SchemaCompileArgs, inputTokens: number) {
     };
   }
 
-  return formatSchemaOutput(result.output.swiftCode, inputTokens);
+  return formatSchemaOutput(result.output.swiftCode, inputTokens, shouldFormat);
 }
 
-function formatSchemaOutput(
+async function formatSchemaOutput(
   swiftCode: string,
-  inputTokens: number
-): { content: Array<{ type: string; text: string }>; isError?: boolean } {
-  const outputTokens = Math.ceil(swiftCode.length / 4);
+  inputTokens: number,
+  shouldFormat: boolean
+): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
+  const swift = shouldFormat ? (await formatSwift(swiftCode)).formatted : swiftCode;
+  const outputTokens = Math.ceil(swift.length / 4);
   const compressionRatio =
     inputTokens > 0 ? (outputTokens / inputTokens).toFixed(2) : "0.00";
   const tokensSaved = inputTokens - outputTokens;
@@ -387,6 +408,6 @@ function formatSchemaOutput(
 // Tokens saved:                   ${tokensSaved > 0 ? `+${tokensSaved}` : tokensSaved}
 `;
 
-  const output = tokenStats + "\n\n" + swiftCode;
+  const output = tokenStats + "\n\n" + swift;
   return { content: [{ type: "text" as const, text: output }] };
 }

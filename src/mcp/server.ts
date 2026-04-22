@@ -31,6 +31,7 @@ import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileAnySource } from "../core/compiler.js";
+import { formatSwift } from "../core/format.js";
 import { scaffoldIntent } from "./scaffold.js";
 import { generateFeature, type FeatureInput, type Surface } from "./feature.js";
 import { suggestFeatures, type SuggestInput } from "./suggest.js";
@@ -60,6 +61,7 @@ type CompileArgs = {
   fileName?: string;
   emitInfoPlist?: boolean;
   emitEntitlements?: boolean;
+  format?: boolean;
 };
 
 type ScaffoldArgs = {
@@ -93,9 +95,18 @@ function errorText(text: string): ToolResult {
   };
 }
 
+// Agents call axint.* through MCP stdio with no way to invoke swift-format
+// themselves. Default-on here means every AI-generated Swift file matches
+// Apple's house style without the caller having to know it exists.
+async function maybeFormatSwift(source: string, enabled: boolean): Promise<string> {
+  if (!enabled) return source;
+  const { formatted } = await formatSwift(source);
+  return formatted;
+}
+
 export async function handleToolCall(name: string, args: unknown): Promise<ToolResult> {
   if (name === "axint.feature") {
-    const a = args as FeatureInput;
+    const a = args as FeatureInput & { format?: boolean };
     if (!a.description) {
       return errorText("Error: 'description' is required for axint.feature");
     }
@@ -108,11 +119,16 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       params: a.params,
     });
 
+    const shouldFormat = a.format !== false;
     const output: string[] = [result.summary, ""];
 
     for (const file of result.files) {
+      const content =
+        file.type === "swift" || file.type === "test"
+          ? await maybeFormatSwift(file.content, shouldFormat)
+          : file.content;
       output.push(`// ─── ${file.path} ───`);
-      output.push(file.content);
+      output.push(content);
       output.push("");
     }
 
@@ -166,10 +182,8 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
     });
 
     if (result.success && result.output) {
-      const parts: string[] = [
-        "// ─── Swift ──────────────────────────",
-        result.output.swiftCode,
-      ];
+      const swift = await maybeFormatSwift(result.output.swiftCode, a.format !== false);
+      const parts: string[] = ["// ─── Swift ──────────────────────────", swift];
       if (result.surface === "intent" && result.output.infoPlistFragment) {
         parts.push("// ─── Info.plist fragment ────────────");
         parts.push(result.output.infoPlistFragment);
@@ -241,7 +255,7 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
   }
 
   if (name === "axint.swift.fix") {
-    const a = args as { source: string; file?: string };
+    const a = args as { source: string; file?: string; format?: boolean };
     const result = fixSwiftSource(a.source, a.file ?? "<input>");
     const summary =
       result.fixed.length === 0
@@ -251,7 +265,8 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       result.remaining.length > 0
         ? `\nRemaining: ${result.remaining.map((d) => `[${d.code}] ${d.message}`).join("; ")}`
         : "";
-    return diagnosticsText(`${summary}${remaining}\n\n${result.source}`);
+    const swift = await maybeFormatSwift(result.source, a.format !== false);
+    return diagnosticsText(`${summary}${remaining}\n\n${swift}`);
   }
 
   if (name === "axint.templates.list") {
