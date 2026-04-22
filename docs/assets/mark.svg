@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="Axint mark — on light">
-  <title>Axint mark — on light</title>
-  <rect width="1000" height="1000" fill="#F4F1EA"></rect>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 200 800 600" width="800" height="600" role="img" aria-label="Axint mark — tight crop on light">
+  <title>Axint mark — tight crop on light</title>
+  
   
     
     <polyline points="340,240 140,500 340,760" fill="none" stroke="#0A0A0C" stroke-width="64" stroke-linecap="square" stroke-linejoin="miter"></polyline>
