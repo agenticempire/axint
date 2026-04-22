@@ -235,8 +235,8 @@ const productions: readonly { readonly name: string; readonly source: string }[]
   title: "A"
   description: "a"
 
-  param when: date {
-    description: "When"
+  param dueOn: date {
+    description: "Due"
   }
 }
 `,
@@ -546,7 +546,7 @@ intent A {
 `,
   },
   {
-    name: "entity with static query",
+    name: "entity with all query",
     source: `entity Thing {
   display {
     title: name
@@ -560,7 +560,7 @@ intent A {
     description: "Name"
   }
 
-  query: static
+  query: all
 }
 `,
   },
