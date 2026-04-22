@@ -63,6 +63,7 @@ export {
   defineWidget,
   defineApp,
   defineLiveActivity,
+  defineAppEnum,
   param,
   prop,
   state,
@@ -91,4 +92,6 @@ export type {
   LiveActivityDefinition,
   ActivityStateConfig,
   DynamicIslandConfig,
+  AppEnumDefinition,
+  AppEnumCaseConfig,
 } from "../sdk/index.js";
