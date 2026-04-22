@@ -13,12 +13,13 @@ const exampleFiles = readdirSync(examplesDir)
 
 const EXPECTED_SURFACES = new Map<
   string,
-  "intent" | "view" | "widget" | "app" | "liveActivity"
+  "intent" | "view" | "widget" | "app" | "liveActivity" | "appEnum"
 >([
   ["calendar-assistant.ts", "intent"],
   ["health-log.ts", "intent"],
   ["messaging.ts", "intent"],
   ["pizza-delivery.live-activity.ts", "liveActivity"],
+  ["pizza-size.app-enum.ts", "appEnum"],
   ["profile-card.ts", "view"],
   ["smart-home.ts", "intent"],
   ["step-counter.ts", "widget"],
