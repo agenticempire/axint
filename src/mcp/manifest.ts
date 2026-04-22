@@ -80,6 +80,14 @@ export const TOOL_MANIFEST = [
             description: "Swift type for this parameter",
           },
         },
+        format: {
+          type: "boolean",
+          description:
+            "When true (default), pipes every generated Swift file through " +
+            "swift-format with Axint's house style. Falls back to raw output " +
+            "when swift-format is not on $PATH. Set false to receive raw " +
+            "generator output.",
+        },
       },
       required: ["description"],
     },
@@ -246,6 +254,14 @@ export const TOOL_MANIFEST = [
             "When true, returns an .entitlements XML fragment for the intent's " +
             "declared entitlements. Only relevant for intents requiring special " +
             "capabilities. Defaults to false.",
+        },
+        format: {
+          type: "boolean",
+          description:
+            "When true (default), pipes generated Swift through swift-format " +
+            "with Axint's house style. Falls back to raw output when " +
+            "swift-format is not on $PATH. Set false to receive raw generator " +
+            "output.",
         },
       },
       required: ["source"],
@@ -504,6 +520,14 @@ export const TOOL_MANIFEST = [
             "App only. Scene definitions for the @main App struct. " +
             "At least one scene with kind 'windowGroup' is typically required.",
         },
+        format: {
+          type: "boolean",
+          description:
+            "When true (default), pipes generated Swift through swift-format " +
+            "with Axint's house style. Falls back to raw output when " +
+            "swift-format is not on $PATH. Set false to receive raw generator " +
+            "output.",
+        },
       },
       required: ["type", "name"],
     },
@@ -575,6 +599,14 @@ export const TOOL_MANIFEST = [
         file: {
           type: "string",
           description: "Optional file name to attach to diagnostics.",
+        },
+        format: {
+          type: "boolean",
+          description:
+            "When true (default), pipes the repaired Swift through " +
+            "swift-format with Axint's house style. Falls back to raw " +
+            "output when swift-format is not on $PATH. Set false to " +
+            "receive raw fixer output.",
         },
       },
       required: ["source"],
