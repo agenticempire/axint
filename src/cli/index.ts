@@ -8,6 +8,7 @@
  *   axint validate <file>         Validate a compiled intent
  *   axint validate-swift <path>   Validate existing Swift sources against Axint's build-time rules
  *   axint eject <file>            Eject intent to standalone Swift (no vendor lock-in)
+ *   axint format <file>           Format a .axint source file in canonical style
  *   axint templates               List bundled intent templates
  *   axint login                   Authenticate with the Axint Registry and unlock fuller repair reports
  *   axint publish                 Publish an intent to the Registry
@@ -37,6 +38,7 @@ import { registerCompile } from "./compile.js";
 import { registerValidate } from "./validate.js";
 import { registerValidateSwift } from "./validate-swift.js";
 import { registerEject } from "./eject.js";
+import { registerFormat } from "./format.js";
 import { registerTemplates } from "./templates.js";
 import { registerLogin } from "./login.js";
 import { registerPublish } from "./publish.js";
@@ -141,6 +143,7 @@ registerCompile(program);
 registerValidate(program);
 registerValidateSwift(program);
 registerEject(program);
+registerFormat(program);
 registerTemplates(program);
 registerLogin(program);
 registerPublish(program, VERSION);
