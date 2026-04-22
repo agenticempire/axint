@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="256" height="256" role="img" aria-label="Axint favicon">
+  <rect width="1000" height="1000" fill="#0A0A0C"></rect>
+  
+    
+    <polyline points="340,240 140,500 340,760" fill="none" stroke="#F4F1EA" stroke-width="64" stroke-linecap="square" stroke-linejoin="miter"></polyline>
+    
+    <polyline points="660,240 860,500 660,760" fill="none" stroke="#F4F1EA" stroke-width="64" stroke-linecap="square" stroke-linejoin="miter"></polyline>
+    
+    <rect x="470" y="470" width="60" height="60" fill="#F05138"></rect>
+  
+</svg>
