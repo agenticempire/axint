@@ -826,3 +826,57 @@ export interface AppEnumDefinition {
 export function defineAppEnum(config: AppEnumDefinition): AppEnumDefinition {
   return config;
 }
+
+/** A single entry inside an AppShortcutsProvider. */
+export interface AppShortcutEntryConfig {
+  /** Name of the AppIntent type this shortcut invokes (e.g. "OrderPizza"). */
+  intent: string;
+  /**
+   * Phrases Siri will recognize. At least one phrase must reference
+   * `${applicationName}`, which compiles to Apple's
+   * `\(.applicationName)` token.
+   */
+  phrases: string[];
+  /** Short title shown in the Shortcuts app. */
+  shortTitle: string;
+  /** SF Symbol name rendered beside the shortcut. */
+  systemImageName: string;
+}
+
+/**
+ * An AppShortcutsProvider definition. A single app can expose at most
+ * one provider with up to 10 shortcuts — those are Apple's constraints,
+ * and Axint enforces both.
+ */
+export interface AppShortcutDefinition {
+  /** PascalCase provider type name. */
+  name: string;
+  shortcuts: AppShortcutEntryConfig[];
+}
+
+/**
+ * Declare the Shortcuts and Siri entry points for an app. Compiles to
+ * a `struct <Name>: AppShortcutsProvider` with a static
+ * `@AppShortcutsBuilder` body.
+ *
+ * @example
+ * ```typescript
+ * export default defineAppShortcut({
+ *   name: "PizzaShortcuts",
+ *   shortcuts: [
+ *     {
+ *       intent: "OrderPizza",
+ *       phrases: [
+ *         "Order pizza with ${applicationName}",
+ *         "Start an order in ${applicationName}",
+ *       ],
+ *       shortTitle: "Order Pizza",
+ *       systemImageName: "fork.knife",
+ *     },
+ *   ],
+ * });
+ * ```
+ */
+export function defineAppShortcut(config: AppShortcutDefinition): AppShortcutDefinition {
+  return config;
+}

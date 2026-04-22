@@ -307,6 +307,36 @@ export interface IRAppEnum {
   sourceFile: string;
 }
 
+// ─── App Shortcut IR Types ──────────────────────────────────────────────────
+
+/**
+ * A single AppShortcut entry inside an AppShortcutsProvider. Maps 1:1
+ * to the `AppShortcut(intent:phrases:shortTitle:systemImageName:)`
+ * initializer Apple exposes on the `AppShortcuts` builder.
+ */
+export interface IRAppShortcutEntry {
+  /** PascalCase name of the AppIntent type — becomes `IntentName()`. */
+  intent: string;
+  /**
+   * Phrases Siri will recognize. Authors write `${applicationName}` in
+   * TS; the generator rewrites it to Apple's `\(.applicationName)`
+   * token, which App Intents requires at least one phrase to contain.
+   */
+  phrases: string[];
+  /** Localized short title shown in the Shortcuts app. */
+  shortTitle: string;
+  /** SF Symbol rendered next to the shortcut. */
+  systemImageName: string;
+}
+
+/** The main IR node for a compiled AppShortcutsProvider. */
+export interface IRAppShortcut {
+  /** PascalCase provider name — becomes `struct <Name>: AppShortcutsProvider`. */
+  name: string;
+  shortcuts: IRAppShortcutEntry[];
+  sourceFile: string;
+}
+
 // ─── Compiler Types ──────────────────────────────────────────────────
 
 export interface CompilerOptions {
