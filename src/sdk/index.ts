@@ -784,3 +784,45 @@ export function defineLiveActivity(
 ): LiveActivityDefinition {
   return config;
 }
+
+/** A single case in an App Enum. */
+export interface AppEnumCaseConfig {
+  /** Raw string value — becomes the Swift case name and RawValue. */
+  value: string;
+  /** Human-readable label shown in Shortcuts and Siri. */
+  title: string;
+  /** Optional SF Symbol name for the case display representation. */
+  image?: string;
+}
+
+/** An App Enum definition — compiles to `enum: String, AppEnum`. */
+export interface AppEnumDefinition {
+  /** PascalCase type name — becomes the Swift enum identifier. */
+  name: string;
+  /** Type display representation shown in Shortcuts (falls back to name). */
+  title?: string;
+  /** The ordered list of cases. */
+  cases: AppEnumCaseConfig[];
+}
+
+/**
+ * Define an App Enum for use as a parameter type in App Intents or
+ * Shortcuts. Compiles to a Swift `enum: String, AppEnum` with the
+ * required `typeDisplayRepresentation` and `caseDisplayRepresentations`.
+ *
+ * @example
+ * ```typescript
+ * export default defineAppEnum({
+ *   name: "PizzaSize",
+ *   title: "Pizza Size",
+ *   cases: [
+ *     { value: "small", title: "Small" },
+ *     { value: "medium", title: "Medium" },
+ *     { value: "large", title: "Large" },
+ *   ],
+ * });
+ * ```
+ */
+export function defineAppEnum(config: AppEnumDefinition): AppEnumDefinition {
+  return config;
+}

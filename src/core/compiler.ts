@@ -16,6 +16,7 @@ import { parseViewSource } from "./view-parser.js";
 import { parseWidgetSource } from "./widget-parser.js";
 import { parseAppSource } from "./app-parser.js";
 import { parseLiveActivitySource } from "./live-activity-parser.js";
+import { parseAppEnumSource } from "./app-enum-parser.js";
 import { detectSurface, type Surface } from "./surface.js";
 import {
   compileSourceWithParser,
@@ -31,11 +32,16 @@ import { generateSwiftUIView } from "./view-generator.js";
 import { generateSwiftWidget } from "./widget-generator.js";
 import { generateSwiftApp } from "./app-generator.js";
 import { generateSwiftLiveActivity } from "./live-activity-generator.js";
+import { generateSwiftAppEnum } from "./app-enum-generator.js";
 import { validateIntent, validateSwiftSource } from "./validator.js";
 import { validateView, validateSwiftUISource } from "./view-validator.js";
 import { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
 import { validateApp, validateSwiftAppSource } from "./app-validator.js";
-import { validateLiveActivity, validateSwiftLiveActivitySource } from "./live-activity-validator.js";
+import {
+  validateLiveActivity,
+  validateSwiftLiveActivitySource,
+} from "./live-activity-validator.js";
+import { validateAppEnum, validateSwiftAppEnumSource } from "./app-enum-validator.js";
 import type {
   CompilerOutput,
   CompilerOptions,
@@ -45,6 +51,7 @@ import type {
   IRWidget,
   IRApp,
   IRLiveActivity,
+  IRAppEnum,
   IRType,
   IRParameter,
   IREntity,
@@ -345,6 +352,59 @@ export function compileLiveActivityFromIR(
   });
 }
 
+// ─── App Enum Compilation ──────────────────────────────────────────
+
+export interface AppEnumCompileResult {
+  success: boolean;
+  output?: {
+    outputPath: string;
+    swiftCode: string;
+    ir: IRAppEnum;
+    diagnostics: Diagnostic[];
+  };
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * Compile a TypeScript `defineAppEnum()` source string into Swift.
+ */
+export function compileAppEnumSource(
+  source: string,
+  fileName: string = "<stdin>",
+  options: Partial<CompilerOptions> = {}
+): AppEnumCompileResult {
+  return compileSourceWithParser({
+    source,
+    fileName,
+    options,
+    parse: parseAppEnumSource,
+    compileFromIR: compileAppEnumFromIR,
+  });
+}
+
+/**
+ * Compile from a pre-built IRAppEnum (skips parsing).
+ */
+export function compileAppEnumFromIR(
+  ir: IRAppEnum,
+  options: Partial<CompilerOptions> = {}
+): AppEnumCompileResult {
+  return runCompilePipeline({
+    ir,
+    options,
+    validateIR: validateAppEnum,
+    generateSwift: generateSwiftAppEnum,
+    validateGeneratedSwift: (swiftCode) => validateSwiftAppEnumSource(swiftCode),
+    outputFileName: (appEnum) => `${appEnum.name}.swift`,
+    buildOutput: ({ outputPath, swiftCode, diagnostics }) => ({
+      outputPath,
+      swiftCode,
+      ir,
+      diagnostics,
+    }),
+  });
+}
+
 // ─── Surface Dispatcher ────────────────────────────────────────────
 
 /**
@@ -357,7 +417,8 @@ export type AnyCompileResult =
   | ({ surface: "view" } & ViewCompileResult)
   | ({ surface: "widget" } & WidgetCompileResult)
   | ({ surface: "app" } & AppCompileResult)
-  | ({ surface: "liveActivity" } & LiveActivityCompileResult);
+  | ({ surface: "liveActivity" } & LiveActivityCompileResult)
+  | ({ surface: "appEnum" } & AppEnumCompileResult);
 
 /**
  * Compile a TypeScript source string, auto-detecting whether it
@@ -379,10 +440,10 @@ export function compileAnySource(
         {
           code: "AX001",
           severity: "error",
-          message: `No defineIntent, defineView, defineWidget, defineApp, or defineLiveActivity call found in ${fileName}`,
+          message: `No defineIntent, defineView, defineWidget, defineApp, defineLiveActivity, or defineAppEnum call found in ${fileName}`,
           file: fileName,
           suggestion:
-            "Add a top-level `defineIntent({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, `defineApp({ ... })`, or `defineLiveActivity({ ... })` call.",
+            "Add a top-level `defineIntent({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, `defineApp({ ... })`, `defineLiveActivity({ ... })`, or `defineAppEnum({ ... })` call.",
         },
       ],
     };
@@ -427,6 +488,8 @@ function dispatchCompile(
       return { surface, ...compileAppSource(source, fileName, options) };
     case "liveActivity":
       return { surface, ...compileLiveActivitySource(source, fileName, options) };
+    case "appEnum":
+      return { surface, ...compileAppEnumSource(source, fileName, options) };
   }
 }
 

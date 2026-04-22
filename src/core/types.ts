@@ -288,6 +288,25 @@ export interface IRLiveActivity {
   sourceFile: string;
 }
 
+// ─── App Enum IR Types ──────────────────────────────────────────────────────
+
+/** A single case in a compiled App Enum. */
+export interface IRAppEnumCase {
+  value: string;
+  title: string;
+  image?: string;
+}
+
+/** The main IR node for a compiled App Enum. */
+export interface IRAppEnum {
+  /** PascalCase Swift type name. */
+  name: string;
+  /** Display title shown in Shortcuts (defaults to name when omitted). */
+  title: string;
+  cases: IRAppEnumCase[];
+  sourceFile: string;
+}
+
 // ─── Compiler Types ──────────────────────────────────────────────────
 
 export interface CompilerOptions {
