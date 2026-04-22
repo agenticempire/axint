@@ -252,6 +252,42 @@ export interface IRApp {
   sourceFile: string;
 }
 
+// ─── Live Activity IR Types ─────────────────────────────────────────────────
+
+/** A single field on a Live Activity's ContentState (the part that updates). */
+export interface IRActivityStateField {
+  name: string;
+  type: IRType;
+  defaultValue?: unknown;
+}
+
+/**
+ * The four (plus one optional) Dynamic Island regions that Apple requires.
+ * `bottom` is an optional extra expanded region for things like progress bars.
+ */
+export interface IRDynamicIsland {
+  expanded: ViewBodyNode[];
+  compactLeading: ViewBodyNode[];
+  compactTrailing: ViewBodyNode[];
+  minimal: ViewBodyNode[];
+  bottom?: ViewBodyNode[];
+}
+
+/** The main IR node for a compiled Live Activity. */
+export interface IRLiveActivity {
+  /** PascalCase base name — generator emits `<name>Attributes` and `<name>LiveActivity`. */
+  name: string;
+  /** Fields stored on the attributes themselves (immutable after start). */
+  attributes: IRActivityStateField[];
+  /** Fields on the nested ContentState (mutable — this is what updates drive). */
+  contentState: IRActivityStateField[];
+  /** The lock screen / banner view body. */
+  lockScreen: ViewBodyNode[];
+  /** The Dynamic Island regions. */
+  dynamicIsland: IRDynamicIsland;
+  sourceFile: string;
+}
+
 // ─── Compiler Types ──────────────────────────────────────────────────
 
 export interface CompilerOptions {
