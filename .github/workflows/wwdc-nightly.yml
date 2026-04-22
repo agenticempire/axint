@@ -42,7 +42,7 @@ jobs:
           xcrun --sdk macosx --show-sdk-version
 
       - name: Restore snapshot cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .wwdc/snapshot.json
           key: wwdc-snapshot-${{ runner.os }}
@@ -61,7 +61,7 @@ jobs:
 
       - name: Save snapshot cache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .wwdc/snapshot.json
           key: wwdc-snapshot-${{ runner.os }}-${{ github.run_id }}
