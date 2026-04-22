@@ -62,6 +62,7 @@ export {
   defineView,
   defineWidget,
   defineApp,
+  defineLiveActivity,
   param,
   prop,
   state,
@@ -69,6 +70,7 @@ export {
   view,
   scene,
   storage,
+  activityState,
 } from "../sdk/index.js";
 export type {
   IntentDefinition,
@@ -86,4 +88,7 @@ export type {
   AppDefinition,
   AppSceneConfig,
   AppSceneKind,
+  LiveActivityDefinition,
+  ActivityStateConfig,
+  DynamicIslandConfig,
 } from "../sdk/index.js";
