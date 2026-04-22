@@ -80,7 +80,7 @@ describe("axint-dsl lowering — happy path", () => {
     expect(intent.parameters[0]).toMatchObject({
       name: "recipient",
       type: { kind: "primitive", value: "string" },
-      title: "Who to send the message to",
+      title: "Recipient",
       description: "Who to send the message to",
       isOptional: false,
     });

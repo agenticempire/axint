@@ -238,7 +238,7 @@ function lowerProperty(
   return {
     name: decl.name.name,
     type,
-    title: description,
+    title: defaultTitleFromName(decl.name.name),
     description,
     isOptional: decl.type.kind === "OptionalType",
   };
@@ -396,7 +396,7 @@ function lowerParam(
   const param: IRParameter = {
     name: decl.name.name,
     type,
-    title: description,
+    title: defaultTitleFromName(decl.name.name),
     description,
     isOptional,
   };
@@ -842,6 +842,14 @@ function endOf(span: TokenSpan): TokenSpan {
 }
 
 // ─── Small utilities ───────────────────────────────────────────────────
+
+// Mirror of `prettyTitle` in src/core/parser.ts. The two surfaces must agree on
+// the default title for a parameter when the author doesn't provide one — the
+// round-trip test in tests/core/axint-dsl/round-trip.test.ts enforces it.
+function defaultTitleFromName(name: string): string {
+  const spaced = name.replace(/([A-Z])/g, " $1").trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
 
 function isPascalCase(name: string): boolean {
   return /^[A-Z][A-Za-z0-9]*$/.test(name);
