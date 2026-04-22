@@ -681,3 +681,106 @@ export interface AppDefinition {
 export function defineApp(config: AppDefinition): AppDefinition {
   return config;
 }
+
+// ─── Live Activity Definition ───────────────────────────────────────────────
+
+/** Configuration for a Live Activity attribute / contentState field */
+export interface ActivityStateConfig {
+  description?: string;
+  default?: unknown;
+}
+
+type ActivityStateFactory<T extends string> = (
+  description?: string,
+  config?: Partial<ActivityStateConfig>
+) => { type: T; description?: string } & Partial<ActivityStateConfig>;
+
+function makeActivityState<T extends string>(type: T): ActivityStateFactory<T> {
+  return (description, config) => ({ type, description, ...config });
+}
+
+/**
+ * Live Activity field helpers for `attributes` (immutable) and
+ * `contentState` (mutable) blocks. Maps to the same Swift types as
+ * `param.*`.
+ */
+export const activityState = {
+  string: makeActivityState("string"),
+  int: makeActivityState("int"),
+  double: makeActivityState("double"),
+  float: makeActivityState("float"),
+  boolean: makeActivityState("boolean"),
+  date: makeActivityState("date"),
+  duration: makeActivityState("duration"),
+  url: makeActivityState("url"),
+};
+
+/** Dynamic Island region bodies — four required, one optional. */
+export interface DynamicIslandConfig {
+  /** Expanded state center region — shown when the user long-presses. */
+  expanded: ViewElement[];
+  /** Expanded state bottom region — optional row below `expanded`. */
+  bottom?: ViewElement[];
+  /** Compact leading (left of the notch / camera cutout). */
+  compactLeading: ViewElement[];
+  /** Compact trailing (right of the notch / camera cutout). */
+  compactTrailing: ViewElement[];
+  /** Minimal state when multiple Live Activities share the island. */
+  minimal: ViewElement[];
+}
+
+/** The full Live Activity definition for ActivityKit codegen. */
+export interface LiveActivityDefinition {
+  /** PascalCase base name — generator emits `<Name>Attributes` + `<Name>LiveActivity`. */
+  name: string;
+  /** Immutable fields — passed in at activity start, never change. */
+  attributes?: Record<
+    string,
+    ReturnType<(typeof activityState)[keyof typeof activityState]>
+  >;
+  /** Mutable fields — update during the activity's lifetime. */
+  contentState: Record<
+    string,
+    ReturnType<(typeof activityState)[keyof typeof activityState]>
+  >;
+  /** Lock-screen / banner body. */
+  lockScreen: ViewElement[];
+  /** Dynamic Island regions. */
+  dynamicIsland: DynamicIslandConfig;
+}
+
+/**
+ * Define a Live Activity for compilation to ActivityKit Swift.
+ *
+ * @example
+ * ```typescript
+ * export default defineLiveActivity({
+ *   name: "PizzaDelivery",
+ *   attributes: {
+ *     orderNumber: activityState.string("Order number"),
+ *   },
+ *   contentState: {
+ *     status: activityState.string("Order status"),
+ *     eta: activityState.date("Estimated arrival"),
+ *     progress: activityState.double("Delivery progress 0-1"),
+ *   },
+ *   lockScreen: [
+ *     view.vstack([
+ *       view.text("Pizza on the way"),
+ *       view.text("ETA: soon"),
+ *     ]),
+ *   ],
+ *   dynamicIsland: {
+ *     expanded: [view.text("Expanded")],
+ *     compactLeading: [view.image({ systemName: "bicycle" })],
+ *     compactTrailing: [view.text("5m")],
+ *     minimal: [view.image({ systemName: "bicycle" })],
+ *   },
+ * });
+ * ```
+ */
+export function defineLiveActivity(
+  config: LiveActivityDefinition
+): LiveActivityDefinition {
+  return config;
+}

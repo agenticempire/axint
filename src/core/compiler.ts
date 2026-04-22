@@ -15,6 +15,7 @@ import { parseIntentSource } from "./parser.js";
 import { parseViewSource } from "./view-parser.js";
 import { parseWidgetSource } from "./widget-parser.js";
 import { parseAppSource } from "./app-parser.js";
+import { parseLiveActivitySource } from "./live-activity-parser.js";
 import { detectSurface, type Surface } from "./surface.js";
 import {
   compileSourceWithParser,
@@ -29,10 +30,12 @@ import {
 import { generateSwiftUIView } from "./view-generator.js";
 import { generateSwiftWidget } from "./widget-generator.js";
 import { generateSwiftApp } from "./app-generator.js";
+import { generateSwiftLiveActivity } from "./live-activity-generator.js";
 import { validateIntent, validateSwiftSource } from "./validator.js";
 import { validateView, validateSwiftUISource } from "./view-validator.js";
 import { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
 import { validateApp, validateSwiftAppSource } from "./app-validator.js";
+import { validateLiveActivity, validateSwiftLiveActivitySource } from "./live-activity-validator.js";
 import type {
   CompilerOutput,
   CompilerOptions,
@@ -41,6 +44,7 @@ import type {
   IRView,
   IRWidget,
   IRApp,
+  IRLiveActivity,
   IRType,
   IRParameter,
   IREntity,
@@ -287,6 +291,60 @@ export function compileAppFromIR(
   });
 }
 
+// ─── Live Activity Compilation ─────────────────────────────────────
+
+export interface LiveActivityCompileResult {
+  success: boolean;
+  output?: {
+    outputPath: string;
+    swiftCode: string;
+    ir: IRLiveActivity;
+    diagnostics: Diagnostic[];
+  };
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * Compile a TypeScript `defineLiveActivity()` source string into
+ * ActivityKit Swift.
+ */
+export function compileLiveActivitySource(
+  source: string,
+  fileName: string = "<stdin>",
+  options: Partial<CompilerOptions> = {}
+): LiveActivityCompileResult {
+  return compileSourceWithParser({
+    source,
+    fileName,
+    options,
+    parse: parseLiveActivitySource,
+    compileFromIR: compileLiveActivityFromIR,
+  });
+}
+
+/**
+ * Compile from a pre-built IRLiveActivity (skips parsing).
+ */
+export function compileLiveActivityFromIR(
+  ir: IRLiveActivity,
+  options: Partial<CompilerOptions> = {}
+): LiveActivityCompileResult {
+  return runCompilePipeline({
+    ir,
+    options,
+    validateIR: validateLiveActivity,
+    generateSwift: generateSwiftLiveActivity,
+    validateGeneratedSwift: (swiftCode) => validateSwiftLiveActivitySource(swiftCode),
+    outputFileName: (activity) => `${activity.name}LiveActivity.swift`,
+    buildOutput: ({ outputPath, swiftCode, diagnostics }) => ({
+      outputPath,
+      swiftCode,
+      ir,
+      diagnostics,
+    }),
+  });
+}
+
 // ─── Surface Dispatcher ────────────────────────────────────────────
 
 /**
@@ -298,7 +356,8 @@ export type AnyCompileResult =
   | ({ surface: "intent" } & CompileResult)
   | ({ surface: "view" } & ViewCompileResult)
   | ({ surface: "widget" } & WidgetCompileResult)
-  | ({ surface: "app" } & AppCompileResult);
+  | ({ surface: "app" } & AppCompileResult)
+  | ({ surface: "liveActivity" } & LiveActivityCompileResult);
 
 /**
  * Compile a TypeScript source string, auto-detecting whether it
@@ -320,10 +379,10 @@ export function compileAnySource(
         {
           code: "AX001",
           severity: "error",
-          message: `No defineIntent, defineView, defineWidget, or defineApp call found in ${fileName}`,
+          message: `No defineIntent, defineView, defineWidget, defineApp, or defineLiveActivity call found in ${fileName}`,
           file: fileName,
           suggestion:
-            "Add a top-level `defineIntent({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, or `defineApp({ ... })` call.",
+            "Add a top-level `defineIntent({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, `defineApp({ ... })`, or `defineLiveActivity({ ... })` call.",
         },
       ],
     };
@@ -366,6 +425,8 @@ function dispatchCompile(
       return { surface, ...compileWidgetSource(source, fileName, options) };
     case "app":
       return { surface, ...compileAppSource(source, fileName, options) };
+    case "liveActivity":
+      return { surface, ...compileLiveActivitySource(source, fileName, options) };
   }
 }
 
