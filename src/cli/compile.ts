@@ -154,7 +154,7 @@ export function registerCompile(program: Command) {
         const filePath = resolve(file);
 
         try {
-          let surface: "intent" | "view" | "widget" | "app";
+          let surface: "intent" | "view" | "widget" | "app" | "liveActivity";
           let output: UnifiedOutput | null;
           let diagnostics: Diagnostic[];
           let success: boolean;
@@ -247,7 +247,7 @@ export function registerCompile(program: Command) {
           let repairArtifacts:
             | ReturnType<typeof tryEmitRepairArtifacts>["artifacts"]
             | null = null;
-          if (options.fixPacket) {
+          if (options.fixPacket && surface !== "liveActivity") {
             const resolvedOutputPath =
               success && output && !options.stdout
                 ? resolve(output.outputPath)
