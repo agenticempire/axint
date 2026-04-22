@@ -1,0 +1,12 @@
+# expect: AX106
+# Param is declared `int` but the default value is a string literal.
+
+intent SetBrightness {
+  title: "Set Brightness"
+  description: "Set the brightness level."
+
+  param level: int {
+    description: "Brightness percentage (0-100)"
+    default: "one hundred"
+  }
+}

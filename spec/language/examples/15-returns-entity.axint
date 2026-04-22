@@ -1,0 +1,44 @@
+entity Contact {
+  display {
+    title: name
+    subtitle: handle
+    image: "person.circle"
+  }
+
+  property id: string {
+    description: "Contact identifier"
+  }
+
+  property name: string {
+    description: "Contact name"
+  }
+
+  property handle: string {
+    description: "Contact handle (email or phone)"
+  }
+
+  query: property
+}
+
+intent FindContact {
+  title: "Find Contact"
+  description: "Looks up a single contact by name."
+
+  param name: string {
+    description: "Contact name to look up"
+  }
+
+  returns: Contact
+}
+
+intent ListRecentContacts {
+  title: "List Recent Contacts"
+  description: "Returns the contacts you've messaged most recently."
+
+  param limit: int {
+    description: "Maximum number to return"
+    default: 10
+  }
+
+  returns: [Contact]
+}

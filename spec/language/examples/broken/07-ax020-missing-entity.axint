@@ -1,0 +1,12 @@
+# expect: AX020
+# Param references an entity (`Trail`) that is not declared in this file.
+# v1 is single-file — the entity must live in the same file as the intent.
+
+intent OpenTrail {
+  title: "Open Trail"
+  description: "Opens a trail and shows its details."
+
+  param trail: Trail {
+    description: "Trail to open"
+  }
+}

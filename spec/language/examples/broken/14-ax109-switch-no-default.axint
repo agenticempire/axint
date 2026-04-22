@@ -1,0 +1,21 @@
+# expect: AX109
+# summary switch on a boolean covers only `case true` — missing `case false`
+# and there is no `default` branch, so the switch is non-exhaustive.
+
+intent SendMessage {
+  title: "Send Message"
+  description: "Send a message to a recipient."
+
+  param recipient: string {
+    description: "Who to send the message to"
+  }
+
+  param urgent: boolean {
+    description: "Mark as urgent"
+    default: false
+  }
+
+  summary switch urgent {
+    case true: "URGENT: send to ${recipient}"
+  }
+}

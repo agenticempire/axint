@@ -1,0 +1,17 @@
+# expect: AX107
+# Optional param has a non-null default — contradictory.
+# Either the type is `boolean` (non-optional with default true) or the default is removed.
+
+intent SendMessage {
+  title: "Send Message"
+  description: "Send a message to a recipient."
+
+  param recipient: string {
+    description: "Who to send the message to"
+  }
+
+  param urgent: boolean? {
+    description: "Mark as urgent"
+    default: true
+  }
+}

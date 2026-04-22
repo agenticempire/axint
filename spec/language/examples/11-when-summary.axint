@@ -1,0 +1,18 @@
+intent ShareLocation {
+  title: "Share Location"
+  description: "Shares your current location with a contact."
+  domain: "social"
+
+  param recipient: string {
+    description: "Who to share with"
+  }
+
+  param note: string? {
+    description: "An optional note to send along"
+  }
+
+  summary when note {
+    then: "Share location with ${recipient} — ${note}"
+    otherwise: "Share location with ${recipient}"
+  }
+}

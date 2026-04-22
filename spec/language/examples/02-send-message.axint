@@ -1,0 +1,17 @@
+intent SendMessage {
+  title: "Send Message"
+  description: "Sends a message to a contact via your preferred messaging app."
+  domain: "messaging"
+
+  param recipient: string {
+    description: "Who to send the message to"
+  }
+
+  param body: string {
+    description: "The message content"
+  }
+
+  param urgent: boolean? {
+    description: "Mark as urgent"
+  }
+}

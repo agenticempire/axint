@@ -1,0 +1,13 @@
+# expect: AX005
+# Param uses a type (`number`) that is not a known primitive, entity, or enum.
+# `number` is not in the type keyword list — the valid numeric types are `int`, `double`, `float`.
+
+intent SetBrightness {
+  title: "Set Brightness"
+  description: "Set the brightness level."
+
+  param level: number {
+    description: "Brightness percentage (0-100)"
+    default: 100
+  }
+}

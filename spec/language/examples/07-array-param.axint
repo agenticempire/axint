@@ -1,0 +1,13 @@
+intent AddTags {
+  title: "Add Tags"
+  description: "Adds one or more tags to a note."
+  domain: "productivity"
+
+  param noteId: string {
+    description: "The note to tag"
+  }
+
+  param tags: [string] {
+    description: "Tags to apply"
+  }
+}
