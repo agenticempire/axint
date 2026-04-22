@@ -1,0 +1,19 @@
+intent SetLights {
+  title: "Set Lights"
+  description: "Adjusts the smart lights in a room."
+  domain: "smart-home"
+
+  param room: string {
+    description: "Which room to control"
+  }
+
+  param brightness: int {
+    description: "Brightness percentage (0-100)"
+    default: 100
+  }
+
+  param on: boolean {
+    description: "Turn lights on or off"
+    default: true
+  }
+}

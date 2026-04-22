@@ -1,0 +1,18 @@
+intent SearchNotes {
+  title: "Search Notes"
+  description: "Searches notes with optional tag filters."
+  domain: "productivity"
+
+  param searchTerm: string {
+    description: "What to search for"
+  }
+
+  param tags: [string]? {
+    description: "Restrict results to notes with these tags"
+  }
+
+  param limit: int {
+    description: "Maximum number of results"
+    default: 20
+  }
+}

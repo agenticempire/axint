@@ -1,0 +1,4 @@
+intent Hello {
+  title: "Hello"
+  description: "A minimal App Intent that says hello."
+}

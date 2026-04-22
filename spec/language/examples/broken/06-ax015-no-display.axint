@@ -1,0 +1,14 @@
+# expect: AX015
+# Entity is missing its display block.
+
+entity Trail {
+  property id: string {
+    description: "Trail identifier"
+  }
+
+  property name: string {
+    description: "Trail name"
+  }
+
+  query: property
+}

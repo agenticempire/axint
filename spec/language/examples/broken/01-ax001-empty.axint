@@ -1,0 +1,5 @@
+# expect: AX001
+# File contains no intent or entity declaration.
+
+# A comment-only file is legal lexically but triggers AX001 at the
+# top-level parser because at least one top-level decl is required.

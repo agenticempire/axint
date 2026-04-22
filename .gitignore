@@ -47,6 +47,9 @@ tools/swift-syntax-helper/Package.resolved
 tsup.config.bundled_*
 tests/.tmp-compiler-tests/
 
+# local scratch
+tmp/
+
 # Python
 __pycache__/
 *.pyc

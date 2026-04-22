@@ -1,0 +1,29 @@
+intent LogHealthMetric {
+  title: "Log Health Metric"
+  description: "Records a health measurement like weight, blood pressure, or exercise."
+  domain: "health"
+
+  param metric: string {
+    description: "What you're logging (e.g., weight, steps)"
+  }
+
+  param value: double {
+    description: "The measurement value"
+  }
+
+  param takenAt: date {
+    description: "When the measurement was taken"
+  }
+
+  param activityLength: duration? {
+    description: "Activity duration"
+  }
+
+  param source: url? {
+    description: "Source URL for the measurement"
+  }
+
+  param notes: string? {
+    description: "Additional notes"
+  }
+}

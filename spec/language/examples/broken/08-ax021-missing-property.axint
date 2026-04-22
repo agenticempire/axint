@@ -1,0 +1,25 @@
+# expect: AX021
+# display.title names a property (`label`) that is not declared on the entity.
+# The entity declares `name` and `region` — `label` does not exist.
+
+entity Trail {
+  display {
+    title: label
+    subtitle: region
+    image: "figure.hiking"
+  }
+
+  property id: string {
+    description: "Trail identifier"
+  }
+
+  property name: string {
+    description: "Trail name"
+  }
+
+  property region: string {
+    description: "Trail region"
+  }
+
+  query: property
+}

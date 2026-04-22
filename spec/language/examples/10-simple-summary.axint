@@ -1,0 +1,14 @@
+intent SetTimer {
+  title: "Set Timer"
+  description: "Starts a countdown timer."
+
+  param length: duration {
+    description: "How long to run the timer"
+  }
+
+  param label: string? {
+    description: "An optional label for the timer"
+  }
+
+  summary: "Set a ${length} timer for ${label}"
+}

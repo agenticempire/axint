@@ -1,0 +1,19 @@
+intent SetBrightness {
+  title: "Set Brightness"
+  description: "Adjusts the display brightness for a given mode."
+
+  param mode: string {
+    description: "Brightness mode"
+  }
+
+  param value: int {
+    description: "Brightness value (0-100)"
+  }
+
+  summary switch mode {
+    case "manual": "Set brightness to ${value}"
+    case "auto": "Switch brightness to automatic"
+    case "night": "Enable night mode"
+    default: "Adjust brightness"
+  }
+}

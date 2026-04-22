@@ -1,0 +1,15 @@
+enum Priority { low medium high }
+
+intent FlagTask {
+  title: "Flag Task"
+  description: "Flags a task with a priority level."
+
+  param taskId: string {
+    description: "Task identifier"
+  }
+
+  param priority: Priority {
+    description: "Priority level"
+    default: medium
+  }
+}

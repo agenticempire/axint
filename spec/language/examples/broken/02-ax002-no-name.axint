@@ -1,0 +1,7 @@
+# expect: AX002
+# intent keyword is not followed by an identifier.
+
+intent {
+  title: "Send Message"
+  description: "Send a message to a recipient."
+}

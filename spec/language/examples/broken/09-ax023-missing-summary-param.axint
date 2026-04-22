@@ -1,0 +1,17 @@
+# expect: AX023
+# summary template references ${destination} but the intent declares no such param.
+
+intent SendMessage {
+  title: "Send Message"
+  description: "Send a message to a recipient."
+
+  param recipient: string {
+    description: "Who to send the message to"
+  }
+
+  param body: string {
+    description: "Message body"
+  }
+
+  summary: "Send ${body} to ${destination}"
+}

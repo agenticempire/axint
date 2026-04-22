@@ -1,0 +1,11 @@
+# expect: AX100
+# Intent name is not PascalCase — `sendMessage` starts lowercase.
+
+intent sendMessage {
+  title: "Send Message"
+  description: "Send a message to a recipient."
+
+  param recipient: string {
+    description: "Who to send the message to"
+  }
+}

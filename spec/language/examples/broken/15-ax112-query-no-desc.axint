@@ -1,0 +1,18 @@
+# expect: AX112
+# Entity declares `query: property` but no property has a `description` field.
+# `query: property` requires every property to carry a description so the
+# generated EntityPropertyQuery has a valid comparator title.
+
+entity Trail {
+  display {
+    title: name
+    subtitle: region
+    image: "figure.hiking"
+  }
+
+  property id: string {}
+  property name: string {}
+  property region: string {}
+
+  query: property
+}

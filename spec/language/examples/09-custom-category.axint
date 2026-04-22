@@ -1,0 +1,17 @@
+intent StartFocusSession {
+  title: "Start Focus Session"
+  description: "Begins a focus session and silences notifications."
+  domain: "productivity"
+  category: "focus"
+  discoverable: true
+  donateOnPerform: true
+
+  param length: duration {
+    description: "How long to focus"
+    default: "25m"
+  }
+
+  param label: string? {
+    description: "What you're focusing on"
+  }
+}

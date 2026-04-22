@@ -1,0 +1,30 @@
+intent CreateCalendarEvent {
+  title: "Create Calendar Event"
+  description: "Creates a new event in the user's calendar."
+  domain: "productivity"
+
+  param eventTitle: string {
+    description: "Event title"
+  }
+
+  param startDate: date {
+    description: "Event date"
+  }
+
+  param length: duration {
+    description: "Event duration"
+    default: "1h"
+  }
+
+  param location: string? {
+    description: "Location"
+  }
+
+  entitlements {
+    "com.apple.developer.siri"
+  }
+
+  infoPlistKeys {
+    "NSCalendarsUsageDescription": "Axint needs calendar access to create events."
+  }
+}

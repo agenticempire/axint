@@ -1,0 +1,15 @@
+# expect: AX103
+# Intent has two params named `recipient`.
+
+intent SendMessage {
+  title: "Send Message"
+  description: "Send a message to a recipient."
+
+  param recipient: string {
+    description: "Who to send the message to"
+  }
+
+  param recipient: string {
+    description: "Duplicate — should raise AX103"
+  }
+}

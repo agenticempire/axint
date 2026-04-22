@@ -1,0 +1,10 @@
+# expect: AX003
+# intent body is missing the required title clause.
+
+intent SendMessage {
+  description: "Send a message to a recipient."
+
+  param recipient: string {
+    description: "Who to send the message to"
+  }
+}

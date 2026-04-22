@@ -1,0 +1,61 @@
+entity Trail {
+  display {
+    title: name
+    subtitle: region
+    image: "figure.hiking"
+  }
+
+  property id: string {
+    description: "Trail identifier"
+  }
+
+  property name: string {
+    description: "Trail name"
+  }
+
+  property region: string {
+    description: "Trail region"
+  }
+
+  property distanceKm: double {
+    description: "Distance in kilometers"
+  }
+
+  property openNow: boolean {
+    description: "Whether the trail is open"
+  }
+
+  query: property
+}
+
+intent PlanTrail {
+  title: "Plan Trail"
+  description: "Build a trail plan from queryable entities and runtime options."
+
+  param activity: string {
+    description: "Activity type"
+    options: dynamic ActivityOptions
+  }
+
+  param trail: Trail {
+    description: "Trail to open"
+  }
+
+  param includeNearby: boolean {
+    description: "Limit results to nearby trails"
+    default: true
+  }
+
+  param region: string? {
+    description: "Trail region"
+  }
+
+  summary switch includeNearby {
+    case true: summary when region {
+      then: "Plan ${activity} on ${trail} near ${region}"
+      otherwise: "Plan ${activity} on ${trail} near me"
+    }
+    case false: "Plan ${activity} on ${trail}"
+    default: "Plan trail"
+  }
+}
