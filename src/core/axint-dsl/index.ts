@@ -14,6 +14,9 @@ export type { ParseResult, ParseOptions } from "./parser.js";
 export { tokenize } from "./lexer.js";
 export type { LexResult } from "./lexer.js";
 
+export { lower } from "./lowering.js";
+export type { LowerResult, LowerOptions } from "./lowering.js";
+
 export type { Token, TokenKind, TokenSpan } from "./token.js";
 export { KEYWORDS, PRIMITIVE_TYPE_KINDS } from "./token.js";
 
