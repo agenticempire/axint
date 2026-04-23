@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" alt="Axint" width="96" height="96" />
+  <img src="docs/assets/mark-dark.svg" alt="Axint mark" width="52" height="52" valign="middle" />
+  &nbsp;
+  <img src="docs/assets/wordmark-dark.svg" alt="Axint" height="32" valign="middle" />
 </p>
-
-<h1 align="center">Axint</h1>
 
 <p align="center">
   <strong>Axint turns TypeScript and Python into validated Swift for Apple-native features.</strong>
