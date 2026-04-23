@@ -15,7 +15,8 @@ export type Surface =
   | "app"
   | "liveActivity"
   | "appEnum"
-  | "appShortcut";
+  | "appShortcut"
+  | "extension";
 
 const DEFINE_TO_SURFACE: Readonly<Record<string, Surface>> = {
   defineIntent: "intent",
@@ -25,6 +26,7 @@ const DEFINE_TO_SURFACE: Readonly<Record<string, Surface>> = {
   defineLiveActivity: "liveActivity",
   defineAppEnum: "appEnum",
   defineAppShortcut: "appShortcut",
+  defineExtension: "extension",
 };
 
 export function detectSurface(

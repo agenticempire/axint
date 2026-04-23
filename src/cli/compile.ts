@@ -67,6 +67,16 @@ function unifyOutput(result: AnyCompileResult): UnifiedOutput | null {
     };
   }
 
+  if (result.surface === "extension") {
+    return {
+      outputPath: result.output.outputPath,
+      swiftCode: result.output.swiftCode,
+      diagnostics: result.output.diagnostics,
+      irName: result.output.ir.name,
+      infoPlistFragment: result.output.infoPlistFragment,
+    };
+  }
+
   return {
     outputPath: result.output.outputPath,
     swiftCode: result.output.swiftCode,
@@ -161,7 +171,8 @@ export function registerCompile(program: Command) {
             | "app"
             | "liveActivity"
             | "appEnum"
-            | "appShortcut";
+            | "appShortcut"
+            | "extension";
           let output: UnifiedOutput | null;
           let diagnostics: Diagnostic[];
           let success: boolean;
@@ -258,7 +269,8 @@ export function registerCompile(program: Command) {
             options.fixPacket &&
             surface !== "liveActivity" &&
             surface !== "appEnum" &&
-            surface !== "appShortcut"
+            surface !== "appShortcut" &&
+            surface !== "extension"
           ) {
             const resolvedOutputPath =
               success && output && !options.stdout
@@ -430,6 +442,15 @@ export function registerCompile(program: Command) {
               const entPath = outPath.replace(/\.swift$/, ".entitlements.fragment.xml");
               writeFileSync(entPath, output.entitlementsFragment, "utf-8");
               console.log(`\x1b[32m✓\x1b[0m Entitlements fragment → ${entPath}`);
+            }
+
+            // Extensions always ship with an NSExtension Info.plist fragment —
+            // Xcode needs it to wire the bundle to an extension point, so we
+            // emit it unconditionally alongside the Swift.
+            if (surface === "extension" && output.infoPlistFragment) {
+              const plistPath = outPath.replace(/\.swift$/, ".plist.fragment.xml");
+              writeFileSync(plistPath, output.infoPlistFragment, "utf-8");
+              console.log(`\x1b[32m✓\x1b[0m Info.plist fragment → ${plistPath}`);
             }
 
             if (repairArtifacts) {
