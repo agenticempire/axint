@@ -65,6 +65,7 @@ export {
   defineLiveActivity,
   defineAppEnum,
   defineAppShortcut,
+  defineExtension,
   param,
   prop,
   state,
@@ -97,4 +98,7 @@ export type {
   AppEnumCaseConfig,
   AppShortcutDefinition,
   AppShortcutEntryConfig,
+  ExtensionDefinition,
+  ExtensionTargetConfig,
+  ExtensionKind,
 } from "../sdk/index.js";

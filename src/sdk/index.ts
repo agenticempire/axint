@@ -880,3 +880,62 @@ export interface AppShortcutDefinition {
 export function defineAppShortcut(config: AppShortcutDefinition): AppShortcutDefinition {
   return config;
 }
+
+/** Apple App Extension point a target conforms to. */
+export type ExtensionKind =
+  | "share"
+  | "action"
+  | "notificationService"
+  | "notificationContent";
+
+/** A single extension target — one Xcode extension bundle. */
+export interface ExtensionTargetConfig {
+  /** PascalCase Swift class name of the principal class. */
+  principalClass: string;
+  /** Which Apple extension point this target conforms to. */
+  kind: ExtensionKind;
+  /** Bundle display name shown in Share Sheets / action menus. */
+  displayName: string;
+  /**
+   * Max item count (share/action only). Apple uses this as the integer
+   * value on each `NSExtensionActivationRule` key.
+   */
+  maxItemCount?: number;
+  /**
+   * Accepted `NSExtensionActivationRule` keys (share/action only),
+   * e.g. `"NSExtensionActivationSupportsImageWithMaxCount"`.
+   */
+  activationTypes?: string[];
+}
+
+/** A collection of extension targets emitted from one source file. */
+export interface ExtensionDefinition {
+  /** PascalCase base name for the provider. */
+  name: string;
+  targets: ExtensionTargetConfig[];
+}
+
+/**
+ * Declare one or more App Extension targets. Each target compiles to
+ * a principal Swift class plus an `NSExtension` Info.plist fragment
+ * Xcode merges into the extension bundle.
+ *
+ * @example
+ * ```typescript
+ * export default defineExtension({
+ *   name: "PizzaShare",
+ *   targets: [
+ *     {
+ *       principalClass: "ShareHandler",
+ *       kind: "share",
+ *       displayName: "Share with Pizza",
+ *       maxItemCount: 1,
+ *       activationTypes: ["NSExtensionActivationSupportsImageWithMaxCount"],
+ *     },
+ *   ],
+ * });
+ * ```
+ */
+export function defineExtension(config: ExtensionDefinition): ExtensionDefinition {
+  return config;
+}

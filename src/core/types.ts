@@ -337,6 +337,47 @@ export interface IRAppShortcut {
   sourceFile: string;
 }
 
+// ─── App Extension IR Types ─────────────────────────────────────────────────
+
+/**
+ * Apple App Extension point a target conforms to. Each kind maps to a
+ * distinct `NSExtensionPointIdentifier` and a distinct Swift principal
+ * class family.
+ */
+export type IRExtensionKind =
+  | "share"
+  | "action"
+  | "notificationService"
+  | "notificationContent";
+
+/** A single App Extension target — one Xcode extension bundle. */
+export interface IRExtensionTarget {
+  /** PascalCase Swift class name of the principal class. */
+  principalClass: string;
+  /** Which Apple extension point this target conforms to. */
+  kind: IRExtensionKind;
+  /** Bundle display name shown in Share Sheets, action menus, etc. */
+  displayName: string;
+  /**
+   * Max item count Apple will hand the extension. Applies to `share`
+   * and `action` only — ignored for notification extensions.
+   */
+  maxItemCount?: number;
+  /**
+   * Accepted `NSExtensionActivationRule` keys (e.g. `"NSExtensionActivationSupportsImageWithMaxCount"`).
+   * Applies to `share` and `action` only.
+   */
+  activationTypes?: string[];
+}
+
+/** The main IR node for a compiled set of App Extensions. */
+export interface IRExtension {
+  /** PascalCase base name — one file is emitted per target. */
+  name: string;
+  targets: IRExtensionTarget[];
+  sourceFile: string;
+}
+
 // ─── Compiler Types ──────────────────────────────────────────────────
 
 export interface CompilerOptions {
