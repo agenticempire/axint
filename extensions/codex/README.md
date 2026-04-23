@@ -17,11 +17,12 @@ Add to your Codex MCP configuration:
 }
 ```
 
-Codex will discover ten Axint tools plus three built-in prompts automatically:
+Codex will discover 11 Axint tools plus three built-in prompts automatically:
 
 - `axint.scaffold` — generate a TypeScript intent from a description
 - `axint.compile` — compile TypeScript → Swift
 - `axint.validate` — validate and return diagnostics
+- `axint.fix-packet` — read the latest Fix Packet for an AI repair loop
 - `axint.templates.list` — list pre-built templates
 - `axint.templates.get` — get a template's full source
 - `axint.feature` — generate a complete feature package from a description
