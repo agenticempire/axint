@@ -34,13 +34,14 @@ Any tool that speaks MCP over stdio can connect to Axint:
 
 ## Tools Provided
 
-All integrations expose the same ten MCP tools plus three built-in prompts:
+All integrations expose the same 11 MCP tools plus three built-in prompts:
 
 - `axint.feature` — generate a complete feature package from a description
 - `axint.suggest` — suggest Apple-native features for a domain
 - `axint.scaffold` — generate a TypeScript intent from a description
 - `axint.compile` — compile TypeScript → Swift
 - `axint.validate` — validate and return diagnostics
+- `axint.fix-packet` — read the latest Fix Packet for an AI repair loop
 - `axint.schema.compile` — minimal JSON → Swift (token-saving mode)
 - `axint.swift.validate` — validate existing Swift against build-time rules
 - `axint.swift.fix` — auto-fix mechanical Swift errors
