@@ -14,6 +14,25 @@ export const PROMPT_MANIFEST = [
       "Swift using Axint. Walks through scaffold → compile → integrate.",
   },
   {
+    name: "axint.project-start",
+    description:
+      "Start an Apple/Xcode project with Axint correctly: read the docs, " +
+      "verify MCP servers, then use the compile/check/fix loop before " +
+      "writing Apple-native surfaces.",
+    arguments: [
+      {
+        name: "projectName",
+        description: "Project name, e.g., 'Swarm'",
+        required: false,
+      },
+      {
+        name: "platform",
+        description: "Target platform: iOS, macOS, visionOS, or all",
+        required: false,
+      },
+    ],
+  },
+  {
     name: "axint.create-widget",
     description:
       "Generate a SwiftUI widget from a description. Produces a complete " +
@@ -89,6 +108,35 @@ export function getPromptMessages(
     };
   }
 
+  if (name === "axint.project-start") {
+    const projectName = args?.projectName || "this project";
+    const platform = args?.platform || "the target Apple platform";
+    return {
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text:
+              `Start ${projectName} with Axint for ${platform}. Before generating or editing Apple-native code, do this setup pass:\n\n` +
+              "1. Read the current Axint docs in this order:\n" +
+              "   - https://docs.axint.ai/guides/live-now/\n" +
+              "   - https://docs.axint.ai/mcp/xcode/\n" +
+              "   - https://docs.axint.ai/guides/xcode-happy-path/\n" +
+              "   - https://docs.axint.ai/guides/cloud-check-loop/\n" +
+              "   - https://docs.axint.ai/guides/fix-packets/\n" +
+              "   - https://docs.axint.ai/reference/cli/\n" +
+              "2. List the available MCP servers and confirm both xcode-tools and axint are present.\n" +
+              "3. If axint is missing in Xcode, tell me to run `axint xcode setup --agent claude`, restart the Xcode agent session, and ask again for available MCP servers.\n" +
+              "4. Use Axint tools before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.\n" +
+              "5. After each generated Apple surface, run `axint.cloud.check` or `axint cloud check <file> --feedback` and then build in Xcode.\n\n" +
+              "Once that is done, summarize which docs you read, which MCP servers are available, and the first Axint command you will use.",
+          },
+        },
+      ],
+    };
+  }
+
   if (name === "axint.create-widget") {
     const widgetName = args?.widgetName || "MyWidget";
     const widgetDescription = args?.widgetDescription || "a simple widget";
@@ -136,7 +184,7 @@ export function getPromptMessages(
         role: "user" as const,
         content: {
           type: "text" as const,
-          text: `Unknown prompt: ${name}. Use axint.quick-start, axint.create-widget, or axint.create-intent.`,
+          text: `Unknown prompt: ${name}. Use axint.project-start, axint.quick-start, axint.create-widget, or axint.create-intent.`,
         },
       },
     ],

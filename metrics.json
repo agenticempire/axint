@@ -1,5 +1,5 @@
 {
-  "version": "0.4.2",
+  "version": "0.4.3",
   "mcpTools": 13,
   "mcpToolNames": [
     "axint.feature",
@@ -16,9 +16,10 @@
     "axint.templates.list",
     "axint.templates.get"
   ],
-  "mcpPrompts": 3,
+  "mcpPrompts": 4,
   "mcpPromptNames": [
     "axint.quick-start",
+    "axint.project-start",
     "axint.create-widget",
     "axint.create-intent"
   ],
@@ -60,7 +61,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 911,
+    "typescript": 912,
     "python": 114
   },
   "registryPackages": 14,

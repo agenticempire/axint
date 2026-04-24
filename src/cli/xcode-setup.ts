@@ -21,6 +21,19 @@ const RESET = "\x1b[0m";
 const REMOTE_URL = "https://mcp.axint.ai/mcp";
 const AXINT_NPM_PACKAGE = "@axint/compiler";
 const AXINT_MCP_BIN = "axint-mcp";
+const START_PROMPT = [
+  "Before editing Apple-native code, read the current Axint docs:",
+  "1. https://docs.axint.ai/guides/live-now/",
+  "2. https://docs.axint.ai/mcp/xcode/",
+  "3. https://docs.axint.ai/guides/xcode-happy-path/",
+  "4. https://docs.axint.ai/guides/cloud-check-loop/",
+  "5. https://docs.axint.ai/guides/fix-packets/",
+  "6. https://docs.axint.ai/reference/cli/",
+  "",
+  "Then list MCP servers and confirm both xcode-tools and axint are available.",
+  "Use Axint before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.",
+  "After each generated Apple surface, run axint.cloud.check or axint cloud check <file> --feedback, then build in Xcode.",
+].join("\n");
 const XCODE_CLAUDE_CONFIG = join(
   "Library",
   "Developer",
@@ -116,6 +129,8 @@ export async function setupXcode(options: SetupOptions): Promise<void> {
   console.log();
   console.log(`  Run ${BOLD}axint xcode verify${RESET} to test the connection.`);
   console.log();
+  printAgentStartPrompt();
+  console.log();
 }
 
 export async function verifyXcode(): Promise<void> {
@@ -162,6 +177,20 @@ export async function verifyXcode(): Promise<void> {
   }
 
   console.log();
+}
+
+function printAgentStartPrompt(): void {
+  console.log(
+    `  ${ORANGE}◆${RESET} ${BOLD}Start a new Xcode agent chat with this${RESET}`
+  );
+  console.log();
+  for (const line of START_PROMPT.split("\n")) {
+    console.log(line.length > 0 ? `    ${DIM}${line}${RESET}` : "");
+  }
+  console.log();
+  console.log(
+    `  ${DIM}MCP prompt equivalent: ask for ${BOLD}axint.project-start${RESET}${DIM}.${RESET}`
+  );
 }
 
 // ─── Agent configurators ────────────────────────────────────────────
