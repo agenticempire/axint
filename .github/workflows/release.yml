@@ -94,7 +94,16 @@ jobs:
         run: twine upload dist/* --skip-existing
 
       - name: Verify coordinated release post-publish
-        run: npm run release:check -- --require-both-live
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if npm run release:check -- --require-both-live; then
+              exit 0
+            fi
+            echo "release parity is not visible yet; retrying after registry propagation ($attempt/5)"
+            sleep 30
+          done
+          npm run release:check -- --require-both-live
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
