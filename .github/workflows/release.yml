@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -59,7 +60,30 @@ jobs:
           exit 1
 
       - name: Verify coordinated release preflight
-        run: npm run release:check
+        run: |
+          set -euo pipefail
+          if npm run release:check; then
+            exit 0
+          fi
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+          const pyproject = readFileSync("python/pyproject.toml", "utf8");
+          const pyVersion = pyproject.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+          const npmUrl = `https://registry.npmjs.org/${encodeURIComponent(pkg.name)}/${pkg.version}`;
+          const pypiUrl = `https://pypi.org/pypi/axint/${pyVersion}/json`;
+          const [npmRes, pypiRes] = await Promise.all([fetch(npmUrl), fetch(pypiUrl)]);
+
+          if (pkg.version === pyVersion && npmRes.ok && !pypiRes.ok) {
+            console.log(`resuming coordinated release: ${pkg.name}@${pkg.version} is live; axint ${pyVersion} is still missing on PyPI`);
+            process.exit(0);
+          }
+
+          console.error("release preflight failed and this is not a resumable npm-live/pypi-missing state");
+          process.exit(1);
+          NODE
 
       - name: Run Python tests
         working-directory: python
@@ -106,6 +130,7 @@ jobs:
           npm run release:check -- --require-both-live
 
       - name: Create GitHub Release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
