@@ -29,9 +29,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run build
       - run: npm test
       - run: npm audit --audit-level=moderate
-      - run: npm run build
 
       - name: Verify CLI works
         run: |
