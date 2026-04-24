@@ -14,6 +14,8 @@
  *   axint cloud check --source    Run an agent-callable Cloud Check on a file
  *   axint cloud status            Show Cloud sign-in and Pro repair-check allowance
  *   axint tokens ingest --source  Convert design tokens into SwiftUI token enums
+ *   axint schema compile <file>   Compile compact JSON schemas into Swift
+ *   axint feature <description>   Generate a multi-file feature package
  *   axint publish                 Publish an intent to the Registry
  *   axint add <package>           Install a template from the Registry
  *   axint search [query]          Search the Axint Registry for intent templates
@@ -46,6 +48,8 @@ import { registerTemplates } from "./templates.js";
 import { registerLogin } from "./login.js";
 import { registerCloud } from "./cloud.js";
 import { registerTokens } from "./tokens.js";
+import { registerSchema } from "./schema.js";
+import { registerFeature } from "./feature.js";
 import { registerPublish } from "./publish.js";
 import { registerAdd } from "./add.js";
 import { registerSearch } from "./search.js";
@@ -153,6 +157,8 @@ registerTemplates(program);
 registerLogin(program);
 registerCloud(program);
 registerTokens(program);
+registerSchema(program);
+registerFeature(program);
 registerPublish(program, VERSION);
 registerAdd(program, VERSION);
 registerSearch(program, VERSION);

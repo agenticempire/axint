@@ -473,6 +473,26 @@ describe("axint.schema.compile — view", () => {
     expect(result.content[0].text).toContain("SwarmTokens.Layout.channelsColumn");
     expect(result.content[0].text).not.toContain('Text("VStack {}")');
   });
+
+  it("adds the Swarm context pane when the shell asks for one", async () => {
+    const result = await handleToolCall("axint.schema.compile", {
+      type: "view",
+      name: "SwarmShellView",
+      description:
+        "A three-pane layout with a 56px sidebar rail, 244px channels column, flex content area, and a 308px right Project Context pane.",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+      format: false,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("SwarmTokens.Layout.rightContextPane");
+    expect(result.content[0].text).toContain(
+      "The project room where context never gets lost."
+    );
+    expect(result.content[0].text).toContain("NORTH_STAR.md");
+    expect(result.content[0].text).not.toContain("ContextFileRow");
+  });
 });
 
 // ── axint.schema.compile (component) ───────────────────────────────
@@ -492,6 +512,23 @@ describe("axint.schema.compile — component", () => {
     expect(result.content[0].text).toContain("var title: String");
     expect(result.content[0].text).toContain("ProgressView(value: progress)");
     expect(result.content[0].text).toContain("SwarmTokens.Colors.accent");
+  });
+
+  it("compiles a reusable Swarm project context panel component", async () => {
+    const result = await handleToolCall("axint.schema.compile", {
+      type: "component",
+      name: "ProjectContextPanel",
+      componentKind: "contextPanel",
+      tokenNamespace: "SwarmTokens",
+      format: false,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("struct ProjectContextPanel: View");
+    expect(result.content[0].text).toContain("var northStar: String");
+    expect(result.content[0].text).toContain("var suggestedUpdates: Int");
+    expect(result.content[0].text).toContain("PROJECT_CONTEXT.md");
+    expect(result.content[0].text).not.toContain("ContextFileRow");
   });
 });
 
@@ -513,6 +550,50 @@ describe("axint.tokens.ingest", () => {
     expect(result.content[0].text).toContain("enum SwarmTokens");
     expect(result.content[0].text).toContain('static let accent = Color(hex: "#FF5A3D")');
     expect(result.content[0].text).toContain("static let sidebarRail = CGFloat(56)");
+  });
+
+  it("turns Swarm V4 tokens into usable SwiftUI aliases and layout constants", async () => {
+    const result = await handleToolCall("axint.tokens.ingest", {
+      source: `
+        // Swarm design tokens
+        window.SW = {
+          bg: "#0A0A0B",
+          surface: "#111113",
+          elevated: "#17171A",
+          border: "#1F1F22",
+          text: "#EDEDEE",
+          text2: "#9B9BA1",
+          text3: "#6A6A6F",
+          accent: "#6366F1",
+          accentSoft: "rgba(99,102,241,0.15)",
+          warning: "#F59E0B",
+          warningSoft: "rgba(245,158,11,0.15)",
+          success: "#10B981",
+          successSoft: "rgba(16,185,129,0.15)",
+          memberColors: ["#6366F1", "#EC4899"],
+          r1: 4,
+          r2: 6,
+          rInput: 8,
+          rCard: 12,
+          rModal: 14,
+          shadowWin: "0 24px 80px rgba(0,0,0,0.5)"
+        }
+      `,
+      namespace: "SwarmTokens",
+      format: "swift",
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("static let accentSoft = Color(.sRGB");
+    expect(result.content[0].text).toContain("opacity: 0.15");
+    expect(result.content[0].text).toContain("static let surfaceRaised = elevated");
+    expect(result.content[0].text).toContain("static let textPrimary = text");
+    expect(result.content[0].text).toContain("static let sidebarRail = CGFloat(56)");
+    expect(result.content[0].text).toContain("static let channelsColumn = CGFloat(244)");
+    expect(result.content[0].text).toContain(
+      "static let rightContextPane = CGFloat(308)"
+    );
+    expect(result.content[0].text).toContain("static let row = rInput");
   });
 });
 

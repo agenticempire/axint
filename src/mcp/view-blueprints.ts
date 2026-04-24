@@ -55,6 +55,18 @@ function inferComponentKind(name: string, description: string): string | undefin
     return "statusRing";
   if (haystack.includes("mission card") || haystack.includes("missioncard"))
     return "missionCard";
+  if (haystack.includes("context panel") || haystack.includes("projectcontext"))
+    return "contextPanel";
+  if (haystack.includes("context update") || haystack.includes("stale context"))
+    return "contextUpdateCard";
+  if (haystack.includes("decision log") || haystack.includes("decisionlog"))
+    return "decisionLog";
+  if (haystack.includes("approval card") || haystack.includes("approvalcard"))
+    return "approvalCard";
+  if (haystack.includes("agent row") || haystack.includes("agentrow")) return "agentRow";
+  if (haystack.includes("role card") || haystack.includes("rolecard")) return "roleCard";
+  if (haystack.includes("signal card") || haystack.includes("signalcard"))
+    return "signalCard";
   if (haystack.includes("channel row") || haystack.includes("channelrow"))
     return "channelRow";
   if (haystack.includes("sidebar rail") || haystack.includes("sidebarrail"))
@@ -70,6 +82,14 @@ function normalizeKind(kind: string | undefined): string | undefined {
   if (lower === "avatar") return "avatar";
   if (lower === "statusring") return "statusRing";
   if (lower === "missioncard") return "missionCard";
+  if (lower === "contextpanel" || lower === "projectcontextpanel") return "contextPanel";
+  if (lower === "contextupdatecard" || lower === "contextupdate")
+    return "contextUpdateCard";
+  if (lower === "decisionlog" || lower === "decisionlogcard") return "decisionLog";
+  if (lower === "approvalcard" || lower === "approval") return "approvalCard";
+  if (lower === "agentrow") return "agentRow";
+  if (lower === "rolecard") return "roleCard";
+  if (lower === "signalcard") return "signalCard";
   if (lower === "channelrow") return "channelRow";
   if (lower === "sidebarrail") return "sidebarRail";
   if (lower === "profilecard") return "profileCard";
@@ -141,6 +161,221 @@ function buildComponentBody(kind: string, input: ViewBlueprintInput): string {
         .padding(16)
         .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "16")}, style: .continuous))`;
 
+    case "contextPanel":
+      return `VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Project Context")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                    .textCase(.uppercase)
+                Spacer()
+                Text(${textExpr(input, "syncStatus", "synced 12m ago")})
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "success", ".green")})
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("North Star")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+                Text(${textExpr(input, "northStar", "Keep the project room aligned while humans and agents move fast.")})
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ${contextFileRow("NORTH_STAR.md", "synced")}
+                ${contextFileRow("PROJECT_CONTEXT.md", "synced")}
+                ${contextFileRow("DECISIONS.md", "updated")}
+                ${contextFileRow("ROADMAP.md", "2 pending")}
+            }
+
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "warning", ".orange")})
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\\(${numericExpr(input, "suggestedUpdates", "2")}) suggested updates")
+                        .font(.caption.weight(.semibold))
+                    Text("Review context changes from #general before the next run.")
+                        .font(.caption2)
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+                Spacer()
+            }
+            .padding(12)
+            .background(${colorRef(input.tokenNamespace, "warningSoft", "Color.orange.opacity(0.12)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "12")}, style: .continuous))
+
+            Spacer()
+        }
+        .padding(16)
+        .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")})`;
+
+    case "contextUpdateCard":
+      return `VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "warning", ".orange")})
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Context may be stale")
+                        .font(.subheadline.weight(.semibold))
+                    Text(${textExpr(input, "summary", "This thread changed the onboarding strategy.")})
+                        .font(.caption)
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Update PROJECT_CONTEXT.md", systemImage: "doc.text")
+                Label("Add decision to DECISIONS.md", systemImage: "checkmark.seal")
+                Label("Revise current sprint in ROADMAP.md", systemImage: "map")
+            }
+            .font(.caption)
+            .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+
+            HStack {
+                Button("Apply updates") {}
+                    .buttonStyle(.borderedProminent)
+                Button("Review diff") {}
+                    .buttonStyle(.bordered)
+                Spacer()
+            }
+            .controlSize(.small)
+        }
+        .padding(14)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.12)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "12")}, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "12")}, style: .continuous)
+                .strokeBorder(${colorRef(input.tokenNamespace, "warningSoft", "Color.orange.opacity(0.24)")}, lineWidth: 1)
+        }`;
+
+    case "decisionLog":
+      return `VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(${textExpr(input, "title", "Choose context-first positioning")})
+                    .font(.headline)
+                Spacer()
+                Text(${textExpr(input, "owner", "Nima")})
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Decision")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                Text(${textExpr(input, "decision", "Make Context the default tab and primary product invariant.")})
+                    .font(.callout)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+            }
+
+            Text(${textExpr(input, "impact", "Missions, agents, and onboarding now reference the North Star.")})
+                .font(.caption)
+                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+        }
+        .padding(14)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.12)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "12")}, style: .continuous))`;
+
+    case "approvalCard":
+      return `VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(${textExpr(input, "missionTitle", "Build native Mac shell")})
+                    .font(.headline)
+                Spacer()
+                Text(${textExpr(input, "costEstimate", "$0.42-$0.86")})
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+            }
+
+            Label(${textExpr(input, "risk", "Touches layout and local files. Human approval required.")}, systemImage: "shield.lefthalf.filled")
+                .font(.caption)
+                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+
+            HStack {
+                Button("Approve") {}
+                    .buttonStyle(.borderedProminent)
+                Button("Run cheap") {}
+                    .buttonStyle(.bordered)
+                Button("Not yet") {}
+                    .buttonStyle(.plain)
+                Spacer()
+            }
+            .controlSize(.small)
+        }
+        .padding(14)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.12)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "12")}, style: .continuous))`;
+
+    case "agentRow":
+      return `HStack(spacing: 10) {
+            Circle()
+                .fill(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")})
+                .overlay {
+                    Text(String(${textExpr(input, "name", "Product Agent")}.prefix(1)))
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                }
+                .frame(width: 32, height: 32)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(${textExpr(input, "name", "Product Agent")})
+                    .font(.subheadline.weight(.semibold))
+                Text(${textExpr(input, "role", "Keeps context sharp")})
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+            }
+
+            Spacer()
+
+            Text(${textExpr(input, "status", "awake")})
+                .font(.caption2.weight(.bold))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(${colorRef(input.tokenNamespace, "successSoft", "Color.green.opacity(0.14)")}, in: Capsule())
+                .foregroundStyle(${colorRef(input.tokenNamespace, "success", ".green")})
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "10")}, style: .continuous))`;
+
+    case "roleCard":
+      return `VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(${textExpr(input, "title", "Context Guardian")})
+                    .font(.headline)
+                Spacer()
+                Text(${textExpr(input, "status", "suggested")})
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+            }
+            Text(${textExpr(input, "description", "Detects stale context, summarizes decisions, and keeps Markdown current.")})
+                .font(.caption)
+                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.12)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "12")}, style: .continuous))`;
+
+    case "signalCard":
+      return `VStack(alignment: .leading, spacing: 12) {
+            Text(${textExpr(input, "sourceTitle", "Apple expands App Intents at WWDC")})
+                .font(.headline)
+            Text(${textExpr(input, "insight", "Potential roadmap impact. Create a research mission before the next SDK beta.")})
+                .font(.caption)
+                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+
+            HStack(spacing: 8) {
+                Button("Discuss") {}
+                Button("Ask Agent") {}
+                Button("Create Mission") {}
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(14)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.12)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "12")}, style: .continuous))`;
+
     case "channelRow":
       return `HStack(spacing: 10) {
             Circle()
@@ -197,6 +432,12 @@ function buildThreePaneBody(input: ViewBlueprintInput): string {
     /(channels? column|channel list|channels?)[^\d]*(\d+)/i,
     "244"
   );
+  const rightPane = extractDimension(
+    input.description ?? "",
+    /(right(?: context)? pane|context pane|right column|right rail)[^\d]*(\d+)/i,
+    "308"
+  );
+  const includeRightPane = wantsRightContextPane(input.description ?? "");
 
   return `HStack(spacing: 0) {
             VStack(spacing: 12) {
@@ -242,7 +483,55 @@ function buildThreePaneBody(input: ViewBlueprintInput): string {
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }`;
+${
+  includeRightPane
+    ? `\n            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Context")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                    Spacer()
+                    Text("Synced")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "success", ".green")})
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("North Star")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    Text("The project room where context never gets lost.")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Context Files")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    ${contextFileRow("NORTH_STAR.md", "synced")}
+                    ${contextFileRow("PROJECT_CONTEXT.md", "synced")}
+                    ${contextFileRow("DECISIONS.md", "updated")}
+                    ${contextFileRow("ROADMAP.md", "2 pending")}
+                }
+
+                Spacer()
+            }
+            .padding(14)
+            .frame(width: ${layoutRef(input.tokenNamespace, "rightContextPane", rightPane)}, maxHeight: .infinity, alignment: .topLeading)
+            .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")})
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(${colorRef(input.tokenNamespace, "border", "Color.secondary.opacity(0.18)")})
+                    .frame(width: 1)
+            }`
+    : ""
+}
+        }
+        .background(${colorRef(input.tokenNamespace, "bg", "Color.clear")})`;
 }
 
 function buildProfileCardBody(platform: BlueprintPlatform | undefined): string {
@@ -355,6 +644,50 @@ function layoutRef(
   fallback: string
 ): string {
   return namespace ? `${namespace}.Layout.${name}` : fallback;
+}
+
+function contextFileRow(name: string, status: string): string {
+  return `HStack(spacing: 8) {
+                    Image(systemName: "doc.text")
+                        .foregroundStyle(.secondary)
+                    Text("${name}")
+                        .font(.caption)
+                    Spacer()
+                    Text("${status}")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }`;
+}
+
+function wantsRightContextPane(description: string): boolean {
+  const lower = description.toLowerCase();
+  return (
+    lower.includes("right pane") ||
+    lower.includes("context pane") ||
+    lower.includes("right context") ||
+    lower.includes("project context") ||
+    lower.includes("300") ||
+    lower.includes("308")
+  );
+}
+
+function textExpr(input: ViewBlueprintInput, name: string, fallback: string): string {
+  return hasValue(input, name) ? name : `"${escapeSwiftString(fallback)}"`;
+}
+
+function numericExpr(input: ViewBlueprintInput, name: string, fallback: string): string {
+  return hasValue(input, name) ? name : fallback;
+}
+
+function hasValue(input: ViewBlueprintInput, name: string): boolean {
+  return Boolean(
+    input.props?.some((prop) => prop.name === name) ||
+    input.state?.some((state) => state.name === name)
+  );
+}
+
+function escapeSwiftString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function extractDimension(

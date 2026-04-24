@@ -333,19 +333,42 @@ function buildComponentProps(args: SchemaCompileArgs): IRViewProp[] {
         ? { value: "double", label: "string" }
         : kind === "missionCard"
           ? { title: "string", subtitle: "string", progress: "double", status: "string" }
-          : kind === "channelRow"
-            ? { title: "string", unreadCount: "int", isSelected: "boolean" }
-            : kind === "sidebarRail"
-              ? { selectedIndex: "int" }
-              : kind === "profileCard"
+          : kind === "contextPanel"
+            ? {
+                northStar: "string",
+                syncStatus: "string",
+                suggestedUpdates: "int",
+              }
+            : kind === "contextUpdateCard"
+              ? { summary: "string" }
+              : kind === "decisionLog"
                 ? {
-                    photoURL: "url",
-                    name: "string",
-                    age: "int",
-                    bio: "string",
-                    workoutPreferences: "string",
+                    title: "string",
+                    owner: "string",
+                    decision: "string",
+                    impact: "string",
                   }
-                : { title: "string" };
+                : kind === "approvalCard"
+                  ? { missionTitle: "string", risk: "string", costEstimate: "string" }
+                  : kind === "agentRow"
+                    ? { name: "string", role: "string", status: "string" }
+                    : kind === "roleCard"
+                      ? { title: "string", description: "string", status: "string" }
+                      : kind === "signalCard"
+                        ? { sourceTitle: "string", insight: "string" }
+                        : kind === "channelRow"
+                          ? { title: "string", unreadCount: "int", isSelected: "boolean" }
+                          : kind === "sidebarRail"
+                            ? { selectedIndex: "int" }
+                            : kind === "profileCard"
+                              ? {
+                                  photoURL: "url",
+                                  name: "string",
+                                  age: "int",
+                                  bio: "string",
+                                  workoutPreferences: "string",
+                                }
+                              : { title: "string" };
 
   return Object.entries(defaults).map(([name, typeStr]) => ({
     name,
@@ -394,6 +417,15 @@ function inferComponentKind(args: SchemaCompileArgs): string {
   if (lower.includes("avatar")) return "avatar";
   if (lower.includes("statusring")) return "statusRing";
   if (lower.includes("missioncard")) return "missionCard";
+  if (lower.includes("contextpanel") || lower.includes("projectcontext"))
+    return "contextPanel";
+  if (lower.includes("contextupdate") || lower.includes("stalecontext"))
+    return "contextUpdateCard";
+  if (lower.includes("decisionlog")) return "decisionLog";
+  if (lower.includes("approvalcard")) return "approvalCard";
+  if (lower.includes("agentrow")) return "agentRow";
+  if (lower.includes("rolecard")) return "roleCard";
+  if (lower.includes("signalcard")) return "signalCard";
   if (lower.includes("channelrow")) return "channelRow";
   if (lower.includes("sidebarrail")) return "sidebarRail";
   if (lower.includes("profilecard") || lower.includes("datingprofile"))
@@ -402,7 +434,14 @@ function inferComponentKind(args: SchemaCompileArgs): string {
 }
 
 function defaultValueForType(typeStr: string, name: string): unknown {
-  if (typeStr === "int") return name === "age" ? 29 : name === "unreadCount" ? 3 : 0;
+  if (typeStr === "int")
+    return name === "age"
+      ? 29
+      : name === "unreadCount"
+        ? 3
+        : name === "suggestedUpdates"
+          ? 2
+          : 0;
   if (typeStr === "double" || typeStr === "float")
     return name === "progress" || name === "value" ? 0.72 : 0;
   if (typeStr === "boolean") return name === "isSelected";
@@ -414,6 +453,21 @@ function defaultValueForType(typeStr: string, name: string): unknown {
   if (name === "label") return "Ready";
   if (name === "title") return "Mission";
   if (name === "subtitle") return "Design the agent loop";
+  if (name === "northStar") return "The project room where context never gets lost.";
+  if (name === "syncStatus") return "synced 12m ago";
+  if (name === "summary") return "This thread changed the onboarding strategy.";
+  if (name === "owner") return "Nima";
+  if (name === "decision")
+    return "Make Context the default tab and primary product invariant.";
+  if (name === "impact")
+    return "Missions, agents, and onboarding now reference the North Star.";
+  if (name === "missionTitle") return "Build native Mac shell";
+  if (name === "risk") return "Touches layout and local files. Human approval required.";
+  if (name === "costEstimate") return "$0.42-$0.86";
+  if (name === "role") return "Keeps context sharp";
+  if (name === "sourceTitle") return "Apple expands App Intents at WWDC";
+  if (name === "insight")
+    return "Potential roadmap impact. Create a research mission before the next SDK beta.";
   if (name === "name") return "Alex";
   if (name === "bio") return "Strength training, early mornings, clean handoffs.";
   if (name === "workoutPreferences") return "Hypertrophy · Mobility · Coffee walks";

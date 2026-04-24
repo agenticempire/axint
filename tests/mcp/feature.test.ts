@@ -212,7 +212,7 @@ describe("axint.feature", () => {
   it("generates a Swarm-style three-pane macOS shell from the description", () => {
     const result = generateFeature({
       description:
-        "A three-pane layout with a 56px sidebar rail, 244px channels column, and a flex content area for Swarm agent activity.",
+        "A three-pane layout with a 56px sidebar rail, 244px channels column, a flex content area for Swarm agent activity, and a 308px right Project Context pane.",
       surfaces: ["view"],
       name: "SwarmShellView",
       platform: "macOS",
@@ -225,6 +225,8 @@ describe("axint.feature", () => {
     expect(viewFile!.content).toContain("HStack(spacing: 0)");
     expect(viewFile!.content).toContain("SwarmTokens.Layout.sidebarRail");
     expect(viewFile!.content).toContain("SwarmTokens.Layout.channelsColumn");
+    expect(viewFile!.content).toContain("SwarmTokens.Layout.rightContextPane");
+    expect(viewFile!.content).toContain("NORTH_STAR.md");
     expect(viewFile!.content).toContain(".frame(maxWidth: .infinity");
   });
 
