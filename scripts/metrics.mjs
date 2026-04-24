@@ -31,7 +31,7 @@ export function computeMetrics({ countTests = true } = {}) {
       : { typescript: 0, python: 0 },
     // Kept as explicit constants — both depend on repos outside the compiler tree.
     // Update these when the corresponding surface ships a new package.
-    registryPackages: 8,
+    registryPackages: 14,
     distributionSurfaces: 4,
   };
 }
