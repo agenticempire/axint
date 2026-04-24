@@ -460,8 +460,11 @@ const DOMAIN_KEYWORDS: Record<string, string[]> = {
     "health",
     "fitness",
     "workout",
+    "workouts",
     "step",
+    "steps",
     "calorie",
+    "calories",
     "heart",
     "sleep",
     "water",
@@ -563,7 +566,15 @@ function resolveDomain(
 
 function domainScore(domain: string, lowerDescription: string): number {
   const keywords = DOMAIN_KEYWORDS[domain] ?? [];
-  return keywords.filter((kw) => lowerDescription.includes(kw)).length;
+  return keywords.filter((kw) => wordAppears(kw, lowerDescription)).length;
+}
+
+function wordAppears(keyword: string, lowerDescription: string): boolean {
+  return new RegExp(`\\b${escapeRegExp(keyword)}\\b`).test(lowerDescription);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function inferName(description: string): string {
@@ -701,9 +712,13 @@ function shouldEmitDomainArtifacts(
     "health",
     "healthkit",
     "workout",
+    "workouts",
     "exercise",
+    "exercises",
     "step",
+    "steps",
     "calorie",
+    "calories",
     "heart",
     "sleep",
     "water",

@@ -18,16 +18,22 @@ interface TokenRecord {
   swiftName: string;
   kind: "color" | "layout" | "spacing" | "radius" | "typography" | "shadow" | "value";
   value: string | number | boolean;
+  aliasOf?: string;
 }
 
 export function handleTokenIngest(args: TokenIngestArgs) {
   const { source, fileName } = readTokenSource(args);
   const namespace = sanitizeTypeName(args.namespace || "AxintDesignTokens");
   const value = parseTokenSource(source, fileName);
-  const records = flattenTokens(value).map((record) => ({
+  const baseRecords = flattenTokens(value).map((record) => ({
     ...record,
     kind: classifyToken(record),
   }));
+  const records = enrichTokenRecords(baseRecords, {
+    source,
+    fileName,
+    namespace,
+  });
 
   const result = {
     namespace,
@@ -215,6 +221,7 @@ function classifyToken(record: Omit<TokenRecord, "kind">): TokenRecord["kind"] {
   }
   if (/\b(color|brand|accent|background|surface|text|border|fill)\b/.test(name))
     return "color";
+  if (/(^|\.)r(?:input|card|modal|[0-9]+)$/i.test(record.name)) return "radius";
   if (/\b(sidebar|rail|column|width|height|size|layout)\b/.test(name)) return "layout";
   if (/\b(space|spacing|gap|padding|margin|inset)\b/.test(name)) return "spacing";
   if (/\b(radius|radii|corner|rounded)\b/.test(name)) return "radius";
@@ -225,6 +232,129 @@ function classifyToken(record: Omit<TokenRecord, "kind">): TokenRecord["kind"] {
     return "typography";
   if (/\b(shadow|elevation|blur)\b/.test(name)) return "shadow";
   return "value";
+}
+
+function enrichTokenRecords(
+  records: TokenRecord[],
+  context: { source: string; fileName: string; namespace: string }
+): TokenRecord[] {
+  const enriched = [...records];
+  const swarmLike = isSwarmLikeTokenSet(records, context);
+
+  addAlias(enriched, "color", "surfaceRaised", ["elevated", "surface"]);
+  addAlias(enriched, "color", "panel", ["surface", "elevated"]);
+  addAlias(enriched, "color", "textPrimary", ["text"]);
+  addAlias(enriched, "color", "textSecondary", ["text2", "text"]);
+  addAlias(enriched, "color", "textMuted", ["text3", "text2"]);
+  addAlias(enriched, "color", "borderMuted", ["border"]);
+  addAlias(enriched, "radius", "row", ["rInput", "r2", "r1"]);
+  addAlias(enriched, "radius", "input", ["rInput", "r2"]);
+  addAlias(enriched, "radius", "card", ["rCard", "rInput"]);
+  addAlias(enriched, "radius", "modal", ["rModal", "rCard"]);
+
+  if (swarmLike) {
+    addNumericToken(enriched, "layout", "sidebarRail", 56);
+    addNumericToken(enriched, "layout", "channelsColumn", 244);
+    addNumericToken(enriched, "layout", "rightContextPane", 308);
+    addNumericToken(enriched, "layout", "statusBar", 32);
+    addNumericToken(enriched, "layout", "floatingWindowWidth", 340);
+  }
+
+  return enriched;
+}
+
+function isSwarmLikeTokenSet(
+  records: TokenRecord[],
+  context: { source: string; fileName: string; namespace: string }
+): boolean {
+  const marker = `${context.fileName} ${context.namespace} ${context.source.slice(0, 500)}`;
+  if (/swarm/i.test(marker)) return true;
+
+  const names = new Set(records.map((record) => record.swiftName.toLowerCase()));
+  return (
+    names.has("rinput") &&
+    names.has("rcard") &&
+    names.has("shadowwin") &&
+    names.has("membercolors")
+  );
+}
+
+function addAlias(
+  records: TokenRecord[],
+  kind: TokenRecord["kind"],
+  aliasName: string,
+  sourceCandidates: string[]
+) {
+  if (hasSwiftName(records, kind, aliasName)) return;
+  const target = sourceCandidates
+    .map((candidate) => findBySwiftName(records, kind, candidate))
+    .find(Boolean);
+  if (!target) return;
+
+  records.push({
+    path: [groupPathName(kind), aliasName],
+    name: `${groupPathName(kind)}.${aliasName}`,
+    swiftName: swiftIdentifier([groupPathName(kind), aliasName]),
+    kind,
+    value: target.value,
+    aliasOf: withGroupSwiftName(target).swiftName,
+  });
+}
+
+function addNumericToken(
+  records: TokenRecord[],
+  kind: TokenRecord["kind"],
+  swiftName: string,
+  value: number
+) {
+  if (hasSwiftName(records, kind, swiftName)) return;
+  records.push({
+    path: [groupPathName(kind), swiftName],
+    name: `${groupPathName(kind)}.${swiftName}`,
+    swiftName: swiftIdentifier([groupPathName(kind), swiftName]),
+    kind,
+    value,
+  });
+}
+
+function hasSwiftName(
+  records: TokenRecord[],
+  kind: TokenRecord["kind"],
+  swiftName: string
+): boolean {
+  return Boolean(findBySwiftName(records, kind, swiftName));
+}
+
+function findBySwiftName(
+  records: TokenRecord[],
+  kind: TokenRecord["kind"],
+  swiftName: string
+): TokenRecord | undefined {
+  const normalized = swiftName.toLowerCase();
+  return records.find(
+    (record) =>
+      record.kind === kind &&
+      withGroupSwiftName(record).swiftName.toLowerCase() === normalized
+  );
+}
+
+function groupPathName(kind: TokenRecord["kind"]): string {
+  switch (kind) {
+    case "color":
+      return "colors";
+    case "layout":
+      return "layout";
+    case "spacing":
+      return "spacing";
+    case "radius":
+      return "radii";
+    case "typography":
+      return "typography";
+    case "shadow":
+      return "shadows";
+    default:
+      return "values";
+  }
 }
 
 function renderSwiftTokens(namespace: string, records: TokenRecord[]): string {
@@ -285,6 +415,7 @@ function renderSwiftTokens(namespace: string, records: TokenRecord[]): string {
 }
 
 function swiftLiteral(record: TokenRecord): string {
+  if (record.aliasOf) return record.aliasOf;
   if (record.kind === "color") return colorLiteral(String(record.value));
   if (typeof record.value === "number") return `CGFloat(${record.value})`;
   if (typeof record.value === "boolean") return record.value ? "true" : "false";
@@ -301,8 +432,32 @@ function swiftLiteral(record: TokenRecord): string {
 
 function colorLiteral(value: string): string {
   if (value.startsWith("#")) return `Color(hex: "${escapeSwiftString(value)}")`;
-  if (/^(rgb|rgba|hsl|hsla)\(/i.test(value)) return `"${escapeSwiftString(value)}"`;
+  const rgb = parseRgbColor(value);
+  if (rgb) {
+    return `Color(.sRGB, red: ${rgb.red}, green: ${rgb.green}, blue: ${rgb.blue}, opacity: ${rgb.opacity})`;
+  }
+  if (/^(hsl|hsla)\(/i.test(value)) return `"${escapeSwiftString(value)}"`;
   return `"${escapeSwiftString(value)}"`;
+}
+
+function parseRgbColor(
+  value: string
+): { red: string; green: string; blue: string; opacity: string } | undefined {
+  const match = value.match(
+    /^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*(\d?(?:\.\d+)?|1(?:\.0)?))?\s*\)$/i
+  );
+  if (!match) return undefined;
+
+  return {
+    red: decimal(Number(match[1]) / 255),
+    green: decimal(Number(match[2]) / 255),
+    blue: decimal(Number(match[3]) / 255),
+    opacity: decimal(match[4] === undefined ? 1 : Number(match[4])),
+  };
+}
+
+function decimal(value: number): string {
+  return Number(value.toFixed(4)).toString();
 }
 
 function renderMarkdown(result: {
