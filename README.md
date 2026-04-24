@@ -32,6 +32,17 @@
 
 ---
 
+## License and trademarks
+
+Axint is open-source software licensed under Apache-2.0. The Axint name,
+wordmark, axis mark, logo, hosted service names, domains, and related Agentic
+Empire brand assets are not licensed for use by forks or unaffiliated products.
+
+Forks are welcome under the Apache-2.0 license, but they should use distinct
+names and branding. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
+
+---
+
 ## Why Axint
 
 Apple's API surfaces — App Intents, SwiftUI, WidgetKit — are verbose. A single widget needs a TimelineEntry, a TimelineProvider, an EntryView, and a Widget struct before you've written a line of business logic. AI coding agents pay per token, and all that boilerplate adds up fast.

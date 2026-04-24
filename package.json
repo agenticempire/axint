@@ -57,7 +57,9 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE",
+    "TRADEMARKS.md"
   ],
   "scripts": {
     "build": "tsup",
