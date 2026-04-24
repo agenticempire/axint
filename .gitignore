@@ -49,6 +49,7 @@ tests/.tmp-compiler-tests/
 
 # local scratch
 tmp/
+.axint/
 
 # Python
 __pycache__/

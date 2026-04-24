@@ -193,16 +193,47 @@ function generateBodyNode(node: ViewBodyNode, depth: number): string[] {
       break;
 
     case "raw":
-      lines.push(`${indent}${node.swift}`);
+      for (const rawLine of node.swift.split("\n")) {
+        lines.push(`${indent}${rawLine}`);
+      }
       break;
   }
 
   return lines;
 }
 
-function formatLiteral(value: unknown, _type: { kind: string }): string {
-  if (typeof value === "string") return `"${escapeSwiftString(value)}"`;
-  if (typeof value === "number") return `${value}`;
+function formatLiteral(value: unknown, type: { kind: string; value?: string }): string {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (type.kind === "primitive") {
+      if (type.value === "int" && /^[-+]?\d+$/.test(trimmed)) return trimmed;
+      if (
+        (type.value === "double" || type.value === "float") &&
+        /^[-+]?(?:\d+|\d*\.\d+)$/.test(trimmed)
+      ) {
+        return type.value === "float" ? `Float(${trimmed})` : trimmed;
+      }
+      if (type.value === "boolean" && /^(true|false)$/i.test(trimmed)) {
+        return trimmed.toLowerCase();
+      }
+      if (type.value === "url") {
+        return `URL(string: "${escapeSwiftString(value)}")!`;
+      }
+      if (type.value === "date" && trimmed === "Date()") {
+        return "Date()";
+      }
+      if (type.value === "duration" && /^[-+]?(?:\d+|\d*\.\d+)$/.test(trimmed)) {
+        return `Measurement(value: ${trimmed}, unit: UnitDuration.seconds)`;
+      }
+    }
+    return `"${escapeSwiftString(value)}"`;
+  }
+  if (typeof value === "number") {
+    if (type.kind === "primitive" && type.value === "duration") {
+      return `Measurement(value: ${value}, unit: UnitDuration.seconds)`;
+    }
+    return `${value}`;
+  }
   if (typeof value === "boolean") return value ? "true" : "false";
   return `"${escapeSwiftString(String(value))}"`;
 }
@@ -222,6 +253,8 @@ function previewDefault(p: IRViewProp): string {
         return `false`;
       case "date":
         return `Date()`;
+      case "duration":
+        return `Measurement(value: 0, unit: UnitDuration.seconds)`;
       case "url":
         return `URL(string: "https://example.com")! // TODO: Replace with your URL`;
       default:

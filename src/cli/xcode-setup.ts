@@ -5,7 +5,11 @@
  * Axint as an additional MCP server, and verifies the connection.
  */
 
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const ORANGE = "\x1b[38;5;208m";
 const GREEN = "\x1b[38;5;82m";
@@ -15,6 +19,29 @@ const BOLD = "\x1b[1m";
 const RESET = "\x1b[0m";
 
 const REMOTE_URL = "https://mcp.axint.ai/mcp";
+const AXINT_NPM_PACKAGE = "@axint/compiler";
+const AXINT_MCP_BIN = "axint-mcp";
+const XCODE_CLAUDE_CONFIG = join(
+  "Library",
+  "Developer",
+  "Xcode",
+  "CodingAssistant",
+  "ClaudeAgentConfig",
+  ".claude.json"
+);
+
+interface McpServerConfig {
+  type?: "stdio";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+}
+
+interface ClaudeAgentConfig {
+  mcpServers?: Record<string, McpServerConfig>;
+  [key: string]: unknown;
+}
 
 interface SetupOptions {
   agent: string;
@@ -70,6 +97,10 @@ export async function setupXcode(options: SetupOptions): Promise<void> {
     }
   }
 
+  if (!options.remote && agents.includes("claude")) {
+    setupXcodeClaudeAgent();
+  }
+
   // 5. Print verification instructions
   console.log();
   console.log(`  ${ORANGE}◆${RESET} ${BOLD}Setup complete${RESET}`);
@@ -94,10 +125,24 @@ export async function verifyXcode(): Promise<void> {
 
   // test that the MCP server starts and can list tools
   try {
-    const output = execSync(
-      'echo \'{"jsonrpc":"2.0","method":"tools/list","id":1}\' | timeout 5 npx -y @axint/compiler axint-mcp 2>/dev/null',
-      { encoding: "utf-8", timeout: 15000 }
-    );
+    const request = JSON.stringify({
+      jsonrpc: "2.0",
+      method: "tools/list",
+      id: 1,
+      params: {},
+    });
+    const command = buildLocalMcpServerCommand();
+    const result = spawnSync(command.command, command.args, {
+      input: `${request}\n`,
+      encoding: "utf-8",
+      timeout: 5000,
+      maxBuffer: 1024 * 1024,
+    });
+    const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+
+    if (!output && result.error && result.error.name !== "ETIMEDOUT") {
+      throw result.error;
+    }
 
     if (output.includes("axint.feature")) {
       console.log(`  ${GREEN}✓${RESET} MCP server responds`);
@@ -137,7 +182,7 @@ async function setupClaude(remote: boolean): Promise<void> {
     }
   } else {
     // local stdio mode
-    const cmd = `claude mcp add --transport stdio axint -- npx -y @axint/compiler axint-mcp`;
+    const cmd = `claude mcp add --transport stdio axint -- npx -y -p ${AXINT_NPM_PACKAGE} ${AXINT_MCP_BIN}`;
     console.log(`  ${DIM}$ ${cmd}${RESET}`);
     try {
       execSync(cmd, { stdio: "inherit", timeout: 10000 });
@@ -163,7 +208,7 @@ async function setupCodex(remote: boolean): Promise<void> {
       printManualCodex(remote);
     }
   } else {
-    const cmd = `codex mcp add axint -- npx -y @axint/compiler axint-mcp`;
+    const cmd = `codex mcp add axint -- npx -y -p ${AXINT_NPM_PACKAGE} ${AXINT_MCP_BIN}`;
     console.log(`  ${DIM}$ ${cmd}${RESET}`);
     try {
       execSync(cmd, { stdio: "inherit", timeout: 10000 });
@@ -211,6 +256,203 @@ function detectAxint(): string | null {
   }
 }
 
+function setupXcodeClaudeAgent(): void {
+  console.log(`  ${BOLD}Configuring Xcode Claude Agent...${RESET}`);
+
+  const configPath = join(homedir(), XCODE_CLAUDE_CONFIG);
+  const command = buildLocalMcpServerCommand({
+    preferAbsoluteNpx: true,
+    requireAbsoluteNode: true,
+  });
+
+  if (!command.isDurableForXcode) {
+    console.log(
+      `  ${DIM}ℹ${RESET} Could not find a durable Axint MCP script. Install globally, then rerun:`
+    );
+    console.log(`  ${DIM}  npm install -g ${AXINT_NPM_PACKAGE}${RESET}`);
+    console.log(`  ${DIM}  axint xcode setup --agent claude${RESET}`);
+    return;
+  }
+
+  const existing = readClaudeAgentConfig(configPath);
+  if (!existing) return;
+
+  mkdirSync(dirname(configPath), { recursive: true });
+  writeFileSync(
+    configPath,
+    `${JSON.stringify(
+      {
+        ...existing,
+        mcpServers: {
+          ...(existing.mcpServers ?? {}),
+          axint: {
+            type: "stdio",
+            command: command.command,
+            args: command.args,
+            env: buildMcpEnv(command.command),
+          },
+        },
+      },
+      null,
+      2
+    )}\n`,
+    "utf-8"
+  );
+
+  console.log(`  ${GREEN}✓${RESET} Xcode Claude Agent configured`);
+  console.log(`  ${DIM}  ${configPath}${RESET}`);
+  console.log(
+    `  ${DIM}  Uses an absolute npx path because Xcode runs agents with a restricted PATH${RESET}`
+  );
+}
+
+function readClaudeAgentConfig(configPath: string): ClaudeAgentConfig | null {
+  if (!existsSync(configPath)) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
+    if (!isObject(parsed)) return {};
+    const mcpServers = parsed.mcpServers;
+    return {
+      ...parsed,
+      mcpServers: isObject(mcpServers)
+        ? (mcpServers as Record<string, McpServerConfig>)
+        : undefined,
+    };
+  } catch {
+    console.log(
+      `  ${RED}✗${RESET} Could not parse Xcode Claude Agent config, so Axint did not overwrite it`
+    );
+    console.log(`  ${DIM}  ${configPath}${RESET}`);
+    return null;
+  }
+}
+
+function buildLocalMcpServerCommand(options?: {
+  preferAbsoluteNpx?: boolean;
+  requireAbsoluteNode?: boolean;
+}): {
+  command: string;
+  args: string[];
+  isDurableForXcode: boolean;
+} {
+  const npxPath = detectNpxPath();
+
+  if (options?.preferAbsoluteNpx && npxPath) {
+    return {
+      command: npxPath,
+      args: ["-y", "-p", AXINT_NPM_PACKAGE, AXINT_MCP_BIN],
+      isDurableForXcode: true,
+    };
+  }
+
+  const nodePath = detectNodePath();
+  const mcpScript = detectAxintMcpScript();
+
+  if (nodePath && mcpScript) {
+    return {
+      command: nodePath,
+      args: [mcpScript],
+      isDurableForXcode: true,
+    };
+  }
+
+  if (options?.requireAbsoluteNode) {
+    return {
+      command: "npx",
+      args: ["-y", "-p", AXINT_NPM_PACKAGE, AXINT_MCP_BIN],
+      isDurableForXcode: false,
+    };
+  }
+
+  return {
+    command: npxPath ?? "npx",
+    args: ["-y", "-p", AXINT_NPM_PACKAGE, AXINT_MCP_BIN],
+    isDurableForXcode: Boolean(npxPath),
+  };
+}
+
+function detectNpxPath(): string | null {
+  const candidates = [
+    shellOutput("command -v npx 2>/dev/null"),
+    "/opt/homebrew/bin/npx",
+    "/usr/local/bin/npx",
+  ].filter((value): value is string => Boolean(value));
+
+  return firstExisting(candidates);
+}
+
+function buildMcpEnv(commandPath: string): Record<string, string> | undefined {
+  const commandDir = dirname(commandPath);
+  const pathEntries = [
+    commandDir,
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+  ];
+  const path = Array.from(new Set(pathEntries)).join(":");
+  return { PATH: path };
+}
+
+function detectNodePath(): string | null {
+  const candidates = [
+    shellOutput("command -v node 2>/dev/null"),
+    process.execPath,
+    "/opt/homebrew/bin/node",
+    "/usr/local/bin/node",
+  ].filter((value): value is string => Boolean(value));
+
+  return firstExisting(candidates);
+}
+
+function detectAxintMcpScript(): string | null {
+  const npmRoot = shellOutput("npm root -g 2>/dev/null");
+  const currentFile = fileURLToPath(import.meta.url);
+  const distRoot = dirname(dirname(currentFile));
+
+  const candidates = [
+    join(distRoot, "mcp", "register.js"),
+    join(distRoot, "mcp", "index.js"),
+    npmRoot && join(npmRoot, AXINT_NPM_PACKAGE, "dist", "mcp", "register.js"),
+    npmRoot && join(npmRoot, AXINT_NPM_PACKAGE, "dist", "mcp", "index.js"),
+    "/opt/homebrew/lib/node_modules/@axint/compiler/dist/mcp/register.js",
+    "/opt/homebrew/lib/node_modules/@axint/compiler/dist/mcp/index.js",
+    "/usr/local/lib/node_modules/@axint/compiler/dist/mcp/register.js",
+    "/usr/local/lib/node_modules/@axint/compiler/dist/mcp/index.js",
+  ].filter((value): value is string => Boolean(value));
+
+  return firstExisting(candidates);
+}
+
+function firstExisting(paths: string[]): string | null {
+  const seen = new Set<string>();
+  for (const path of paths) {
+    if (seen.has(path)) continue;
+    seen.add(path);
+    if (existsSync(path)) return path;
+  }
+  return null;
+}
+
+function shellOutput(command: string): string | null {
+  try {
+    const output = execSync(command, {
+      encoding: "utf-8",
+      timeout: 5000,
+    }).trim();
+    return output.length > 0 ? output : null;
+  } catch {
+    return null;
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // ─── Manual instructions ────────────────────────────────────────────
 
 function printManualClaude(remote: boolean): void {
@@ -225,7 +467,11 @@ function printManualClaude(remote: boolean): void {
   } else {
     console.log(`  Run this command:`);
     console.log(
-      `  ${DIM}claude mcp add --transport stdio axint -- npx -y @axint/compiler axint-mcp${RESET}`
+      `  ${DIM}claude mcp add --transport stdio axint -- npx -y -p ${AXINT_NPM_PACKAGE} ${AXINT_MCP_BIN}${RESET}`
+    );
+    console.log();
+    console.log(
+      `  ${DIM}For Xcode's built-in Claude Agent, run: axint xcode setup --agent claude${RESET}`
     );
   }
   console.log();
@@ -243,7 +489,7 @@ function printManualCodex(remote: boolean): void {
   } else {
     console.log(`  Run this command:`);
     console.log(
-      `  ${DIM}codex mcp add axint -- npx -y @axint/compiler axint-mcp${RESET}`
+      `  ${DIM}codex mcp add axint -- npx -y -p ${AXINT_NPM_PACKAGE} ${AXINT_MCP_BIN}${RESET}`
     );
   }
   console.log();

@@ -86,6 +86,13 @@ export const REGEX_FIX_RULES: readonly RegexFix[] = [
   },
   {
     kind: "regex",
+    code: "AX704",
+    description: "AppIntent static let title → static var title",
+    pattern: "\\bstatic\\s+let\\s+title\\s*:\\s*LocalizedStringResource\\b",
+    replacement: "static var title: LocalizedStringResource",
+  },
+  {
+    kind: "regex",
     code: "AX720",
     description: "DispatchQueue.main.async → Task { @MainActor in }",
     pattern: "\\bDispatchQueue\\.main\\.async\\s*(?:\\(\\s*execute\\s*:\\s*)?\\{",

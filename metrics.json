@@ -1,6 +1,6 @@
 {
-  "version": "0.3.9",
-  "mcpTools": 11,
+  "version": "0.4.0",
+  "mcpTools": 13,
   "mcpToolNames": [
     "axint.feature",
     "axint.suggest",
@@ -8,6 +8,8 @@
     "axint.compile",
     "axint.validate",
     "axint.fix-packet",
+    "axint.cloud.check",
+    "axint.tokens.ingest",
     "axint.schema.compile",
     "axint.swift.validate",
     "axint.swift.fix",
@@ -21,7 +23,7 @@
     "axint.create-intent"
   ],
   "bundledTemplates": 26,
-  "diagnostics": 170,
+  "diagnostics": 173,
   "xcodeFixRules": 32,
   "xcodeFixRuleCodes": [
     "AX701",
@@ -58,7 +60,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 878,
+    "typescript": 906,
     "python": 114
   },
   "registryPackages": 14,

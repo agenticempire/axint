@@ -9,12 +9,14 @@
  * back to the IR-based tools. The FromIR tools and scaffold/templates work
  * natively since generators and validators are pure functions.
  *
- * Tools (10):
+ * Tools:
  *   - axint.feature:          Generate a complete Apple-native feature package
  *   - axint.suggest:          Suggest Apple-native features for an app domain
  *   - axint.scaffold:         Generate a starter TypeScript intent file
  *   - axint.compile:          Compile TypeScript intent → Swift (local only)
  *   - axint.validate:         Validate intent definition (local only)
+ *   - axint.cloud.check:      Run inline Swift validation in HTTP MCP
+ *   - axint.tokens.ingest:    Ingest inline JSON/CSS token source in HTTP MCP
  *   - axint.schema.compile:   Compile JSON schema → Swift (recommended)
  *   - axint.swift.validate:   Validate Swift source against 150 Apple rules
  *   - axint.swift.fix:        Auto-fix mechanical Swift errors
@@ -37,6 +39,10 @@ import { validateApp } from "../../../src/core/app-validator.js";
 import { scaffoldIntent } from "../../../src/mcp/scaffold.js";
 import { generateFeature } from "../../../src/mcp/feature.js";
 import { suggestFeatures } from "../../../src/mcp/suggest.js";
+import {
+  buildSmartViewBody,
+  reservedViewPropertyName,
+} from "../../../src/mcp/view-blueprints.js";
 import type { FeatureInput, Surface } from "../../../src/mcp/feature.js";
 import type { SuggestInput } from "../../../src/mcp/suggest.js";
 import { TEMPLATES, getTemplate } from "../../../src/templates/index.js";
@@ -62,7 +68,7 @@ import type {
 } from "../../../src/core/types.js";
 import { isPrimitiveType, isSceneKind } from "../../../src/core/types.js";
 
-const VERSION = "0.3.9";
+const VERSION = "0.4.0";
 
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
 
@@ -145,6 +151,25 @@ function toPlatformGuard(p: string | undefined): Platform | undefined {
   return p && VALID_PLATFORMS.has(p) ? (p as Platform) : undefined;
 }
 
+function stripSurfaceSuffix(name: string, suffix: string): string {
+  return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
+}
+
+function normalizeSwiftBody(body: string): string {
+  return body.replace(/\\n/g, "\n").replace(/\\t/g, "    ");
+}
+
+function humanizeIdentifier(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\bId\b/g, "ID")
+    .replace(/\bUrl\b/g, "URL")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function diagText(ds: Diagnostic[]) {
   return ds.map((d) => `[${d.code}] ${d.severity}: ${d.message}`).join("\n");
 }
@@ -193,7 +218,168 @@ type SchemaArgs = {
     name?: string;
     platform?: string;
   }>;
+  platform?: string;
+  tokenNamespace?: string;
+  componentKind?: string;
 };
+
+function inferLanguage(fileName: string | undefined, source: string): "swift" | "typescript" | "unknown" {
+  if (fileName && /\.swift$/i.test(fileName)) return "swift";
+  if (fileName && /\.(ts|tsx|mts|cts)$/i.test(fileName)) return "typescript";
+  if (/\b(import\s+SwiftUI|import\s+AppIntents|:\s*AppIntent\b|:\s*View\b)/.test(source)) {
+    return "swift";
+  }
+  if (/\bdefine(Intent|View|Widget|App)\s*\(/.test(source)) return "typescript";
+  return "unknown";
+}
+
+function runWorkerCloudCheck(args: Record<string, unknown>) {
+  const source = typeof args.source === "string" ? args.source : "";
+  const fileName = typeof args.fileName === "string" ? args.fileName : "<cloud-check>";
+  const format = typeof args.format === "string" ? args.format : "markdown";
+  if (!source) {
+    return textResult(
+      "HTTP MCP Cloud Check requires inline `source`. Use the local MCP server for sourcePath support.",
+      true
+    );
+  }
+
+  const language = inferLanguage(fileName, source);
+  if (language !== "swift") {
+    return textResult(
+      "HTTP MCP Cloud Check currently validates inline Swift source. Use the local MCP server for TypeScript compilation checks.",
+      true
+    );
+  }
+
+  const diagnostics = validateSwiftSource(source, fileName).diagnostics;
+  const errors = diagnostics.filter((d) => d.severity === "error").length;
+  const warnings = diagnostics.filter((d) => d.severity === "warning").length;
+  const status = errors > 0 ? "fail" : warnings > 0 ? "needs_review" : "pass";
+  const repairPrompt =
+    diagnostics.length === 0
+      ? `Review ${fileName}. Axint Cloud Check did not find blocking Apple-facing issues.`
+      : [
+          `Fix the Apple-facing issues in ${fileName} without changing the user's intended feature behavior.`,
+          "",
+          "Address these findings:",
+          ...diagnostics
+            .filter((d) => d.severity !== "info")
+            .slice(0, 4)
+            .map((d) => `- ${d.code}: ${d.message}${d.suggestion ? ` Fix: ${d.suggestion}` : ""}`),
+        ].join("\n");
+
+  const payload = {
+    status,
+    fileName,
+    language,
+    diagnostics,
+    errors,
+    warnings,
+    repairPrompt,
+  };
+
+  if (format === "json") return textResult(JSON.stringify(payload, null, 2), status === "fail");
+  if (format === "prompt") return textResult(repairPrompt, status === "fail");
+  return textResult(
+    [
+      `# Axint Cloud Check: ${status}`,
+      "",
+      `- Input: ${fileName}`,
+      `- Diagnostics: ${errors} errors, ${warnings} warnings`,
+      "",
+      "## Findings",
+      ...(diagnostics.length
+        ? diagnostics.map((d) => `- ${d.code} ${d.severity}: ${d.message}`)
+        : ["- No blocking Apple-facing issues were found."]),
+      "",
+      "## Agent Repair Prompt",
+      "```text",
+      repairPrompt,
+      "```",
+    ].join("\n"),
+    status === "fail"
+  );
+}
+
+function runWorkerTokenIngest(args: Record<string, unknown>) {
+  const source = typeof args.source === "string" ? args.source : "";
+  const namespace = sanitizeTypeName(
+    typeof args.namespace === "string" ? args.namespace : "AxintDesignTokens"
+  );
+  if (!source) {
+    return textResult(
+      "HTTP MCP token ingestion requires inline `source`. Use the local MCP server for sourcePath and JS/TS token files.",
+      true
+    );
+  }
+
+  const tokens = parseInlineWorkerTokens(source);
+  if (Object.keys(tokens).length === 0) {
+    return textResult("Could not parse inline JSON or CSS custom-property tokens.", true);
+  }
+
+  const colors = Object.entries(tokens).filter(([, v]) => /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(String(v)));
+  const layout = Object.entries(tokens).filter(([k]) => /(sidebar|rail|column|width|height|layout)/i.test(k));
+  const lines = ["// Generated by Axint tokens ingest.", "import SwiftUI", "", `enum ${namespace} {`];
+  if (colors.length) {
+    lines.push("    enum Colors {");
+    for (const [k, v] of colors) lines.push(`        static let ${swiftIdentifier(k)} = Color(hex: "${String(v)}")`);
+    lines.push("    }", "");
+  }
+  if (layout.length) {
+    lines.push("    enum Layout {");
+    for (const [k, v] of layout) lines.push(`        static let ${swiftIdentifier(k)} = CGFloat(${String(v).replace(/px$/, "")})`);
+    lines.push("    }", "");
+  }
+  lines.push("}");
+  return textResult(lines.join("\n"));
+}
+
+function parseInlineWorkerTokens(source: string): Record<string, string | number | boolean> {
+  try {
+    const parsed = JSON.parse(source) as unknown;
+    return flattenWorkerTokens(parsed);
+  } catch {
+    const out: Record<string, string> = {};
+    const re = /--([A-Za-z0-9_-]+)\s*:\s*([^;]+);/g;
+    for (const match of source.matchAll(re)) out[match[1]!] = match[2]!.trim();
+    return out;
+  }
+}
+
+function flattenWorkerTokens(value: unknown, prefix = ""): Record<string, string | number | boolean> {
+  if (value === null || value === undefined) return {};
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return Object.entries(value as Record<string, unknown>).reduce(
+      (acc, [key, child]) => ({ ...acc, ...flattenWorkerTokens(child, prefix ? `${prefix}-${key}` : key) }),
+      {} as Record<string, string | number | boolean>
+    );
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return { [prefix]: value };
+  }
+  return { [prefix]: String(value) };
+}
+
+function swiftIdentifier(value: string): string {
+  const words = value.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  const result = words
+    .map((word, index) =>
+      index === 0
+        ? word.charAt(0).toLowerCase() + word.slice(1)
+        : word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    .join("");
+  return /^[A-Za-z_]/.test(result) ? result : `token${result}`;
+}
+
+function sanitizeTypeName(value: string): string {
+  const cleaned = value.replace(/[^A-Za-z0-9_]/g, "");
+  const safe = cleaned.length > 0 ? cleaned : "AxintDesignTokens";
+  const first = /^[A-Za-z_]/.test(safe) ? safe : `Tokens${safe}`;
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
 
 function compileFromSchema(args: SchemaArgs) {
   const inputTokens = Math.ceil(JSON.stringify(args).length / 4);
@@ -204,14 +390,14 @@ function compileFromSchema(args: SchemaArgs) {
       ? Object.entries(args.params).map(([name, t]) => ({
           name,
           type: schemaTypeToIRType(t),
-          title: name.replace(/([A-Z])/g, " $1").trim(),
-          description: "",
+          title: humanizeIdentifier(name),
+          description: humanizeIdentifier(name),
           isOptional: false,
         }))
       : [];
     const ir: IRIntent = {
       name: args.name,
-      title: args.title || args.name.replace(/([A-Z])/g, " $1").trim(),
+      title: args.title || humanizeIdentifier(args.name),
       description: args.description || "",
       domain: args.domain,
       parameters,
@@ -225,30 +411,53 @@ function compileFromSchema(args: SchemaArgs) {
     return formatOutput(swift, inputTokens);
   }
 
-  if (args.type === "view") {
+  if (args.type === "view" || args.type === "component") {
     if (!args.name) return textResult("[AX301] error: requires 'name'", true);
     const props: IRViewProp[] = args.props
       ? Object.entries(args.props).map(([name, t]) => ({
-          name,
+          name: reservedViewPropertyName(name),
           type: schemaTypeToIRType(t),
           isOptional: false,
         }))
-      : [];
+      : args.type === "component"
+        ? [
+            {
+              name: "title",
+              type: { kind: "primitive", value: "string" },
+              isOptional: false,
+              defaultValue: "Mission",
+            },
+          ]
+        : [];
     const state: IRViewState[] = args.state
       ? Object.entries(args.state).map(([name, cfg]) => ({
-          name,
+          name: reservedViewPropertyName(name),
           type: schemaTypeToIRType(cfg.type || "string"),
           kind: "state" as const,
           defaultValue: cfg.default,
         }))
       : [];
     const ir: IRView = {
-      name: args.name,
+      name: args.type === "component" ? stripSurfaceSuffix(args.name, "View") : args.name,
       props,
       state,
       body: args.body
-        ? [{ kind: "raw", swift: args.body }]
-        : [{ kind: "text", content: "VStack {}" }],
+        ? [{ kind: "raw", swift: normalizeSwiftBody(args.body) }]
+        : [
+            {
+              kind: "raw",
+              swift:
+                buildSmartViewBody({
+                  name: args.name,
+                  description: args.description,
+                  props,
+                  state,
+                  platform: args.platform as "iOS" | "macOS" | "visionOS" | "all" | undefined,
+                  tokenNamespace: args.tokenNamespace,
+                  componentKind: args.componentKind,
+                }) ?? "VStack {}",
+            },
+          ],
       sourceFile: "<schema>",
     };
     const diags = validateView(ir);
@@ -263,7 +472,9 @@ function compileFromSchema(args: SchemaArgs) {
     if (!args.displayName)
       return textResult("[AX403] error: requires 'displayName'", true);
     const entries: IRWidgetEntry[] = args.entry
-      ? Object.entries(args.entry).map(([name, t]) => ({
+        ? Object.entries(args.entry)
+            .filter(([name]) => name !== "date")
+            .map(([name, t]) => ({
           name,
           type: schemaTypeToIRType(t),
         }))
@@ -282,13 +493,13 @@ function compileFromSchema(args: SchemaArgs) {
     );
     const refreshPolicy: WidgetRefreshPolicy = args.refreshInterval ? "after" : "atEnd";
     const ir: IRWidget = {
-      name: args.name,
+      name: stripSurfaceSuffix(args.name, "Widget"),
       displayName: args.displayName,
       description: args.description || "",
       families,
       entry: entries,
       body: args.body
-        ? [{ kind: "raw", swift: args.body }]
+        ? [{ kind: "raw", swift: normalizeSwiftBody(args.body) }]
         : [{ kind: "text", content: "Hello" }],
       refreshInterval: args.refreshInterval,
       refreshPolicy,
@@ -313,7 +524,7 @@ function compileFromSchema(args: SchemaArgs) {
       platformGuard: toPlatformGuard(s.platform),
       isDefault: i === 0 && (s.kind || "windowGroup") === "windowGroup",
     }));
-    const ir: IRApp = { name: args.name, scenes, sourceFile: "<schema>" };
+    const ir: IRApp = { name: stripSurfaceSuffix(args.name, "App"), scenes, sourceFile: "<schema>" };
     const diags = validateApp(ir);
     if (diags.some((d) => d.severity === "error"))
       return textResult(diagText(diags), true);
@@ -336,6 +547,8 @@ function handleTool(name: string, args: Record<string, unknown>) {
       appName: a.appName,
       domain: a.domain,
       params: a.params,
+      platform: a.platform,
+      tokenNamespace: a.tokenNamespace,
     });
     const output: string[] = [result.summary, ""];
     for (const file of result.files) {
@@ -383,7 +596,7 @@ function handleTool(name: string, args: Record<string, unknown>) {
 
   if (name === "axint.compile" || name === "axint.validate") {
     return textResult(
-      "Full TypeScript compilation requires the local MCP server (`npx @axint/compiler axint-mcp`). " +
+      "Full TypeScript compilation requires the local MCP server (`npx -y -p @axint/compiler axint-mcp`). " +
         "Use axint.schema.compile instead — it accepts a minimal JSON schema and produces identical Swift output with fewer tokens.",
       true
     );
@@ -391,6 +604,14 @@ function handleTool(name: string, args: Record<string, unknown>) {
 
   if (name === "axint.schema.compile") {
     return compileFromSchema(args as unknown as SchemaArgs);
+  }
+
+  if (name === "axint.cloud.check") {
+    return runWorkerCloudCheck(args);
+  }
+
+  if (name === "axint.tokens.ingest") {
+    return runWorkerTokenIngest(args);
   }
 
   if (name === "axint.templates.list") {

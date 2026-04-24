@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import worker from "../../workers/mcp-http/src/worker.js";
 import { TOOL_MANIFEST } from "../../src/mcp/manifest.js";
 import { PROMPT_MANIFEST } from "../../src/mcp/prompts.js";
+
+const packageVersion = JSON.parse(
+  readFileSync(resolve(process.cwd(), "package.json"), "utf-8")
+).version as string;
 
 const env = {
   ALLOWED_ORIGINS: "https://axint.ai",
@@ -45,7 +51,7 @@ describe("axint HTTP MCP transport", () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
       server: "axint-mcp",
-      version: "0.3.9",
+      version: packageVersion,
     });
   });
 

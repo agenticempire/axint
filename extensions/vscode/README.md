@@ -51,7 +51,7 @@ This gives you a tighter `edit -> compile -> inspect Swift -> open Cloud report`
 - VS Code 1.102 or later
 - Node.js 22+
 
-The extension runs `npx @axint/compiler axint-mcp` under the hood for MCP, and `npx @axint/compiler compile ... --json` for editor commands. No global install needed.
+The extension runs `npx -y -p @axint/compiler axint-mcp` under the hood for MCP, and `npx -y -p @axint/compiler axint compile ... --json` for editor commands. No global install needed.
 
 ## Links
 

@@ -186,7 +186,7 @@ describe("validateSwiftSource", () => {
 import AppIntents
 
 struct TestIntent: AppIntent {
-    static let title: LocalizedStringResource = "Test"
+    static var title: LocalizedStringResource = "Test"
 
     func perform() async throws -> some IntentResult {
         return .result()

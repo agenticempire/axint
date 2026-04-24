@@ -73,6 +73,21 @@ export function validateWidget(widget: IRWidget): Diagnostic[] {
     entryNames.add(entry.name);
   }
 
+  // AX416: date is owned by TimelineEntry and generated automatically.
+  for (const entry of widget.entry) {
+    if (entry.name === "date") {
+      diagnostics.push({
+        code: "AX416",
+        severity: "warning",
+        message:
+          "Widget entry field 'date' is generated automatically by Axint and should not be declared manually",
+        file: widget.sourceFile,
+        suggestion:
+          "Remove 'date' from entry fields. The generated TimelineEntry always includes `let date: Date`.",
+      });
+    }
+  }
+
   // AX415: displayName must not be empty
   if (!widget.displayName || widget.displayName.trim().length === 0) {
     diagnostics.push({
@@ -120,6 +135,21 @@ export function validateSwiftWidgetSource(
       code: "AX422",
       severity: "error",
       message: `Generated provider struct must conform to TimelineProvider protocol`,
+    });
+  }
+
+  const timelineEntryMatch = swiftCode.match(
+    /\bstruct\s+\w+\s*:\s*TimelineEntry\s*\{[\s\S]*?\n\}/
+  );
+  const dateCount =
+    timelineEntryMatch?.[0].match(/\blet\s+date\s*:\s*Date\b/g)?.length ?? 0;
+  if (dateCount > 1) {
+    diagnostics.push({
+      code: "AX423",
+      severity: "error",
+      message: "Generated widget TimelineEntry declares 'let date: Date' more than once",
+      suggestion:
+        "Keep exactly one `let date: Date`. Do not pass date as a custom widget entry field.",
     });
   }
 

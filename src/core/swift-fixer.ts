@@ -51,6 +51,8 @@ export function fixSwiftSource(source: string, file: string): FixResult {
 }
 
 function applyFix(source: string, d: Diagnostic): string | null {
+  if (d.code === "AX704") return fixAppIntentTitle(source);
+
   const regexRule = REGEX_RULES_BY_CODE.get(d.code);
   if (regexRule) return applyRegexRule(source, regexRule);
 
@@ -139,6 +141,36 @@ function addMainActorToClass(
   const indent = line.match(/^\s*/)?.[0] ?? "";
   lines.splice(idx, 0, `${indent}@MainActor`);
   return lines.join("\n");
+}
+
+function fixAppIntentTitle(source: string): string | null {
+  const decl = /\bstruct\s+(\w+)\s*:\s*[^{]*\bAppIntent\b[^{]*\{/g;
+  let match: RegExpExecArray | null;
+  while ((match = decl.exec(source)) !== null) {
+    const openIdx = match.index + match[0].length - 1;
+    const closeIdx = findMatchingBrace(source, openIdx);
+    if (closeIdx === -1) continue;
+
+    const body = source.slice(openIdx + 1, closeIdx);
+    if (/\bstatic\s+var\s+title\s*:\s*LocalizedStringResource\b/.test(body)) {
+      continue;
+    }
+
+    const rewritten = body.replace(
+      /\bstatic\s+let\s+title\s*:\s*LocalizedStringResource\b/,
+      "static var title: LocalizedStringResource"
+    );
+    if (rewritten !== body) {
+      return source.slice(0, openIdx + 1) + rewritten + source.slice(closeIdx);
+    }
+
+    return (
+      source.slice(0, openIdx + 1) +
+      '\n    static var title: LocalizedStringResource = "Intent"' +
+      source.slice(openIdx + 1)
+    );
+  }
+  return null;
 }
 
 function stripMainActorFromActor(source: string, d: Diagnostic): string | null {

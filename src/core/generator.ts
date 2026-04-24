@@ -89,10 +89,10 @@ export function generateSwift(intent: IRIntent): string {
 
   // Static metadata
   lines.push(
-    `    static let title: LocalizedStringResource = "${escapeSwiftString(intent.title)}"`
+    `    static var title: LocalizedStringResource = "${escapeSwiftString(intent.title)}"`
   );
   lines.push(
-    `    static let description: IntentDescription = IntentDescription("${escapeSwiftString(intent.description)}")`
+    `    static var description: IntentDescription = IntentDescription("${escapeSwiftString(intent.description)}")`
   );
   if (intent.isDiscoverable !== undefined) {
     lines.push(`    static let isDiscoverable: Bool = ${intent.isDiscoverable}`);
@@ -124,7 +124,7 @@ export function generateSwift(intent: IRIntent): string {
   lines.push(`        // TODO: Implement your intent logic here.`);
 
   if (intent.parameters.length > 0) {
-    const paramList = intent.parameters.map((p) => `\\(${p.name})`).join(", ");
+    const paramList = intent.parameters.map((p) => p.name).join(", ");
     lines.push(`        // Parameters available: ${paramList}`);
   }
 

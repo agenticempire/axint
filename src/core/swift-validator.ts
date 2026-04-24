@@ -218,11 +218,16 @@ function checkAppIntentHasTitle(
 ) {
   const body = decl.source.slice(decl.bodyStart, decl.bodyEnd);
   const hasTitle = /\bstatic\s+var\s+title\s*:\s*LocalizedStringResource\b/.test(body);
+  const hasLetTitle = /\bstatic\s+let\s+title\s*:\s*LocalizedStringResource\b/.test(body);
   if (!hasTitle) {
     diagnostics.push(
       makeDiagnostic("AX704", file, decl.startLine, {
-        message: `AppIntent '${decl.name}' is missing 'static var title: LocalizedStringResource'`,
-        suggestion: `Add: static var title: LocalizedStringResource = "${decl.name}"`,
+        message: hasLetTitle
+          ? `AppIntent '${decl.name}' declares title with 'static let'; AppIntents expect 'static var title: LocalizedStringResource'`
+          : `AppIntent '${decl.name}' is missing 'static var title: LocalizedStringResource'`,
+        suggestion: hasLetTitle
+          ? "Change `static let title` to `static var title` and keep the existing title value."
+          : `Add: static var title: LocalizedStringResource = "${decl.name}"`,
       })
     );
   }
@@ -253,7 +258,7 @@ function checkAppIntentHasDescription(
 // ─── Rule: AX719 — AppIntent input properties should use @Parameter ──
 
 const APP_INTENT_INSTANCE_PROPERTY =
-  /^\s*(?:public|internal|private|fileprivate|open)?\s*(?:var|let)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^=/{\n]+?)\s*$/;
+  /^\s*(?:public|internal|private|fileprivate|open)?\s*(?:var|let)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^=/{\n]+?)(?:\s*=.*)?$/;
 
 const APP_INTENT_KNOWN_NON_PARAMETER_PROPERTIES = new Set([
   "openAppWhenRun",
@@ -273,7 +278,7 @@ function checkAppIntentParametersUseParameterWrapper(
   const pendingAttributes: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    let line = lines[i];
     const trimmed = line.trim();
 
     if (!trimmed) {
@@ -282,8 +287,14 @@ function checkAppIntentParametersUseParameterWrapper(
     }
 
     if (trimmed.startsWith("@")) {
-      pendingAttributes.push(trimmed);
-      continue;
+      const inline = trimmed.match(/^(@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?)\s+(.*)$/);
+      if (inline && /\b(?:var|let)\s+/.test(inline[2] ?? "")) {
+        pendingAttributes.push(inline[1]!);
+        line = line.replace(inline[1]!, "");
+      } else {
+        pendingAttributes.push(trimmed);
+        continue;
+      }
     }
 
     if (
@@ -306,6 +317,18 @@ function checkAppIntentParametersUseParameterWrapper(
     const hasParameterAttribute = pendingAttributes.some((attr) =>
       attr.startsWith("@Parameter")
     );
+    const hasStateAttribute = pendingAttributes.some((attr) => attr.startsWith("@State"));
+
+    if (hasStateAttribute) {
+      diagnostics.push(
+        makeDiagnostic("AX719", file, decl.startLine + bodyLineOffset + i, {
+          message: `AppIntent property '${name}' uses @State, which is only valid for SwiftUI views`,
+          suggestion: `Use @Parameter for user input, or remove @State and initialize \`${name}\` if it is internal intent state.`,
+        })
+      );
+      pendingAttributes.length = 0;
+      continue;
+    }
 
     if (
       !hasInitializer &&
@@ -371,13 +394,23 @@ function checkTimelineEntryHasDate(
   diagnostics: Diagnostic[]
 ) {
   const body = decl.source.slice(decl.bodyStart, decl.bodyEnd);
-  const hasDate = /\blet\s+date\s*:\s*Date\b/.test(body);
+  const dateMatches = body.match(/\blet\s+date\s*:\s*Date\b/g) ?? [];
+  const hasDate = dateMatches.length > 0;
   if (!hasDate) {
     diagnostics.push(
       makeDiagnostic("AX713", file, decl.startLine, {
         message: `TimelineEntry '${decl.name}' is missing 'let date: Date'`,
         suggestion:
           "Every TimelineEntry must declare `let date: Date`. WidgetKit reads it directly.",
+      })
+    );
+  }
+  if (dateMatches.length > 1) {
+    diagnostics.push(
+      makeDiagnostic("AX750", file, decl.startLine, {
+        message: `TimelineEntry '${decl.name}' declares 'let date: Date' more than once`,
+        suggestion:
+          "Keep exactly one `let date: Date` property. WidgetKit requires it, but duplicate stored properties do not compile.",
       })
     );
   }

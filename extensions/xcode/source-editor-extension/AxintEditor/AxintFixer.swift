@@ -68,6 +68,15 @@ enum AxintFixer {
             }
         }
 
+        // AX704 — AppIntent static let title → static var title
+        do {
+            let (next, count) = applyRegex(current, pattern: "\\bstatic\\s+let\\s+title\\s*:\\s*LocalizedStringResource\\b", template: "static var title: LocalizedStringResource")
+            if count > 0 {
+                current = next
+                applied.append(.init(code: "AX704", message: "AppIntent static let title → static var title"))
+            }
+        }
+
         // AX720 — DispatchQueue.main.async → Task { @MainActor in }
         do {
             let (next, count) = applyRegex(current, pattern: "\\bDispatchQueue\\.main\\.async\\s*(?:\\(\\s*execute\\s*:\\s*)?\\{", template: "Task { @MainActor in")

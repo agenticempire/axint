@@ -193,6 +193,30 @@ describe("widget validator: body", () => {
   });
 });
 
+describe("widget generator: TimelineEntry date ownership", () => {
+  it("does not duplicate the generated date field when date is passed as an entry", () => {
+    const ir: IRWidget = {
+      name: "LogWaterIntake",
+      displayName: "Water",
+      description: "Shows daily hydration",
+      sourceFile: "test.ts",
+      families: ["systemSmall"],
+      entry: [
+        { name: "date", type: { kind: "primitive", value: "date" } },
+        { name: "ounces", type: { kind: "primitive", value: "double" } },
+      ],
+      body: [{ kind: "text", content: "Water" }],
+      refreshPolicy: "atEnd",
+    };
+
+    const result = compileWidgetFromIR(ir);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.some((d) => d.code === "AX416")).toBe(true);
+    expect(result.output!.swiftCode.match(/\blet date: Date\b/g)).toHaveLength(1);
+    expect(result.output!.swiftCode).not.toContain("date: Date(), date:");
+  });
+});
+
 describe("widget validator: entry fields", () => {
   it("accepts valid Swift identifier entry names", () => {
     const src = `

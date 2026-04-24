@@ -168,7 +168,7 @@ export async function scaffoldProject(opts: ScaffoldOptions): Promise<ScaffoldRe
         mcpServers: {
           axint: {
             command: "npx",
-            args: ["-y", "@axint/compiler", "axint-mcp"],
+            args: ["-y", "-p", "@axint/compiler", "axint-mcp"],
           },
         },
       },

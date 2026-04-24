@@ -16,10 +16,10 @@ These are the maintained TypeScript entry points for the public compiler surface
 Quick ways to use them:
 
 ```bash
-npx @axint/compiler compile examples/health-log.ts --stdout
-npx @axint/compiler compile examples/profile-card.ts --stdout
-npx @axint/compiler compile examples/step-counter.ts --stdout
-npx @axint/compiler compile examples/weather-app.ts --stdout
+npx -y -p @axint/compiler axint compile examples/health-log.ts --stdout
+npx -y -p @axint/compiler axint compile examples/profile-card.ts --stdout
+npx -y -p @axint/compiler axint compile examples/step-counter.ts --stdout
+npx -y -p @axint/compiler axint compile examples/weather-app.ts --stdout
 ```
 
 Need the Swift/Xcode repair-loop examples too? See [`examples/swift/README.md`](./swift/README.md).

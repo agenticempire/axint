@@ -38,7 +38,7 @@ startCommand:
           large app schemas with many scenes. Defaults to 30000 (30 seconds).
   commandFunction:
     |-
-    config => ({ command: 'npx', args: ['-y', '@axint/compiler', 'axint-mcp-http'], env: { PORT: String(config.port || 3001), LOG_LEVEL: config.logLevel || 'info', TIMEOUT: String(config.timeout || 30000) } })
+    config => ({ command: 'npx', args: ['-y', '-p', '@axint/compiler', 'axint-mcp-http'], env: { PORT: String(config.port || 3001), LOG_LEVEL: config.logLevel || 'info', TIMEOUT: String(config.timeout || 30000) } })
   port:
     |-
     config => config.port || 3001

@@ -58,7 +58,7 @@ The compiler is useful on its own. Registry and Cloud extend the same workflow:
 - **Fix Packet** — `latest.check.*` for the quick verdict, `latest.*` for the full repair contract.
 - **MCP** — agents call compile, validate, fix, schema compile, templates, and packet tools directly.
 - **Registry** — install reusable Apple capabilities with source, compiler metadata, and package details attached.
-- **Cloud Check** — hosted validation and repair guidance when a team wants a URL, history, or shareable result.
+- **Cloud Check** — free hosted validation for quick results; signed-in Pro checks add the AI-ready repair prompt, history, and a shareable report.
 
 [Read the thesis](https://axint.ai/thesis) · [Open proof](https://axint.ai/proof) · [View Fix Packet](https://axint.ai/fix-packet)
 
@@ -115,7 +115,7 @@ npm install -g @axint/compiler
 axint compile my-intent.ts --out ios/Intents/
 
 # or pipe to stdout
-npx @axint/compiler compile my-intent.ts --stdout
+npx -y -p @axint/compiler axint compile my-intent.ts --stdout
 ```
 
 ### Intent
@@ -214,7 +214,7 @@ axint compile my-app.ts --out ios/App/
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.3.9 · 11 MCP tools + 3 prompts · 170 diagnostic codes · 992 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.0 · 13 MCP tools + 3 prompts · 173 diagnostic codes · 1020 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -244,6 +244,7 @@ axint watch my-intent.ts --out ios/Intents/ --format --swift-build
       "command": "npx",
       "args": [
         "-y",
+        "-p",
         "@axint/compiler",
         "axint-mcp"
       ]
@@ -259,12 +260,14 @@ MCP tools and built-in prompts:
 | `axint.compile` | Full pipeline: TypeScript → Swift + plist + entitlements |
 | `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents) |
 | `axint.validate` | Dry-run validation with diagnostics |
-| `axint.feature` | Generate a complete feature package from a description |
+| `axint.feature` | Generate a scaffolded feature package from a description |
 | `axint.suggest` | Suggest Apple-native features for a domain |
 | `axint.scaffold` | Generate a starter TypeScript intent from a description |
 | `axint.swift.validate` | Validate existing Swift against build-time rules |
 | `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
 | `axint.fix-packet` | Read the latest AI-ready repair packet from a local compile or watch run |
+| `axint.cloud.check` | Run an agent-callable Cloud Check report against Swift or TypeScript source |
+| `axint.tokens.ingest` | Convert design tokens into SwiftUI token enums for generated views |
 | `axint.templates.list` | List bundled reference templates |
 | `axint.templates.get` | Return the source of a specific template |
 

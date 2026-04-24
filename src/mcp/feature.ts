@@ -2,7 +2,7 @@
  * axint.feature — High-level Apple-native feature generator.
  *
  * Takes a feature description and optional surface list, then orchestrates
- * the compiler to produce a complete, file-by-file feature package:
+ * the compiler to produce a scaffolded, file-by-file feature package:
  * Swift sources, Info.plist fragments, entitlements, and XCTest scaffolds.
  *
  * Designed for composition with Xcode's MCP tools — the agent calls
@@ -26,6 +26,11 @@ import type {
   WidgetFamily,
 } from "../core/types.js";
 import { isPrimitiveType, type IRPrimitiveType } from "../core/types.js";
+import {
+  buildSmartViewBody,
+  reservedViewPropertyName,
+  usesProfileCardBlueprint,
+} from "./view-blueprints.js";
 
 export type Surface = "intent" | "view" | "widget";
 
@@ -36,6 +41,8 @@ export interface FeatureInput {
   appName?: string;
   domain?: string;
   params?: Record<string, string>;
+  platform?: "iOS" | "macOS" | "visionOS" | "all";
+  tokenNamespace?: string;
 }
 
 export interface FeatureFile {
@@ -68,22 +75,30 @@ const DOMAIN_PLIST_KEYS: Record<string, Record<string, string>> = {
 };
 
 /**
- * Generate a complete Apple-native feature package from a description.
+ * Generate a scaffolded Apple-native feature package from a description.
  */
 export function generateFeature(input: FeatureInput): FeatureResult {
   const name = input.name || inferName(input.description);
   const surfaces = input.surfaces?.length ? input.surfaces : (["intent"] as Surface[]);
-  const domain = input.domain || inferDomain(input.description);
-  const params = input.params || inferParams(input.description);
+  const domain = resolveDomain(input.description, input.domain);
+  const params = input.params || inferParams(input.description, domain, surfaces);
+  const shouldEmitArtifacts = shouldEmitDomainArtifacts(domain, input.description);
   const diagnostics: string[] = [];
   const files: FeatureFile[] = [];
 
   // --- Intent surface ---
   if (surfaces.includes("intent")) {
-    const intentResult = buildIntent(name, input.description, domain, params);
+    const intentName = withoutSuffix(name, "Intent");
+    const intentResult = buildIntent(
+      intentName,
+      input.description,
+      domain,
+      params,
+      shouldEmitArtifacts
+    );
     if (intentResult.swift) {
       files.push({
-        path: `Sources/Intents/${name}Intent.swift`,
+        path: `Sources/Intents/${withSuffix(intentName, "Intent")}.swift`,
         content: intentResult.swift,
         type: "swift",
       });
@@ -97,14 +112,14 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     }
     if (intentResult.entitlements) {
       files.push({
-        path: `Sources/Supporting/${name}.entitlements.fragment.xml`,
+        path: `Sources/Supporting/${intentName}.entitlements.fragment.xml`,
         content: intentResult.entitlements,
         type: "entitlements",
       });
     }
     files.push({
-      path: `Tests/${name}IntentTests.swift`,
-      content: generateIntentTest(name, params),
+      path: `Tests/${withSuffix(intentName, "Intent")}Tests.swift`,
+      content: generateIntentTest(intentName, params),
       type: "test",
     });
     diagnostics.push(...intentResult.diagnostics);
@@ -112,17 +127,18 @@ export function generateFeature(input: FeatureInput): FeatureResult {
 
   // --- Widget surface ---
   if (surfaces.includes("widget")) {
-    const widgetResult = buildWidget(name, input.description, domain, params);
+    const widgetName = withoutSuffix(name, "Widget");
+    const widgetResult = buildWidget(widgetName, input.description, domain, params);
     if (widgetResult.swift) {
       files.push({
-        path: `Sources/Widgets/${name}Widget.swift`,
+        path: `Sources/Widgets/${withSuffix(widgetName, "Widget")}.swift`,
         content: widgetResult.swift,
         type: "swift",
       });
     }
     files.push({
-      path: `Tests/${name}WidgetTests.swift`,
-      content: generateWidgetTest(name),
+      path: `Tests/${withSuffix(widgetName, "Widget")}Tests.swift`,
+      content: generateWidgetTest(widgetName),
       type: "test",
     });
     diagnostics.push(...widgetResult.diagnostics);
@@ -130,20 +146,34 @@ export function generateFeature(input: FeatureInput): FeatureResult {
 
   // --- View surface ---
   if (surfaces.includes("view")) {
-    const viewResult = buildView(name, input.description, params);
+    const viewName = withSuffix(withoutSuffix(name, "View"), "View");
+    const viewResult = buildView(
+      viewName,
+      input.description,
+      params,
+      input.platform,
+      input.tokenNamespace
+    );
     if (viewResult.swift) {
       files.push({
-        path: `Sources/Views/${name}View.swift`,
+        path: `Sources/Views/${viewName}.swift`,
         content: viewResult.swift,
         type: "swift",
       });
     }
+    files.push({
+      path: `Tests/${viewName}Tests.swift`,
+      content: generateViewTest(viewName),
+      type: "test",
+    });
     diagnostics.push(...viewResult.diagnostics);
   }
 
   // --- Domain-level entitlements ---
   if (
     domain &&
+    surfaces.includes("intent") &&
+    shouldEmitArtifacts &&
     DOMAIN_ENTITLEMENTS[domain] &&
     !files.some((f) => f.type === "entitlements")
   ) {
@@ -155,7 +185,13 @@ export function generateFeature(input: FeatureInput): FeatureResult {
   }
 
   // --- Domain-level plist ---
-  if (domain && DOMAIN_PLIST_KEYS[domain] && !files.some((f) => f.type === "plist")) {
+  if (
+    domain &&
+    surfaces.includes("intent") &&
+    shouldEmitArtifacts &&
+    DOMAIN_PLIST_KEYS[domain] &&
+    !files.some((f) => f.type === "plist")
+  ) {
     files.push({
       path: `Sources/Supporting/Info.plist.fragment.xml`,
       content: buildPlistXml(DOMAIN_PLIST_KEYS[domain]),
@@ -169,9 +205,11 @@ export function generateFeature(input: FeatureInput): FeatureResult {
   const testCount = files.filter((f) => f.type === "test").length;
 
   const summary = [
-    `Generated ${fileCount} Swift file${fileCount !== 1 ? "s" : ""} + ${testCount} test${testCount !== 1 ? "s" : ""} for "${name}"`,
+    `Generated scaffold: ${fileCount} Swift file${fileCount !== 1 ? "s" : ""} + ${testCount} test${testCount !== 1 ? "s" : ""} for "${name}"`,
     `Surfaces: ${surfaceList}`,
+    input.platform ? `Platform: ${input.platform}` : null,
     domain ? `Domain: ${domain}` : null,
+    `Note: perform() bodies and app-specific UI logic are starter scaffolds; fill the real product behavior before shipping.`,
     `Files:`,
     ...files.map((f) => `  ${f.path} (${f.type})`),
   ]
@@ -194,11 +232,13 @@ function buildIntent(
   name: string,
   description: string,
   domain: string | undefined,
-  params: Record<string, string>
+  params: Record<string, string>,
+  shouldEmitArtifacts: boolean
 ): SurfaceOutput {
   const irParams = paramsToIR(params);
-  const entitlements = domain ? DOMAIN_ENTITLEMENTS[domain] : undefined;
-  const plistKeys = domain ? DOMAIN_PLIST_KEYS[domain] : undefined;
+  const entitlements =
+    domain && shouldEmitArtifacts ? DOMAIN_ENTITLEMENTS[domain] : undefined;
+  const plistKeys = domain && shouldEmitArtifacts ? DOMAIN_PLIST_KEYS[domain] : undefined;
 
   const ir: IRIntent = {
     name,
@@ -243,32 +283,26 @@ function buildWidget(
   params: Record<string, string>
 ): SurfaceOutput {
   const entries: IRWidgetEntry[] = Object.entries(params)
+    .filter(([entryName]) => entryName !== "date")
     .slice(0, 4) // widgets get a subset of params as timeline entries
     .map(([entryName, typeStr]) => ({
       name: entryName,
       type: toIRType(typeStr),
     }));
 
-  // always include date for timeline
-  if (!entries.some((e) => e.name === "date")) {
-    entries.unshift({
-      name: "date",
-      type: { kind: "primitive", value: "date" },
-    });
-  }
-
   const families: WidgetFamily[] = ["systemSmall", "systemMedium"];
+  const widgetName = withoutSuffix(name, "Widget");
 
   const ir: IRWidget = {
-    name: `${name}Widget`,
-    displayName: humanize(name),
+    name: widgetName,
+    displayName: humanize(widgetName),
     description,
     families,
     entry: entries,
     body: [
       {
         kind: "raw",
-        swift: buildWidgetBody(name, entries),
+        swift: buildWidgetBody(widgetName, entries),
       },
     ],
     refreshPolicy: "atEnd",
@@ -298,24 +332,43 @@ function buildWidget(
 
 function buildView(
   name: string,
-  _description: string,
-  params: Record<string, string>
+  description: string,
+  params: Record<string, string>,
+  platform: FeatureInput["platform"] = "all",
+  tokenNamespace?: string
 ): SurfaceOutput {
   const state: IRViewState[] = Object.entries(params).map(([propName, typeStr]) => ({
-    name: propName,
+    name: reservedViewPropertyName(propName),
     type: toIRType(typeStr),
     kind: "state" as const,
     defaultValue: defaultForType(typeStr),
   }));
 
+  if (usesProfileCardBlueprint(description)) {
+    state.push(
+      {
+        name: "swipeOffset",
+        type: { kind: "primitive", value: "double" },
+        kind: "state",
+        defaultValue: 0,
+      },
+      {
+        name: "lastAction",
+        type: { kind: "primitive", value: "string" },
+        kind: "state",
+        defaultValue: "Ready to swipe",
+      }
+    );
+  }
+
   const ir: IRView = {
-    name: `${name}View`,
+    name,
     props: [],
     state,
     body: [
       {
         kind: "raw",
-        swift: buildViewBody(name, state),
+        swift: buildViewBody(name, description, state, platform, tokenNamespace),
       },
     ],
     sourceFile: "<feature>",
@@ -387,6 +440,19 @@ final class ${name}WidgetTests: XCTestCase {
 `;
 }
 
+function generateViewTest(name: string): string {
+  return `import XCTest
+import SwiftUI
+
+final class ${name}Tests: XCTestCase {
+    func test${name}CanBeInstantiated() {
+        let view = ${name}()
+        XCTAssertNotNil(view)
+    }
+}
+`;
+}
+
 // ─── Inference helpers ──────────────────────────────────────────────
 
 const DOMAIN_KEYWORDS: Record<string, string[]> = {
@@ -403,6 +469,22 @@ const DOMAIN_KEYWORDS: Record<string, string[]> = {
     "weight",
     "medication",
     "vitamin",
+  ],
+  social: [
+    "dating",
+    "date",
+    "match",
+    "matches",
+    "swipe",
+    "profile",
+    "swolemate",
+    "swolemates",
+    "tinder",
+    "bumble",
+    "social",
+    "friend",
+    "community",
+    "connection",
   ],
   messaging: ["message", "chat", "send", "text", "email", "sms", "contact"],
   "smart-home": [
@@ -446,8 +528,8 @@ function inferDomain(description: string): string | undefined {
   let bestDomain: string | undefined;
   let bestScore = 0;
 
-  for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
-    const score = keywords.filter((kw) => lower.includes(kw)).length;
+  for (const domain of Object.keys(DOMAIN_KEYWORDS)) {
+    const score = domainScore(domain, lower);
     if (score > bestScore) {
       bestScore = score;
       bestDomain = domain;
@@ -455,6 +537,33 @@ function inferDomain(description: string): string | undefined {
   }
 
   return bestScore > 0 ? bestDomain : undefined;
+}
+
+function resolveDomain(
+  description: string,
+  explicitDomain: string | undefined
+): string | undefined {
+  const inferredDomain = inferDomain(description);
+  if (!explicitDomain) return inferredDomain;
+  if (!inferredDomain || inferredDomain === explicitDomain) return explicitDomain;
+
+  const lower = description.toLowerCase();
+  const explicitScore = domainScore(explicitDomain, lower);
+  const inferredScore = domainScore(inferredDomain, lower);
+
+  // A strongly specific description should beat a stale caller-supplied domain.
+  // Example: "dating profile card" with domain "health" is a social feature,
+  // even if it contains a word like "workout" in the profile copy.
+  if (inferredScore >= 2 && inferredScore > explicitScore) {
+    return inferredDomain;
+  }
+
+  return explicitDomain;
+}
+
+function domainScore(domain: string, lowerDescription: string): number {
+  const keywords = DOMAIN_KEYWORDS[domain] ?? [];
+  return keywords.filter((kw) => lowerDescription.includes(kw)).length;
 }
 
 function inferName(description: string): string {
@@ -476,6 +585,7 @@ function inferName(description: string): string {
 
 const PARAM_PATTERNS: Record<string, Record<string, string>> = {
   health: { type: "string", duration: "duration", calories: "int" },
+  social: { profileName: "string", profileId: "string" },
   messaging: { recipient: "string", body: "string" },
   navigation: { destination: "string", mode: "string" },
   finance: { amount: "double", category: "string", currency: "string" },
@@ -485,8 +595,21 @@ const PARAM_PATTERNS: Record<string, Record<string, string>> = {
   "smart-home": { device: "string", value: "string" },
 };
 
-function inferParams(description: string): Record<string, string> {
-  const domain = inferDomain(description);
+function inferParams(
+  description: string,
+  domain: string | undefined,
+  surfaces: Surface[]
+): Record<string, string> {
+  if (
+    surfaces.length === 1 &&
+    surfaces.includes("intent") &&
+    isReadOnlyQuery(description)
+  ) {
+    return {};
+  }
+  if (domain === "social") {
+    return inferSocialParams(description);
+  }
   if (domain && PARAM_PATTERNS[domain]) {
     return { ...PARAM_PATTERNS[domain] };
   }
@@ -501,7 +624,7 @@ function paramsToIR(params: Record<string, string>): IRParameter[] {
     name,
     type: toIRType(typeStr),
     title: humanize(name),
-    description: "",
+    description: humanize(name),
     isOptional: false,
   }));
 }
@@ -515,7 +638,80 @@ function toIRType(typeStr: string): IRType {
 }
 
 function humanize(pascal: string): string {
-  return pascal.replace(/([A-Z])/g, " $1").trim();
+  return pascal
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\bId\b/g, "ID")
+    .replace(/\bUrl\b/g, "URL")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function withoutSuffix(name: string, suffix: string): string {
+  return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
+}
+
+function withSuffix(name: string, suffix: string): string {
+  return name.endsWith(suffix) ? name : `${name}${suffix}`;
+}
+
+function inferSocialParams(description: string): Record<string, string> {
+  const lower = description.toLowerCase();
+  if (
+    /\b(profile|card|photo|bio|age|swipe|dating)\b/.test(lower) ||
+    lower.includes("workout preferences")
+  ) {
+    return {
+      photoURL: "url",
+      name: "string",
+      age: "int",
+      bio: "string",
+      workoutPreferences: "string",
+    };
+  }
+
+  if (/\b(match|matches|swolemate|swolemates)\b/.test(lower)) {
+    return { profileName: "string", profileId: "string" };
+  }
+
+  return { ...PARAM_PATTERNS.social };
+}
+
+function isReadOnlyQuery(description: string): boolean {
+  const lower = description.toLowerCase();
+  const hasQueryVerb = /\b(check|show|display|view|see|count|summarize|list)\b/.test(
+    lower
+  );
+  const hasInputVerb = /\b(log|add|create|send|set|update|save|record|book|order)\b/.test(
+    lower
+  );
+  return hasQueryVerb && !hasInputVerb;
+}
+
+function shouldEmitDomainArtifacts(
+  domain: string | undefined,
+  description: string
+): boolean {
+  if (!domain) return false;
+  if (domain !== "health") return true;
+
+  const lower = description.toLowerCase();
+  return [
+    "health",
+    "healthkit",
+    "workout",
+    "exercise",
+    "step",
+    "calorie",
+    "heart",
+    "sleep",
+    "water",
+    "hydration",
+    "weight",
+    "medication",
+    "vitamin",
+  ].some((kw) => lower.includes(kw));
 }
 
 function defaultForType(typeStr: string): unknown {
@@ -529,6 +725,12 @@ function defaultForType(typeStr: string): unknown {
       return 0.0;
     case "boolean":
       return false;
+    case "duration":
+      return 0;
+    case "date":
+      return "Date()";
+    case "url":
+      return "https://example.com";
     default:
       return "";
   }
@@ -570,7 +772,22 @@ ${fields || '            Text("—")'}
         .padding()`;
 }
 
-function buildViewBody(name: string, state: IRViewState[]): string {
+function buildViewBody(
+  name: string,
+  description: string,
+  state: IRViewState[],
+  platform: FeatureInput["platform"],
+  tokenNamespace?: string
+): string {
+  const blueprint = buildSmartViewBody({
+    name,
+    description,
+    state,
+    platform,
+    tokenNamespace,
+  });
+  if (blueprint) return blueprint;
+
   const fields = state
     .map((s) => {
       if (s.type.kind === "primitive" && s.type.value === "boolean") {
@@ -580,12 +797,18 @@ function buildViewBody(name: string, state: IRViewState[]): string {
     })
     .join("\n");
 
-  return `NavigationStack {
-            VStack(spacing: 16) {
+  const content = `VStack(spacing: 16) {
 ${fields || '                Text("Hello")'}
             }
-            .padding()
-            .navigationTitle("${humanize(name)}")
+            .padding()`;
+
+  if (platform === "macOS") {
+    return content;
+  }
+
+  return `NavigationStack {
+            ${content}
+                .navigationTitle("${humanize(name)}")
         }`;
 }
 

@@ -10,6 +10,23 @@ npx -y -p @axint/compiler axint xcode setup
 
 This detects your Xcode version, configures Claude Code and Codex to use Axint as an MCP server, and verifies the connection. Run `axint xcode verify` afterward to confirm everything works.
 
+If you are using Xcode's built-in Intelligence panel with Claude Agent, use the
+setup command above instead of pasting the raw MCP command into the chat. Xcode
+starts agents with a restricted `PATH`, so Axint writes a Claude Agent config
+with absolute Node and Axint MCP paths:
+
+```text
+~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/.claude.json
+```
+
+After setup, restart the Xcode agent session and ask:
+
+```text
+What MCP servers are available?
+```
+
+You should see both `xcode-tools` and `axint`.
+
 ## MCP for Xcode Agentic Coding
 
 Xcode 26.3+ supports agentic coding with external agents via MCP. Axint adds specialized Apple-native feature generation on top of Xcode's built-in workspace/build/test tools.
@@ -20,13 +37,13 @@ Xcode 26.3+ supports agentic coding with external agents via MCP. Axint adds spe
 ### For Claude Code
 
 ```bash
-claude mcp add --transport stdio axint -- npx -y @axint/compiler axint-mcp
+claude mcp add --transport stdio axint -- npx -y -p @axint/compiler axint-mcp
 ```
 
 ### For Codex CLI
 
 ```bash
-codex mcp add axint -- npx -y @axint/compiler axint-mcp
+codex mcp add axint -- npx -y -p @axint/compiler axint-mcp
 ```
 
 ### Remote MCP (no local Node.js required)
@@ -48,7 +65,7 @@ codex mcp add axint -- npx -y @axint/compiler axint-mcp
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": ["-y", "@axint/compiler", "axint-mcp"]
+      "args": ["-y", "-p", "@axint/compiler", "axint-mcp"]
     }
   }
 }
@@ -58,27 +75,27 @@ codex mcp add axint -- npx -y @axint/compiler axint-mcp
 
 Once connected, agents gain 11 specialized tools plus 3 built-in prompts:
 
-| Tool | What it does |
-|------|-------------|
-| `axint.feature` | Generate a complete Apple-native feature package from a description |
-| `axint.suggest` | Suggest Apple-native features for an app domain |
-| `axint.scaffold` | Generate a starter TypeScript intent file |
-| `axint.compile` | Compile TypeScript → validated Swift |
-| `axint.validate` | Validate without code generation |
-| `axint.fix-packet` | Fetch the latest repair packet for AI and Xcode workflows |
-| `axint.schema.compile` | Compile minimal JSON → Swift (token-optimized) |
-| `axint.swift.validate` | Validate existing Swift against Axint's build-time rules |
-| `axint.swift.fix` | Auto-fix mechanical Swift validator errors |
-| `axint.templates.list` | List bundled reference templates |
-| `axint.templates.get` | Get a specific template's source |
+| Tool                   | What it does                                                        |
+| ---------------------- | ------------------------------------------------------------------- |
+| `axint.feature`        | Generate a complete Apple-native feature package from a description |
+| `axint.suggest`        | Suggest Apple-native features for an app domain                     |
+| `axint.scaffold`       | Generate a starter TypeScript intent file                           |
+| `axint.compile`        | Compile TypeScript → validated Swift                                |
+| `axint.validate`       | Validate without code generation                                    |
+| `axint.fix-packet`     | Fetch the latest repair packet for AI and Xcode workflows           |
+| `axint.schema.compile` | Compile minimal JSON → Swift (token-optimized)                      |
+| `axint.swift.validate` | Validate existing Swift against Axint's build-time rules            |
+| `axint.swift.fix`      | Auto-fix mechanical Swift validator errors                          |
+| `axint.templates.list` | List bundled reference templates                                    |
+| `axint.templates.get`  | Get a specific template's source                                    |
 
 Built-in prompts:
 
-| Prompt | What it does |
-|------|-------------|
-| `axint.quick-start` | Get a quick-start guide for the current project |
-| `axint.create-intent` | Start a new intent from guided parameters |
-| `axint.create-widget` | Start a new widget from guided parameters |
+| Prompt                | What it does                                    |
+| --------------------- | ----------------------------------------------- |
+| `axint.quick-start`   | Get a quick-start guide for the current project |
+| `axint.create-intent` | Start a new intent from guided parameters       |
+| `axint.create-widget` | Start a new widget from guided parameters       |
 
 ### Composition with Xcode MCP
 

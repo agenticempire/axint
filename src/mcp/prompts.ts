@@ -50,7 +50,7 @@ export const PROMPT_MANIFEST = [
       {
         name: "domain",
         description:
-          "Apple domain: messaging, productivity, health, finance, " +
+          "Apple domain: messaging, productivity, health, social, finance, " +
           "commerce, media, navigation, smart-home. Omit if none apply.",
         required: false,
       },

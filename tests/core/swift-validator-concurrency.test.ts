@@ -67,7 +67,9 @@ describe("swift concurrency — AX722 @Observable needs @MainActor", () => {
       }
     `;
     const { diagnostics } = validate(source);
-    expect(diagnostics.map((d) => d.code)).toContain("AX722");
+    const diagnostic = diagnostics.find((d) => d.code === "AX722");
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic!.severity).toBe("warning");
   });
 
   it("accepts @MainActor @Observable", () => {

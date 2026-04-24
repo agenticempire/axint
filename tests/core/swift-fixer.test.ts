@@ -64,6 +64,43 @@ describe("swift fixer — AppIntent injections", () => {
     expect(result.source).toContain("static var title: LocalizedStringResource");
     expect(result.fixed.some((d) => d.code === "AX704")).toBe(true);
   });
+
+  it("rewrites static let title instead of adding a duplicate title", () => {
+    const source = `
+      import AppIntents
+
+      struct LogEvent: AppIntent {
+          static let title: LocalizedStringResource = "Log Event"
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    const result = fix(source);
+    expect(result.source).toContain(
+      'static var title: LocalizedStringResource = "Log Event"'
+    );
+    expect(result.source).not.toContain("static let title");
+    expect(result.source.match(/\bstatic\s+(?:let|var)\s+title\b/g)).toHaveLength(1);
+    expect(result.remaining.filter((d) => d.code === "AX704")).toHaveLength(0);
+  });
+
+  it("preserves the title value when fixing static let plus missing perform", () => {
+    const source = `
+      import AppIntents
+
+      struct TestIntent: AppIntent {
+          static let title: LocalizedStringResource = "Test"
+      }
+    `;
+    const result = fix(source);
+    expect(result.source).toContain('static var title: LocalizedStringResource = "Test"');
+    expect(result.source).not.toContain(
+      'static var title: LocalizedStringResource = "Intent"'
+    );
+    expect(result.source).not.toContain("static let title");
+    expect(result.source).toContain("func perform()");
+    expect(result.source.match(/\bstatic\s+(?:let|var)\s+title\b/g)).toHaveLength(1);
+    expect(result.remaining.filter((d) => d.code === "AX704")).toHaveLength(0);
+  });
 });
 
 describe("swift fixer — Widget / App / TimelineEntry injections", () => {
