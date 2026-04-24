@@ -5,12 +5,12 @@
 </p>
 
 <p align="center">
-  <strong>Axint turns TypeScript and Python into validated Swift for Apple-native features.</strong>
+  <strong>Axint is the compiler and repair loop for agent-built Apple-native software.</strong>
 </p>
 
 <p align="center">
-  Open-source compiler for App Intents, SwiftUI views, WidgetKit widgets, and full apps.<br>
-  Compact definitions in, validated Swift out.
+  Author in TypeScript, Python, or the preview <code>.axint</code> surface.<br>
+  Emit ordinary Swift, validate Apple-specific rules, and hand agents a repair packet when something needs work.
 </p>
 
 <p align="center">
@@ -32,6 +32,38 @@
 
 ---
 
+## The loop
+
+Axint exists because Apple-native software is becoming a set of structured system
+capabilities: App Intents, Siri, Shortcuts, Spotlight, widgets, SwiftUI views,
+privacy copy, entitlements, and generated metadata.
+
+General coding agents can produce Swift. Axint makes them operate through a
+smaller contract, validates the Apple-specific parts, and writes a repair
+artifact the next agent run can use.
+
+```
+feature definition
+  → Axint IR
+  → Swift + plist + entitlements
+  → local or Cloud Check verdict
+  → Fix Packet
+  → agent repair
+  → rerun
+```
+
+The compiler is useful on its own. Registry and Cloud extend the same workflow:
+
+- **Compiler** — open-source TypeScript/Python/preview `.axint` to Apple-native Swift.
+- **Fix Packet** — `latest.check.*` for the quick verdict, `latest.*` for the full repair contract.
+- **MCP** — agents call compile, validate, fix, schema compile, templates, and packet tools directly.
+- **Registry** — install reusable Apple capabilities with source, compiler metadata, and package details attached.
+- **Cloud Check** — hosted validation and repair guidance when a team wants a URL, history, or shareable result.
+
+[Read the thesis](https://axint.ai/thesis) · [Open proof](https://axint.ai/proof) · [View Fix Packet](https://axint.ai/fix-packet)
+
+---
+
 ## License and trademarks
 
 Axint is open-source software licensed under Apache-2.0. The Axint name,
@@ -45,9 +77,18 @@ names and branding. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
 
 ## Why Axint
 
-Apple's API surfaces — App Intents, SwiftUI, WidgetKit — are verbose. A single widget needs a TimelineEntry, a TimelineProvider, an EntryView, and a Widget struct before you've written a line of business logic. AI coding agents pay per token, and all that boilerplate adds up fast.
+Apple's API surfaces — App Intents, SwiftUI, WidgetKit — are verbose and
+contract-heavy. A single widget needs a TimelineEntry, a TimelineProvider, an
+EntryView, and a Widget struct before you've written a line of business logic.
+An App Intent needs parameters, metadata, privacy assumptions, and Swift that
+fits Apple's expectations.
 
-Axint compresses it. One `defineIntent()` call replaces 50–200 lines of Swift. One `defineWidget()` replaces an entire WidgetKit stack. The compiler handles the struct conformances, the `@Parameter` wrappers, the `LocalizedStringResource` literals — everything an agent would otherwise have to generate token by token.
+Axint gives agents and developers a smaller authoring surface. One
+`defineIntent()` call can replace the intent boilerplate an agent would otherwise
+regenerate token by token. One `defineWidget()` can replace the WidgetKit stack.
+The compiler handles the struct conformances, `@Parameter` wrappers,
+`LocalizedStringResource` literals, plist fragments, entitlements, diagnostics,
+and repair artifacts around the generated Swift.
 
 Four surfaces, one pipeline:
 
@@ -58,7 +99,10 @@ defineWidget()  →  WidgetKit widget
 defineApp()     →  Full app scaffold
 ```
 
-The result: teams and AI tools can author Apple-native features in a much smaller surface than hand-written Swift, then validate and ship ordinary generated Swift.
+The result: teams and AI tools can author Apple-native features in a smaller
+surface than hand-written Swift, inspect ordinary generated Swift when it
+matters, then use Axint Check and Fix Packets to keep the repair loop grounded in
+the same facts.
 
 ---
 
