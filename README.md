@@ -214,7 +214,7 @@ axint compile my-app.ts --out ios/App/
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.2 · 13 MCP tools + 3 prompts · 173 diagnostic codes · 1025 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.3 · 13 MCP tools + 4 prompts · 173 diagnostic codes · 1026 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -275,6 +275,7 @@ Built-in prompts:
 
 | Prompt | What it does |
 | --- | --- |
+| `axint.project-start` | Start an Xcode/Apple project by reading the docs, verifying MCP, and establishing the check/fix loop |
 | `axint.quick-start` | Get a quick-start guide |
 | `axint.create-intent` | Start a new intent from guided parameters |
 | `axint.create-widget` | Start a new widget from guided parameters |
@@ -301,7 +302,7 @@ Diagnostic codes across the validator surface with fix suggestions and color-cod
 | `AX720`–`AX735` | Swift 6 concurrency |
 | `AX740`–`AX749` | Live Activities |
 
-```
+```text
 error[AX100]: Intent name "sendMessage" must be PascalCase
   --> src/intents/messaging.ts:5:9
    = help: rename to "SendMessage"
@@ -341,7 +342,7 @@ Extensions for [Claude Code](extensions/claude-code), [Claude Desktop](extension
 
 ## Project structure
 
-```
+```text
 axint/
 ├── src/
 │   ├── core/        # Parser, validator, generator, compiler, IR

@@ -40,22 +40,48 @@ export function registerCloud(program: Command) {
   cloud
     .command("check")
     .description("Run an agent-callable Cloud Check against a source file")
-    .requiredOption("--source <file>", "Swift or Axint TypeScript source file to check")
+    .argument("[file]", "Swift or Axint TypeScript source file to check")
+    .option("--source <file>", "Swift or Axint TypeScript source file to check")
     .option(
       "--format <format>",
-      "Output format (markdown, json, prompt)",
+      "Output format (markdown, json, prompt, feedback)",
       (value) => parseCloudCheckFormat(value),
       "markdown" as CloudCheckFormat
     )
-    .action((options: { source: string; format: CloudCheckFormat }) => {
-      try {
-        const report = runCloudCheck({ sourcePath: options.source });
-        console.log(renderCloudCheckReport(report, options.format));
-      } catch (err: unknown) {
-        console.error(`\x1b[31merror:\x1b[0m ${(err as Error).message ?? err}`);
-        process.exit(1);
+    .option("--json", "Shortcut for --format json")
+    .option("--prompt", "Shortcut for --format prompt")
+    .option("--feedback", "Print only the privacy-preserving compiler feedback signal")
+    .action(
+      (
+        file: string | undefined,
+        options: {
+          source?: string;
+          format: CloudCheckFormat;
+          json?: boolean;
+          prompt?: boolean;
+          feedback?: boolean;
+        }
+      ) => {
+        try {
+          const sourcePath = options.source ?? file;
+          if (!sourcePath) {
+            throw new Error("Cloud Check requires a file path or --source <file>.");
+          }
+          const format = options.feedback
+            ? "feedback"
+            : options.prompt
+              ? "prompt"
+              : options.json
+                ? "json"
+                : options.format;
+          const report = runCloudCheck({ sourcePath });
+          console.log(renderCloudCheckReport(report, format));
+        } catch (err: unknown) {
+          console.error(`\x1b[31merror:\x1b[0m ${(err as Error).message ?? err}`);
+          process.exit(1);
+        }
       }
-    });
+    );
 
   cloud
     .command("login")
@@ -123,7 +149,12 @@ export function registerCloud(program: Command) {
 }
 
 function parseCloudCheckFormat(value: string): CloudCheckFormat {
-  if (value === "markdown" || value === "json" || value === "prompt") {
+  if (
+    value === "markdown" ||
+    value === "json" ||
+    value === "prompt" ||
+    value === "feedback"
+  ) {
     return value;
   }
   throw new Error(`invalid Cloud Check format: ${value}`);

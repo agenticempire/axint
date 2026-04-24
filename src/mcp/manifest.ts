@@ -360,7 +360,8 @@ export const TOOL_MANIFEST = [
     description:
       "Run an agent-callable Cloud Check against Swift or Axint TypeScript source. " +
       "Accepts inline source or a sourcePath, then returns a Cloud-style verdict, " +
-      "Apple-specific findings, next steps, and an AI repair prompt. This closes " +
+      "Apple-specific findings, next steps, an AI repair prompt, and a redacted " +
+      "compiler feedback signal when the check finds a bug. This closes " +
       "the browser-only gap for Xcode and MCP agents: they can run the check " +
       "programmatically during the build loop. No files are written.",
     annotations: {
@@ -395,9 +396,9 @@ export const TOOL_MANIFEST = [
         },
         format: {
           type: "string",
-          enum: ["markdown", "json", "prompt"],
+          enum: ["markdown", "json", "prompt", "feedback"],
           description:
-            "Output format. markdown returns the report, json returns structured data, prompt returns only the repair prompt.",
+            "Output format. markdown returns the report, json returns structured data, prompt returns only the repair prompt, and feedback returns only the privacy-preserving learning signal.",
         },
       },
     },

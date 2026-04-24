@@ -19,8 +19,13 @@ struct BrokenIntent: AppIntent {
     expect(report.language).toBe("swift");
     expect(report.surface).toBe("intent");
     expect(report.errors).toBeGreaterThan(0);
+    expect(report.learningSignal?.diagnosticCodes).toContain("AX704");
+    expect(report.learningSignal?.redaction).toBe("source_not_included");
     expect(report.repairPrompt).toContain("axint cloud check --source <file>");
     expect(renderCloudCheckReport(report, "markdown")).toContain("Axint Cloud Check");
+    expect(renderCloudCheckReport(report, "markdown")).toContain(
+      "Compiler Feedback Signal"
+    );
   });
 
   it("compiles TypeScript source before producing a Cloud Check report", () => {
@@ -63,5 +68,25 @@ struct ContentView: View {
     const payload = JSON.parse(result.content[0].text);
     expect(payload.status).toBe("pass");
     expect(payload.fileName).toBe("ContentView.swift");
+  });
+
+  it("returns a redacted feedback signal as an MCP output format", async () => {
+    const result = await handleToolCall("axint.cloud.check", {
+      fileName: "BrokenIntent.swift",
+      source: `
+import AppIntents
+
+struct BrokenIntent: AppIntent {
+    static let title: LocalizedStringResource = "Broken"
+}
+`,
+      format: "feedback",
+    });
+
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0].text);
+    expect(payload.fingerprint).toMatch(/^learn-/);
+    expect(payload.redaction).toBe("source_not_included");
+    expect(payload.diagnosticCodes).toContain("AX704");
   });
 });
