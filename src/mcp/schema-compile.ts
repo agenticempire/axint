@@ -29,10 +29,14 @@ import type {
   SceneKind,
 } from "../core/types.js";
 import { isPrimitiveType, isSceneKind } from "../core/types.js";
+import { buildSmartViewBody, reservedViewPropertyName } from "./view-blueprints.js";
 
 export type SchemaCompileArgs = {
-  type: "intent" | "view" | "widget" | "app";
+  type: "intent" | "view" | "widget" | "app" | "component";
   name: string;
+  platform?: Platform | "all";
+  tokenNamespace?: string;
+  componentKind?: string;
   title?: string;
   description?: string;
   domain?: string;
@@ -89,6 +93,8 @@ export async function handleCompileFromSchema(args: SchemaCompileArgs) {
       return handleIntentSchema(args, inputTokens, shouldFormat);
     } else if (args.type === "view") {
       return handleViewSchema(args, inputTokens, shouldFormat);
+    } else if (args.type === "component") {
+      return handleComponentSchema(args, inputTokens, shouldFormat);
     } else if (args.type === "widget") {
       return handleWidgetSchema(args, inputTokens, shouldFormat);
     } else if (args.type === "app") {
@@ -137,17 +143,18 @@ async function handleIntentSchema(
   const parameters: IRParameter[] = [];
   if (args.params) {
     for (const [name, typeStr] of Object.entries(args.params)) {
+      const title = humanizeIdentifier(name);
       parameters.push({
         name,
         type: schemaTypeToIRType(typeStr),
-        title: name.replace(/([A-Z])/g, " $1").trim(),
-        description: "",
+        title,
+        description: title,
         isOptional: false,
       });
     }
   }
 
-  const resolvedTitle = args.title || args.name.replace(/([A-Z])/g, " $1").trim();
+  const resolvedTitle = args.title || humanizeIdentifier(args.name);
   const ir: IRIntent = {
     name: args.name,
     title: resolvedTitle,
@@ -193,7 +200,7 @@ async function handleViewSchema(
   if (args.props) {
     for (const [name, typeStr] of Object.entries(args.props)) {
       props.push({
-        name,
+        name: reservedViewPropertyName(name),
         type: schemaTypeToIRType(typeStr),
         isOptional: false,
       });
@@ -204,7 +211,7 @@ async function handleViewSchema(
   if (args.state) {
     for (const [name, stateConfig] of Object.entries(args.state)) {
       state.push({
-        name,
+        name: reservedViewPropertyName(name),
         type: schemaTypeToIRType(stateConfig.type || "string"),
         kind: "state",
         defaultValue: stateConfig.default,
@@ -217,8 +224,21 @@ async function handleViewSchema(
     props,
     state,
     body: args.body
-      ? [{ kind: "raw", swift: args.body }]
-      : [{ kind: "text", content: "VStack {}" }],
+      ? [{ kind: "raw", swift: normalizeSwiftBody(args.body) }]
+      : [
+          {
+            kind: "raw",
+            swift:
+              buildSmartViewBody({
+                name: args.name,
+                description: args.description,
+                props,
+                state,
+                platform: args.platform,
+                tokenNamespace: args.tokenNamespace,
+              }) ?? "VStack {}",
+          },
+        ],
     sourceFile: "<schema>",
   };
 
@@ -234,6 +254,170 @@ async function handleViewSchema(
   }
 
   return formatSchemaOutput(result.output.swiftCode, inputTokens, shouldFormat);
+}
+
+async function handleComponentSchema(
+  args: SchemaCompileArgs,
+  inputTokens: number,
+  shouldFormat: boolean
+) {
+  if (!args.name) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: "[AX351] error: Component schema requires a 'name' field",
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  const props = buildComponentProps(args);
+  const state = buildComponentState(args);
+  const body =
+    args.body !== undefined
+      ? normalizeSwiftBody(args.body)
+      : (buildSmartViewBody({
+          name: args.name,
+          description: args.description,
+          props,
+          state,
+          platform: args.platform,
+          tokenNamespace: args.tokenNamespace,
+          componentKind: args.componentKind,
+        }) ?? "VStack {}");
+
+  const ir: IRView = {
+    name: stripSurfaceSuffix(args.name, "View"),
+    props,
+    state,
+    body: [{ kind: "raw", swift: body }],
+    sourceFile: "<schema>",
+  };
+
+  const result = compileViewFromIR(ir);
+  if (!result.success || !result.output) {
+    const errorText = result.diagnostics
+      .map((d) => `[${d.code}] ${d.severity}: ${d.message}`)
+      .join("\n");
+    return {
+      content: [{ type: "text" as const, text: errorText }],
+      isError: true,
+    };
+  }
+
+  return formatSchemaOutput(result.output.swiftCode, inputTokens, shouldFormat);
+}
+
+function buildComponentProps(args: SchemaCompileArgs): IRViewProp[] {
+  const props: IRViewProp[] = [];
+  if (args.props) {
+    for (const [name, typeStr] of Object.entries(args.props)) {
+      props.push({
+        name: reservedViewPropertyName(name),
+        type: schemaTypeToIRType(typeStr),
+        isOptional: false,
+        defaultValue: defaultValueForType(typeStr, reservedViewPropertyName(name)),
+      });
+    }
+  }
+
+  if (props.length > 0) return props;
+
+  const kind = inferComponentKind(args);
+  const defaults: Record<string, string> =
+    kind === "avatar"
+      ? { initials: "string", status: "string" }
+      : kind === "statusRing"
+        ? { value: "double", label: "string" }
+        : kind === "missionCard"
+          ? { title: "string", subtitle: "string", progress: "double", status: "string" }
+          : kind === "channelRow"
+            ? { title: "string", unreadCount: "int", isSelected: "boolean" }
+            : kind === "sidebarRail"
+              ? { selectedIndex: "int" }
+              : kind === "profileCard"
+                ? {
+                    photoURL: "url",
+                    name: "string",
+                    age: "int",
+                    bio: "string",
+                    workoutPreferences: "string",
+                  }
+                : { title: "string" };
+
+  return Object.entries(defaults).map(([name, typeStr]) => ({
+    name,
+    type: schemaTypeToIRType(typeStr),
+    isOptional: false,
+    defaultValue: defaultValueForType(typeStr, name),
+  }));
+}
+
+function buildComponentState(args: SchemaCompileArgs): IRViewState[] {
+  const state: IRViewState[] = [];
+  if (args.state) {
+    for (const [name, stateConfig] of Object.entries(args.state)) {
+      state.push({
+        name: reservedViewPropertyName(name),
+        type: schemaTypeToIRType(stateConfig.type || "string"),
+        kind: "state",
+        defaultValue: stateConfig.default,
+      });
+    }
+  }
+
+  if (inferComponentKind(args) === "profileCard") {
+    state.push(
+      {
+        name: "swipeOffset",
+        type: { kind: "primitive", value: "double" },
+        kind: "state",
+        defaultValue: 0,
+      },
+      {
+        name: "lastAction",
+        type: { kind: "primitive", value: "string" },
+        kind: "state",
+        defaultValue: "Ready to swipe",
+      }
+    );
+  }
+
+  return state;
+}
+
+function inferComponentKind(args: SchemaCompileArgs): string {
+  const raw = `${args.componentKind ?? ""} ${args.name} ${args.description ?? ""}`;
+  const lower = raw.replace(/[\s_-]+/g, "").toLowerCase();
+  if (lower.includes("avatar")) return "avatar";
+  if (lower.includes("statusring")) return "statusRing";
+  if (lower.includes("missioncard")) return "missionCard";
+  if (lower.includes("channelrow")) return "channelRow";
+  if (lower.includes("sidebarrail")) return "sidebarRail";
+  if (lower.includes("profilecard") || lower.includes("datingprofile"))
+    return "profileCard";
+  return "custom";
+}
+
+function defaultValueForType(typeStr: string, name: string): unknown {
+  if (typeStr === "int") return name === "age" ? 29 : name === "unreadCount" ? 3 : 0;
+  if (typeStr === "double" || typeStr === "float")
+    return name === "progress" || name === "value" ? 0.72 : 0;
+  if (typeStr === "boolean") return name === "isSelected";
+  if (typeStr === "date") return "Date()";
+  if (typeStr === "duration") return 0;
+  if (typeStr === "url") return "https://example.com/avatar.png";
+  if (name === "initials") return "AE";
+  if (name === "status") return "online";
+  if (name === "label") return "Ready";
+  if (name === "title") return "Mission";
+  if (name === "subtitle") return "Design the agent loop";
+  if (name === "name") return "Alex";
+  if (name === "bio") return "Strength training, early mornings, clean handoffs.";
+  if (name === "workoutPreferences") return "Hypertrophy · Mobility · Coffee walks";
+  return "";
 }
 
 async function handleWidgetSchema(
@@ -267,6 +451,7 @@ async function handleWidgetSchema(
   const entries: IRWidgetEntry[] = [];
   if (args.entry) {
     for (const [name, typeStr] of Object.entries(args.entry)) {
+      if (name === "date") continue;
       entries.push({
         name,
         type: schemaTypeToIRType(typeStr),
@@ -293,13 +478,14 @@ async function handleWidgetSchema(
   }
 
   const ir: IRWidget = {
-    name: args.name,
-    displayName: args.displayName || args.name.replace(/([A-Z])/g, " $1").trim(),
+    name: stripSurfaceSuffix(args.name, "Widget"),
+    displayName:
+      args.displayName || humanizeIdentifier(stripSurfaceSuffix(args.name, "Widget")),
     description: args.description || "",
     families,
     entry: entries,
     body: args.body
-      ? [{ kind: "raw", swift: args.body }]
+      ? [{ kind: "raw", swift: normalizeSwiftBody(args.body) }]
       : [{ kind: "text", content: "Hello" }],
     refreshInterval: args.refreshInterval,
     refreshPolicy,
@@ -318,6 +504,26 @@ async function handleWidgetSchema(
   }
 
   return formatSchemaOutput(result.output.swiftCode, inputTokens, shouldFormat);
+}
+
+function normalizeSwiftBody(body: string): string {
+  return body.replace(/\\n/g, "\n").replace(/\\t/g, "    ");
+}
+
+function stripSurfaceSuffix(name: string, suffix: string): string {
+  return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
+}
+
+function humanizeIdentifier(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Za-z])(\d)/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\bId\b/g, "ID")
+    .replace(/\bUrl\b/g, "URL")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 async function handleAppSchema(
@@ -371,7 +577,7 @@ async function handleAppSchema(
   }
 
   const ir: IRApp = {
-    name: args.name,
+    name: stripSurfaceSuffix(args.name, "App"),
     scenes,
     sourceFile: "<schema>",
   };

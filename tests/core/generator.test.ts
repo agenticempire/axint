@@ -102,7 +102,8 @@ describe("generateSwift", () => {
 
   it("generates static title and description", () => {
     const swift = generateSwift(SIMPLE_INTENT);
-    expect(swift).toContain('static let title: LocalizedStringResource = "Send Message"');
+    expect(swift).toContain('static var title: LocalizedStringResource = "Send Message"');
+    expect(swift).toContain("static var description: IntentDescription");
     expect(swift).toContain('IntentDescription("Sends a message to a contact")');
   });
 

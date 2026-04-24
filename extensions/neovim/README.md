@@ -39,5 +39,5 @@ require("codecompanion").setup({
 Any Neovim plugin that spawns an MCP server over stdio can connect using:
 
 ```
-npx -y @axint/compiler axint-mcp
+npx -y -p @axint/compiler axint-mcp
 ```

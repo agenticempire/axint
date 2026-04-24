@@ -177,6 +177,18 @@ describe("swift validator — AX704 AppIntent.title", () => {
       0
     );
   });
+
+  it("explains static let title as a let-vs-var mismatch", () => {
+    const source = `
+      struct LogEvent: AppIntent {
+          static let title: LocalizedStringResource = "Log Event"
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX704");
+    expect(diagnostic?.message).toContain("static let");
+    expect(diagnostic?.suggestion).toContain("keep the existing title value");
+  });
 });
 
 // ─── AX705–AX707: TimelineProvider methods ──────────────────────────
@@ -313,6 +325,19 @@ describe("swift validator — AX713 TimelineEntry.date", () => {
       }
     `;
     expect(validate(source).diagnostics).toHaveLength(0);
+  });
+
+  it("flags a TimelineEntry with duplicate date fields", () => {
+    const source = `
+      import WidgetKit
+
+      struct Entry: TimelineEntry {
+          let date: Date
+          let date: Date
+          let value: Int
+      }
+    `;
+    expect(validate(source).diagnostics.some((d) => d.code === "AX750")).toBe(true);
   });
 });
 
@@ -503,5 +528,20 @@ describe("swift validator — AX719 missing @Parameter on AppIntent inputs", () 
     expect(validate(source).diagnostics.filter((d) => d.code === "AX719")).toHaveLength(
       0
     );
+  });
+
+  it("flags @State inside AppIntent even when initialized", () => {
+    const source = `
+      import AppIntents
+      import SwiftUI
+
+      struct TrailCheck: AppIntent {
+          static var title: LocalizedStringResource = "Trail Check"
+          @State var trailName: String = ""
+          func perform() async throws -> some IntentResult { .result() }
+      }
+    `;
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX719");
+    expect(diagnostic?.message).toContain("uses @State");
   });
 });

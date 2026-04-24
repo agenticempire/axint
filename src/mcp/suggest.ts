@@ -30,6 +30,57 @@ interface DomainFeatureSet {
 
 const FEATURE_CATALOG: DomainFeatureSet[] = [
   {
+    domain: "social",
+    keywords: [
+      "dating",
+      "date",
+      "match",
+      "matches",
+      "swipe",
+      "profile",
+      "swolemate",
+      "swolemates",
+      "tinder",
+      "bumble",
+      "social",
+      "friend",
+      "community",
+      "connection",
+      "gym people",
+      "fitness dating",
+    ],
+    features: [
+      {
+        name: "Check Matches via Siri",
+        description: "Let users ask Siri how many new matches are waiting.",
+        surfaces: ["intent", "widget"],
+        complexity: "low",
+        featurePrompt: "Let users check how many dating matches they have via Siri",
+      },
+      {
+        name: "New Match Widget",
+        description: "Home screen widget showing new matches and profile highlights.",
+        surfaces: ["widget"],
+        complexity: "low",
+        featurePrompt: "Show new dating matches on a home screen widget",
+      },
+      {
+        name: "Open Profile Shortcut",
+        description: "Shortcut that jumps directly to a matched profile by name.",
+        surfaces: ["intent"],
+        complexity: "medium",
+        featurePrompt: "Let users open a matched dating profile by name via Siri",
+      },
+      {
+        name: "Profile Queue View",
+        description: "SwiftUI view for reviewing suggested profiles and match status.",
+        surfaces: ["view"],
+        complexity: "medium",
+        featurePrompt: "Create a profile queue view for suggested dating matches",
+      },
+    ],
+  },
+  {
     domain: "health",
     keywords: [
       "health",
@@ -433,15 +484,16 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   const limit = input.limit || 5;
   const lower = input.appDescription.toLowerCase();
   const explicitDomain = input.domain?.toLowerCase();
+  const strongestDescriptionScore = Math.max(
+    ...FEATURE_CATALOG.map((ds) => keywordScore(lower, ds.keywords))
+  );
 
   // score each domain by keyword matches
   const domainScores = FEATURE_CATALOG.map((ds) => {
-    let score = 0;
-    if (explicitDomain === ds.domain) score += 10;
-    for (const kw of ds.keywords) {
-      if (lower.includes(kw)) score += 1;
-    }
-    return { ...ds, score };
+    const appScore = keywordScore(lower, ds.keywords);
+    const explicitBoost =
+      explicitDomain === ds.domain && strongestDescriptionScore < 2 ? 2 : 0;
+    return { ...ds, score: appScore + explicitBoost };
   })
     .filter((ds) => ds.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -471,4 +523,8 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   }
 
   return suggestions;
+}
+
+function keywordScore(text: string, keywords: string[]): number {
+  return keywords.filter((kw) => text.includes(kw)).length;
 }

@@ -643,7 +643,8 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
   AX704: {
     code: "AX704",
     severity: "error",
-    message: "AppIntent is missing static var title: LocalizedStringResource",
+    message:
+      "AppIntent title must be declared as static var title: LocalizedStringResource",
     category: "swift-validator",
   },
   AX705: {
@@ -700,6 +701,12 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "TimelineEntry is missing 'let date: Date'",
     category: "swift-validator",
   },
+  AX750: {
+    code: "AX750",
+    severity: "error",
+    message: "TimelineEntry declares duplicate 'let date: Date' properties",
+    category: "swift-validator",
+  },
   AX714: {
     code: "AX714",
     severity: "error",
@@ -753,7 +760,7 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
   },
   AX722: {
     code: "AX722",
-    severity: "error",
+    severity: "warning",
     message: "@Observable class with UI state should be annotated @MainActor",
     category: "swift-concurrency",
   },

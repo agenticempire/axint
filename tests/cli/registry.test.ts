@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { hashBundle } from "../../src/core/bundle-hash.js";
 import { registerAdd } from "../../src/cli/add.js";
+import { registerCloud } from "../../src/cli/cloud.js";
 import { registerLogin } from "../../src/cli/login.js";
 import { registerPublish } from "../../src/cli/publish.js";
 import { registerSearch } from "../../src/cli/search.js";
@@ -115,6 +116,48 @@ describe("registry CLI commands", () => {
     expect(output).toContain("better repair guidance in terminal");
     expect(output).toContain("saved history");
     expect(output).toContain("shareable links");
+    expect(output).toContain("Pro repair checks");
+  });
+
+  it("covers axint cloud status and shows signed-in Pro usage", async () => {
+    mkdirSync(join(process.env.HOME!, ".axint"), { recursive: true });
+    writeFileSync(
+      join(process.env.HOME!, ".axint", "credentials.json"),
+      JSON.stringify({
+        access_token: "token-123",
+        registry: "https://registry.example.test",
+      }),
+      "utf-8"
+    );
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        signedIn: true,
+        pro: {
+          plan: "signed_in_free",
+          included: 5,
+          used: 1,
+          remaining: 4,
+          resetAt: "2026-05-01T00:00:00.000Z",
+        },
+      })
+    );
+
+    const program = new Command();
+    registerCloud(program);
+    await run(program, ["cloud", "status"]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://registry.example.test/api/v1/cloud/usage",
+      expect.objectContaining({
+        headers: {
+          Authorization: "Bearer token-123",
+        },
+      })
+    );
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("Axint Cloud");
+    expect(output).toContain("4/5 remaining");
+    expect(output).toContain("Signed-in Cloud runs can attach the Pro repair prompt");
   });
 
   it("covers axint publish and sends the compiled bundle to the registry", async () => {

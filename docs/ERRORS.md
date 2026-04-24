@@ -543,7 +543,7 @@ These apply when you validate generated or hand-written Swift with `axint swift 
 
 ```swift
 struct SendMessageIntent: AppIntent {
-    static let title: LocalizedStringResource = "Send Message"
+    static var title: LocalizedStringResource = "Send Message"
 }
 ```
 
@@ -551,7 +551,7 @@ struct SendMessageIntent: AppIntent {
 
 ```swift
 struct SendMessageIntent: AppIntent {
-    static let title: LocalizedStringResource = "Send Message"
+    static var title: LocalizedStringResource = "Send Message"
 
     func perform() async throws -> some IntentResult {
         .result()

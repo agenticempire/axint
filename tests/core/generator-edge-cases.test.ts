@@ -194,8 +194,8 @@ describe("generateSwift — structure", () => {
       })
     );
     expect(swift).toContain("Parameters available");
-    expect(swift).toContain("\\(name)");
-    expect(swift).toContain("\\(age)");
+    expect(swift).toContain("name, age");
+    expect(swift).not.toContain("\\(name)");
   });
 
   it("omits param comment when no parameters", () => {

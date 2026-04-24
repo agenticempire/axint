@@ -167,7 +167,7 @@ export interface IntentDefinition<
   /**
    * Apple App Intent Domain for categorization.
    * Common values: "messaging", "productivity", "finance", "health",
-   * "commerce", "media", "navigation", "smart-home"
+   * "social", "commerce", "media", "navigation", "smart-home"
    */
   domain?: string;
   /** Siri/Shortcuts category for discoverability. */

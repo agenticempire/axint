@@ -9,8 +9,8 @@ import AppIntents
 import Foundation
 
 struct SendMessageIntent: AppIntent {
-    static let title: LocalizedStringResource = "Send Message"
-    static let description: IntentDescription = IntentDescription("Sends a message to a contact")
+    static var title: LocalizedStringResource = "Send Message"
+    static var description: IntentDescription = IntentDescription("Sends a message to a contact")
 
     @Parameter(title: "Recipient", description: "Who to send the message to")
     var recipient: String
@@ -21,7 +21,7 @@ struct SendMessageIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         // TODO: Implement your intent logic here.
-        // Parameters available: \\(recipient), \\(body)
+        // Parameters available: recipient, body
         return .result(value: "")
     }
 }
@@ -37,8 +37,8 @@ import AppIntents
 import Foundation
 
 struct GetStatusIntent: AppIntent {
-    static let title: LocalizedStringResource = "Get Status"
-    static let description: IntentDescription = IntentDescription("Gets current status")
+    static var title: LocalizedStringResource = "Get Status"
+    static var description: IntentDescription = IntentDescription("Gets current status")
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         // TODO: Implement your intent logic here.
@@ -57,8 +57,8 @@ import AppIntents
 import Foundation
 
 struct CreateReminderIntent: AppIntent {
-    static let title: LocalizedStringResource = "Create Reminder"
-    static let description: IntentDescription = IntentDescription("Creates a reminder")
+    static var title: LocalizedStringResource = "Create Reminder"
+    static var description: IntentDescription = IntentDescription("Creates a reminder")
 
     @Parameter(title: "Title", description: "Reminder title")
     var title: String
@@ -72,7 +72,7 @@ struct CreateReminderIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         // TODO: Implement your intent logic here.
-        // Parameters available: \\(title), \\(notes), \\(priority)
+        // Parameters available: title, notes, priority
         return .result(value: "")
     }
 }

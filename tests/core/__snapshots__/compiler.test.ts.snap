@@ -9,8 +9,8 @@ import AppIntents
 import Foundation
 
 struct SendMessageIntent: AppIntent {
-    static let title: LocalizedStringResource = "Send Message"
-    static let description: IntentDescription = IntentDescription("Sends a message to a contact")
+    static var title: LocalizedStringResource = "Send Message"
+    static var description: IntentDescription = IntentDescription("Sends a message to a contact")
 
     @Parameter(title: "Recipient", description: "Who to message")
     var recipient: String
@@ -21,7 +21,7 @@ struct SendMessageIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         // TODO: Implement your intent logic here.
-        // Parameters available: \\(recipient), \\(body)
+        // Parameters available: recipient, body
         return .result(value: "")
     }
 }

@@ -6,11 +6,13 @@
  * automatically.
  *
  * Tools:
- *   - axint.feature:          Generate a complete Apple-native feature package
+ *   - axint.feature:          Generate a scaffolded Apple-native feature package
  *   - axint.suggest:          Suggest Apple-native features for an app domain
  *   - axint.scaffold:         Generate a starter TypeScript intent file
  *   - axint.compile:          Compile TypeScript intent → Swift App Intent
  *   - axint.fix-packet: Read the latest emitted Fix Packet / AI repair prompt
+ *   - axint.cloud.check:     Run an agent-callable Cloud Check report
+ *   - axint.tokens.ingest:    Convert design tokens into SwiftUI token enums
  *   - axint.validate:         Validate an intent definition without codegen
  *   - axint.schema.compile:   Compile minimal JSON schema → Swift (token saver)
  *   - axint.swift.validate:   Validate an existing Swift source against AX700+ rules
@@ -46,6 +48,16 @@ import {
   renderFixPacketMarkdown,
   type FixPacketFormat,
 } from "../repair/fix-packet.js";
+import {
+  renderCloudCheckReport,
+  runCloudCheck,
+  type CloudCheckFormat,
+} from "../cloud/check.js";
+import {
+  handleTokenIngest,
+  type TokenIngestArgs,
+  type TokenOutputFormat,
+} from "./tokens.js";
 
 // Read version from package.json so it stays in sync
 let pkg = { version: "0.3.9" };
@@ -76,6 +88,16 @@ type FixPacketArgs = {
   cwd?: string;
   packetDir?: string;
   format?: FixPacketFormat;
+};
+type CloudCheckArgs = {
+  source?: string;
+  sourcePath?: string;
+  fileName?: string;
+  language?: "swift" | "typescript" | "unknown";
+  format?: CloudCheckFormat;
+};
+type TokensIngestArgs = TokenIngestArgs & {
+  format?: TokenOutputFormat;
 };
 type ToolResult = {
   content: Array<{ type: string; text: string }>;
@@ -117,6 +139,8 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       appName: a.appName,
       domain: a.domain,
       params: a.params,
+      platform: a.platform,
+      tokenNamespace: a.tokenNamespace,
     });
 
     const shouldFormat = a.format !== false;
@@ -222,6 +246,41 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
     }
     return diagnosticsText(JSON.stringify(packet, null, 2));
   }
+
+  if (name === "axint.cloud.check") {
+    const a = args as CloudCheckArgs;
+    if (!a.source && !a.sourcePath) {
+      return errorText(
+        "Error: 'source' or 'sourcePath' is required for axint.cloud.check"
+      );
+    }
+    const report = runCloudCheck({
+      source: a.source,
+      sourcePath: a.sourcePath,
+      fileName: a.fileName,
+      language: a.language,
+    });
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderCloudCheckReport(report, a.format ?? "markdown"),
+        },
+      ],
+      isError: report.status === "fail",
+    };
+  }
+
+  if (name === "axint.tokens.ingest") {
+    const a = args as TokensIngestArgs;
+    if (!a.source && !a.sourcePath) {
+      return errorText(
+        "Error: 'source' or 'sourcePath' is required for axint.tokens.ingest"
+      );
+    }
+    return handleTokenIngest(a);
+  }
+
   if (name === "axint.validate") {
     const a = args as { source: string; fileName?: string };
     const result = compileAnySource(a.source, a.fileName || "<validate>");

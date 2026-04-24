@@ -2,7 +2,7 @@
 
 // Thin launcher — delegates to the published @axint/compiler MCP server.
 // This file exists so the .mcpb bundle has a local entry point. In production
-// the manifest's mcp_config uses `npx -y @axint/compiler axint-mcp` directly,
+// the manifest's mcp_config uses `npx -y -p @axint/compiler axint-mcp` directly,
 // but some environments prefer a bundled script.
 
 import { createRequire } from "node:module";
@@ -19,7 +19,7 @@ try {
   await import(entry);
 } catch {
   // Fall back to npx
-  execFileSync("npx", ["-y", "@axint/compiler", "axint-mcp"], {
+  execFileSync("npx", ["-y", "-p", "@axint/compiler", "axint-mcp"], {
     stdio: "inherit",
   });
 }

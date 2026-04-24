@@ -338,6 +338,45 @@ describe("axint.schema.compile — intent", () => {
     expect(result.success).toBe(true);
     expect(result.output!.swiftCode).toContain("DoNothing");
   });
+
+  it("emits AppIntent title with static var to match the Swift validator", () => {
+    const ir = {
+      name: "LogWaterIntake",
+      title: "Log Water Intake",
+      description: "Log a glass of water",
+      parameters: [],
+      returnType: { kind: "primitive" as const, value: "string" as const },
+      sourceFile: "<schema>",
+    };
+
+    const result = compileFromIR(ir);
+    expect(result.success).toBe(true);
+    expect(result.output!.swiftCode).toContain(
+      'static var title: LocalizedStringResource = "Log Water Intake"'
+    );
+    expect(
+      validateSwiftSource(result.output!.swiftCode, "LogWaterIntake.swift").diagnostics
+    ).not.toEqual(expect.arrayContaining([expect.objectContaining({ code: "AX704" })]));
+  });
+
+  it("schema compile humanizes parameter titles consistently with TypeScript compile", async () => {
+    const result = await handleToolCall("axint.schema.compile", {
+      type: "intent",
+      name: "SwipeRight",
+      title: "Swipe Right",
+      params: {
+        profileName: "string",
+        profileId: "string",
+      },
+      format: false,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain('@Parameter(title: "Profile Name"');
+    expect(result.content[0].text).toContain('@Parameter(title: "Profile ID"');
+    expect(result.content[0].text).not.toContain('"profile Name"');
+    expect(result.content[0].text).not.toContain('"profile Id"');
+  });
 });
 
 // ── axint.schema.compile (view) ────────────────────────────────
@@ -369,6 +408,111 @@ describe("axint.schema.compile — view", () => {
     expect(result.success).toBe(true);
     expect(result.output!.swiftCode).toContain("ProfileCard");
     expect(result.output!.swiftCode).toContain("View");
+  });
+
+  it("coerces numeric string defaults to numeric Swift literals", async () => {
+    const result = await handleToolCall("axint.schema.compile", {
+      type: "view",
+      name: "WaterTrackerView",
+      state: {
+        totalOunces: { type: "double", default: "0" },
+      },
+      body: 'Text("\\\\(totalOunces)")',
+      format: false,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain(
+      "@State private var totalOunces: Double = 0"
+    );
+    expect(result.content[0].text).not.toContain(
+      '@State private var totalOunces: Double = "0"'
+    );
+  });
+
+  it("normalizes escaped newlines in raw view bodies", async () => {
+    const result = await handleToolCall("axint.schema.compile", {
+      type: "view",
+      name: "MatchCelebrationView",
+      state: {
+        isAnimating: { type: "boolean", default: "false" },
+        scale: { type: "double", default: "0.5" },
+      },
+      body: 'VStack {\\n    Text("Matched")\\n}',
+      format: false,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain(
+      "@State private var isAnimating: Bool = false"
+    );
+    expect(result.content[0].text).toContain("@State private var scale: Double = 0.5");
+    expect(result.content[0].text).toContain(
+      'VStack {\n            Text("Matched")\n        }'
+    );
+    expect(result.content[0].text).toContain("struct MatchCelebrationView: View");
+    expect(result.content[0].text).not.toContain("MatchCelebrationViewView");
+    expect(result.content[0].text).not.toContain("\\n");
+  });
+
+  it("uses description-driven layout when no body is provided", async () => {
+    const result = await handleToolCall("axint.schema.compile", {
+      type: "view",
+      name: "SwarmShellView",
+      description:
+        "A three-pane layout with a 56px sidebar rail, 244px channels column, and a flex content area.",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+      format: false,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("struct SwarmShellView: View");
+    expect(result.content[0].text).toContain("HStack(spacing: 0)");
+    expect(result.content[0].text).toContain("SwarmTokens.Layout.sidebarRail");
+    expect(result.content[0].text).toContain("SwarmTokens.Layout.channelsColumn");
+    expect(result.content[0].text).not.toContain('Text("VStack {}")');
+  });
+});
+
+// ── axint.schema.compile (component) ───────────────────────────────
+
+describe("axint.schema.compile — component", () => {
+  it("compiles a reusable Swarm mission card component", async () => {
+    const result = await handleToolCall("axint.schema.compile", {
+      type: "component",
+      name: "MissionCard",
+      componentKind: "missionCard",
+      tokenNamespace: "SwarmTokens",
+      format: false,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("struct MissionCard: View");
+    expect(result.content[0].text).toContain("var title: String");
+    expect(result.content[0].text).toContain("ProgressView(value: progress)");
+    expect(result.content[0].text).toContain("SwarmTokens.Colors.accent");
+  });
+});
+
+describe("axint.tokens.ingest", () => {
+  it("turns JS design tokens into a SwiftUI token enum", async () => {
+    const result = await handleToolCall("axint.tokens.ingest", {
+      source: `
+        export default {
+          color: { accent: "#FF5A3D", surface: "#15161B", textPrimary: "#F7F3EE" },
+          layout: { sidebarRail: 56, channelsColumn: 244 },
+          radius: { card: 16, row: 10 }
+        }
+      `,
+      namespace: "SwarmTokens",
+      format: "swift",
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("enum SwarmTokens");
+    expect(result.content[0].text).toContain('static let accent = Color(hex: "#FF5A3D")');
+    expect(result.content[0].text).toContain("static let sidebarRail = CGFloat(56)");
   });
 });
 
@@ -411,11 +555,43 @@ describe("axint.schema.compile — widget", () => {
     // Should either fail or at least not crash
     expect(result).toBeDefined();
   });
+
+  it("does not duplicate Widget suffix or escaped body newlines", async () => {
+    const result = await handleToolCall("axint.schema.compile", {
+      type: "widget",
+      name: "SwolematesMatchWidget",
+      displayName: "Swolemates Match",
+      description: "Shows new matches",
+      families: ["systemSmall"],
+      entry: { date: "date", matchCount: "int" },
+      body: 'VStack {\\n    Text("\\\\(entry.matchCount)")\\n}',
+      format: false,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("struct SwolematesMatchWidget: Widget");
+    expect(result.content[0].text).not.toContain("SwolematesMatchWidgetWidget");
+    expect(result.content[0].text.match(/\blet date: Date\b/g)).toHaveLength(1);
+    expect(result.content[0].text).not.toContain("\\n");
+  });
 });
 
 // ── axint.schema.compile (app) ─────────────────────────────────
 
 describe("axint.schema.compile — app", () => {
+  it("does not duplicate an App suffix when compiling app schema input", async () => {
+    const result = await handleToolCall("axint.schema.compile", {
+      type: "app",
+      name: "SwolematesApp",
+      scenes: [{ kind: "windowGroup", view: "ContentView" }],
+      format: false,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("struct SwolematesApp: App");
+    expect(result.content[0].text).not.toContain("SwolematesAppApp");
+  });
+
   it("compiles an app schema with a single scene", () => {
     const ir = {
       name: "MyApp",
