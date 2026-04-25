@@ -11,6 +11,10 @@ export interface SuggestInput {
   appDescription: string;
   domain?: string;
   limit?: number;
+  mode?: "local" | "auto" | "ai";
+  platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "multi";
+  audience?: string;
+  exclude?: string[];
 }
 
 export interface FeatureSuggestion {
@@ -20,34 +24,200 @@ export interface FeatureSuggestion {
   complexity: "low" | "medium" | "high";
   featurePrompt: string;
   domain: string;
+  rationale?: string;
+  confidence?: "low" | "medium" | "high";
 }
 
 interface DomainFeatureSet {
   domain: string;
   keywords: string[];
-  features: Omit<FeatureSuggestion, "domain">[];
+  blockers?: string[];
+  features: Omit<FeatureSuggestion, "domain" | "rationale" | "confidence">[];
 }
 
 const FEATURE_CATALOG: DomainFeatureSet[] = [
   {
+    domain: "collaboration",
+    keywords: [
+      "swarm",
+      "agent",
+      "agents",
+      "mission",
+      "missions",
+      "workspace",
+      "team",
+      "collaboration",
+      "coordinate",
+      "coordination",
+      "project",
+      "projects",
+      "channel",
+      "channels",
+      "handoff",
+      "handoffs",
+      "review",
+      "approval",
+      "approvals",
+      "artifact",
+      "artifacts",
+      "status",
+      "queue",
+      "inbox",
+      "execution",
+      "operator",
+      "operators",
+      "orchestration",
+    ],
+    features: [
+      {
+        name: "Create Mission via Siri",
+        description:
+          "Let users capture a mission with owner, priority, and due window without leaving their current workflow.",
+        surfaces: ["intent"],
+        complexity: "low",
+        featurePrompt:
+          "Let users create a team mission with title, owner, priority, and due window via Siri",
+      },
+      {
+        name: "Mission Status Widget",
+        description:
+          "Desktop widget showing active missions, blocked work, and the next handoff to review.",
+        surfaces: ["widget"],
+        complexity: "medium",
+        featurePrompt:
+          "Show active missions, blocked work, and next handoff in a desktop widget",
+      },
+      {
+        name: "Open Mission Shortcut",
+        description:
+          "Shortcut that jumps directly into a mission, channel, or artifact by name.",
+        surfaces: ["intent"],
+        complexity: "low",
+        featurePrompt:
+          "Let users open a mission, channel, or artifact by name via Siri and Shortcuts",
+      },
+      {
+        name: "Agent Handoff Review",
+        description:
+          "SwiftUI review surface for agent outputs, decisions, risk flags, and approval state.",
+        surfaces: ["view"],
+        complexity: "medium",
+        featurePrompt:
+          "Create an agent handoff review view with output summary, risk flags, and approval controls",
+      },
+      {
+        name: "Focus Queue View",
+        description:
+          "A prioritized work queue that separates waiting, ready, blocked, and shipped items.",
+        surfaces: ["view"],
+        complexity: "medium",
+        featurePrompt:
+          "Create a focus queue view for ready, waiting, blocked, and shipped work items",
+      },
+      {
+        name: "Daily Operator Brief",
+        description:
+          "Shortcut that summarizes what changed, what is blocked, and what needs a human decision.",
+        surfaces: ["intent", "widget"],
+        complexity: "high",
+        featurePrompt:
+          "Generate a daily operator brief with changes, blockers, and decisions needed",
+      },
+    ],
+  },
+  {
+    domain: "developer-tools",
+    keywords: [
+      "developer",
+      "developers",
+      "code",
+      "coding",
+      "compiler",
+      "repo",
+      "repository",
+      "github",
+      "pull request",
+      "pr",
+      "xcode",
+      "build",
+      "test",
+      "tests",
+      "ci",
+      "deploy",
+      "deployment",
+      "debug",
+      "diagnostic",
+      "diagnostics",
+      "mcp",
+      "fix packet",
+      "agentic coding",
+    ],
+    features: [
+      {
+        name: "Run Project Check",
+        description:
+          "Shortcut that runs a project validation pass and returns a concise result for the next agent turn.",
+        surfaces: ["intent"],
+        complexity: "medium",
+        featurePrompt:
+          "Let users run a project validation check and return a concise pass/fail summary",
+      },
+      {
+        name: "Build Health Widget",
+        description:
+          "Widget showing latest build, tests, diagnostics, and release readiness.",
+        surfaces: ["widget"],
+        complexity: "medium",
+        featurePrompt:
+          "Show latest build, tests, diagnostics, and release readiness in a widget",
+      },
+      {
+        name: "Open Failing Diagnostic",
+        description:
+          "Shortcut that opens the highest-priority diagnostic, log, or fix packet by name.",
+        surfaces: ["intent"],
+        complexity: "low",
+        featurePrompt:
+          "Let users open the highest-priority diagnostic, log, or fix packet by name",
+      },
+      {
+        name: "Release Readiness View",
+        description:
+          "SwiftUI dashboard for checks, version state, package status, and deployment blockers.",
+        surfaces: ["view"],
+        complexity: "high",
+        featurePrompt:
+          "Create a release readiness dashboard with checks, version state, package status, and blockers",
+      },
+    ],
+  },
+  {
     domain: "social",
     keywords: [
       "dating",
-      "date",
-      "match",
-      "matches",
+      "dating match",
+      "dating matches",
+      "matchmaking",
+      "romantic",
+      "romance",
       "swipe",
-      "profile",
+      "dating profile",
       "swolemate",
       "swolemates",
       "tinder",
       "bumble",
-      "social",
-      "friend",
-      "community",
-      "connection",
       "gym people",
       "fitness dating",
+    ],
+    blockers: [
+      "not dating",
+      "not a dating app",
+      "nothing to do with dating",
+      "not matchmaking",
+      "not a matching app",
+      "not swolemates",
+      "unrelated to swolemates",
+      "not romantic",
     ],
     features: [
       {
@@ -81,6 +251,71 @@ const FEATURE_CATALOG: DomainFeatureSet[] = [
     ],
   },
   {
+    domain: "community",
+    keywords: [
+      "community",
+      "members",
+      "member",
+      "group",
+      "groups",
+      "club",
+      "clubs",
+      "event",
+      "events",
+      "meetup",
+      "network",
+      "social network",
+      "friend",
+      "friends",
+      "connection",
+      "connections",
+      "profile",
+      "profiles",
+    ],
+    blockers: [
+      "not social",
+      "not a social app",
+      "not dating",
+      "nothing to do with dating",
+    ],
+    features: [
+      {
+        name: "Open Member Profile",
+        description:
+          "Let users open a member, creator, or teammate profile by name from Siri and Shortcuts.",
+        surfaces: ["intent"],
+        complexity: "low",
+        featurePrompt: "Let users open a member profile by name via Siri and Shortcuts",
+      },
+      {
+        name: "Community Digest Widget",
+        description:
+          "Widget showing new posts, member activity, and upcoming community moments.",
+        surfaces: ["widget"],
+        complexity: "medium",
+        featurePrompt:
+          "Show a community digest with new posts, member activity, and upcoming events",
+      },
+      {
+        name: "Member Directory View",
+        description:
+          "SwiftUI directory for searching people, roles, tags, and recent activity.",
+        surfaces: ["view"],
+        complexity: "medium",
+        featurePrompt:
+          "Create a member directory view with search, roles, tags, and recent activity",
+      },
+      {
+        name: "Create Community Event",
+        description: "Shortcut for adding an event with title, time, location, and host.",
+        surfaces: ["intent"],
+        complexity: "medium",
+        featurePrompt:
+          "Let users create a community event with title, time, location, and host",
+      },
+    ],
+  },
+  {
     domain: "health",
     keywords: [
       "health",
@@ -99,6 +334,13 @@ const FEATURE_CATALOG: DomainFeatureSet[] = [
       "running",
       "gym",
       "track",
+    ],
+    blockers: [
+      "not a fitness app",
+      "not health",
+      "not a health app",
+      "not workout",
+      "not tracking workouts",
     ],
     features: [
       {
@@ -149,6 +391,159 @@ const FEATURE_CATALOG: DomainFeatureSet[] = [
         complexity: "medium",
         featurePrompt:
           "Show last night's sleep duration and quality on a home screen widget",
+      },
+    ],
+  },
+  {
+    domain: "food",
+    keywords: [
+      "recipe",
+      "recipes",
+      "cooking",
+      "cook",
+      "meal",
+      "meals",
+      "ingredient",
+      "ingredients",
+      "grocery",
+      "groceries",
+      "restaurant",
+      "kitchen",
+      "nutrition",
+      "menu",
+    ],
+    features: [
+      {
+        name: "Find Recipe via Siri",
+        description:
+          "Let users search saved recipes by ingredient, meal type, or dietary need.",
+        surfaces: ["intent"],
+        complexity: "low",
+        featurePrompt:
+          "Let users find saved recipes by ingredient, meal type, or dietary need via Siri",
+      },
+      {
+        name: "Cooking Timer Shortcut",
+        description:
+          "Shortcut that starts step-specific timers from a recipe instruction.",
+        surfaces: ["intent"],
+        complexity: "medium",
+        featurePrompt:
+          "Let users start a cooking timer for a recipe step via Siri and Shortcuts",
+      },
+      {
+        name: "Meal Plan Widget",
+        description:
+          "Widget showing today's planned meals, prep status, and missing ingredients.",
+        surfaces: ["widget"],
+        complexity: "medium",
+        featurePrompt:
+          "Show today's meal plan, prep status, and missing ingredients in a widget",
+      },
+      {
+        name: "Recipe Detail View",
+        description: "SwiftUI recipe view with ingredients, steps, timers, and notes.",
+        surfaces: ["view"],
+        complexity: "medium",
+        featurePrompt:
+          "Create a recipe detail view with ingredients, steps, timers, and notes",
+      },
+    ],
+  },
+  {
+    domain: "education",
+    keywords: [
+      "learn",
+      "learning",
+      "study",
+      "student",
+      "students",
+      "course",
+      "lesson",
+      "lessons",
+      "quiz",
+      "flashcard",
+      "flashcards",
+      "school",
+      "teacher",
+      "education",
+      "homework",
+      "practice",
+    ],
+    features: [
+      {
+        name: "Start Study Session",
+        description:
+          "Shortcut that starts a focused study session with subject, duration, and goal.",
+        surfaces: ["intent"],
+        complexity: "low",
+        featurePrompt:
+          "Let users start a focused study session with subject, duration, and goal",
+      },
+      {
+        name: "Practice Queue Widget",
+        description: "Widget showing due flashcards, next lesson, and streak progress.",
+        surfaces: ["widget"],
+        complexity: "medium",
+        featurePrompt: "Show due flashcards, next lesson, and study streak in a widget",
+      },
+      {
+        name: "Lesson Progress View",
+        description:
+          "SwiftUI view for lesson steps, completion state, notes, and quiz results.",
+        surfaces: ["view"],
+        complexity: "medium",
+        featurePrompt:
+          "Create a lesson progress view with steps, completion state, notes, and quiz results",
+      },
+    ],
+  },
+  {
+    domain: "creative",
+    keywords: [
+      "design",
+      "designer",
+      "creator",
+      "creative",
+      "photo",
+      "photos",
+      "image",
+      "images",
+      "video",
+      "edit",
+      "editing",
+      "portfolio",
+      "moodboard",
+      "canvas",
+      "asset",
+      "assets",
+      "brand",
+    ],
+    features: [
+      {
+        name: "Create Asset Shortcut",
+        description:
+          "Shortcut that starts a new creative asset with brief, format, and destination.",
+        surfaces: ["intent"],
+        complexity: "medium",
+        featurePrompt:
+          "Let users create a new creative asset with brief, format, and destination",
+      },
+      {
+        name: "Review Queue Widget",
+        description: "Widget showing assets awaiting feedback, approval, or export.",
+        surfaces: ["widget"],
+        complexity: "medium",
+        featurePrompt:
+          "Show creative assets awaiting feedback, approval, or export in a widget",
+      },
+      {
+        name: "Asset Board View",
+        description: "SwiftUI board for assets, statuses, comments, and export actions.",
+        surfaces: ["view"],
+        complexity: "high",
+        featurePrompt:
+          "Create an asset board view with statuses, comments, and export actions",
       },
     ],
   },
@@ -477,54 +872,502 @@ const FEATURE_CATALOG: DomainFeatureSet[] = [
   },
 ];
 
+const AI_SUGGEST_TIMEOUT_MS = 8000;
+
+const AI_SUGGEST_SYSTEM_PROMPT = [
+  "You are Axint's Apple-native product strategist.",
+  "Suggest features that should be exposed through App Intents, Shortcuts, Spotlight, widgets, and SwiftUI surfaces.",
+  "The app description is the source of truth. Treat the domain as a weak hint only.",
+  "Reject stale context and do not suggest dating, health, finance, or messaging features unless the current app clearly asks for them.",
+  "Prefer concrete, buildable Apple-native workflows over generic product ideas.",
+  "Every suggestion must be specific to the app, explain why it belongs, and include a ready-to-use Axint feature prompt.",
+  "Return only JSON with a top-level suggestions array.",
+].join(" ");
+
 /**
  * Suggest Apple-native features for an app based on description and domain.
  */
 export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
-  const limit = input.limit || 5;
-  const lower = input.appDescription.toLowerCase();
-  const explicitDomain = input.domain?.toLowerCase();
+  const limit = clampLimit(input.limit);
+  const text = normalizeText(input.appDescription);
+  const excludedText = normalizeText((input.exclude ?? []).join(" "));
+  const explicitDomain = normalizeDomain(input.domain);
   const strongestDescriptionScore = Math.max(
-    ...FEATURE_CATALOG.map((ds) => keywordScore(lower, ds.keywords))
+    ...FEATURE_CATALOG.map((ds) => domainDescriptionScore(text, ds))
   );
 
-  // score each domain by keyword matches
-  const domainScores = FEATURE_CATALOG.map((ds) => {
-    const appScore = keywordScore(lower, ds.keywords);
+  const ranked = FEATURE_CATALOG.flatMap((domainSet) => {
+    if (isBlocked(text, domainSet.blockers)) return [];
+    if (isExcluded(text, excludedText, domainSet.domain)) return [];
+
+    const descriptionScore = domainDescriptionScore(text, domainSet);
     const explicitBoost =
-      explicitDomain === ds.domain && strongestDescriptionScore < 2 ? 2 : 0;
-    return { ...ds, score: appScore + explicitBoost };
+      explicitDomain === domainSet.domain && strongestDescriptionScore < 2 ? 1.5 : 0;
+    const domainScore = descriptionScore + explicitBoost;
+
+    if (domainScore <= 0) return [];
+
+    return domainSet.features.flatMap((feature, index) => {
+      if (isFeatureExcluded(feature, excludedText)) return [];
+      const featureScore = featureRelevanceScore(text, feature);
+      const score = domainScore * 10 + featureScore * 3 - index * 0.15;
+      return [
+        {
+          suggestion: {
+            ...feature,
+            domain: domainSet.domain,
+            rationale: buildRationale(domainSet.domain, descriptionScore),
+            confidence: confidenceFor(score),
+          } satisfies FeatureSuggestion,
+          score,
+        },
+      ];
+    });
   })
-    .filter((ds) => ds.score > 0)
+    .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  if (domainScores.length === 0) {
-    // fallback: return generic productivity suggestions
-    const fallback = FEATURE_CATALOG.find((ds) => ds.domain === "productivity");
-    if (!fallback) return [];
-    return fallback.features.slice(0, limit).map((f) => ({
-      ...f,
-      domain: "productivity",
-    }));
-  }
-
-  // collect features from matching domains, prioritizing higher-scored domains
   const suggestions: FeatureSuggestion[] = [];
   const seen = new Set<string>();
 
-  for (const ds of domainScores) {
-    for (const feature of ds.features) {
-      if (seen.has(feature.name)) continue;
-      seen.add(feature.name);
-      suggestions.push({ ...feature, domain: ds.domain });
-      if (suggestions.length >= limit) break;
-    }
+  for (const entry of ranked) {
+    if (seen.has(entry.suggestion.name)) continue;
+    seen.add(entry.suggestion.name);
+    suggestions.push(entry.suggestion);
     if (suggestions.length >= limit) break;
   }
 
-  return suggestions;
+  if (suggestions.length > 0) return suggestions;
+
+  return fallbackSuggestions(limit, explicitDomain);
+}
+
+/**
+ * Suggest features with an optional AI strategy pass.
+ *
+ * Local mode is deterministic and performs no network requests. AI mode is
+ * opt-in via input.mode or AXINT_SUGGEST_MODE and falls back to local results
+ * if no provider is configured or the request fails.
+ */
+export async function suggestFeaturesSmart(
+  input: SuggestInput
+): Promise<FeatureSuggestion[]> {
+  const localSuggestions = suggestFeatures(input);
+  if (!shouldUseAI(input)) return localSuggestions;
+
+  try {
+    const aiSuggestions = await suggestFeaturesWithAI(input, localSuggestions);
+    return aiSuggestions.length > 0 ? aiSuggestions : localSuggestions;
+  } catch {
+    return localSuggestions;
+  }
 }
 
 function keywordScore(text: string, keywords: string[]): number {
-  return keywords.filter((kw) => text.includes(kw)).length;
+  return keywords.filter((kw) => hasKeyword(text, kw)).length;
+}
+
+function domainDescriptionScore(text: string, domainSet: DomainFeatureSet): number {
+  const base = keywordScore(text, domainSet.keywords);
+  const domainNameBonus = hasKeyword(text, domainSet.domain) ? 1 : 0;
+  return base + domainNameBonus;
+}
+
+function featureRelevanceScore(
+  text: string,
+  feature: Omit<FeatureSuggestion, "domain" | "rationale" | "confidence">
+): number {
+  const featureText = normalizeText(
+    `${feature.name} ${feature.description} ${feature.featurePrompt}`
+  );
+  const appTokens = meaningfulTokens(text);
+  if (appTokens.length === 0) return 0;
+  return appTokens.filter((token) => hasKeyword(featureText, token)).length;
+}
+
+function fallbackSuggestions(
+  limit: number,
+  explicitDomain?: string
+): FeatureSuggestion[] {
+  const fallback =
+    FEATURE_CATALOG.find((ds) => ds.domain === explicitDomain) ??
+    FEATURE_CATALOG.find((ds) => ds.domain === "collaboration") ??
+    FEATURE_CATALOG.find((ds) => ds.domain === "productivity");
+
+  if (!fallback) return [];
+
+  return fallback.features.slice(0, limit).map((feature) => ({
+    ...feature,
+    domain: fallback.domain,
+    rationale:
+      fallback.domain === explicitDomain
+        ? `Using the provided ${fallback.domain} domain as a weak hint because the description is broad.`
+        : "Using broadly useful Apple-native workflow suggestions because the description is broad.",
+    confidence: "low",
+  }));
+}
+
+function shouldUseAI(input: SuggestInput): boolean {
+  const mode = input.mode ?? process.env.AXINT_SUGGEST_MODE ?? "local";
+  if (mode === "local") return false;
+  if (mode === "ai") return hasAIProvider();
+  if (mode === "auto") {
+    return process.env.AXINT_SUGGEST_AI === "1" && hasAIProvider();
+  }
+  return false;
+}
+
+function hasAIProvider(): boolean {
+  return Boolean(process.env.AXINT_SUGGEST_AI_ENDPOINT || process.env.OPENAI_API_KEY);
+}
+
+async function suggestFeaturesWithAI(
+  input: SuggestInput,
+  localSuggestions: FeatureSuggestion[]
+): Promise<FeatureSuggestion[]> {
+  if (process.env.AXINT_SUGGEST_AI_ENDPOINT) {
+    return suggestFeaturesFromEndpoint(input, localSuggestions);
+  }
+
+  if (process.env.OPENAI_API_KEY) {
+    return suggestFeaturesFromOpenAI(input, localSuggestions);
+  }
+
+  return [];
+}
+
+async function suggestFeaturesFromEndpoint(
+  input: SuggestInput,
+  localSuggestions: FeatureSuggestion[]
+): Promise<FeatureSuggestion[]> {
+  const response = await fetchWithTimeout(process.env.AXINT_SUGGEST_AI_ENDPOINT!, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(process.env.AXINT_SUGGEST_AI_TOKEN
+        ? { Authorization: `Bearer ${process.env.AXINT_SUGGEST_AI_TOKEN}` }
+        : {}),
+    },
+    body: JSON.stringify(buildAIPayload(input, localSuggestions)),
+  });
+
+  if (!response.ok) return [];
+  const json = (await response.json()) as unknown;
+  return parseAISuggestions(json, input.limit);
+}
+
+async function suggestFeaturesFromOpenAI(
+  input: SuggestInput,
+  localSuggestions: FeatureSuggestion[]
+): Promise<FeatureSuggestion[]> {
+  const response = await fetchWithTimeout("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: process.env.AXINT_SUGGEST_MODEL ?? "gpt-4.1-mini",
+      instructions: AI_SUGGEST_SYSTEM_PROMPT,
+      input: JSON.stringify(buildAIPayload(input, localSuggestions)),
+      text: {
+        format: {
+          type: "json_schema",
+          name: "axint_suggestions",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              suggestions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    name: { type: "string" },
+                    description: { type: "string" },
+                    surfaces: {
+                      type: "array",
+                      items: { enum: ["intent", "view", "widget"], type: "string" },
+                    },
+                    complexity: {
+                      enum: ["low", "medium", "high"],
+                      type: "string",
+                    },
+                    featurePrompt: { type: "string" },
+                    domain: { type: "string" },
+                    rationale: { type: "string" },
+                    confidence: {
+                      enum: ["low", "medium", "high"],
+                      type: "string",
+                    },
+                  },
+                  required: [
+                    "name",
+                    "description",
+                    "surfaces",
+                    "complexity",
+                    "featurePrompt",
+                    "domain",
+                    "rationale",
+                    "confidence",
+                  ],
+                },
+              },
+            },
+            required: ["suggestions"],
+          },
+        },
+        verbosity: "low",
+      },
+      max_output_tokens: 1800,
+    }),
+  });
+
+  if (!response.ok) return [];
+  const json = (await response.json()) as Record<string, unknown>;
+  const outputText = extractOpenAIOutputText(json);
+  if (!outputText) return [];
+
+  try {
+    return parseAISuggestions(JSON.parse(outputText), input.limit);
+  } catch {
+    return [];
+  }
+}
+
+function buildAIPayload(
+  input: SuggestInput,
+  localSuggestions: FeatureSuggestion[]
+): Record<string, unknown> {
+  return {
+    appDescription: input.appDescription,
+    domainHint: input.domain,
+    platform: input.platform,
+    audience: input.audience,
+    exclude: input.exclude,
+    limit: clampLimit(input.limit),
+    localBaseline: localSuggestions.slice(0, clampLimit(input.limit)).map((s) => ({
+      name: s.name,
+      description: s.description,
+      surfaces: s.surfaces,
+      complexity: s.complexity,
+      featurePrompt: s.featurePrompt,
+      domain: s.domain,
+    })),
+    outputContract: {
+      suggestions: [
+        {
+          name: "short feature name",
+          description: "one sentence explaining the user value",
+          surfaces: ["intent", "view", "widget"],
+          complexity: "low | medium | high",
+          featurePrompt: "one-line prompt for axint.feature",
+          domain: "short lowercase category",
+          rationale: "why this fits this exact app",
+          confidence: "low | medium | high",
+        },
+      ],
+    },
+  };
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AI_SUGGEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function parseAISuggestions(
+  value: unknown,
+  requestedLimit?: number
+): FeatureSuggestion[] {
+  const rawSuggestions = Array.isArray((value as { suggestions?: unknown })?.suggestions)
+    ? (value as { suggestions: unknown[] }).suggestions
+    : [];
+  const limit = clampLimit(requestedLimit);
+
+  return rawSuggestions
+    .map(normalizeAISuggestion)
+    .filter((suggestion): suggestion is FeatureSuggestion => Boolean(suggestion))
+    .slice(0, limit);
+}
+
+function normalizeAISuggestion(value: unknown): FeatureSuggestion | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const name = stringValue(record.name);
+  const description = stringValue(record.description);
+  const featurePrompt = stringValue(record.featurePrompt);
+  const domain = stringValue(record.domain) || "custom";
+  const surfaces = normalizeSurfaces(record.surfaces);
+  const complexity = normalizeComplexity(record.complexity);
+  const confidence = normalizeConfidence(record.confidence);
+  const rationale = stringValue(record.rationale);
+
+  if (!name || !description || !featurePrompt || surfaces.length === 0) {
+    return null;
+  }
+
+  return {
+    name,
+    description,
+    surfaces,
+    complexity,
+    featurePrompt,
+    domain,
+    ...(rationale ? { rationale } : {}),
+    ...(confidence ? { confidence } : {}),
+  };
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeSurfaces(value: unknown): Array<"intent" | "view" | "widget"> {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set(["intent", "view", "widget"]);
+  return Array.from(
+    new Set(
+      value
+        .filter((surface): surface is string => typeof surface === "string")
+        .map((surface) => surface.toLowerCase())
+        .filter((surface) => allowed.has(surface))
+    )
+  ) as Array<"intent" | "view" | "widget">;
+}
+
+function normalizeComplexity(value: unknown): "low" | "medium" | "high" {
+  return value === "high" || value === "medium" || value === "low" ? value : "medium";
+}
+
+function normalizeConfidence(value: unknown): "low" | "medium" | "high" | undefined {
+  return value === "high" || value === "medium" || value === "low" ? value : undefined;
+}
+
+function extractOpenAIOutputText(response: Record<string, unknown>): string {
+  if (typeof response.output_text === "string") return response.output_text;
+
+  const output = response.output;
+  if (!Array.isArray(output)) return "";
+
+  const chunks: string[] = [];
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const content = (item as { content?: unknown }).content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (!part || typeof part !== "object") continue;
+      const record = part as Record<string, unknown>;
+      if (typeof record.text === "string") chunks.push(record.text);
+    }
+  }
+
+  return chunks.join("\n").trim();
+}
+
+function normalizeText(value: string): string {
+  return value.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim();
+}
+
+function normalizeDomain(value?: string): string | undefined {
+  if (!value) return undefined;
+  return value.toLowerCase().trim();
+}
+
+function clampLimit(value?: number): number {
+  if (!Number.isFinite(value)) return 5;
+  return Math.max(1, Math.min(12, Math.floor(value ?? 5)));
+}
+
+function isBlocked(text: string, blockers?: string[]): boolean {
+  if (!blockers || blockers.length === 0) return false;
+  return blockers.some((blocker) => hasKeyword(text, blocker));
+}
+
+function isExcluded(text: string, excludedText: string, domain: string): boolean {
+  if (!excludedText) return false;
+  return hasKeyword(excludedText, domain) || hasKeyword(text, `not ${domain}`);
+}
+
+function isFeatureExcluded(
+  feature: Omit<FeatureSuggestion, "domain" | "rationale" | "confidence">,
+  excludedText: string
+): boolean {
+  if (!excludedText) return false;
+  const featureText = normalizeText(
+    `${feature.name} ${feature.description} ${feature.featurePrompt}`
+  );
+  return meaningfulTokens(excludedText).some((token) => hasKeyword(featureText, token));
+}
+
+function hasKeyword(text: string, keyword: string): boolean {
+  const normalizedKeyword = normalizeText(keyword);
+  if (!normalizedKeyword) return false;
+  const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const suffix =
+    normalizedKeyword.length > 3 &&
+    !normalizedKeyword.includes(" ") &&
+    !normalizedKeyword.includes("-") &&
+    !normalizedKeyword.endsWith("s")
+      ? "(?:s|es)?"
+      : "";
+  return new RegExp(`(^|[^a-z0-9])${escaped}${suffix}([^a-z0-9]|$)`, "i").test(text);
+}
+
+function meaningfulTokens(text: string): string[] {
+  const stopWords = new Set([
+    "a",
+    "an",
+    "and",
+    "app",
+    "as",
+    "by",
+    "for",
+    "from",
+    "in",
+    "into",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "to",
+    "with",
+    "users",
+  ]);
+
+  return Array.from(
+    new Set(
+      text
+        .replace(/[^a-z0-9\s-]/g, " ")
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length > 2 && !stopWords.has(token))
+    )
+  );
+}
+
+function buildRationale(domain: string, descriptionScore: number): string {
+  if (descriptionScore >= 3) {
+    return `Strong match for ${domain} workflows in the app description.`;
+  }
+  if (descriptionScore >= 1) {
+    return `Matched ${domain} cues in the app description.`;
+  }
+  return `Included from a weak ${domain} hint; validate fit before generating.`;
+}
+
+function confidenceFor(score: number): "low" | "medium" | "high" {
+  if (score >= 35) return "high";
+  if (score >= 15) return "medium";
+  return "low";
 }

@@ -837,6 +837,20 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "DispatchQueue.global().async should be Task.detached { } under Swift 6",
     category: "swift-concurrency",
   },
+  AX735: {
+    code: "AX735",
+    severity: "warning",
+    message:
+      "@ObservationIgnored on navigator/router state can prevent SwiftUI from observing route changes",
+    category: "swift-observation",
+  },
+  AX736: {
+    code: "AX736",
+    severity: "warning",
+    message:
+      "Container accessibilityIdentifier can hide child identifiers in SwiftUI UI tests",
+    category: "swift-accessibility",
+  },
 
   // ─── Live Activities / ActivityKit (AX740–AX749) ────────
   AX740: {

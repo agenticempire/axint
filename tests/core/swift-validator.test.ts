@@ -545,3 +545,106 @@ describe("swift validator — AX719 missing @Parameter on AppIntent inputs", () 
     expect(diagnostic?.message).toContain("uses @State");
   });
 });
+
+describe("swift validator — AX735 ObservationIgnored navigation state", () => {
+  it("warns when an @Observable coordinator hides navigator state from SwiftUI", () => {
+    const source = `
+      import SwiftUI
+
+      @Observable @MainActor
+      final class RootCoordinator {
+          @ObservationIgnored let navigator: ProjectRoomNavigator
+          @ObservationIgnored let service: MarkdownFileService
+
+          init(navigator: ProjectRoomNavigator, service: MarkdownFileService) {
+              self.navigator = navigator
+              self.service = service
+          }
+      }
+    `;
+
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX735");
+    expect(diagnostic?.message).toContain("navigator");
+    expect(diagnostic?.suggestion).toContain("Remove @ObservationIgnored");
+  });
+
+  it("does not warn for ignored service dependencies", () => {
+    const source = `
+      import SwiftUI
+
+      @Observable @MainActor
+      final class RootCoordinator {
+          @ObservationIgnored let fileService: MarkdownFileService
+
+          init(fileService: MarkdownFileService) {
+              self.fileService = fileService
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX735")).toHaveLength(
+      0
+    );
+  });
+});
+
+describe("swift validator — AX736 accessibility identifier propagation", () => {
+  it("warns when a container and nested controls both define accessibility identifiers", () => {
+    const source = `
+      import SwiftUI
+
+      struct MainSwarmWindow: View {
+          var body: some View {
+              VStack {
+                  Button("Back") {}
+                      .accessibilityIdentifier("back-to-workspace")
+              }
+              .padding()
+              .accessibilityIdentifier("project-room")
+          }
+      }
+    `;
+
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX736");
+    expect(diagnostic?.message).toContain("VStack");
+    expect(diagnostic?.suggestion).toContain("specific button");
+  });
+
+  it("does not warn when only the nested control has an identifier", () => {
+    const source = `
+      import SwiftUI
+
+      struct MainSwarmWindow: View {
+          var body: some View {
+              VStack {
+                  Button("Back") {}
+                      .accessibilityIdentifier("back-to-workspace")
+              }
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX736")).toHaveLength(
+      0
+    );
+  });
+
+  it("does not warn for a container identifier without nested identifiers", () => {
+    const source = `
+      import SwiftUI
+
+      struct WorkspaceHome: View {
+          var body: some View {
+              ScrollView {
+                  Text("Workspace")
+              }
+              .accessibilityIdentifier("workspace-home")
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX736")).toHaveLength(
+      0
+    );
+  });
+});
