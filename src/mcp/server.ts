@@ -36,7 +36,7 @@ import { compileAnySource } from "../core/compiler.js";
 import { formatSwift } from "../core/format.js";
 import { scaffoldIntent } from "./scaffold.js";
 import { generateFeature, type FeatureInput, type Surface } from "./feature.js";
-import { suggestFeatures, type SuggestInput } from "./suggest.js";
+import { suggestFeaturesSmart, type SuggestInput } from "./suggest.js";
 import { TEMPLATES, getTemplate } from "../templates/index.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import { fixSwiftSource } from "../core/swift-fixer.js";
@@ -172,11 +172,13 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
     if (!a.appDescription) {
       return errorText("Error: 'appDescription' is required for axint.suggest");
     }
-    const suggestions = suggestFeatures(a);
+    const suggestions = await suggestFeaturesSmart(a);
     const output = suggestions
       .map((s, i) => {
         const surfaces = s.surfaces.join(", ");
-        return `${i + 1}. ${s.name}\n   ${s.description}\n   Surfaces: ${surfaces} | Complexity: ${s.complexity}\n   Prompt: "${s.featurePrompt}"`;
+        const rationale = s.rationale ? `\n   Why: ${s.rationale}` : "";
+        const confidence = s.confidence ? ` | Confidence: ${s.confidence}` : "";
+        return `${i + 1}. ${s.name}\n   ${s.description}${rationale}\n   Surfaces: ${surfaces} | Complexity: ${s.complexity}${confidence}\n   Prompt: "${s.featurePrompt}"`;
       })
       .join("\n\n");
 

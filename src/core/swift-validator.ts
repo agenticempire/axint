@@ -21,6 +21,7 @@ import {
   type SwiftDeclaration,
   countNewlinesUpTo,
   escapeRegex,
+  findMatchingBrace,
   findTypeDeclarations,
   hasConformance,
   makeDiagnostic,
@@ -70,8 +71,69 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
 
   checkConcurrency(decls, source, file, diagnostics);
   checkLiveActivities(decls, source, file, diagnostics);
+  checkContainerAccessibilityIdentifierPropagation(source, stripped, file, diagnostics);
 
   return { file, diagnostics };
+}
+
+const ACCESSIBILITY_CONTAINER_NAMES = [
+  "VStack",
+  "HStack",
+  "ZStack",
+  "LazyVStack",
+  "LazyHStack",
+  "LazyVGrid",
+  "LazyHGrid",
+  "Grid",
+  "Group",
+  "ScrollView",
+  "List",
+  "Form",
+  "Section",
+  "NavigationStack",
+  "NavigationSplitView",
+  "HSplitView",
+  "VSplitView",
+];
+
+function checkContainerAccessibilityIdentifierPropagation(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const containerPattern = ACCESSIBILITY_CONTAINER_NAMES.join("|");
+  const re = new RegExp(
+    `\\b(${containerPattern})\\s*(?:<[^>{}]*>)?\\s*(?:\\([^{}]*\\))?\\s*\\{`,
+    "g"
+  );
+  let match: RegExpExecArray | null;
+
+  while ((match = re.exec(stripped)) !== null) {
+    const [full, containerName] = match;
+    const openBraceIndex = match.index + full.lastIndexOf("{");
+    const closeBraceIndex = findMatchingBrace(stripped, openBraceIndex);
+    if (closeBraceIndex === -1) continue;
+
+    const body = stripped.slice(openBraceIndex + 1, closeBraceIndex);
+    if (!/\.accessibilityIdentifier\s*\(/.test(body)) continue;
+
+    const after = stripped.slice(closeBraceIndex + 1, closeBraceIndex + 900);
+    const modifierChain = after.match(
+      /^\s*(?:(?:\.[A-Za-z_][A-Za-z0-9_]*\s*(?:\([^)]*\))?\s*)*)\.accessibilityIdentifier\s*\(/s
+    );
+    if (!modifierChain) continue;
+
+    const identifierOffset = modifierChain[0].lastIndexOf(".accessibilityIdentifier");
+    const absoluteOffset = closeBraceIndex + 1 + identifierOffset;
+    diagnostics.push(
+      makeDiagnostic("AX736", file, 1 + countNewlinesUpTo(source, absoluteOffset), {
+        message: `${containerName} has an accessibilityIdentifier while nested controls also define identifiers; UI tests may match the container and hide child identifiers`,
+        suggestion:
+          "Put the identifier on the specific button/text/row the test needs, or assert on a visible child element instead of tagging the whole container.",
+      })
+    );
+  }
 }
 
 function checkRequiredFrameworkImports(

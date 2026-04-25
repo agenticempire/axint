@@ -43,6 +43,7 @@ export function checkConcurrency(
     checkTaskCaptureSelf(decl, file, diagnostics);
     checkActorDeinit(decl, file, diagnostics);
     checkRedundantMainActorOnView(decl, file, diagnostics);
+    checkIgnoredNavigationState(decl, file, diagnostics);
   }
 
   checkTaskDetached(source, file, diagnostics);
@@ -125,6 +126,42 @@ function checkObservableMainActor(
         "Add @MainActor above the class to isolate mutation to the main thread.",
     })
   );
+}
+
+// ─── AX735 — @ObservationIgnored on navigation state hides route updates ────
+
+function checkIgnoredNavigationState(
+  decl: SwiftDeclaration,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  if (!hasAttribute(decl, "@Observable")) return;
+
+  const body = decl.source.slice(decl.bodyStart, decl.bodyEnd);
+  const lines = body.split("\n");
+  const bodyLineOffset = countNewlinesUpTo(decl.source, decl.bodyStart);
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(
+      /@ObservationIgnored\s+(?:private\s+|fileprivate\s+|internal\s+|public\s+|open\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_<>.]*)/
+    );
+    if (!match) continue;
+
+    const [, name, typeName] = match;
+    const looksLikeNavigationState =
+      /\b(nav|navigator|navigation|router|route)\b/i.test(name) ||
+      /\b(Navigator|Navigation|Router|Route)\b/.test(typeName);
+
+    if (!looksLikeNavigationState) continue;
+
+    diagnostics.push(
+      makeDiagnostic("AX735", file, decl.startLine + bodyLineOffset + i, {
+        message: `@Observable '${decl.name}' marks '${name}' as @ObservationIgnored, so SwiftUI may not refresh when navigation state changes`,
+        suggestion:
+          "Remove @ObservationIgnored from navigation/router state, or inject that navigator directly into the environment and read it from the view that switches routes.",
+      })
+    );
+  }
 }
 
 // ─── AX723 — @unchecked Sendable warning ─────────────────────────────
@@ -299,7 +336,15 @@ function checkTaskCaptureSelf(
     if (closeBrace === -1) continue;
     const closureBody = body.slice(braceIdx + 1, closeBrace);
     // Skip if the capture list already has [weak self] or [unowned self].
-    if (/^\s*\[\s*(weak|unowned)\s+self\b/.test(closureBody)) continue;
+    // Swift task closures often start with an actor annotation before the
+    // capture list, e.g. Task { @MainActor [weak self] in ... }.
+    if (
+      /^\s*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*\[\s*(weak|unowned)\s+self\b/.test(
+        closureBody
+      )
+    ) {
+      continue;
+    }
     if (!/\bself\b/.test(closureBody)) continue;
     const line = decl.startLine + countNewlinesUpTo(body, m.index);
     diagnostics.push(

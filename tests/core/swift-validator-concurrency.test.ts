@@ -236,6 +236,36 @@ describe("swift concurrency — AX731 Task captures self", () => {
       0
     );
   });
+
+  it("accepts Task { @MainActor [weak self] in }", () => {
+    const source = `
+      class Client {
+          func run() {
+              Task { @MainActor [weak self] in
+                  self?.log("go")
+              }
+          }
+          func log(_ msg: String) {}
+      }
+    `;
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX731")).toHaveLength(
+      0
+    );
+  });
+
+  it("still flags Task { @MainActor in self } without a weak capture", () => {
+    const source = `
+      class Client {
+          func run() {
+              Task { @MainActor in
+                  self.log("go")
+              }
+          }
+          func log(_ msg: String) {}
+      }
+    `;
+    expect(validate(source).diagnostics.map((d) => d.code)).toContain("AX731");
+  });
 });
 
 describe("swift concurrency — AX733 redundant @MainActor on View", () => {

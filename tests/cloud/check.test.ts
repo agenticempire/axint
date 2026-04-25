@@ -26,6 +26,34 @@ struct BrokenIntent: AppIntent {
     expect(renderCloudCheckReport(report, "markdown")).toContain(
       "Compiler Feedback Signal"
     );
+    expect(renderCloudCheckReport(report, "markdown")).toContain("Coverage");
+  });
+
+  it("surfaces Swift validator diagnostics through Cloud Check", () => {
+    const report = runCloudCheck({
+      fileName: "Client.swift",
+      source: `
+class Client {
+    func run() {
+        Task {
+            self.log("go")
+        }
+    }
+    func log(_ msg: String) {}
+}
+`,
+    });
+
+    expect(report.status).toBe("needs_review");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AX731");
+    expect(report.repairPrompt).toContain("AX731");
+    expect(report.coverage).toContainEqual(
+      expect.objectContaining({
+        label: "Swift validator rule engine",
+        state: "checked",
+      })
+    );
+    expect(report.confidence.level).toBe("medium");
   });
 
   it("compiles TypeScript source before producing a Cloud Check report", () => {
@@ -66,8 +94,42 @@ struct ContentView: View {
 
     expect(result.isError).not.toBe(true);
     const payload = JSON.parse(result.content[0].text);
-    expect(payload.status).toBe("pass");
+    expect(payload.status).toBe("needs_review");
     expect(payload.fileName).toBe("ContentView.swift");
+    expect(payload.confidence.level).toBe("medium");
+    expect(payload.coverage).toContainEqual(
+      expect.objectContaining({
+        label: "Xcode build, UI tests, and runtime behavior",
+        state: "needs_runtime",
+      })
+    );
+    expect(payload.checks).toContainEqual(
+      expect.objectContaining({
+        label: "Runtime and UI coverage",
+        state: "warn",
+      })
+    );
+    expect(payload.repairPrompt).toContain("This is not a runtime pass");
+  });
+
+  it("emits a learning signal when static SwiftUI validation needs runtime evidence", () => {
+    const report = runCloudCheck({
+      fileName: "ContentView.swift",
+      source: `
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View { Text("Hello") }
+}
+`,
+    });
+
+    expect(report.status).toBe("needs_review");
+    expect(report.errors).toBe(0);
+    expect(report.confidence.missingEvidence).toContain("Xcode build");
+    expect(report.learningSignal?.diagnosticCodes).toContain("AXCLOUD-RUNTIME-COVERAGE");
+    expect(report.learningSignal?.signals).toContain("runtime-evidence-missing");
+    expect(report.learningSignal?.suggestedOwner).toBe("cloud");
   });
 
   it("returns a redacted feedback signal as an MCP output format", async () => {

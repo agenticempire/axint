@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateFeature } from "../../src/mcp/feature.js";
-import { suggestFeatures } from "../../src/mcp/suggest.js";
+import { suggestFeatures, suggestFeaturesSmart } from "../../src/mcp/suggest.js";
 
 describe("axint.feature", () => {
   it("generates intent from natural language description", () => {
@@ -286,6 +286,62 @@ describe("axint.suggest", () => {
     expect(suggestions.length).toBeGreaterThan(0);
     expect(suggestions[0].domain).toBe("social");
     expect(suggestions[0].name).toMatch(/Match|Profile/);
+  });
+
+  it("does not let stale dating context contaminate a collaboration app", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Swarm is a Mac app for AI agent mission control, team channels, project handoffs, operator approvals, and execution review. It is not a dating app and has nothing to do with dating.",
+      domain: "social",
+    });
+
+    expect(suggestions.length).toBeGreaterThan(0);
+    expect(suggestions[0].domain).toBe("collaboration");
+    expect(suggestions.map((s) => s.domain)).not.toContain("social");
+    expect(suggestions.some((s) => /dating|match|swolemate/i.test(s.featurePrompt))).toBe(
+      false
+    );
+  });
+
+  it("uses broader app context instead of falling back to collaboration for recipes", () => {
+    const suggestions = suggestFeatures({
+      appDescription: "A recipe and cooking app for meal plans and groceries",
+    });
+
+    expect(suggestions.length).toBeGreaterThan(0);
+    expect(suggestions[0].domain).toBe("food");
+  });
+
+  it("honors explicit exclusions", () => {
+    const suggestions = suggestFeatures({
+      appDescription: "A community app with member profiles, groups, and event discovery",
+      exclude: ["profile", "event"],
+    });
+
+    expect(suggestions.length).toBeGreaterThan(0);
+    expect(suggestions.some((s) => /profile|event/i.test(s.featurePrompt))).toBe(false);
+  });
+
+  it("falls back to local suggestions when ai mode has no provider", async () => {
+    const previousOpenAIKey = process.env.OPENAI_API_KEY;
+    const previousEndpoint = process.env.AXINT_SUGGEST_AI_ENDPOINT;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.AXINT_SUGGEST_AI_ENDPOINT;
+
+    try {
+      const suggestions = await suggestFeaturesSmart({
+        appDescription: "A design review app for brand assets",
+        mode: "ai",
+      });
+
+      expect(suggestions.length).toBeGreaterThan(0);
+      expect(suggestions[0].domain).toBe("creative");
+    } finally {
+      if (previousOpenAIKey) process.env.OPENAI_API_KEY = previousOpenAIKey;
+      if (previousEndpoint) {
+        process.env.AXINT_SUGGEST_AI_ENDPOINT = previousEndpoint;
+      }
+    }
   });
 
   it("respects limit", () => {

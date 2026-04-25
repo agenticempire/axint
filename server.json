@@ -7,7 +7,7 @@
     "url": "https://github.com/agenticempire/axint",
     "source": "github"
   },
-  "version": "0.4.3",
+  "version": "0.4.5",
   "remotes": [
     {
       "type": "streamable-http",
@@ -18,7 +18,7 @@
     {
       "registryType": "npm",
       "identifier": "@axint/compiler",
-      "version": "0.4.3",
+      "version": "0.4.5",
       "transport": {
         "type": "stdio"
       }
@@ -26,7 +26,7 @@
     {
       "registryType": "pypi",
       "identifier": "axint",
-      "version": "0.4.3",
+      "version": "0.4.5",
       "transport": {
         "type": "stdio"
       }

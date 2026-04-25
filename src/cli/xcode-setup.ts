@@ -32,7 +32,10 @@ const START_PROMPT = [
   "",
   "Then list MCP servers and confirm both xcode-tools and axint are available.",
   "Use Axint before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.",
+  "Work in short checkpoints. Do not spend 20+ minutes on a task without running Axint and Xcode validation.",
   "After each generated Apple surface, run axint.cloud.check or axint cloud check <file> --feedback, then build in Xcode.",
+  "Do not claim there is no bug from Axint alone. Cloud Check is static; Xcode build, unit tests, UI tests, accessibility flows, and runtime behavior are separate evidence.",
+  "If Axint passes but Xcode/tests/runtime fails, report the exact failure as an Axint validator or runtime-coverage gap before continuing.",
 ].join("\n");
 const XCODE_CLAUDE_CONFIG = join(
   "Library",

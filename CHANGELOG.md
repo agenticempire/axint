@@ -6,6 +6,24 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.5] — 2026-04-24
+
+### Added
+
+- **Cloud Check coverage and confidence** — `axint.cloud.check` now reports what it checked, what still needs Xcode/runtime evidence, and how much confidence an agent should place in the result.
+- **SwiftUI accessibility propagation diagnostic** — new `AX736` warning for container `.accessibilityIdentifier(...)` patterns that can hide nested control identifiers in UI tests.
+- **Observation navigation diagnostic** — new `AX735` warning for `@ObservationIgnored` navigator/router state inside `@Observable` coordinators.
+
+### Changed
+
+- **Cloud Check repair prompts** now include validator coverage details and avoid implying that a clean static check proves there is no runtime/UI bug.
+- **Xcode setup prompts** now tell agents to work in short validation checkpoints and report Axint validator gaps when Xcode/tests fail after a clean static check.
+
+### Fixed
+
+- **`AX731` weak-capture parsing** now accepts `Task { @MainActor [weak self] in ... }` while still warning on `Task { @MainActor in self... }`.
+- **Cloud Check validator parity** is covered by regression tests so Swift validator findings such as `AX731` surface through the Cloud Check MCP path.
+
 ## [0.3.9] — 2026-04-16
 
 CLI ergonomics, VSCode cloud handoff, and an MCP server refactor.

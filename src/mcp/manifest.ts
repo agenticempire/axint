@@ -110,17 +110,19 @@ export const TOOL_MANIFEST = [
   {
     name: "axint.suggest",
     description:
-      "Suggest Apple-native features for an app based on its domain or " +
-      "description. Returns a ranked list of features with recommended " +
+      "Suggest Apple-native features for an app based on its description. " +
+      "The domain is only a weak hint; the app description wins. Returns a " +
+      "ranked list of features with recommended " +
       "surfaces (intent, widget, view), estimated complexity, and a " +
       "one-line description for each. Use this to discover what Axint " +
-      "can generate for an app before calling axint.feature. No files " +
-      "written, no network requests, no side effects.",
+      "can generate for an app before calling axint.feature. Local mode " +
+      "does not use the network. Optional AI mode calls a configured " +
+      "provider and falls back to local suggestions.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: "object" as const,
@@ -137,8 +139,34 @@ export const TOOL_MANIFEST = [
           type: "string",
           description:
             "Primary app domain. One of: messaging, productivity, health, " +
-            "social, finance, commerce, media, navigation, smart-home. If provided, " +
-            "suggestions are tailored to this domain.",
+            "social, community, collaboration, developer-tools, food, " +
+            "education, creative, finance, commerce, media, navigation, " +
+            "smart-home. Treated as a weak hint, not an override.",
+        },
+        mode: {
+          type: "string",
+          enum: ["local", "auto", "ai"],
+          description:
+            "Suggestion strategy. local is deterministic and offline. ai uses " +
+            "OPENAI_API_KEY or AXINT_SUGGEST_AI_ENDPOINT when configured. " +
+            "auto uses AI only when AXINT_SUGGEST_AI=1 and a provider exists.",
+        },
+        platform: {
+          type: "string",
+          enum: ["iOS", "macOS", "watchOS", "visionOS", "multi"],
+          description:
+            "Optional Apple platform target used by AI mode to tailor suggestions.",
+        },
+        audience: {
+          type: "string",
+          description:
+            "Optional audience context, such as consumers, teams, operators, " +
+            "developers, clinicians, creators, or enterprise buyers.",
+        },
+        exclude: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional concepts to avoid, for example ['dating', 'fitness'].",
         },
         limit: {
           type: "number",
