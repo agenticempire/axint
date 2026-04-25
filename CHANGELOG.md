@@ -6,6 +6,17 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.6] — 2026-04-25
+
+### Added
+
+- **`axint.status` MCP tool** — reports the exact running MCP server version, package path, uptime, tool count, and Xcode restart/update instructions so agents can prove which Axint process they are connected to.
+
+### Changed
+
+- **Xcode startup prompts** now tell agents to call `axint.status` before editing code and stop if the running MCP server is older than expected.
+- **`axint xcode verify`** now treats a missing `axint.status` tool as an old MCP server and prints the update/restart path.
+
 ## [0.4.5] — 2026-04-24
 
 ### Added

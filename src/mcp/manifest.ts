@@ -7,6 +7,33 @@
 
 export const TOOL_MANIFEST = [
   {
+    name: "axint.status",
+    description:
+      "Report the exact running Axint MCP server version, package path, uptime, " +
+      "registered tool count, and Xcode restart/update instructions. Use this " +
+      "as the first tool in a new Xcode agent chat to prove which Axint process " +
+      "the agent is actually connected to. This answers the running MCP server, " +
+      "not a guessed npm, PyPI, or docs version.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        format: {
+          type: "string",
+          enum: ["markdown", "json", "prompt"],
+          description:
+            "Output format. markdown is human-readable, json is structured, " +
+            "and prompt is a short instruction an agent can repeat back before editing.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.feature",
     description:
       "Generate a scaffolded Apple-native feature package from a description. " +

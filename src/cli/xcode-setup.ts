@@ -31,6 +31,8 @@ const START_PROMPT = [
   "6. https://docs.axint.ai/reference/cli/",
   "",
   "Then list MCP servers and confirm both xcode-tools and axint are available.",
+  "Call axint.status and report the running MCP server version before editing code.",
+  "If the version is older than expected, stop and tell me to update Axint, rerun `axint xcode setup --agent claude`, and restart the Xcode agent chat.",
   "Use Axint before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.",
   "Work in short checkpoints. Do not spend 20+ minutes on a task without running Axint and Xcode validation.",
   "After each generated Apple surface, run axint.cloud.check or axint cloud check <file> --feedback, then build in Xcode.",
@@ -162,14 +164,20 @@ export async function verifyXcode(): Promise<void> {
       throw result.error;
     }
 
-    if (output.includes("axint.feature")) {
+    if (output.includes("axint.feature") && output.includes("axint.status")) {
       console.log(`  ${GREEN}✓${RESET} MCP server responds`);
+      console.log(`  ${GREEN}✓${RESET} axint.status tool available`);
       console.log(`  ${GREEN}✓${RESET} axint.feature tool available`);
 
       const toolCount = (output.match(/"name":\s*"axint\./g) || []).length;
       console.log(`  ${GREEN}✓${RESET} ${toolCount} tools registered`);
       console.log();
       console.log(`  ${GREEN}All checks passed.${RESET} Axint is ready for Xcode.`);
+    } else if (output.includes("axint.feature")) {
+      console.log(`  ${RED}✗${RESET} MCP server is old: axint.status not found`);
+      console.log(
+        `  ${DIM}  Update Axint, rerun: axint xcode setup --agent claude, then restart the Xcode agent chat${RESET}`
+      );
     } else {
       console.log(`  ${RED}✗${RESET} Server responded but axint.feature not found`);
       console.log(`  ${DIM}  Try updating: npm install -g @axint/compiler${RESET}`);

@@ -22,6 +22,7 @@
  *   - axint.swift.fix:        Auto-fix mechanical Swift errors
  *   - axint.templates.list:   List bundled reference templates
  *   - axint.templates.get:    Return template source by id
+ *   - axint.status:           Report remote MCP server version + restart help
  *
  * Endpoint: POST /mcp
  * Health:   GET /health
@@ -68,7 +69,7 @@ import type {
 } from "../../../src/core/types.js";
 import { isPrimitiveType, isSceneKind } from "../../../src/core/types.js";
 
-const VERSION = "0.4.5";
+const VERSION = "0.4.6";
 
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
 
@@ -192,6 +193,57 @@ function textResult(text: string, isError = false) {
   return isError
     ? { content: [{ type: "text", text }], isError: true }
     : { content: [{ type: "text", text }] };
+}
+
+function statusResult(args: Record<string, unknown>) {
+  const format = typeof args.format === "string" ? args.format : "markdown";
+  const status = {
+    server: "axint-mcp",
+    transport: "http",
+    packageName: "@axint/compiler",
+    version: VERSION,
+    toolsRegistered: TOOL_MANIFEST.length,
+    promptsRegistered: PROMPT_MANIFEST.length,
+    restartRequiredAfterUpdate: true,
+    updateCommand: "npm install -g @axint/compiler@latest",
+    xcodeSetupCommand: "axint xcode setup --agent claude",
+    xcodeRestartInstruction:
+      "Restart the Xcode Claude Agent chat or MCP server after updating. MCP clients keep the old process alive until it is restarted.",
+  };
+
+  if (format === "json") return textResult(JSON.stringify(status, null, 2));
+
+  if (format === "prompt") {
+    return textResult(
+      [
+        `The running Axint MCP server is v${VERSION}.`,
+        "If this is older than the version the user expects, stop before editing code.",
+        "Tell the user to update Axint, rerun `axint xcode setup --agent claude`, and restart the Xcode Claude Agent chat.",
+      ].join("\n")
+    );
+  }
+
+  return textResult(
+    [
+      "# Axint MCP Status",
+      "",
+      "- Server: axint-mcp",
+      "- Transport: http",
+      `- Running version: v${VERSION}`,
+      "- Package: @axint/compiler",
+      `- Tools registered: ${TOOL_MANIFEST.length}`,
+      `- Prompts registered: ${PROMPT_MANIFEST.length}`,
+      "",
+      "## Updating Axint for Xcode",
+      "",
+      "MCP servers are long-running processes. Installing a newer package does not update an already-running server inside Xcode.",
+      "",
+      "1. Run `npm install -g @axint/compiler@latest`.",
+      "2. Run `axint xcode setup --agent claude`.",
+      "3. Restart the Xcode Claude Agent chat or MCP server.",
+      "4. In the new chat, ask: `Call axint.status and tell me the running version.`",
+    ].join("\n")
+  );
 }
 
 
@@ -536,6 +588,10 @@ function compileFromSchema(args: SchemaArgs) {
 }
 
 function handleTool(name: string, args: Record<string, unknown>) {
+  if (name === "axint.status") {
+    return statusResult(args);
+  }
+
   if (name === "axint.feature") {
     const a = args as unknown as FeatureInput;
     if (!a.description)
