@@ -31,6 +31,12 @@ export interface CloudCheckInput {
   sourcePath?: string;
   fileName?: string;
   language?: CloudCheckLanguage;
+  platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "all";
+  xcodeBuildLog?: string;
+  testFailure?: string;
+  runtimeFailure?: string;
+  expectedBehavior?: string;
+  actualBehavior?: string;
 }
 
 export interface CloudCheckReport {
@@ -64,6 +70,15 @@ export interface CloudCheckReport {
     label: string;
     state: CloudCheckCoverageState;
     detail: string;
+  }>;
+  evidence: {
+    provided: string[];
+    summary: string[];
+  };
+  repairPlan: Array<{
+    title: string;
+    detail: string;
+    command?: string;
   }>;
   nextSteps: string[];
   repairPrompt: string;
@@ -126,14 +141,28 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     }
   }
 
+  const evidence = collectCloudEvidence(input);
+  diagnostics = [
+    ...diagnostics,
+    ...inferEvidenceDiagnostics({
+      input,
+      source,
+      swiftCode,
+      fileName,
+      surface,
+      evidence,
+    }),
+  ];
+
   const errors = diagnostics.filter((d) => d.severity === "error").length;
   const warnings = diagnostics.filter((d) => d.severity === "warning").length;
   const infos = diagnostics.filter((d) => d.severity === "info").length;
   const runtimeCoverageRequired = requiresRuntimeCoverage(language, surface, swiftCode);
+  const runtimeEvidenceProvided = hasRuntimeEvidence(evidence);
   const status: CloudCheckStatus =
     errors > 0
       ? "fail"
-      : warnings > 0 || runtimeCoverageRequired
+      : warnings > 0 || (runtimeCoverageRequired && !runtimeEvidenceProvided)
         ? "needs_review"
         : "pass";
   const outputLines = swiftCode ? swiftCode.split("\n").length : 0;
@@ -170,9 +199,10 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
       ? [
           {
             label: "Runtime and UI coverage",
-            state: "warn" as const,
-            detail:
-              "Static Cloud Check does not execute Xcode builds, UI tests, accessibility flows, route transitions, or runtime state. Do not treat this as proof that the app flow works.",
+            state: runtimeEvidenceProvided ? ("pass" as const) : ("warn" as const),
+            detail: runtimeEvidenceProvided
+              ? "Cloud Check inspected supplied Xcode/test/runtime evidence in addition to static source checks."
+              : "Static Cloud Check does not execute Xcode builds, UI tests, accessibility flows, route transitions, or runtime state. Do not treat this as proof that the app flow works.",
           },
         ]
       : []),
@@ -183,18 +213,28 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     generated,
     hasSwiftCode: Boolean(swiftCode),
     runtimeCoverageRequired,
+    evidenceProvided: evidence.provided.length > 0,
+    runtimeEvidenceProvided,
   });
   const confidence = buildCloudConfidence({
     status,
     errors,
     warnings,
     runtimeCoverageRequired,
+    evidenceProvided: evidence.provided.length > 0,
+    runtimeEvidenceProvided,
   });
 
   const nextSteps = diagnostics
     .filter((d) => d.severity !== "info")
     .slice(0, 4)
     .map((d) => d.suggestion || d.message);
+  const repairPlan = buildCloudRepairPlan({
+    diagnostics,
+    runtimeCoverageRequired,
+    runtimeEvidenceProvided,
+    fileName,
+  });
 
   if (nextSteps.length === 0) {
     if (runtimeCoverageRequired) {
@@ -241,6 +281,8 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     infos,
     checks,
     coverage,
+    evidence,
+    repairPlan,
     nextSteps,
     repairPrompt: "",
   };
@@ -284,6 +326,17 @@ export function renderCloudCheckReport(
     "## Coverage",
     ...report.coverage.map(
       (item) => `- ${item.label}: ${item.state.replace("_", " ")} — ${item.detail}`
+    ),
+    "",
+    "## Evidence",
+    ...(report.evidence.provided.length > 0
+      ? report.evidence.summary.map((item) => `- ${item}`)
+      : ["- No Xcode build, test, runtime, or behavior evidence was supplied."]),
+    "",
+    "## Repair Plan",
+    ...report.repairPlan.map(
+      (step, index) =>
+        `- ${index + 1}. ${step.title}: ${step.detail}${step.command ? ` Command: \`${step.command}\`` : ""}`
     ),
     "",
     "## Next Steps",
@@ -389,6 +442,356 @@ function requiresRuntimeCoverage(
   );
 }
 
+function collectCloudEvidence(input: CloudCheckInput): CloudCheckReport["evidence"] {
+  const entries: Array<[string, string | undefined]> = [
+    ["platform", input.platform],
+    ["xcodeBuildLog", input.xcodeBuildLog],
+    ["testFailure", input.testFailure],
+    ["runtimeFailure", input.runtimeFailure],
+    ["expectedBehavior", input.expectedBehavior],
+    ["actualBehavior", input.actualBehavior],
+  ];
+  const provided = entries
+    .filter(([, value]) => Boolean(value && String(value).trim()))
+    .map(([label]) => label);
+
+  const summary = provided.map((label) => {
+    if (label === "platform") return `Platform hint: ${input.platform}`;
+    const value = String((input as Record<string, unknown>)[label] ?? "");
+    return `${label}: ${normalizeDiagnosticText(value)}`;
+  });
+
+  return { provided, summary };
+}
+
+function hasRuntimeEvidence(evidence: CloudCheckReport["evidence"]): boolean {
+  return evidence.provided.some((label) =>
+    [
+      "xcodeBuildLog",
+      "testFailure",
+      "runtimeFailure",
+      "expectedBehavior",
+      "actualBehavior",
+    ].includes(label)
+  );
+}
+
+function inferEvidenceDiagnostics(input: {
+  input: CloudCheckInput;
+  source: string;
+  swiftCode?: string;
+  fileName: string;
+  surface: string;
+  evidence: CloudCheckReport["evidence"];
+}): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const source = input.swiftCode ?? input.source;
+  const evidenceText = normalizeTextForEvidence(
+    [
+      input.input.xcodeBuildLog,
+      input.input.testFailure,
+      input.input.runtimeFailure,
+      input.input.expectedBehavior,
+      input.input.actualBehavior,
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+  const sourceText = normalizeTextForEvidence(source);
+  const file = input.fileName;
+
+  if (input.input.platform === "macOS") {
+    const iosOnly = findIosOnlySwiftUIUsage(source);
+    if (iosOnly) {
+      diagnostics.push({
+        code: "AXCLOUD-PLATFORM-MACOS",
+        severity: "error",
+        file,
+        line: iosOnly.line,
+        message: `${iosOnly.api} is commonly iOS-oriented and should not be emitted for a macOS-targeted SwiftUI surface without an availability guard.`,
+        suggestion:
+          "Regenerate or edit the view with platform: macOS. Replace iOS-only modifiers with macOS-safe toolbar, focus, command, or form patterns, then rerun Cloud Check and the Xcode build.",
+      });
+    }
+  }
+
+  if (input.input.xcodeBuildLog) {
+    diagnostics.push(...diagnosticsFromBuildLog(input.input.xcodeBuildLog, file));
+  }
+
+  if (input.input.testFailure) {
+    diagnostics.push(
+      ...diagnosticsFromTestFailure(input.input.testFailure, source, file)
+    );
+  }
+
+  if (input.input.runtimeFailure) {
+    diagnostics.push(...diagnosticsFromRuntimeFailure(input.input.runtimeFailure, file));
+  }
+
+  if (
+    input.input.expectedBehavior &&
+    input.input.actualBehavior &&
+    normalizeTextForEvidence(input.input.expectedBehavior) !==
+      normalizeTextForEvidence(input.input.actualBehavior)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-BEHAVIOR-MISMATCH",
+      severity: "warning",
+      file,
+      message:
+        "The supplied expected behavior and actual behavior differ, so the static pass is not enough to call this fixed.",
+      suggestion:
+        "Add or update a focused unit/UI test for the expected behavior, then include the failing test output in the next Cloud Check call.",
+    });
+  }
+
+  if (
+    input.evidence.provided.length > 0 &&
+    diagnostics.length === 0 &&
+    /\b(fail|failed|error|crash|exception|not found|no match|timeout)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-EVIDENCE-UNCLASSIFIED",
+      severity: "warning",
+      file,
+      message:
+        "Supplied evidence appears to describe a failure, but Cloud Check could not classify it into a specific Apple-facing rule yet.",
+      suggestion:
+        "Attach the shortest reproducible build log, test failure, or runtime stack trace. Axint should convert repeated unclassified evidence into a validator rule.",
+    });
+  }
+
+  if (
+    input.surface === "view" &&
+    evidenceText.includes("accessibility") &&
+    sourceText.includes("accessibilityidentifier") &&
+    diagnostics.every((d) => d.code !== "AXCLOUD-UI-ACCESSIBILITY-ID")
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-UI-ACCESSIBILITY-ID",
+      severity: "warning",
+      file,
+      line: findLine(source, "accessibilityIdentifier"),
+      message:
+        "The source and evidence both mention accessibility identifiers. Verify identifiers are attached to the specific interactive/text elements the UI test queries, not a broad container that can mask child identifiers.",
+      suggestion:
+        "Move .accessibilityIdentifier to the exact Button, Text, List row, or control being asserted, then rerun the UI test.",
+    });
+  }
+
+  return dedupeDiagnostics(diagnostics);
+}
+
+function buildCloudRepairPlan(input: {
+  diagnostics: Diagnostic[];
+  runtimeCoverageRequired: boolean;
+  runtimeEvidenceProvided: boolean;
+  fileName: string;
+}): CloudCheckReport["repairPlan"] {
+  const actionable = input.diagnostics.filter((d) => d.severity !== "info");
+
+  if (actionable.length === 0) {
+    return [
+      {
+        title: "Keep source behavior stable",
+        detail:
+          input.runtimeCoverageRequired && !input.runtimeEvidenceProvided
+            ? "Static checks are clean, but the SwiftUI/app flow still needs Xcode build or UI-test evidence."
+            : "Static checks and supplied evidence did not surface a blocking Apple-facing issue.",
+      },
+      {
+        title: "Run the next proof step",
+        detail:
+          input.runtimeCoverageRequired && !input.runtimeEvidenceProvided
+            ? "Build and run the relevant unit/UI test before telling the user the bug is gone."
+            : "Rerun Cloud Check after the next generated edit.",
+        command: `axint cloud check ${input.fileName}`,
+      },
+    ];
+  }
+
+  const steps: CloudCheckReport["repairPlan"] = actionable
+    .slice(0, 5)
+    .map((diagnostic) => ({
+      title: `${diagnostic.code} (${diagnostic.severity})`,
+      detail: diagnostic.suggestion || diagnostic.message,
+    }));
+
+  steps.push({
+    title: "Re-run Cloud Check",
+    detail:
+      "Validate the edited file again, then run the Xcode build or failing test that produced the evidence.",
+    command: `axint cloud check ${input.fileName}`,
+  });
+
+  return steps;
+}
+
+function diagnosticsFromBuildLog(buildLog: string, file: string): Diagnostic[] {
+  const text = normalizeTextForEvidence(buildLog);
+  const diagnostics: Diagnostic[] = [];
+
+  if (/\binvalid redeclaration\b|\balready declared\b|\bduplicate\b/.test(text)) {
+    diagnostics.push({
+      code: "AXCLOUD-BUILD-REDECLARATION",
+      severity: "error",
+      file,
+      message: "Xcode build evidence reports a duplicate or redeclared symbol.",
+      suggestion:
+        "Remove the duplicate declaration instead of adding a second fixed declaration. This usually means a generator or fixer inserted beside the original line.",
+    });
+  }
+
+  if (/\bcannot find\b.*\bin scope\b/.test(text)) {
+    diagnostics.push({
+      code: "AXCLOUD-BUILD-MISSING-SYMBOL",
+      severity: "error",
+      file,
+      message: "Xcode build evidence reports a missing symbol.",
+      suggestion:
+        "Add the missing file to the target, import the required framework, or rename the generated reference to match the real project symbol.",
+    });
+  }
+
+  if (/\bdoes not conform to protocol\b|\bnon-conformance\b/.test(text)) {
+    diagnostics.push({
+      code: "AXCLOUD-BUILD-CONFORMANCE",
+      severity: "error",
+      file,
+      message: "Xcode build evidence reports a protocol conformance failure.",
+      suggestion:
+        "Check required static properties, body/perform implementations, associated types, and platform-specific protocol requirements.",
+    });
+  }
+
+  if (
+    /\bis unavailable in macos\b|\bonly available in ios\b|\bavailability\b/.test(text)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-BUILD-AVAILABILITY",
+      severity: "error",
+      file,
+      message: "Xcode build evidence reports a platform availability problem.",
+      suggestion:
+        "Pass the correct platform to Axint, replace iOS-only APIs, or wrap platform-specific code in availability guards.",
+    });
+  }
+
+  return diagnostics;
+}
+
+function diagnosticsFromTestFailure(
+  testFailure: string,
+  source: string,
+  file: string
+): Diagnostic[] {
+  const text = normalizeTextForEvidence(testFailure);
+  const diagnostics: Diagnostic[] = [];
+
+  if (
+    /\b(no matches|no matching|not found|failed to get matching|element.*not.*exist|wait.*timed out)\b/.test(
+      text
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-UI-TEST-ELEMENT",
+      severity: "error",
+      file,
+      message:
+        "UI-test evidence says the expected element was not found, so a clean static source check is not enough.",
+      suggestion:
+        "Align the UI test query with the rendered element type and identifier. For SwiftUI, prefer asserting the visible Text/Button identifier directly, then rerun the failing UI test.",
+    });
+  }
+
+  if (
+    /\baccessibilityidentifier|accessibility identifier|identifier propagation|overwrote\b/.test(
+      text
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-UI-ACCESSIBILITY-ID",
+      severity: "error",
+      file,
+      line: findLine(source, "accessibilityIdentifier"),
+      message:
+        "UI-test evidence points to an accessibility identifier issue, often caused by putting one identifier on a broad SwiftUI container.",
+      suggestion:
+        "Remove container-level identifiers that mask children, attach identifiers to the exact queried controls, and rerun the UI smoke test.",
+    });
+  }
+
+  return diagnostics;
+}
+
+function diagnosticsFromRuntimeFailure(
+  runtimeFailure: string,
+  file: string
+): Diagnostic[] {
+  const text = normalizeTextForEvidence(runtimeFailure);
+  if (
+    !/\b(crash|fatal|exception|assertion|precondition|mainactor|actor|thread)\b/.test(
+      text
+    )
+  ) {
+    return [];
+  }
+
+  return [
+    {
+      code: "AXCLOUD-RUNTIME-FAILURE",
+      severity: "error",
+      file,
+      message: "Runtime evidence reports a crash or actor/thread failure.",
+      suggestion:
+        "Preserve the failing stack trace, identify the first app-owned frame, and rerun Cloud Check with that source file plus the runtimeFailure text.",
+    },
+  ];
+}
+
+function findIosOnlySwiftUIUsage(
+  source: string
+): { api: string; line?: number } | undefined {
+  const patterns = [
+    ".keyboardType(",
+    ".navigationBarTitleDisplayMode(",
+    ".navigationBarItems(",
+    ".topBarTrailing",
+    ".topBarLeading",
+  ];
+
+  for (const api of patterns) {
+    const line = findLine(source, api);
+    if (line) return { api, line };
+  }
+
+  return undefined;
+}
+
+function findLine(source: string, needle: string): number | undefined {
+  const lines = source.split("\n");
+  const lowerNeedle = needle.toLowerCase();
+  const index = lines.findIndex((line) => line.toLowerCase().includes(lowerNeedle));
+  return index >= 0 ? index + 1 : undefined;
+}
+
+function dedupeDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
+  const seen = new Set<string>();
+  return diagnostics.filter((diagnostic) => {
+    const key = `${diagnostic.code}:${diagnostic.file ?? ""}:${diagnostic.line ?? ""}:${diagnostic.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeTextForEvidence(value: string): string {
+  return value.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim();
+}
+
 function labelForStatus(status: CloudCheckStatus): string {
   if (status === "pass") return "Pass";
   if (status === "needs_review") return "Needs review";
@@ -401,6 +804,8 @@ function buildCloudCoverage(input: {
   generated: boolean;
   hasSwiftCode: boolean;
   runtimeCoverageRequired: boolean;
+  evidenceProvided: boolean;
+  runtimeEvidenceProvided: boolean;
 }): CloudCheckReport["coverage"] {
   const coverage: CloudCheckReport["coverage"] = [];
 
@@ -438,10 +843,16 @@ function buildCloudCoverage(input: {
 
   coverage.push({
     label: "Xcode build, UI tests, and runtime behavior",
-    state: input.runtimeCoverageRequired ? "needs_runtime" : "not_applicable",
-    detail: input.runtimeCoverageRequired
-      ? "Not executed by Cloud Check. Run Xcode build/test evidence for SwiftUI route, accessibility, state, and interaction claims."
-      : "Not required for this static Apple contract check unless the surrounding project behavior is under investigation.",
+    state: input.runtimeEvidenceProvided
+      ? "checked"
+      : input.runtimeCoverageRequired
+        ? "needs_runtime"
+        : "not_applicable",
+    detail: input.runtimeEvidenceProvided
+      ? "Inspected supplied Xcode build, test, runtime, or behavior evidence and converted recognized failures into Cloud diagnostics."
+      : input.runtimeCoverageRequired
+        ? "Not executed by Cloud Check. Run Xcode build/test evidence for SwiftUI route, accessibility, state, and interaction claims."
+        : "Not required for this static Apple contract check unless the surrounding project behavior is under investigation.",
   });
 
   return coverage;
@@ -452,6 +863,8 @@ function buildCloudConfidence(input: {
   errors: number;
   warnings: number;
   runtimeCoverageRequired: boolean;
+  evidenceProvided: boolean;
+  runtimeEvidenceProvided: boolean;
 }): CloudCheckReport["confidence"] {
   if (input.errors > 0) {
     return {
@@ -470,7 +883,10 @@ function buildCloudConfidence(input: {
     };
   }
 
-  if (input.runtimeCoverageRequired || input.status === "needs_review") {
+  if (
+    (input.runtimeCoverageRequired && !input.runtimeEvidenceProvided) ||
+    input.status === "needs_review"
+  ) {
     return {
       level: "medium",
       detail:
@@ -479,6 +895,17 @@ function buildCloudConfidence(input: {
         "Xcode build",
         "Relevant unit/UI tests",
         "Runtime route/accessibility verification",
+      ],
+    };
+  }
+
+  if (input.evidenceProvided) {
+    return {
+      level: "high",
+      detail:
+        "Static checks and supplied Xcode/test/runtime evidence were inspected without classified findings.",
+      missingEvidence: [
+        "Full project build/test logs if this was only a partial evidence sample",
       ],
     };
   }
@@ -502,6 +929,11 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
         `Static confidence: ${report.confidence.level}. ${report.confidence.detail}`,
         `Checked: ${checkedCoverageSummary(report)}.`,
         "This is not a runtime pass. Run the Xcode build plus the relevant unit/UI tests before claiming there is no bug.",
+        "",
+        "Repair plan:",
+        ...report.repairPlan.map(
+          (step, index) => `${index + 1}. ${step.title}: ${step.detail}`
+        ),
         "If those fail after Cloud Check is clean, log the failure as an Axint validator/runtime-coverage gap.",
       ].join("\n");
     }
@@ -511,6 +943,7 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
       "Axint Cloud Check did not find blocking Apple-facing issues.",
       `Static confidence: ${report.confidence.level}. ${report.confidence.detail}`,
       `Checked: ${checkedCoverageSummary(report)}.`,
+      `Repair plan: ${report.repairPlan.map((step) => step.title).join(" -> ")}.`,
       "Preserve the feature behavior and rerun Cloud Check after the next agent edit.",
     ].join("\n");
   }
@@ -519,10 +952,18 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
     `Fix the Apple-facing issues in ${report.fileName} without changing the user's intended feature behavior.`,
     `Surface: ${report.surface}`,
     `Confidence: ${report.confidence.level}. ${report.confidence.detail}`,
+    ...(report.evidence.provided.length > 0
+      ? ["", "Evidence supplied:", ...report.evidence.summary.map((item) => `- ${item}`)]
+      : []),
     "",
     "Address these findings:",
     ...actionable.map(
       (d) => `- ${d.code}: ${d.message}${d.suggestion ? ` Fix: ${d.suggestion}` : ""}`
+    ),
+    "",
+    "Repair plan:",
+    ...report.repairPlan.map(
+      (step, index) => `${index + 1}. ${step.title}: ${step.detail}`
     ),
     "",
     "After editing, rerun `axint cloud check --source <file>` and then build in Xcode.",
@@ -617,6 +1058,12 @@ function inferLearningSignals(report: CloudCheckReport): string[] {
   if (hasRuntimeCoverageWarning(report)) {
     signals.push("runtime-evidence-missing");
   }
+  if (report.evidence.provided.length > 0) {
+    signals.push("runtime-evidence-supplied");
+  }
+  if (/\bAXCLOUD-UI-TEST|AXCLOUD-UI-ACCESSIBILITY\b/i.test(body)) {
+    signals.push("ui-test-evidence-gap");
+  }
 
   if (
     report.language === "typescript" &&
@@ -681,6 +1128,7 @@ function inferLearningOwner(
 ): CloudLearningOwner {
   if (signals.includes("platform-availability-gap")) return "swift-validator";
   if (signals.includes("runtime-evidence-missing")) return "cloud";
+  if (signals.includes("ui-test-evidence-gap")) return "cloud";
   if (kind === "validator_gap") return "swift-validator";
   if (signals.includes("generator-validator-contract-drift")) return "compiler";
   if (signals.includes("duplicate-generated-symbol")) return "feature-generator";
@@ -745,7 +1193,9 @@ function suggestedActionForLearningSignal(
 }
 
 function hasRuntimeCoverageWarning(report: CloudCheckReport): boolean {
-  return report.checks.some((check) => check.label === "Runtime and UI coverage");
+  return report.checks.some(
+    (check) => check.label === "Runtime and UI coverage" && check.state === "warn"
+  );
 }
 
 function normalizeDiagnosticText(value: string): string {

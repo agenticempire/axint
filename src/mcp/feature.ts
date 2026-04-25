@@ -12,10 +12,12 @@
 
 import {
   compileFromIR,
+  compileAppFromIR,
   compileViewFromIR,
   compileWidgetFromIR,
 } from "../core/compiler.js";
 import type {
+  IRApp,
   IRIntent,
   IRView,
   IRWidget,
@@ -26,13 +28,15 @@ import type {
   WidgetFamily,
 } from "../core/types.js";
 import { isPrimitiveType, type IRPrimitiveType } from "../core/types.js";
+import { validateSwiftSource } from "../core/swift-validator.js";
 import {
   buildSmartViewBody,
   reservedViewPropertyName,
+  usesSettingsBlueprint,
   usesProfileCardBlueprint,
 } from "./view-blueprints.js";
 
-export type Surface = "intent" | "view" | "widget";
+export type Surface = "intent" | "view" | "widget" | "component" | "app" | "store";
 
 export interface FeatureInput {
   description: string;
@@ -43,6 +47,7 @@ export interface FeatureInput {
   params?: Record<string, string>;
   platform?: "iOS" | "macOS" | "visionOS" | "all";
   tokenNamespace?: string;
+  componentKind?: string;
 }
 
 export interface FeatureFile {
@@ -169,6 +174,71 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     diagnostics.push(...viewResult.diagnostics);
   }
 
+  // --- Component surface ---
+  if (surfaces.includes("component")) {
+    const componentName = withoutSuffix(withoutSuffix(name, "View"), "Component");
+    const componentKind =
+      input.componentKind ??
+      inferComponentKindForFeature(input.description, componentName);
+    const componentResult = buildView(
+      componentName,
+      input.description,
+      input.params ?? {},
+      input.platform,
+      input.tokenNamespace,
+      componentKind
+    );
+    if (componentResult.swift) {
+      files.push({
+        path: `Sources/Components/${componentName}.swift`,
+        content: componentResult.swift,
+        type: "swift",
+      });
+    }
+    files.push({
+      path: `Tests/${componentName}Tests.swift`,
+      content: generateViewTest(componentName),
+      type: "test",
+    });
+    diagnostics.push(...componentResult.diagnostics);
+  }
+
+  // --- Store surface ---
+  if (surfaces.includes("store")) {
+    const storeName = withSuffix(withoutSuffix(name, "Store"), "Store");
+    files.push({
+      path: `Sources/Stores/${storeName}.swift`,
+      content: buildStore(storeName, input.description, domain),
+      type: "swift",
+    });
+    files.push({
+      path: `Tests/${storeName}Tests.swift`,
+      content: generateStoreTest(storeName),
+      type: "test",
+    });
+  }
+
+  // --- App surface ---
+  if (surfaces.includes("app")) {
+    const appName = withoutSuffix(input.appName || name, "App");
+    const appResult = buildApp(appName, input.platform);
+    if (appResult.swift) {
+      files.push({
+        path: `Sources/App/${withSuffix(appName, "App")}.swift`,
+        content: appResult.swift,
+        type: "swift",
+      });
+    }
+    files.push({
+      path: `Tests/${withSuffix(appName, "App")}Tests.swift`,
+      content: generateAppTest(appName),
+      type: "test",
+    });
+    diagnostics.push(...appResult.diagnostics);
+  }
+
+  diagnostics.push(...validateGeneratedSwift(files));
+
   // --- Domain-level entitlements ---
   if (
     domain &&
@@ -199,7 +269,7 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     });
   }
 
-  const success = diagnostics.every((d) => !d.startsWith("[AX") || d.includes("warning"));
+  const success = !diagnostics.some((d) => /^\[AX[^\]]+\]\s+error\b/.test(d));
   const surfaceList = surfaces.join(", ");
   const fileCount = files.filter((f) => f.type === "swift").length;
   const testCount = files.filter((f) => f.type === "test").length;
@@ -209,7 +279,7 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     `Surfaces: ${surfaceList}`,
     input.platform ? `Platform: ${input.platform}` : null,
     domain ? `Domain: ${domain}` : null,
-    `Note: perform() bodies and app-specific UI logic are starter scaffolds; fill the real product behavior before shipping.`,
+    `Note: generated files are editable first drafts; connect real persistence, app state, and product behavior before shipping.`,
     `Files:`,
     ...files.map((f) => `  ${f.path} (${f.type})`),
   ]
@@ -217,6 +287,18 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     .join("\n");
 
   return { success, name, files, summary, diagnostics };
+}
+
+function validateGeneratedSwift(files: FeatureFile[]): string[] {
+  return files
+    .filter((file) => file.type === "swift")
+    .flatMap((file) =>
+      validateSwiftSource(file.content, file.path).diagnostics.map((d) => {
+        const location = d.line ? ` line ${d.line}` : "";
+        const suggestion = d.suggestion ? `\n  help: ${d.suggestion}` : "";
+        return `[${d.code}] ${d.severity}${location}: Generated ${file.path}: ${d.message}${suggestion}`;
+      })
+    );
 }
 
 // ─── Surface builders ───────────────────────────────────────────────
@@ -335,7 +417,8 @@ function buildView(
   description: string,
   params: Record<string, string>,
   platform: FeatureInput["platform"] = "all",
-  tokenNamespace?: string
+  tokenNamespace?: string,
+  componentKind?: string
 ): SurfaceOutput {
   const state: IRViewState[] = Object.entries(params).map(([propName, typeStr]) => ({
     name: reservedViewPropertyName(propName),
@@ -361,6 +444,15 @@ function buildView(
     );
   }
 
+  if (usesSettingsBlueprint(description)) {
+    ensureState(state, "appearanceMode", "string", "System");
+    ensureState(state, "accentColor", "string", "Blue");
+    ensureState(state, "transcriptionEngine", "string", "Apple Speech");
+    ensureState(state, "reduceMotion", "boolean", false);
+  }
+
+  ensureBlueprintState(state, name, description, componentKind);
+
   const ir: IRView = {
     name,
     props: [],
@@ -368,7 +460,14 @@ function buildView(
     body: [
       {
         kind: "raw",
-        swift: buildViewBody(name, description, state, platform, tokenNamespace),
+        swift: buildViewBody(
+          name,
+          description,
+          state,
+          platform,
+          tokenNamespace,
+          componentKind
+        ),
       },
     ],
     sourceFile: "<feature>",
@@ -393,6 +492,178 @@ function buildView(
     entitlements: null,
     diagnostics: result.diagnostics.map((d) => `[${d.code}] ${d.severity}: ${d.message}`),
   };
+}
+
+function buildApp(
+  name: string,
+  platform: FeatureInput["platform"] = "all"
+): SurfaceOutput {
+  const platformGuard =
+    platform === "macOS" || platform === "iOS" || platform === "visionOS"
+      ? platform
+      : undefined;
+  const ir: IRApp = {
+    name,
+    scenes: [
+      {
+        sceneKind: "windowGroup",
+        rootView: "ContentView",
+        title: humanize(name),
+        isDefault: true,
+        platformGuard,
+      },
+    ],
+    sourceFile: "<feature>",
+  };
+
+  const result = compileAppFromIR(ir);
+  if (!result.success || !result.output) {
+    return {
+      swift: null,
+      plist: null,
+      entitlements: null,
+      diagnostics: result.diagnostics.map(
+        (d) => `[${d.code}] ${d.severity}: ${d.message}`
+      ),
+    };
+  }
+
+  return {
+    swift: result.output.swiftCode,
+    plist: null,
+    entitlements: null,
+    diagnostics: result.diagnostics.map((d) => `[${d.code}] ${d.severity}: ${d.message}`),
+  };
+}
+
+function buildStore(
+  name: string,
+  description: string,
+  domain: string | undefined
+): string {
+  const itemName = withoutSuffix(name, "Store") + "Item";
+  const titleSeed =
+    domain === "collaboration"
+      ? "New mission"
+      : domain === "developer-tools"
+        ? "Run project check"
+        : domain === "social"
+          ? "New profile"
+          : "New item";
+  const statusSeed =
+    domain === "collaboration"
+      ? "ready"
+      : domain === "developer-tools"
+        ? "queued"
+        : domain === "social"
+          ? "new"
+          : "active";
+
+  return `import Foundation
+import Observation
+
+struct ${itemName}: Identifiable, Codable, Equatable {
+    let id: UUID
+    var title: String
+    var detail: String
+    var status: String
+    var createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        detail: String = "",
+        status: String = "${statusSeed}",
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.status = status
+        self.createdAt = createdAt
+    }
+}
+
+@MainActor
+@Observable
+final class ${name} {
+    var items: [${itemName}] = [
+        ${itemName}(title: "${escapeSwiftLiteral(titleSeed)}", detail: "${escapeSwiftLiteral(description)}")
+    ]
+    var selectedID: UUID?
+
+    var selectedItem: ${itemName}? {
+        guard let selectedID else { return items.first }
+        return items.first { $0.id == selectedID }
+    }
+
+    func add(title: String, detail: String = "", status: String = "${statusSeed}") {
+        let item = ${itemName}(title: title, detail: detail, status: status)
+        items.insert(item, at: 0)
+        selectedID = item.id
+    }
+
+    func updateStatus(for id: UUID, status: String) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        items[index].status = status
+    }
+}
+`;
+}
+
+function ensureState(
+  state: IRViewState[],
+  name: string,
+  type: string,
+  defaultValue: unknown
+): void {
+  if (state.some((entry) => entry.name === name)) return;
+  state.push({
+    name,
+    type: toIRType(type),
+    kind: "state",
+    defaultValue,
+  });
+}
+
+function ensureBlueprintState(
+  state: IRViewState[],
+  name: string,
+  description: string,
+  componentKind?: string
+): void {
+  const haystack = `${componentKind ?? ""} ${name} ${description}`
+    .replace(/[\s_-]+/g, "")
+    .toLowerCase();
+
+  if (haystack.includes("missioncard")) {
+    ensureState(state, "title", "string", "Launch mission");
+    ensureState(state, "subtitle", "string", "Owned by Design Agent");
+    ensureState(state, "status", "string", "ready");
+    ensureState(state, "progress", "double", 0.42);
+  }
+
+  if (haystack.includes("avatar")) {
+    ensureState(state, "initials", "string", "AE");
+    ensureState(state, "status", "string", "online");
+  }
+
+  if (haystack.includes("statusring")) {
+    ensureState(state, "value", "double", 0.72);
+    ensureState(state, "label", "string", "Ready");
+  }
+
+  if (haystack.includes("channelrow")) {
+    ensureState(state, "title", "string", "agents");
+    ensureState(state, "isSelected", "boolean", true);
+    ensureState(state, "unreadCount", "int", 3);
+  }
+
+  if (haystack.includes("agentrow")) {
+    ensureState(state, "name", "string", "Research Agent");
+    ensureState(state, "role", "string", "Tracks the frontier");
+    ensureState(state, "status", "string", "awake");
+  }
 }
 
 // ─── Test generators ────────────────────────────────────────────────
@@ -453,9 +724,117 @@ final class ${name}Tests: XCTestCase {
 `;
 }
 
+function generateStoreTest(name: string): string {
+  return `import XCTest
+
+@MainActor
+final class ${name}Tests: XCTestCase {
+    func test${name}AddsItems() {
+        let store = ${name}()
+        let before = store.items.count
+        store.add(title: "Test item", detail: "Created by test")
+        XCTAssertEqual(store.items.count, before + 1)
+        XCTAssertEqual(store.items.first?.title, "Test item")
+    }
+}
+`;
+}
+
+function generateAppTest(name: string): string {
+  return `import XCTest
+import SwiftUI
+
+final class ${name}AppTests: XCTestCase {
+    func test${name}AppCanBeInstantiated() {
+        let app = ${name}App()
+        XCTAssertNotNil(app)
+    }
+}
+`;
+}
+
 // ─── Inference helpers ──────────────────────────────────────────────
 
 const DOMAIN_KEYWORDS: Record<string, string[]> = {
+  collaboration: [
+    "swarm",
+    "agent",
+    "agents",
+    "mission",
+    "missions",
+    "workspace",
+    "team",
+    "collaboration",
+    "project",
+    "projects",
+    "channel",
+    "channels",
+    "handoff",
+    "handoffs",
+    "approval",
+    "approvals",
+    "operator",
+    "execution",
+    "review",
+  ],
+  "developer-tools": [
+    "developer",
+    "code",
+    "coding",
+    "compiler",
+    "repo",
+    "github",
+    "pull request",
+    "xcode",
+    "build",
+    "test",
+    "tests",
+    "ci",
+    "deploy",
+    "diagnostic",
+    "diagnostics",
+    "mcp",
+    "fix packet",
+  ],
+  community: [
+    "community",
+    "member",
+    "members",
+    "group",
+    "groups",
+    "club",
+    "event",
+    "events",
+    "meetup",
+    "profile",
+    "profiles",
+  ],
+  food: [
+    "recipe",
+    "recipes",
+    "cooking",
+    "meal",
+    "meals",
+    "ingredient",
+    "ingredients",
+    "grocery",
+    "groceries",
+    "restaurant",
+  ],
+  creative: [
+    "design",
+    "designer",
+    "creator",
+    "creative",
+    "photo",
+    "image",
+    "video",
+    "portfolio",
+    "moodboard",
+    "asset",
+    "assets",
+    "brand",
+  ],
   health: [
     "health",
     "fitness",
@@ -577,6 +956,15 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function escapeSwiftLiteral(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
+}
+
 function inferName(description: string): string {
   // extract the core action verb + noun from the description
   const cleaned = description
@@ -595,6 +983,20 @@ function inferName(description: string): string {
 }
 
 const PARAM_PATTERNS: Record<string, Record<string, string>> = {
+  collaboration: {
+    missionTitle: "string",
+    owner: "string",
+    priority: "string",
+    status: "string",
+  },
+  "developer-tools": {
+    target: "string",
+    checkName: "string",
+    includeTests: "boolean",
+  },
+  community: { memberName: "string", groupName: "string", eventTitle: "string" },
+  food: { recipeName: "string", ingredient: "string", servings: "int" },
+  creative: { assetTitle: "string", format: "string", destination: "string" },
   health: { type: "string", duration: "duration", calories: "int" },
   social: { profileName: "string", profileId: "string" },
   messaging: { recipient: "string", body: "string" },
@@ -616,6 +1018,9 @@ function inferParams(
     surfaces.includes("intent") &&
     isReadOnlyQuery(description)
   ) {
+    return {};
+  }
+  if (surfaces.length === 1 && surfaces.includes("component")) {
     return {};
   }
   if (domain === "social") {
@@ -687,6 +1092,21 @@ function inferSocialParams(description: string): Record<string, string> {
   }
 
   return { ...PARAM_PATTERNS.social };
+}
+
+function inferComponentKindForFeature(
+  description: string,
+  name: string
+): string | undefined {
+  const lower = `${name} ${description}`.toLowerCase();
+  if (/\bmission|task|handoff|approval\b/.test(lower)) return "missionCard";
+  if (/\bagent|operator|teammate|member\b/.test(lower)) return "agentRow";
+  if (/\bchannel|room|conversation\b/.test(lower)) return "channelRow";
+  if (/\bstatus|progress|ring\b/.test(lower)) return "statusRing";
+  if (/\bavatar|profile photo|initials\b/.test(lower)) return "avatar";
+  if (/\bcontext|north star|memory\b/.test(lower)) return "contextPanel";
+  if (/\bprofile|swipe|dating\b/.test(lower)) return "profileCard";
+  return undefined;
 }
 
 function isReadOnlyQuery(description: string): boolean {
@@ -792,7 +1212,8 @@ function buildViewBody(
   description: string,
   state: IRViewState[],
   platform: FeatureInput["platform"],
-  tokenNamespace?: string
+  tokenNamespace?: string,
+  componentKind?: string
 ): string {
   const blueprint = buildSmartViewBody({
     name,
@@ -800,6 +1221,7 @@ function buildViewBody(
     state,
     platform,
     tokenNamespace,
+    componentKind,
   });
   if (blueprint) return blueprint;
 

@@ -1,10 +1,12 @@
 import type { Command } from "commander";
+import { readFileSync } from "node:fs";
 import { loadAxintCredentials, resolveCredentialsPath } from "../core/credentials.js";
 import { registryBaseUrl } from "../core/env.js";
 import {
   renderCloudCheckReport,
   runCloudCheck,
   type CloudCheckFormat,
+  type CloudCheckInput,
 } from "../cloud/check.js";
 import { runAxintLogin } from "./login.js";
 
@@ -51,6 +53,25 @@ export function registerCloud(program: Command) {
     .option("--json", "Shortcut for --format json")
     .option("--prompt", "Shortcut for --format prompt")
     .option("--feedback", "Print only the privacy-preserving compiler feedback signal")
+    .option(
+      "--platform <platform>",
+      "Target platform hint: iOS, macOS, watchOS, visionOS, all",
+      parseCloudPlatform
+    )
+    .option("--build-log <text>", "Inline Xcode build log or error snippet")
+    .option("--build-log-file <file>", "Read Xcode build log evidence from a file")
+    .option("--test-failure <text>", "Inline unit/UI test failure output")
+    .option(
+      "--test-failure-file <file>",
+      "Read unit/UI test failure evidence from a file"
+    )
+    .option(
+      "--runtime-failure <text>",
+      "Inline runtime, preview, or crash failure output"
+    )
+    .option("--runtime-failure-file <file>", "Read runtime failure evidence from a file")
+    .option("--expected <text>", "Expected behavior when checking a semantic bug")
+    .option("--actual <text>", "Actual behavior when checking a semantic bug")
     .action(
       (
         file: string | undefined,
@@ -60,6 +81,15 @@ export function registerCloud(program: Command) {
           json?: boolean;
           prompt?: boolean;
           feedback?: boolean;
+          platform?: CloudCheckInput["platform"];
+          buildLog?: string;
+          buildLogFile?: string;
+          testFailure?: string;
+          testFailureFile?: string;
+          runtimeFailure?: string;
+          runtimeFailureFile?: string;
+          expected?: string;
+          actual?: string;
         }
       ) => {
         try {
@@ -74,7 +104,18 @@ export function registerCloud(program: Command) {
               : options.json
                 ? "json"
                 : options.format;
-          const report = runCloudCheck({ sourcePath });
+          const report = runCloudCheck({
+            sourcePath,
+            platform: options.platform,
+            xcodeBuildLog: evidenceValue(options.buildLog, options.buildLogFile),
+            testFailure: evidenceValue(options.testFailure, options.testFailureFile),
+            runtimeFailure: evidenceValue(
+              options.runtimeFailure,
+              options.runtimeFailureFile
+            ),
+            expectedBehavior: options.expected,
+            actualBehavior: options.actual,
+          });
           console.log(renderCloudCheckReport(report, format));
         } catch (err: unknown) {
           console.error(`\x1b[31merror:\x1b[0m ${(err as Error).message ?? err}`);
@@ -146,6 +187,25 @@ export function registerCloud(program: Command) {
       );
       console.log();
     });
+}
+
+function evidenceValue(inline?: string, file?: string): string | undefined {
+  if (inline?.trim()) return inline;
+  if (!file) return undefined;
+  return readFileSync(file, "utf-8");
+}
+
+function parseCloudPlatform(value: string): CloudCheckInput["platform"] {
+  if (
+    value === "iOS" ||
+    value === "macOS" ||
+    value === "watchOS" ||
+    value === "visionOS" ||
+    value === "all"
+  ) {
+    return value;
+  }
+  throw new Error(`invalid Cloud Check platform: ${value}`);
 }
 
 function parseCloudCheckFormat(value: string): CloudCheckFormat {

@@ -851,6 +851,12 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
       "Container accessibilityIdentifier can hide child identifiers in SwiftUI UI tests",
     category: "swift-accessibility",
   },
+  AX737: {
+    code: "AX737",
+    severity: "error",
+    message: "Swift type declares the same stored property more than once",
+    category: "swift-validator",
+  },
 
   // ─── Live Activities / ActivityKit (AX740–AX749) ────────
   AX740: {

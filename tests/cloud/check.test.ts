@@ -21,6 +21,7 @@ struct BrokenIntent: AppIntent {
     expect(report.errors).toBeGreaterThan(0);
     expect(report.learningSignal?.diagnosticCodes).toContain("AX704");
     expect(report.learningSignal?.redaction).toBe("source_not_included");
+    expect(report.repairPlan.map((step) => step.title).join("\n")).toContain("AX704");
     expect(report.repairPrompt).toContain("axint cloud check --source <file>");
     expect(renderCloudCheckReport(report, "markdown")).toContain("Axint Cloud Check");
     expect(renderCloudCheckReport(report, "markdown")).toContain(
@@ -110,6 +111,119 @@ struct ContentView: View {
       })
     );
     expect(payload.repairPrompt).toContain("This is not a runtime pass");
+  });
+
+  it("turns supplied UI-test evidence into actionable Cloud diagnostics", () => {
+    const report = runCloudCheck({
+      fileName: "MainSwarmWindow.swift",
+      source: `
+import SwiftUI
+
+struct MainSwarmWindow: View {
+    var body: some View {
+        VStack {
+            Text("Workspace")
+            Button("Back") {}
+                .accessibilityIdentifier("back-to-workspace")
+        }
+        .accessibilityIdentifier("project-room")
+    }
+}
+`,
+      testFailure:
+        'XCTAssert failed: No matches found for app.otherElements["workspace-home"]. Container accessibilityIdentifier propagation overwrote child identifiers.',
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-UI-ACCESSIBILITY-ID"
+    );
+    expect(report.repairPrompt).toContain("Evidence supplied");
+    expect(report.repairPrompt).toContain("Remove container-level identifiers");
+    expect(report.repairPlan.map((step) => step.title).join("\n")).toContain(
+      "AXCLOUD-UI-TEST-ELEMENT"
+    );
+    expect(report.learningSignal?.suggestedOwner).toBe("cloud");
+    expect(report.coverage).toContainEqual(
+      expect.objectContaining({
+        label: "Xcode build, UI tests, and runtime behavior",
+        state: "checked",
+      })
+    );
+  });
+
+  it("catches macOS platform mismatches from source plus platform hint", () => {
+    const report = runCloudCheck({
+      fileName: "SettingsView.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct SettingsView: View {
+    @State private var value = ""
+    var body: some View {
+        TextField("Value", text: $value)
+            .keyboardType(.decimalPad)
+    }
+}
+`,
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-PLATFORM-MACOS");
+    expect(report.nextSteps.join("\n")).toMatch(/macOS|platform/i);
+  });
+
+  it("passes a SwiftUI file when static checks and supplied build/test evidence are clean", () => {
+    const report = runCloudCheck({
+      fileName: "ContentView.swift",
+      source: `
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View { Text("Hello") }
+}
+`,
+      xcodeBuildLog: "Build succeeded. 38 tests passed.",
+    });
+
+    expect(report.status).toBe("pass");
+    expect(report.evidence.provided).toContain("xcodeBuildLog");
+    expect(report.checks).toContainEqual(
+      expect.objectContaining({
+        label: "Runtime and UI coverage",
+        state: "pass",
+      })
+    );
+    expect(report.repairPrompt).not.toContain("This is not a runtime pass");
+    expect(report.coverage).toContainEqual(
+      expect.objectContaining({
+        label: "Xcode build, UI tests, and runtime behavior",
+        state: "checked",
+      })
+    );
+  });
+
+  it("classifies Xcode duplicate symbol build logs", () => {
+    const report = runCloudCheck({
+      fileName: "BrokenIntent.swift",
+      source: `
+import AppIntents
+
+struct BrokenIntent: AppIntent {
+    static var title: LocalizedStringResource = "Broken"
+    func perform() async throws -> some IntentResult { .result() }
+}
+`,
+      xcodeBuildLog:
+        "error: invalid redeclaration of 'title'. Static var title was already declared in BrokenIntent.swift.",
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-BUILD-REDECLARATION"
+    );
+    expect(report.learningSignal?.signals).toContain("runtime-evidence-supplied");
   });
 
   it("emits a learning signal when static SwiftUI validation needs runtime evidence", () => {

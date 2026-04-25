@@ -341,6 +341,47 @@ describe("swift validator — AX713 TimelineEntry.date", () => {
   });
 });
 
+describe("swift validator — AX737 duplicate stored properties", () => {
+  it("flags duplicate stored properties in generated Swift structs", () => {
+    const source = `
+      import SwiftUI
+
+      struct MissionCard: View {
+          var title: String
+          var title: String
+
+          var body: some View {
+              Text(title)
+          }
+      }
+    `;
+
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX737");
+    expect(diagnostic?.message).toContain("title");
+    expect(diagnostic?.suggestion).toContain("Remove the duplicate");
+  });
+
+  it("does not flag computed body properties as duplicate stored state", () => {
+    const source = `
+      import SwiftUI
+
+      struct MissionCard: View {
+          var title: String
+
+          var body: some View {
+              VStack {
+                  Text(title)
+              }
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX737")).toHaveLength(
+      0
+    );
+  });
+});
+
 // ─── AX714: App.body ────────────────────────────────────────────────
 
 describe("swift validator — AX714 App.body", () => {

@@ -29,11 +29,24 @@ export function usesThreePaneBlueprint(description: string): boolean {
   );
 }
 
+export function usesSettingsBlueprint(description: string): boolean {
+  const lower = description.toLowerCase();
+  return (
+    /\b(settings|preferences|app settings|appearance|accent color|reduce motion|keyboard shortcut|transcription engine)\b/.test(
+      lower
+    ) &&
+    /\b(toggle|picker|swatch|mode|preference|setting|appearance|keyboard|transcription|motion)\b/.test(
+      lower
+    )
+  );
+}
+
 export function buildSmartViewBody(input: ViewBlueprintInput): string | null {
   const description = input.description ?? "";
   const explicitKind = normalizeKind(input.componentKind);
   if (explicitKind) return buildComponentBody(explicitKind, input);
   if (usesThreePaneBlueprint(description)) return buildThreePaneBody(input);
+  if (usesSettingsBlueprint(description)) return buildSettingsBody(input);
   if (usesProfileCardBlueprint(description)) return buildProfileCardBody(input.platform);
 
   const inferredKind = normalizeKind(inferComponentKind(input.name, description));
@@ -71,6 +84,8 @@ function inferComponentKind(name: string, description: string): string | undefin
     return "channelRow";
   if (haystack.includes("sidebar rail") || haystack.includes("sidebarrail"))
     return "sidebarRail";
+  if (haystack.includes("settings") || haystack.includes("preferences"))
+    return "settingsView";
   if (haystack.includes("profile card") || haystack.includes("profilecard"))
     return "profileCard";
   return undefined;
@@ -92,6 +107,8 @@ function normalizeKind(kind: string | undefined): string | undefined {
   if (lower === "signalcard") return "signalCard";
   if (lower === "channelrow") return "channelRow";
   if (lower === "sidebarrail") return "sidebarRail";
+  if (lower === "settingsview" || lower === "settings" || lower === "preferences")
+    return "settingsView";
   if (lower === "profilecard") return "profileCard";
   if (lower === "custom") return undefined;
   return undefined;
@@ -413,12 +430,101 @@ function buildComponentBody(kind: string, input: ViewBlueprintInput): string {
         .padding(.vertical, 12)
         .frame(width: ${layoutRef(input.tokenNamespace, "sidebarRail", "56")})`;
 
+    case "settingsView":
+      return buildSettingsBody(input);
+
     case "profileCard":
       return buildProfileCardBody(input.platform);
 
     default:
       return `VStack { Text("${input.name}") }`;
   }
+}
+
+function buildSettingsBody(input: ViewBlueprintInput): string {
+  return `VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Settings")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                Text("Tune the workspace without leaving the current project room.")
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Appearance")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                Picker("Appearance", selection: $appearanceMode) {
+                    Text("System").tag("System")
+                    Text("Light").tag("Light")
+                    Text("Dark").tag("Dark")
+                }
+                .pickerStyle(.segmented)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Accent Color")
+                        .font(.subheadline.weight(.semibold))
+                    HStack(spacing: 10) {
+                        ForEach(["Blue", "Purple", "Orange", "Green", "Pink", "Teal"], id: \\.self) { color in
+                            Button {
+                                accentColor = color
+                            } label: {
+                                Circle()
+                                    .fill(color == "Blue" ? Color.blue : color == "Purple" ? Color.purple : color == "Orange" ? Color.orange : color == "Green" ? Color.green : color == "Pink" ? Color.pink : Color.teal)
+                                    .frame(width: 22, height: 22)
+                                    .overlay {
+                                        if accentColor == color {
+                                            Image(systemName: "checkmark")
+                                                .font(.caption2.weight(.bold))
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\\(color) accent")
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Input")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                Picker("Transcription Engine", selection: $transcriptionEngine) {
+                    Text("Apple Speech").tag("Apple Speech")
+                    Text("WhisperKit").tag("WhisperKit")
+                }
+
+                Toggle("Reduce motion", isOn: $reduceMotion)
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Keyboard Shortcuts")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+                ${shortcutRow("Command-K", "Open command bar")}
+                ${shortcutRow("Command-/", "Show shortcuts")}
+                ${shortcutRow("H R", "Hand off current run")}
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            Spacer()
+        }
+        .padding(20)
+        .frame(maxWidth: 560, maxHeight: .infinity, alignment: .topLeading)`;
 }
 
 function buildThreePaneBody(input: ViewBlueprintInput): string {
@@ -656,6 +762,20 @@ function contextFileRow(name: string, status: string): string {
                     Text("${status}")
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
+                }`;
+}
+
+function shortcutRow(keys: string, action: string): string {
+  return `HStack {
+                    Text("${keys}")
+                        .font(.system(.caption, design: .monospaced).weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    Text("${action}")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
                 }`;
 }
 
