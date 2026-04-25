@@ -1,6 +1,6 @@
 {
   "name": "@axint/compiler",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "mcpName": "io.github.agenticempire/axint",
   "publishConfig": {
     "access": "public"
