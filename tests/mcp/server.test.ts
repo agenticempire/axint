@@ -12,6 +12,32 @@ import { TEMPLATES, getTemplate } from "../../src/templates/index.js";
 import { validateSwiftSource } from "../../src/core/swift-validator.js";
 import { fixSwiftSource } from "../../src/core/swift-fixer.js";
 
+describe("axint.status tool", () => {
+  it("reports the running MCP server version and restart instructions", async () => {
+    const result = await handleToolCall("axint.status", { format: "json" });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      server: string;
+      version: string;
+      restartRequiredAfterUpdate: boolean;
+      xcodeSetupCommand: string;
+    };
+    expect(payload.server).toBe("axint-mcp");
+    expect(payload.version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(payload.restartRequiredAfterUpdate).toBe(true);
+    expect(payload.xcodeSetupCommand).toBe("axint xcode setup --agent claude");
+  });
+
+  it("returns a human-readable Xcode update path", async () => {
+    const result = await handleToolCall("axint.status", {});
+
+    expect(result.content[0].text).toContain("# Axint MCP Status");
+    expect(result.content[0].text).toContain("Call axint.status");
+    expect(result.content[0].text).toContain("Restart the Xcode Claude Agent");
+  });
+});
+
 const VIEW_SOURCE = `
   import { defineView, prop, state, view } from "@axint/sdk";
 

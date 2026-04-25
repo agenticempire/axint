@@ -89,6 +89,29 @@ describe("axint HTTP MCP transport", () => {
     );
   });
 
+  it("reports the running remote MCP server version through axint.status", async () => {
+    const response = await request({
+      jsonrpc: "2.0",
+      id: 11,
+      method: "tools/call",
+      params: {
+        name: "axint.status",
+        arguments: { format: "json" },
+      },
+    });
+    const payload = await response.json();
+    const text = payload.result.content[0].text as string;
+    const status = JSON.parse(text) as {
+      server: string;
+      version: string;
+      restartRequiredAfterUpdate: boolean;
+    };
+
+    expect(status.server).toBe("axint-mcp");
+    expect(status.version).toBe(packageVersion);
+    expect(status.restartRequiredAfterUpdate).toBe(true);
+  });
+
   it("lists built-in prompts and resolves prompt content", async () => {
     const listResponse = await request({ jsonrpc: "2.0", id: 1, method: "prompts/list" });
     const listPayload = await listResponse.json();

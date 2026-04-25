@@ -82,6 +82,7 @@ describe("xcode CLI smoke coverage", () => {
     spawnSyncMock.mockReturnValue({
       stdout: JSON.stringify({
         tools: [
+          { name: "axint.status" },
           { name: "axint.feature" },
           { name: "axint.compile" },
           { name: "axint.validate" },

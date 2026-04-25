@@ -127,13 +127,14 @@ export function getPromptMessages(
               "   - https://docs.axint.ai/guides/fix-packets/\n" +
               "   - https://docs.axint.ai/reference/cli/\n" +
               "2. List the available MCP servers and confirm both xcode-tools and axint are present.\n" +
-              "3. If axint is missing in Xcode, tell me to run `axint xcode setup --agent claude`, restart the Xcode agent session, and ask again for available MCP servers.\n" +
-              "4. Use Axint tools before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.\n" +
-              "5. Work in short checkpoints. Do not spend 20+ minutes on a task without running Axint and Xcode validation.\n" +
-              "6. After each generated Apple surface, run `axint.cloud.check` or `axint cloud check <file> --feedback` and then build in Xcode.\n" +
-              "7. Do not claim there is no bug from Axint alone. Cloud Check is static; Xcode build, unit tests, UI tests, accessibility flows, and runtime behavior are separate evidence.\n" +
-              "8. If Axint passes but Xcode/tests/runtime fails, report the exact failure as an Axint validator or runtime-coverage gap before continuing.\n\n" +
-              "Once that is done, summarize which docs you read, which MCP servers are available, and the first Axint command you will use.",
+              "3. Call `axint.status` and report the running MCP server version before editing code. If the version is older than expected, stop and tell me to update Axint, rerun `axint xcode setup --agent claude`, and restart the Xcode agent chat.\n" +
+              "4. If axint is missing in Xcode, tell me to run `axint xcode setup --agent claude`, restart the Xcode agent session, and ask again for available MCP servers.\n" +
+              "5. Use Axint tools before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.\n" +
+              "6. Work in short checkpoints. Do not spend 20+ minutes on a task without running Axint and Xcode validation.\n" +
+              "7. After each generated Apple surface, run `axint.cloud.check` or `axint cloud check <file> --feedback` and then build in Xcode.\n" +
+              "8. Do not claim there is no bug from Axint alone. Cloud Check is static; Xcode build, unit tests, UI tests, accessibility flows, and runtime behavior are separate evidence.\n" +
+              "9. If Axint passes but Xcode/tests/runtime fails, report the exact failure as an Axint validator or runtime-coverage gap before continuing.\n\n" +
+              "Once that is done, summarize which docs you read, the running Axint MCP version, which MCP servers are available, and the first Axint command you will use.",
           },
         },
       ],

@@ -19,6 +19,7 @@
  *   - axint.swift.fix:        Auto-fix mechanical Swift validator errors
  *   - axint.templates.list:   List bundled reference templates
  *   - axint.templates.get:    Return the source of a specific template
+ *   - axint.status:           Report the running MCP server version + restart help
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -59,14 +60,28 @@ import {
   type TokenOutputFormat,
 } from "./tokens.js";
 
-// Read version from package.json so it stays in sync
-let pkg = { version: "0.3.9" };
+type PackageInfo = {
+  name?: string;
+  version: string;
+  mcpName?: string;
+};
+
+type StatusArgs = {
+  format?: "markdown" | "json" | "prompt";
+};
+
+// Read version from package.json so it stays in sync.
+let pkg: PackageInfo = { version: "0.3.9" };
+let packageJsonPath = "<bundled>";
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
+  packageJsonPath = resolve(__dirname, "../../package.json");
+  pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8")) as PackageInfo;
 } catch {
   // fallback version used when bundled outside repo (e.g. Smithery scan)
 }
+
+const serverStartedAt = new Date();
 
 type CompileArgs = {
   source: string;
@@ -117,6 +132,77 @@ function errorText(text: string): ToolResult {
   };
 }
 
+function renderStatus(format: StatusArgs["format"] = "markdown"): string {
+  const uptimeSeconds = Math.max(
+    0,
+    Math.round((Date.now() - serverStartedAt.getTime()) / 1000)
+  );
+  const status = {
+    server: "axint-mcp",
+    packageName: pkg.name ?? "@axint/compiler",
+    mcpName: pkg.mcpName ?? "io.github.agenticempire/axint",
+    version: pkg.version,
+    packageJsonPath,
+    node: process.version,
+    pid: process.pid,
+    startedAt: serverStartedAt.toISOString(),
+    uptimeSeconds,
+    argv: process.argv,
+    toolsRegistered: TOOL_MANIFEST.length,
+    promptsRegistered: PROMPT_MANIFEST.length,
+    restartRequiredAfterUpdate: true,
+    updateCommand: "npm install -g @axint/compiler@latest",
+    xcodeSetupCommand: "axint xcode setup --agent claude",
+    xcodeRestartInstruction:
+      "Restart the Xcode Claude Agent chat or MCP server after updating. MCP clients keep the old Node process alive until it is restarted.",
+  };
+
+  if (format === "json") return JSON.stringify(status, null, 2);
+
+  if (format === "prompt") {
+    return [
+      `The running Axint MCP server is v${status.version}.`,
+      "If this is older than the version the user expects, stop before editing code.",
+      "Tell the user to update Axint, rerun `axint xcode setup --agent claude`, and restart the Xcode Claude Agent chat.",
+    ].join("\n");
+  }
+
+  return [
+    "# Axint MCP Status",
+    "",
+    `- Server: ${status.server}`,
+    `- Running version: v${status.version}`,
+    `- Package: ${status.packageName}`,
+    `- Package path: ${status.packageJsonPath}`,
+    `- Node: ${status.node}`,
+    `- PID: ${status.pid}`,
+    `- Started: ${status.startedAt}`,
+    `- Uptime: ${status.uptimeSeconds}s`,
+    `- Tools registered: ${status.toolsRegistered}`,
+    `- Prompts registered: ${status.promptsRegistered}`,
+    "",
+    "## Updating Axint for Xcode",
+    "",
+    "MCP servers are long-running processes. Installing a newer package does not update the already-running server inside Xcode.",
+    "",
+    "1. Update Axint:",
+    "",
+    "```sh",
+    status.updateCommand,
+    "```",
+    "",
+    "2. Rewrite the Xcode Claude Agent MCP config with durable paths:",
+    "",
+    "```sh",
+    status.xcodeSetupCommand,
+    "```",
+    "",
+    "3. Restart the Xcode Claude Agent chat or MCP server.",
+    "",
+    "4. In the new chat, ask: `Call axint.status and tell me the running version.`",
+  ].join("\n");
+}
+
 // Agents call axint.* through MCP stdio with no way to invoke swift-format
 // themselves. Default-on here means every AI-generated Swift file matches
 // Apple's house style without the caller having to know it exists.
@@ -127,6 +213,11 @@ async function maybeFormatSwift(source: string, enabled: boolean): Promise<strin
 }
 
 export async function handleToolCall(name: string, args: unknown): Promise<ToolResult> {
+  if (name === "axint.status") {
+    const a = args as StatusArgs | undefined;
+    return diagnosticsText(renderStatus(a?.format ?? "markdown"));
+  }
+
   if (name === "axint.feature") {
     const a = args as FeatureInput & { format?: boolean };
     if (!a.description) {

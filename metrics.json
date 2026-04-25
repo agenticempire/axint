@@ -1,7 +1,8 @@
 {
-  "version": "0.4.5",
-  "mcpTools": 13,
+  "version": "0.4.6",
+  "mcpTools": 14,
   "mcpToolNames": [
+    "axint.status",
     "axint.feature",
     "axint.suggest",
     "axint.scaffold",
@@ -61,7 +62,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 925,
+    "typescript": 928,
     "python": 114
   },
   "registryPackages": 14,
