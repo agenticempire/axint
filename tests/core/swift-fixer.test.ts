@@ -163,6 +163,25 @@ describe("swift fixer — Widget / App / TimelineEntry injections", () => {
     expect(result.source).toContain("static var appShortcuts: [AppShortcut]");
     expect(result.fixed.some((d) => d.code === "AX712")).toBe(true);
   });
+
+  it("removes duplicate stored property declarations", () => {
+    const source = `
+      import SwiftUI
+
+      struct MissionCard: View {
+          var title: String
+          var title: String
+
+          var body: some View {
+              Text(title)
+          }
+      }
+    `;
+    const result = fix(source);
+    expect(result.fixed.some((d) => d.code === "AX737")).toBe(true);
+    expect(result.source.match(/\bvar\s+title\s*:\s*String\b/g)).toHaveLength(1);
+    expect(result.remaining.filter((d) => d.code === "AX737")).toHaveLength(0);
+  });
 });
 
 describe("swift fixer — concurrency rewrites", () => {

@@ -43,6 +43,8 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkRequiredFrameworkImports(decls, source, file, diagnostics);
 
   for (const decl of decls) {
+    checkDuplicateStoredProperties(decl, file, diagnostics);
+
     if (hasConformance(decl, "AppIntent")) {
       checkAppIntentHasPerform(decl, file, diagnostics);
       checkAppIntentHasTitle(decl, file, diagnostics);
@@ -133,6 +135,58 @@ function checkContainerAccessibilityIdentifierPropagation(
           "Put the identifier on the specific button/text/row the test needs, or assert on a visible child element instead of tagging the whole container.",
       })
     );
+  }
+}
+
+function checkDuplicateStoredProperties(
+  decl: SwiftDeclaration,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  if (!["struct", "class", "actor"].includes(decl.kind)) return;
+
+  const body = decl.source.slice(decl.bodyStart, decl.bodyEnd);
+  const strippedBody = stripCommentsAndStrings(body);
+  const lines = body.split("\n");
+  const strippedLines = strippedBody.split("\n");
+  const seen = new Map<string, number>();
+  let depth = 0;
+
+  for (let i = 0; i < strippedLines.length; i++) {
+    const strippedLine = strippedLines[i] ?? "";
+    const rawLine = lines[i] ?? "";
+    const trimmed = strippedLine.trim();
+
+    if (
+      depth === 0 &&
+      trimmed &&
+      !trimmed.includes("{") &&
+      !trimmed.includes("}") &&
+      !/\bfunc\b|\binit\b|\bsubscript\b/.test(trimmed)
+    ) {
+      const match = rawLine.match(
+        /^\s*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*(?:(?:public|private|fileprivate|internal|open|static|weak|unowned|nonisolated)\s+)*(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/
+      );
+      const name = match?.[1];
+      if (name) {
+        const previousLine = seen.get(name);
+        if (previousLine !== undefined) {
+          diagnostics.push(
+            makeDiagnostic("AX737", file, decl.startLine + i, {
+              message: `${decl.kind} '${decl.name}' declares stored property '${name}' more than once`,
+              suggestion: `Remove the duplicate \`${name}\` declaration. The first declaration appears near line ${previousLine}.`,
+            })
+          );
+        } else {
+          seen.set(name, decl.startLine + i);
+        }
+      }
+    }
+
+    for (const ch of strippedLine) {
+      if (ch === "{") depth++;
+      if (ch === "}") depth = Math.max(0, depth - 1);
+    }
   }
 }
 

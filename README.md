@@ -214,7 +214,7 @@ axint compile my-app.ts --out ios/App/
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.6 · 14 MCP tools + 4 prompts · 175 diagnostic codes · 1042 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.7 · 14 MCP tools + 4 prompts · 176 diagnostic codes · 1060 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -261,8 +261,8 @@ MCP tools and built-in prompts:
 | `axint.compile` | Full pipeline: TypeScript → Swift + plist + entitlements |
 | `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents) |
 | `axint.validate` | Dry-run validation with diagnostics |
-| `axint.feature` | Generate a scaffolded feature package from a description |
-| `axint.suggest` | Suggest Apple-native features for a domain |
+| `axint.feature` | Generate an editable feature package: intents, views, widgets, components, app shells, stores, tests, and support fragments |
+| `axint.suggest` | Suggest app-specific Apple-native features, reusable components, and shared stores from a product description |
 | `axint.scaffold` | Generate a starter TypeScript intent from a description |
 | `axint.swift.validate` | Validate existing Swift against build-time rules |
 | `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
@@ -299,15 +299,15 @@ Diagnostic codes across the validator surface with fix suggestions and color-cod
 | `AX300`–`AX322` | View |
 | `AX400`–`AX422` | Widget |
 | `AX500`–`AX522` | App |
-| `AX700`–`AX749` | Swift build rules |
-| `AX720`–`AX735` | Swift 6 concurrency |
+| `AX700`–`AX750` | Swift build rules |
+| `AX720`–`AX737` | Swift 6, SwiftUI, and accessibility checks |
 | `AX740`–`AX749` | Live Activities |
 
 ```text
 error[AX100]: Intent name "sendMessage" must be PascalCase
   --> src/intents/messaging.ts:5:9
    = help: rename to "SendMessage"
-```
+````
 
 Full reference: [`docs/ERRORS.md`](docs/ERRORS.md)
 
@@ -315,17 +315,17 @@ Full reference: [`docs/ERRORS.md`](docs/ERRORS.md)
 
 ## Type mappings
 
-| TypeScript | Swift | Default value |
-| --- | --- | --- |
-| `string` | `String` | ✓ |
-| `int` | `Int` | ✓ |
-| `double` | `Double` | ✓ |
-| `float` | `Float` | ✓ |
-| `boolean` | `Bool` | ✓ |
-| `date` | `Date` | — |
-| `duration` | `Measurement<UnitDuration>` | ✓ (`"1h"`) |
-| `url` | `URL` | — |
-| `optional<T>` | `T?` | ✓ |
+| TypeScript    | Swift                       | Default value |
+| ------------- | --------------------------- | ------------- |
+| `string`      | `String`                    | ✓             |
+| `int`         | `Int`                       | ✓             |
+| `double`      | `Double`                    | ✓             |
+| `float`       | `Float`                     | ✓             |
+| `boolean`     | `Bool`                      | ✓             |
+| `date`        | `Date`                      | —             |
+| `duration`    | `Measurement<UnitDuration>` | ✓ (`"1h"`)    |
+| `url`         | `URL`                       | —             |
+| `optional<T>` | `T?`                        | ✓             |
 
 ---
 

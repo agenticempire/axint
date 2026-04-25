@@ -109,6 +109,12 @@ type CloudCheckArgs = {
   sourcePath?: string;
   fileName?: string;
   language?: "swift" | "typescript" | "unknown";
+  platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "all";
+  xcodeBuildLog?: string;
+  testFailure?: string;
+  runtimeFailure?: string;
+  expectedBehavior?: string;
+  actualBehavior?: string;
   format?: CloudCheckFormat;
 };
 type TokensIngestArgs = TokenIngestArgs & {
@@ -232,6 +238,7 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       params: a.params,
       platform: a.platform,
       tokenNamespace: a.tokenNamespace,
+      componentKind: a.componentKind,
     });
 
     const shouldFormat = a.format !== false;
@@ -264,18 +271,20 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       return errorText("Error: 'appDescription' is required for axint.suggest");
     }
     const suggestions = await suggestFeaturesSmart(a);
+    const domainSummary = summarizeSuggestionDomains(suggestions);
     const output = suggestions
       .map((s, i) => {
         const surfaces = s.surfaces.join(", ");
         const rationale = s.rationale ? `\n   Why: ${s.rationale}` : "";
         const confidence = s.confidence ? ` | Confidence: ${s.confidence}` : "";
-        return `${i + 1}. ${s.name}\n   ${s.description}${rationale}\n   Surfaces: ${surfaces} | Complexity: ${s.complexity}${confidence}\n   Prompt: "${s.featurePrompt}"`;
+        const generateCommand = `axint.feature({ description: "${s.featurePrompt}", surfaces: ${JSON.stringify(s.surfaces)} })`;
+        return `${i + 1}. ${s.name}\n   ${s.description}${rationale}\n   Surfaces: ${surfaces} | Complexity: ${s.complexity}${confidence}\n   Generate: ${generateCommand}\n   Proof loop: write the generated files, run axint.cloud.check with platform/build/test evidence, then build in Xcode.`;
       })
       .join("\n\n");
 
     return diagnosticsText(
       suggestions.length > 0
-        ? `Suggested Apple-native features:\n\n${output}\n\nUse axint.feature with any prompt above to generate the full feature package.`
+        ? `Suggested Apple-native features:\n${domainSummary}\n\n${output}\n\nUse axint.feature with any prompt above to generate the full feature package.`
         : "No specific suggestions for this app description. Try providing more detail about the app's purpose."
     );
   }
@@ -352,6 +361,12 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       sourcePath: a.sourcePath,
       fileName: a.fileName,
       language: a.language,
+      platform: a.platform,
+      xcodeBuildLog: a.xcodeBuildLog,
+      testFailure: a.testFailure,
+      runtimeFailure: a.runtimeFailure,
+      expectedBehavior: a.expectedBehavior,
+      actualBehavior: a.actualBehavior,
     });
     return {
       content: [
@@ -440,6 +455,15 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
   }
 
   return errorText(`Unknown tool: ${name}`);
+}
+
+function summarizeSuggestionDomains(
+  suggestions: Array<{ domain: string; confidence?: string }>
+): string {
+  if (suggestions.length === 0) return "";
+  const domains = [...new Set(suggestions.map((s) => s.domain))];
+  const confidence = suggestions[0]?.confidence ?? "unknown";
+  return `Read: ${domains.join(", ")} workflow${domains.length === 1 ? "" : "s"} - top confidence: ${confidence}`;
 }
 
 /**

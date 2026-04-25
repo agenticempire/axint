@@ -78,6 +78,8 @@ function applyFix(source: string, d: Diagnostic): string | null {
       return stripRedundantMainActorRun(source);
     case "AX733":
       return stripMainActorFromView(source, d);
+    case "AX737":
+      return removeDuplicateStoredProperties(source);
     case "AX741":
     case "AX742":
       return addCodableHashableToContentState(source);
@@ -219,6 +221,54 @@ function stripMainActorFromView(source: string, d: Diagnostic): string | null {
     }
   }
   return null;
+}
+
+function removeDuplicateStoredProperties(source: string): string | null {
+  const lines = source.split("\n");
+  const seenStack: Array<Set<string>> = [];
+  let depth = 0;
+  let changed = false;
+
+  const nextLines = lines.filter((line) => {
+    const currentDepth = depth;
+    if (!seenStack[currentDepth]) seenStack[currentDepth] = new Set<string>();
+
+    const trimmed = line.trim();
+    const match =
+      currentDepth > 0 &&
+      !trimmed.includes("{") &&
+      !trimmed.includes("}") &&
+      !/\bfunc\b|\binit\b|\bsubscript\b/.test(trimmed)
+        ? line.match(
+            /^\s*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*(?:(?:public|private|fileprivate|internal|open|static|weak|unowned|nonisolated)\s+)*(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/
+          )
+        : null;
+
+    let keep = true;
+    if (match?.[1]) {
+      const properties = seenStack[currentDepth]!;
+      if (properties.has(match[1])) {
+        keep = false;
+        changed = true;
+      } else {
+        properties.add(match[1]);
+      }
+    }
+
+    for (const ch of line) {
+      if (ch === "{") {
+        depth++;
+        if (!seenStack[depth]) seenStack[depth] = new Set<string>();
+      } else if (ch === "}") {
+        seenStack[depth]?.clear();
+        depth = Math.max(0, depth - 1);
+      }
+    }
+
+    return keep;
+  });
+
+  return changed ? nextLines.join("\n") : source;
 }
 
 function addCodableHashableToContentState(source: string): string {

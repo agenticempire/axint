@@ -20,7 +20,9 @@
  *   axint add <package>           Install a template from the Registry
  *   axint search [query]          Search the Axint Registry for intent templates
  *   axint watch <file|dir>         Watch intent files and recompile on change
+ *   axint status                  Show local package/runtime status and Xcode restart steps
  *   axint mcp                     Start the MCP server (stdio)
+ *   axint mcp status              Show local MCP launch command and Xcode restart steps
  *   axint xcode setup             Configure Axint for Xcode agentic coding
  *   axint xcode verify            Verify the MCP connection is working
  *   axint xcode fix <path>        Auto-fix mechanical Swift validator errors
@@ -54,6 +56,7 @@ import { registerPublish } from "./publish.js";
 import { registerAdd } from "./add.js";
 import { registerSearch } from "./search.js";
 import { registerWatch } from "./watch.js";
+import { registerStatus, renderCliStatus } from "./status.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
@@ -163,10 +166,11 @@ registerPublish(program, VERSION);
 registerAdd(program, VERSION);
 registerSearch(program, VERSION);
 registerWatch(program);
+registerStatus(program, VERSION);
 
 // ─── mcp ─────────────────────────────────────────────────────────────
 
-program
+const mcp = program
   .command("mcp")
   .description(
     "Start the Axint MCP server (stdio) for Claude Code, Cursor, Windsurf, Zed, or any MCP client"
@@ -174,6 +178,14 @@ program
   .action(async () => {
     const { startMCPServer } = await import("../mcp/server.js");
     await startMCPServer();
+  });
+
+mcp
+  .command("status")
+  .description("Show local Axint MCP launch details and Xcode restart steps")
+  .option("--format <format>", "Output format: markdown, json, or prompt", "markdown")
+  .action((options: { format?: "markdown" | "json" | "prompt" }) => {
+    console.log(renderCliStatus(VERSION, options.format ?? "markdown"));
   });
 
 // ─── xcode ──────────────────────────────────────────────────────────

@@ -65,15 +65,16 @@ export const TOOL_MANIFEST = [
           type: "array",
           items: {
             type: "string",
-            enum: ["intent", "view", "widget"],
+            enum: ["intent", "view", "widget", "component", "app", "store"],
           },
           description:
             "Which Apple surfaces to generate. 'intent' produces an App Intent " +
             "struct for Siri/Shortcuts/Spotlight. 'widget' produces a WidgetKit " +
             "widget with timeline provider. 'view' produces a SwiftUI view. " +
+            "'component' produces a reusable SwiftUI component under Sources/Components. " +
+            "'store' produces a shared Observable data store. 'app' produces a SwiftUI @main app shell. " +
             "Defaults to ['intent'] if omitted. Combine surfaces to scaffold " +
-            "a multi-surface feature: ['intent', 'widget'] for a Siri action + " +
-            "home screen widget.",
+            "a multi-surface feature: ['store', 'view', 'intent', 'widget'] for an integrated Apple-native loop.",
         },
         name: {
           type: "string",
@@ -92,7 +93,8 @@ export const TOOL_MANIFEST = [
           type: "string",
           description:
             "Apple App Intent domain. One of: messaging, productivity, health, " +
-            "social, finance, commerce, media, navigation, smart-home. If omitted, " +
+            "social, community, collaboration, developer-tools, food, creative, " +
+            "finance, commerce, media, navigation, smart-home. If omitted, " +
             "inferred from the description. Determines default entitlements, " +
             "Info.plist keys, and parameter suggestions.",
         },
@@ -122,6 +124,11 @@ export const TOOL_MANIFEST = [
             "'SwarmTokens'. When provided, generated SwiftUI references " +
             "namespace colors, radii, and layout values instead of raw literals.",
         },
+        componentKind: {
+          type: "string",
+          description:
+            "Optional component blueprint for the component surface, such as avatar, statusRing, missionCard, contextPanel, decisionLog, approvalCard, agentRow, roleCard, signalCard, channelRow, sidebarRail, profileCard, or settingsView.",
+        },
         format: {
           type: "boolean",
           description:
@@ -140,7 +147,7 @@ export const TOOL_MANIFEST = [
       "Suggest Apple-native features for an app based on its description. " +
       "The domain is only a weak hint; the app description wins. Returns a " +
       "ranked list of features with recommended " +
-      "surfaces (intent, widget, view), estimated complexity, and a " +
+      "surfaces (intent, widget, view, component, store, app), estimated complexity, and a " +
       "one-line description for each. Use this to discover what Axint " +
       "can generate for an app before calling axint.feature. Local mode " +
       "does not use the network. Optional AI mode calls a configured " +
@@ -448,6 +455,37 @@ export const TOOL_MANIFEST = [
           enum: ["swift", "typescript", "unknown"],
           description:
             "Optional language override. Omit to infer from file extension and source contents.",
+        },
+        platform: {
+          type: "string",
+          enum: ["iOS", "macOS", "watchOS", "visionOS", "all"],
+          description:
+            "Optional target platform hint. Use macOS to catch common iOS-only SwiftUI modifiers in Mac app work.",
+        },
+        xcodeBuildLog: {
+          type: "string",
+          description:
+            "Optional Xcode build output. Cloud Check will classify recognized compile, availability, duplicate symbol, and conformance failures into actionable diagnostics.",
+        },
+        testFailure: {
+          type: "string",
+          description:
+            "Optional failing unit/UI-test output. Use this when static checks pass but Xcode tests still fail; Cloud Check will look for element lookup, accessibility identifier, timeout, and runtime evidence patterns.",
+        },
+        runtimeFailure: {
+          type: "string",
+          description:
+            "Optional crash, console, preview, or runtime failure text. Include the shortest useful stack/error when the app runs but behavior breaks.",
+        },
+        expectedBehavior: {
+          type: "string",
+          description:
+            "Optional expected behavior for behavior-gap checks. Pair with actualBehavior when the bug is semantic rather than a compiler error.",
+        },
+        actualBehavior: {
+          type: "string",
+          description:
+            "Optional observed behavior for behavior-gap checks. Pair with expectedBehavior so Cloud Check can return a repair-oriented mismatch finding.",
         },
         format: {
           type: "string",

@@ -20,7 +20,7 @@ export interface SuggestInput {
 export interface FeatureSuggestion {
   name: string;
   description: string;
-  surfaces: Array<"intent" | "view" | "widget">;
+  surfaces: Array<"intent" | "view" | "widget" | "component" | "app" | "store">;
   complexity: "low" | "medium" | "high";
   featurePrompt: string;
   domain: string;
@@ -113,6 +113,24 @@ const FEATURE_CATALOG: DomainFeatureSet[] = [
         complexity: "medium",
         featurePrompt:
           "Create a focus queue view for ready, waiting, blocked, and shipped work items",
+      },
+      {
+        name: "Workspace Component Kit",
+        description:
+          "Reusable SwiftUI components for agent rows, mission cards, approval cards, and context panels.",
+        surfaces: ["component"],
+        complexity: "medium",
+        featurePrompt:
+          "Create reusable workspace components for agent rows, mission cards, approval cards, and context panels",
+      },
+      {
+        name: "Shared Mission Store",
+        description:
+          "Observable store shared by mission views, shortcuts, widgets, and handoff review surfaces.",
+        surfaces: ["store", "view", "intent"],
+        complexity: "medium",
+        featurePrompt:
+          "Create a shared mission store with mission items, selected mission state, status updates, and an agent handoff view",
       },
       {
         name: "Daily Operator Brief",
@@ -916,7 +934,7 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
           suggestion: {
             ...feature,
             domain: domainSet.domain,
-            rationale: buildRationale(domainSet.domain, descriptionScore),
+            rationale: buildRationale(domainSet.domain, descriptionScore, text),
             confidence: confidenceFor(score),
           } satisfies FeatureSuggestion,
           score,
@@ -937,9 +955,13 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
     if (suggestions.length >= limit) break;
   }
 
-  if (suggestions.length > 0) return suggestions;
+  if (suggestions.length > 0) {
+    const dynamic = !explicitDomain ? appSpecificFallbackSuggestions(text, limit) : [];
+    if (strongestDescriptionScore < 2 && dynamic.length > 0) return dynamic;
+    return suggestions;
+  }
 
-  return fallbackSuggestions(limit, explicitDomain);
+  return fallbackSuggestions(limit, explicitDomain, text);
 }
 
 /**
@@ -987,8 +1009,12 @@ function featureRelevanceScore(
 
 function fallbackSuggestions(
   limit: number,
-  explicitDomain?: string
+  explicitDomain?: string,
+  normalizedAppDescription = ""
 ): FeatureSuggestion[] {
+  const dynamic = appSpecificFallbackSuggestions(normalizedAppDescription, limit);
+  if (dynamic.length > 0) return dynamic;
+
   const fallback =
     FEATURE_CATALOG.find((ds) => ds.domain === explicitDomain) ??
     FEATURE_CATALOG.find((ds) => ds.domain === "collaboration") ??
@@ -1005,6 +1031,67 @@ function fallbackSuggestions(
         : "Using broadly useful Apple-native workflow suggestions because the description is broad.",
     confidence: "low",
   }));
+}
+
+function appSpecificFallbackSuggestions(
+  normalizedAppDescription: string,
+  limit: number
+): FeatureSuggestion[] {
+  const tokens = meaningfulTokens(normalizedAppDescription).filter(
+    (token) =>
+      ![
+        "help",
+        "helps",
+        "user",
+        "utility",
+        "organized",
+        "organize",
+        "general",
+        "native",
+        "apple",
+      ].includes(token)
+  );
+  if (tokens.length < 2) return [];
+
+  const concept = titleCase(tokens.slice(0, 3).join(" "));
+  const lowerConcept = concept.toLowerCase();
+  const rationale =
+    "No stock domain strongly matched, so Axint generated app-specific Apple-native surfaces from the current app description instead of falling back to a generic domain.";
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `Capture ${concept}`,
+      description: `Let users capture a new ${lowerConcept} item from Siri, Shortcuts, or the action button without breaking flow.`,
+      surfaces: ["intent"],
+      complexity: "low",
+      featurePrompt: `Let users capture a new ${lowerConcept} item with title, notes, and priority via Siri and Shortcuts`,
+      domain: "custom",
+      rationale,
+      confidence: "medium",
+    },
+    {
+      name: `${concept} Brief Widget`,
+      description: `Widget that summarizes the latest ${lowerConcept} state, blockers, and next action.`,
+      surfaces: ["widget"],
+      complexity: "medium",
+      featurePrompt: `Show the latest ${lowerConcept} state, blockers, and next action in a widget`,
+      domain: "custom",
+      rationale,
+      confidence: "medium",
+    },
+    {
+      name: `${concept} Review View`,
+      description: `SwiftUI review surface for scanning ${lowerConcept} details, status, and follow-up actions.`,
+      surfaces: ["view"],
+      complexity: "medium",
+      featurePrompt: `Create a ${lowerConcept} review view with status, details, and follow-up actions`,
+      domain: "custom",
+      rationale,
+      confidence: "medium",
+    },
+  ];
+
+  return suggestions.slice(0, limit);
 }
 
 function shouldUseAI(input: SuggestInput): boolean {
@@ -1089,7 +1176,10 @@ async function suggestFeaturesFromOpenAI(
                     description: { type: "string" },
                     surfaces: {
                       type: "array",
-                      items: { enum: ["intent", "view", "widget"], type: "string" },
+                      items: {
+                        enum: ["intent", "view", "widget", "component", "app", "store"],
+                        type: "string",
+                      },
                     },
                     complexity: {
                       enum: ["low", "medium", "high"],
@@ -1161,7 +1251,7 @@ function buildAIPayload(
         {
           name: "short feature name",
           description: "one sentence explaining the user value",
-          surfaces: ["intent", "view", "widget"],
+          surfaces: ["intent", "view", "widget", "component", "app", "store"],
           complexity: "low | medium | high",
           featurePrompt: "one-line prompt for axint.feature",
           domain: "short lowercase category",
@@ -1230,9 +1320,11 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeSurfaces(value: unknown): Array<"intent" | "view" | "widget"> {
+function normalizeSurfaces(
+  value: unknown
+): Array<"intent" | "view" | "widget" | "component" | "app" | "store"> {
   if (!Array.isArray(value)) return [];
-  const allowed = new Set(["intent", "view", "widget"]);
+  const allowed = new Set(["intent", "view", "widget", "component", "app", "store"]);
   return Array.from(
     new Set(
       value
@@ -1240,7 +1332,7 @@ function normalizeSurfaces(value: unknown): Array<"intent" | "view" | "widget"> 
         .map((surface) => surface.toLowerCase())
         .filter((surface) => allowed.has(surface))
     )
-  ) as Array<"intent" | "view" | "widget">;
+  ) as Array<"intent" | "view" | "widget" | "component" | "app" | "store">;
 }
 
 function normalizeComplexity(value: unknown): "low" | "medium" | "high" {
@@ -1356,12 +1448,20 @@ function meaningfulTokens(text: string): string[] {
   );
 }
 
-function buildRationale(domain: string, descriptionScore: number): string {
+function buildRationale(
+  domain: string,
+  descriptionScore: number,
+  normalizedAppDescription: string
+): string {
+  const cues = meaningfulTokens(normalizedAppDescription)
+    .filter((token) => token.length > 3)
+    .slice(0, 4);
+  const cueText = cues.length > 0 ? ` from cues like ${cues.join(", ")}` : "";
   if (descriptionScore >= 3) {
-    return `Strong match for ${domain} workflows in the app description.`;
+    return `Strong match for ${domain} workflows${cueText}.`;
   }
   if (descriptionScore >= 1) {
-    return `Matched ${domain} cues in the app description.`;
+    return `Matched ${domain} cues${cueText}.`;
   }
   return `Included from a weak ${domain} hint; validate fit before generating.`;
 }
@@ -1370,4 +1470,12 @@ function confidenceFor(score: number): "low" | "medium" | "high" {
   if (score >= 35) return "high";
   if (score >= 15) return "medium";
   return "low";
+}
+
+function titleCase(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }

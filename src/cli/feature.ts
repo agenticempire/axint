@@ -8,7 +8,7 @@ import {
   type Surface,
 } from "../mcp/feature.js";
 
-const SURFACES = ["intent", "view", "widget"] as const;
+const SURFACES = ["intent", "view", "widget", "component", "app", "store"] as const;
 const PLATFORMS = ["iOS", "macOS", "visionOS", "all"] as const;
 
 export function registerFeature(program: Command) {
@@ -16,12 +16,16 @@ export function registerFeature(program: Command) {
     .command("feature")
     .description("Generate an Apple-native feature package from a description")
     .argument("<description...>", "Feature description")
-    .option("--surface <surfaces>", "Comma-separated surfaces: intent,view,widget")
+    .option(
+      "--surface <surfaces>",
+      "Comma-separated surfaces: intent,view,widget,component,app,store"
+    )
     .option("--name <name>", "Base Swift type name")
     .option("--app-name <name>", "App name for generated metadata")
     .option("--domain <domain>", "Domain hint")
     .option("--platform <platform>", "Target platform", parsePlatform)
     .option("--token-namespace <name>", "Swift design-token namespace")
+    .option("--component-kind <kind>", "Reusable SwiftUI component blueprint")
     .option(
       "--param <name:type>",
       "Explicit parameter. Repeat for multiple params.",
@@ -68,6 +72,7 @@ type FeatureOptions = {
   domain?: string;
   platform?: FeatureInput["platform"];
   tokenNamespace?: string;
+  componentKind?: string;
   param: string[];
   write?: string;
   json?: boolean;
@@ -91,6 +96,7 @@ function buildFeatureInput(
     params: parseParams(options.param),
     platform: options.platform,
     tokenNamespace: options.tokenNamespace,
+    componentKind: options.componentKind,
   };
 }
 

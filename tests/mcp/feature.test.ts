@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateFeature } from "../../src/mcp/feature.js";
 import { suggestFeatures, suggestFeaturesSmart } from "../../src/mcp/suggest.js";
+import { validateSwiftSource } from "../../src/core/swift-validator.js";
 
 describe("axint.feature", () => {
   it("generates intent from natural language description", () => {
@@ -143,7 +144,7 @@ describe("axint.feature", () => {
     expect(result.summary).toContain("Generated scaffold");
     expect(result.summary).toContain("Swift file");
     expect(result.summary).toContain("test");
-    expect(result.summary).toContain("starter scaffolds");
+    expect(result.summary).toContain("editable first drafts");
     expect(result.summary).toContain("Files:");
   });
 
@@ -244,6 +245,127 @@ describe("axint.feature", () => {
     expect(viewFile!.content).toContain("@State private var messageBody");
     expect(viewFile!.content).not.toContain("@State private var body");
   });
+
+  it("self-validates generated Swift before returning feature output", () => {
+    const result = generateFeature({
+      description:
+        "Create a mission review feature with a SwiftUI mission card, a status widget, and a Siri shortcut to open the mission.",
+      surfaces: ["intent", "widget", "view"],
+      name: "MissionReview",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+      params: {
+        missionTitle: "string",
+        owner: "string",
+        priority: "string",
+        progress: "double",
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.filter((d) => /\]\s+error\b/.test(d))).toEqual([]);
+
+    for (const file of result.files.filter((f) => f.type === "swift")) {
+      expect(validateSwiftSource(file.content, file.path).diagnostics).toEqual([]);
+    }
+  });
+
+  it("generates reusable SwiftUI components as first-class feature output", () => {
+    const result = generateFeature({
+      description:
+        "Reusable mission card component with title, owner, status, and progress for a Mac agent workspace",
+      surfaces: ["component"],
+      name: "MissionCard",
+      componentKind: "missionCard",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    expect(result.success).toBe(true);
+    const component = result.files.find(
+      (f) => f.path === "Sources/Components/MissionCard.swift"
+    );
+    expect(component).toBeDefined();
+    expect(component!.content).toContain("struct MissionCard: View");
+    expect(component!.content).toContain("@State private var title");
+    expect(component!.content).toContain("@State private var progress");
+    expect(component!.content).not.toContain("missionTitle");
+    expect(component!.content).toContain("ProgressView(value: progress)");
+    expect(component!.content).toContain("SwarmTokens.Colors.accent");
+    expect(
+      result.files.find((f) => f.path === "Tests/MissionCardTests.swift")
+    ).toBeDefined();
+  });
+
+  it("can generate a shared store and app shell for real project starts", () => {
+    const result = generateFeature({
+      description:
+        "Create a Swarm mission workspace with shared mission state, a Mac app shell, and a mission dashboard",
+      surfaces: ["store", "app", "component"],
+      name: "MissionWorkspace",
+      appName: "Swarm",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    expect(result.success).toBe(true);
+    expect(
+      result.files.find((f) => f.path === "Sources/Stores/MissionWorkspaceStore.swift")
+    ).toBeDefined();
+    expect(
+      result.files.find((f) => f.path === "Sources/App/SwarmApp.swift")
+    ).toBeDefined();
+    const store = result.files.find((f) => f.path.includes("Store.swift"));
+    const component = result.files.find(
+      (f) => f.path === "Sources/Components/MissionWorkspace.swift"
+    );
+    expect(store!.content).toContain("@Observable");
+    expect(store!.content).toContain("func add");
+    expect(store!.content).toContain("func updateStatus");
+    expect(component!.content).toContain("ProgressView(value: progress)");
+    expect(component!.content).not.toContain("missionTitle");
+    expect(validateSwiftSource(store!.content, store!.path).diagnostics).toEqual([]);
+  });
+
+  it("generates a real settings view from settings-specific description cues", () => {
+    const result = generateFeature({
+      description:
+        "App settings view with appearance mode segmented picker, accent color swatches, transcription engine picker, reduce motion toggle, and keyboard shortcuts.",
+      surfaces: ["view"],
+      name: "AppSettingsView",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    expect(result.success).toBe(true);
+    const view = result.files.find(
+      (f) => f.path === "Sources/Views/AppSettingsView.swift"
+    );
+    expect(view).toBeDefined();
+    expect(view!.content).toContain('Picker("Appearance"');
+    expect(view!.content).toContain('Toggle("Reduce motion"');
+    expect(view!.content).toContain("Keyboard Shortcuts");
+    expect(view!.content).toContain("@State private var appearanceMode");
+    expect(view!.content).not.toContain("Device:");
+    expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
+  });
+
+  it("infers collaboration parameters for agent mission workflows instead of generic input", () => {
+    const result = generateFeature({
+      description:
+        "Let operators create an AI agent mission with owner, priority, status, and handoff review in a Swarm project room",
+      surfaces: ["intent"],
+      name: "CreateMission",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.summary).toContain("Domain: collaboration");
+    const intent = result.files.find((f) => f.path.includes("Intent"));
+    expect(intent).toBeDefined();
+    expect(intent!.content).toContain("missionTitle");
+    expect(intent!.content).toContain("owner");
+    expect(intent!.content).toContain("priority");
+    expect(intent!.content).not.toContain("var input");
+  });
 });
 
 describe("axint.suggest", () => {
@@ -342,6 +464,56 @@ describe("axint.suggest", () => {
         process.env.AXINT_SUGGEST_AI_ENDPOINT = previousEndpoint;
       }
     }
+  });
+
+  it("creates app-specific fallback suggestions instead of generic domain guesses", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "A veterinary grooming booking app for salon owners to manage pets, pickup windows, and service notes",
+      limit: 3,
+    });
+
+    expect(suggestions.length).toBe(3);
+    expect(suggestions[0].domain).toBe("custom");
+    expect(suggestions[0].name).toContain("Veterinary");
+    expect(suggestions[0].rationale).toMatch(/app-specific/i);
+    expect(suggestions.map((s) => s.domain)).not.toContain("collaboration");
+    expect(suggestions.map((s) => s.domain)).not.toContain("health");
+  });
+
+  it("includes description cues in suggestion rationales", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "A Mac app for AI agent mission control, team channels, handoffs, approvals, and execution review",
+      limit: 2,
+    });
+
+    expect(suggestions[0].domain).toBe("collaboration");
+    expect(suggestions[0].rationale).toMatch(/agent|mission|team|channels/i);
+  });
+
+  it("can suggest reusable components for agent workspace apps", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "A Mac app for AI agent mission control with reusable mission cards, approval cards, agent rows, and project context panels",
+      limit: 6,
+    });
+
+    expect(suggestions.some((s) => s.surfaces.includes("component"))).toBe(true);
+    expect(
+      suggestions.find((s) => s.surfaces.includes("component"))?.featurePrompt
+    ).toMatch(/component/i);
+  });
+
+  it("can suggest shared stores for apps with cross-surface state", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "A Mac app for AI agent missions where views, widgets, and Siri shortcuts need shared mission state",
+      limit: 8,
+    });
+
+    expect(suggestions.some((s) => s.surfaces.includes("store"))).toBe(true);
+    expect(suggestions.some((s) => s.surfaces.includes("intent"))).toBe(true);
   });
 
   it("respects limit", () => {
