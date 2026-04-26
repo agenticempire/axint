@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   generateFeature,
@@ -26,6 +26,13 @@ export function registerFeature(program: Command) {
     .option("--platform <platform>", "Target platform", parsePlatform)
     .option("--token-namespace <name>", "Swift design-token namespace")
     .option("--component-kind <kind>", "Reusable SwiftUI component blueprint")
+    .option("--context <text>", "Nearby SwiftUI/design context used as a weak hint")
+    .option(
+      "--context-file <file>",
+      "Read nearby SwiftUI/design context from a file. Repeat to combine files.",
+      collectContextFile,
+      [] as string[]
+    )
     .option(
       "--param <name:type>",
       "Explicit parameter. Repeat for multiple params.",
@@ -73,6 +80,8 @@ type FeatureOptions = {
   platform?: FeatureInput["platform"];
   tokenNamespace?: string;
   componentKind?: string;
+  context?: string;
+  contextFile: string[];
   param: string[];
   write?: string;
   json?: boolean;
@@ -97,7 +106,17 @@ function buildFeatureInput(
     platform: options.platform,
     tokenNamespace: options.tokenNamespace,
     componentKind: options.componentKind,
+    context: buildContext(options),
   };
+}
+
+function buildContext(options: FeatureOptions): string | undefined {
+  const parts: string[] = [];
+  if (options.context?.trim()) parts.push(options.context.trim());
+  for (const file of options.contextFile ?? []) {
+    parts.push(readFileSync(file, "utf-8"));
+  }
+  return parts.length > 0 ? parts.join("\n\n") : undefined;
 }
 
 function parseSurfaces(value: string | undefined): Surface[] | undefined {
@@ -132,6 +151,10 @@ function parseParams(entries: string[]): Record<string, string> | undefined {
 }
 
 function collectParam(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
+function collectContextFile(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 

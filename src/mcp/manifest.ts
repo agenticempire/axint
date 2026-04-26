@@ -34,6 +34,93 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.doctor",
+    description:
+      "Audit the current Axint runtime and project wiring: running MCP version, " +
+      "expected version, Node/npm/npx paths, project .mcp.json, AGENTS.md, " +
+      "CLAUDE.md, .axint/project.json, and Xcode Claude Agent registration. " +
+      "Use this when an agent might be connected to a stale Axint process or " +
+      "when a new project needs first-try MCP setup proof.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory to inspect. Defaults to the MCP process cwd.",
+        },
+        expectedVersion: {
+          type: "string",
+          description:
+            "Expected Axint version. If provided and the running MCP version differs, doctor returns a blocker.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.session.start",
+    description:
+      "Start an enforced Axint agent session. Writes " +
+      ".axint/session/current.json, returns compact operating memory, docs " +
+      "context, a session token, and the exact axint.workflow.check args. Use " +
+      "this as the first Axint tool in Xcode after a new chat, MCP restart, or " +
+      "context compaction so the agent cannot silently drift away from Axint.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        targetDir: {
+          type: "string",
+          description:
+            "Project directory where .axint/session/current.json should be written. Defaults to the MCP process cwd.",
+        },
+        projectName: {
+          type: "string",
+          description: "Project name to embed in the session and returned context.",
+        },
+        expectedVersion: {
+          type: "string",
+          description:
+            "Expected Axint package version. Defaults to the running MCP version.",
+        },
+        platform: {
+          type: "string",
+          description: "Target Apple platform, such as macOS, iOS, visionOS, or all.",
+        },
+        agent: {
+          type: "string",
+          enum: ["claude", "codex", "cursor", "xcode", "all"],
+          description: "Agent target for the session. Defaults to all.",
+        },
+        ttlMinutes: {
+          type: "number",
+          description:
+            "How long the session token remains valid. Defaults to 720 minutes.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.feature",
     description:
       "Generate a scaffolded Apple-native feature package from a description. " +
@@ -129,6 +216,11 @@ export const TOOL_MANIFEST = [
           description:
             "Optional component blueprint for the component surface, such as avatar, statusRing, missionCard, contextPanel, decisionLog, approvalCard, agentRow, roleCard, signalCard, channelRow, sidebarRail, profileCard, or settingsView.",
         },
+        context: {
+          type: "string",
+          description:
+            "Optional nearby SwiftUI/design context. Axint uses this as a weak hint for layout primitives, platform patterns, and token usage; it does not copy proprietary code.",
+        },
         format: {
           type: "boolean",
           description:
@@ -142,6 +234,109 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.project.pack",
+    description:
+      "Generate the Axint project-start pack for a new Apple app without writing files. " +
+      "Returns .mcp.json, AGENTS.md, CLAUDE.md, .axint/AXINT_MEMORY.md, .axint/project.json, and .axint/README.md " +
+      "so an Xcode/Codex/Claude agent can install the exact first-try workflow: read docs, " +
+      "call axint.status, run workflow gates, validate Swift, run Cloud Check with evidence, " +
+      "and avoid static-only bug claims.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        projectName: {
+          type: "string",
+          description: "Project name to embed in the generated instructions.",
+        },
+        targetDir: {
+          type: "string",
+          description: "Project directory label to embed in the report.",
+        },
+        agent: {
+          type: "string",
+          enum: ["claude", "codex", "all"],
+          description: "Agent target. Defaults to all.",
+        },
+        mode: {
+          type: "string",
+          enum: ["local", "remote"],
+          description: "MCP mode. local uses npx stdio; remote uses mcp.axint.ai.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.context.memory",
+    description:
+      "Return the compact Axint operating memory that agents should reload " +
+      "at new chat start, after context compaction, or after long coding drift. " +
+      "Use this to keep Axint top-of-mind without rereading the full docs.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        projectName: {
+          type: "string",
+          description: "Project name to include in the memory.",
+        },
+        expectedVersion: {
+          type: "string",
+          description: "Expected Axint version to compare against axint.status.",
+        },
+        platform: {
+          type: "string",
+          description: "Target Apple platform, such as macOS, iOS, visionOS, or all.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.context.docs",
+    description:
+      "Return the project-local Axint docs context that agents should reload " +
+      "after new chats or context compaction. This is the durable docs memory " +
+      "that keeps the agent using Axint instead of forgetting the workflow.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        projectName: {
+          type: "string",
+          description: "Project name to include in the docs context.",
+        },
+        expectedVersion: {
+          type: "string",
+          description: "Expected Axint version to compare against axint.status.",
+        },
+        platform: {
+          type: "string",
+          description: "Target Apple platform, such as macOS, iOS, visionOS, or all.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.suggest",
     description:
       "Suggest Apple-native features for an app based on its description. " +
@@ -150,8 +345,8 @@ export const TOOL_MANIFEST = [
       "surfaces (intent, widget, view, component, store, app), estimated complexity, and a " +
       "one-line description for each. Use this to discover what Axint " +
       "can generate for an app before calling axint.feature. Local mode " +
-      "does not use the network. Optional AI mode calls a configured " +
-      "provider and falls back to local suggestions.",
+      "does not use the network. Optional Pro mode calls the authenticated " +
+      "Axint Pro intelligence endpoint and falls back to local suggestions.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -179,11 +374,11 @@ export const TOOL_MANIFEST = [
         },
         mode: {
           type: "string",
-          enum: ["local", "auto", "ai"],
+          enum: ["local", "auto", "ai", "pro"],
           description:
-            "Suggestion strategy. local is deterministic and offline. ai uses " +
-            "OPENAI_API_KEY or AXINT_SUGGEST_AI_ENDPOINT when configured. " +
-            "auto uses AI only when AXINT_SUGGEST_AI=1 and a provider exists.",
+            "Suggestion strategy. local is deterministic and offline. pro/ai " +
+            "uses the authenticated Axint Pro intelligence endpoint. auto uses " +
+            "Pro only when AXINT_PRO_INSIGHTS=1.",
         },
         platform: {
           type: "string",
@@ -202,6 +397,24 @@ export const TOOL_MANIFEST = [
           items: { type: "string" },
           description: "Optional concepts to avoid, for example ['dating', 'fitness'].",
         },
+        goals: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional product goals for Pro mode, such as activation, retention, conversion, speed, accessibility, or investor readiness.",
+        },
+        stage: {
+          type: "string",
+          enum: ["idea", "prototype", "mvp", "growth", "enterprise", "unknown"],
+          description:
+            "Optional product stage used by Pro mode to tune suggestions without embedding private strategy logic in the compiler.",
+        },
+        constraints: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional constraints for Pro mode, such as must be macOS-native, no server, no payments, or build in one session.",
+        },
         limit: {
           type: "number",
           description:
@@ -210,6 +423,122 @@ export const TOOL_MANIFEST = [
         },
       },
       required: ["appDescription"],
+    },
+  },
+  {
+    name: "axint.workflow.check",
+    description:
+      "Read-only agent workflow gate. Requires the current Axint session token " +
+      "from axint.session.start unless requireSession=false is explicitly set. " +
+      "Use this at session start, after context compaction, before planning, writing, " +
+      "building, or committing to make sure the agent has actually used the " +
+      "right Axint tools: suggest for planning, feature for new surfaces, " +
+      "swift.validate for modified Swift, cloud.check for coverage-aware " +
+      "repair feedback, and Xcode build/test evidence for runtime proof.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description:
+            "Project directory containing .axint/session/current.json. Defaults to the MCP process cwd.",
+        },
+        sessionStarted: {
+          type: "boolean",
+          description:
+            "Whether axint.session.start was called in this chat/recovery pass.",
+        },
+        sessionToken: {
+          type: "string",
+          description:
+            "Token returned by axint.session.start. Required by default so compaction cannot erase the Axint workflow silently.",
+        },
+        requireSession: {
+          type: "boolean",
+          description: "Set false only for legacy/manual checks. Defaults to true.",
+        },
+        stage: {
+          type: "string",
+          enum: [
+            "session-start",
+            "context-recovery",
+            "planning",
+            "before-write",
+            "pre-build",
+            "pre-commit",
+          ],
+          description: "Workflow stage being checked. Defaults to pre-build.",
+        },
+        surfaces: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["intent", "view", "widget", "component", "app", "store"],
+          },
+          description:
+            "Apple surfaces touched by this task. If omitted, inferred from modifiedFiles.",
+        },
+        modifiedFiles: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Files changed in this agent pass, used to infer whether Swift validation is required.",
+        },
+        ranSuggest: {
+          type: "boolean",
+          description: "Whether axint.suggest was used during planning.",
+        },
+        ranStatus: {
+          type: "boolean",
+          description:
+            "Whether axint.status was called to confirm the running MCP version.",
+        },
+        readAgentInstructions: {
+          type: "boolean",
+          description:
+            "Whether AGENTS.md, CLAUDE.md, or .axint/project.json was read after a new chat or context compaction.",
+        },
+        readDocsContext: {
+          type: "boolean",
+          description:
+            "Whether .axint/AXINT_DOCS_CONTEXT.md was read or axint.context.docs was called after a new chat or context compaction.",
+        },
+        ranFeature: {
+          type: "boolean",
+          description: "Whether axint.feature was used for a new surface scaffold.",
+        },
+        ranSwiftValidate: {
+          type: "boolean",
+          description: "Whether axint.swift.validate was run on modified Swift.",
+        },
+        ranCloudCheck: {
+          type: "boolean",
+          description: "Whether axint.cloud.check was run with source/evidence.",
+        },
+        xcodeBuildPassed: {
+          type: "boolean",
+          description: "Whether Xcode build evidence passed.",
+        },
+        xcodeTestsPassed: {
+          type: "boolean",
+          description: "Whether focused unit/UI tests passed.",
+        },
+        notes: {
+          type: "string",
+          description: "Optional human/agent context for why a step was skipped.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
     },
   },
   {
@@ -475,7 +804,7 @@ export const TOOL_MANIFEST = [
         runtimeFailure: {
           type: "string",
           description:
-            "Optional crash, console, preview, or runtime failure text. Include the shortest useful stack/error when the app runs but behavior breaks.",
+            "Optional crash, freeze, hang, launch timeout, console, preview, or runtime failure text. Include the shortest useful stack/error when the app opens but freezes or behavior breaks.",
         },
         expectedBehavior: {
           type: "string",

@@ -33,6 +33,8 @@ export function renderCliStatus(
     mcpCommand: `${which("npx") ?? "npx"} -y @axint/compiler axint-mcp`,
     updateCommand: `${which("npm") ?? "npm"} install -g @axint/compiler@latest`,
     xcodeSetupCommand: "axint xcode setup --agent claude",
+    doctorCommand: "axint doctor",
+    projectInitCommand: "axint project init",
     verificationPrompt:
       "Call axint.status and tell me the running Axint MCP version before editing code.",
     restartInstruction:
@@ -75,6 +77,13 @@ export function renderCliStatus(
     "```sh",
     status.updateCommand,
     status.xcodeSetupCommand,
+    "```",
+    "",
+    "For a new project, install the full Axint agent pack:",
+    "",
+    "```sh",
+    status.projectInitCommand,
+    status.doctorCommand,
     "```",
     "",
     status.restartInstruction,

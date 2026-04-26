@@ -21,6 +21,9 @@
  *   axint search [query]          Search the Axint Registry for intent templates
  *   axint watch <file|dir>         Watch intent files and recompile on change
  *   axint status                  Show local package/runtime status and Xcode restart steps
+ *   axint doctor                  Audit version truth, MCP wiring, and project start files
+ *   axint project init            Write Axint project-start files for agent workflows
+ *   axint session start           Start an enforced Axint agent session
  *   axint mcp                     Start the MCP server (stdio)
  *   axint mcp status              Show local MCP launch command and Xcode restart steps
  *   axint xcode setup             Configure Axint for Xcode agentic coding
@@ -57,6 +60,9 @@ import { registerAdd } from "./add.js";
 import { registerSearch } from "./search.js";
 import { registerWatch } from "./watch.js";
 import { registerStatus, renderCliStatus } from "./status.js";
+import { registerDoctor } from "./doctor.js";
+import { registerProject } from "./project.js";
+import { registerSession } from "./session.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
@@ -167,6 +173,9 @@ registerAdd(program, VERSION);
 registerSearch(program, VERSION);
 registerWatch(program);
 registerStatus(program, VERSION);
+registerDoctor(program, VERSION);
+registerProject(program, VERSION);
+registerSession(program, VERSION);
 
 // ─── mcp ─────────────────────────────────────────────────────────────
 

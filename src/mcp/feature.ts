@@ -34,6 +34,7 @@ import {
   reservedViewPropertyName,
   usesSettingsBlueprint,
   usesProfileCardBlueprint,
+  usesInboxBlueprint,
 } from "./view-blueprints.js";
 
 export type Surface = "intent" | "view" | "widget" | "component" | "app" | "store";
@@ -48,6 +49,7 @@ export interface FeatureInput {
   platform?: "iOS" | "macOS" | "visionOS" | "all";
   tokenNamespace?: string;
   componentKind?: string;
+  context?: string;
 }
 
 export interface FeatureFile {
@@ -84,10 +86,11 @@ const DOMAIN_PLIST_KEYS: Record<string, Record<string, string>> = {
  */
 export function generateFeature(input: FeatureInput): FeatureResult {
   const name = input.name || inferName(input.description);
+  const planningDescription = withContext(input.description, input.context);
   const surfaces = input.surfaces?.length ? input.surfaces : (["intent"] as Surface[]);
-  const domain = resolveDomain(input.description, input.domain);
-  const params = input.params || inferParams(input.description, domain, surfaces);
-  const shouldEmitArtifacts = shouldEmitDomainArtifacts(domain, input.description);
+  const domain = resolveDomain(planningDescription, input.domain);
+  const params = input.params || inferParams(planningDescription, domain, surfaces);
+  const shouldEmitArtifacts = shouldEmitDomainArtifacts(domain, planningDescription);
   const diagnostics: string[] = [];
   const files: FeatureFile[] = [];
 
@@ -96,7 +99,7 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     const intentName = withoutSuffix(name, "Intent");
     const intentResult = buildIntent(
       intentName,
-      input.description,
+      planningDescription,
       domain,
       params,
       shouldEmitArtifacts
@@ -133,7 +136,7 @@ export function generateFeature(input: FeatureInput): FeatureResult {
   // --- Widget surface ---
   if (surfaces.includes("widget")) {
     const widgetName = withoutSuffix(name, "Widget");
-    const widgetResult = buildWidget(widgetName, input.description, domain, params);
+    const widgetResult = buildWidget(widgetName, planningDescription, domain, params);
     if (widgetResult.swift) {
       files.push({
         path: `Sources/Widgets/${withSuffix(widgetName, "Widget")}.swift`,
@@ -154,7 +157,7 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     const viewName = withSuffix(withoutSuffix(name, "View"), "View");
     const viewResult = buildView(
       viewName,
-      input.description,
+      planningDescription,
       params,
       input.platform,
       input.tokenNamespace
@@ -179,10 +182,10 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     const componentName = withoutSuffix(withoutSuffix(name, "View"), "Component");
     const componentKind =
       input.componentKind ??
-      inferComponentKindForFeature(input.description, componentName);
+      inferComponentKindForFeature(planningDescription, componentName);
     const componentResult = buildView(
       componentName,
-      input.description,
+      planningDescription,
       input.params ?? {},
       input.platform,
       input.tokenNamespace,
@@ -208,7 +211,7 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     const storeName = withSuffix(withoutSuffix(name, "Store"), "Store");
     files.push({
       path: `Sources/Stores/${storeName}.swift`,
-      content: buildStore(storeName, input.description, domain),
+      content: buildStore(storeName, planningDescription, domain),
       type: "swift",
     });
     files.push({
@@ -280,6 +283,9 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     input.platform ? `Platform: ${input.platform}` : null,
     domain ? `Domain: ${domain}` : null,
     `Note: generated files are editable first drafts; connect real persistence, app state, and product behavior before shipping.`,
+    input.context
+      ? `Context: nearby project/design context was used as a weak structural hint.`
+      : null,
     `Files:`,
     ...files.map((f) => `  ${f.path} (${f.type})`),
   ]
@@ -287,6 +293,11 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     .join("\n");
 
   return { success, name, files, summary, diagnostics };
+}
+
+function withContext(description: string, context?: string): string {
+  if (!context?.trim()) return description;
+  return `${description}\n\nProject context hints:\n${context.trim().slice(0, 6000)}`;
 }
 
 function validateGeneratedSwift(files: FeatureFile[]): string[] {
@@ -449,6 +460,12 @@ function buildView(
     ensureState(state, "accentColor", "string", "Blue");
     ensureState(state, "transcriptionEngine", "string", "Apple Speech");
     ensureState(state, "reduceMotion", "boolean", false);
+  }
+
+  if (usesInboxBlueprint(description)) {
+    ensureState(state, "searchText", "string", "");
+    ensureState(state, "selectedFilter", "string", "All");
+    ensureState(state, "draftText", "string", "");
   }
 
   ensureBlueprintState(state, name, description, componentKind);
@@ -670,7 +687,10 @@ function ensureBlueprintState(
 
 function generateIntentTest(name: string, params: Record<string, string>): string {
   const paramSetup = Object.entries(params)
-    .map(([p, t]) => `        intent.${p} = ${testValueForType(t)}`)
+    .map(
+      ([p, t]) =>
+        `        intent.${safeIntentTestPropertyName(p)} = ${testValueForType(t)}`
+    )
     .join("\n");
 
   return `import XCTest
@@ -695,6 +715,23 @@ ${paramSetup}
     }
 }
 `;
+}
+
+function safeIntentTestPropertyName(name: string): string {
+  if (name === "title") return "intentTitle";
+  if (name === "description") return "intentDescription";
+  if (
+    [
+      "parameterSummary",
+      "perform",
+      "isDiscoverable",
+      "openAppWhenRun",
+      "authenticationPolicy",
+    ].includes(name)
+  ) {
+    return `${name}Value`;
+  }
+  return name;
 }
 
 function generateWidgetTest(name: string): string {
@@ -1023,6 +1060,13 @@ function inferParams(
   if (surfaces.length === 1 && surfaces.includes("component")) {
     return {};
   }
+  if (
+    surfaces.length === 1 &&
+    surfaces.includes("view") &&
+    usesDescriptionDrivenViewBlueprint(description)
+  ) {
+    return {};
+  }
   if (domain === "social") {
     return inferSocialParams(description);
   }
@@ -1031,6 +1075,18 @@ function inferParams(
   }
   // generic fallback
   return { input: "string" };
+}
+
+function usesDescriptionDrivenViewBlueprint(description: string): boolean {
+  const lower = description.toLowerCase();
+  return (
+    usesSettingsBlueprint(description) ||
+    usesProfileCardBlueprint(description) ||
+    usesInboxBlueprint(description) ||
+    /\b(three|3)[-\s]?pane|sidebar rail|channels column|split view|list|filter|search|composer|picker|toggle|grid|table|settings|profile card|mission card|agent row|status ring\b/.test(
+      lower
+    )
+  );
 }
 
 // ─── IR / codegen helpers ───────────────────────────────────────────

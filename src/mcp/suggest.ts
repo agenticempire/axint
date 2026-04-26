@@ -7,14 +7,19 @@
  * prompt for axint.feature.
  */
 
+import { requestProSuggestions } from "./pro-intelligence.js";
+
 export interface SuggestInput {
   appDescription: string;
   domain?: string;
   limit?: number;
-  mode?: "local" | "auto" | "ai";
+  mode?: "local" | "auto" | "ai" | "pro";
   platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "multi";
   audience?: string;
   exclude?: string[];
+  goals?: string[];
+  stage?: "idea" | "prototype" | "mvp" | "growth" | "enterprise" | "unknown";
+  constraints?: string[];
 }
 
 export interface FeatureSuggestion {
@@ -26,6 +31,10 @@ export interface FeatureSuggestion {
   domain: string;
   rationale?: string;
   confidence?: "low" | "medium" | "high";
+  source?: "local" | "pro";
+  impact?: string;
+  loop?: string;
+  nextStep?: string;
 }
 
 interface DomainFeatureSet {
@@ -890,18 +899,6 @@ const FEATURE_CATALOG: DomainFeatureSet[] = [
   },
 ];
 
-const AI_SUGGEST_TIMEOUT_MS = 8000;
-
-const AI_SUGGEST_SYSTEM_PROMPT = [
-  "You are Axint's Apple-native product strategist.",
-  "Suggest features that should be exposed through App Intents, Shortcuts, Spotlight, widgets, and SwiftUI surfaces.",
-  "The app description is the source of truth. Treat the domain as a weak hint only.",
-  "Reject stale context and do not suggest dating, health, finance, or messaging features unless the current app clearly asks for them.",
-  "Prefer concrete, buildable Apple-native workflows over generic product ideas.",
-  "Every suggestion must be specific to the app, explain why it belongs, and include a ready-to-use Axint feature prompt.",
-  "Return only JSON with a top-level suggestions array.",
-].join(" ");
-
 /**
  * Suggest Apple-native features for an app based on description and domain.
  */
@@ -936,6 +933,7 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
             domain: domainSet.domain,
             rationale: buildRationale(domainSet.domain, descriptionScore, text),
             confidence: confidenceFor(score),
+            source: "local",
           } satisfies FeatureSuggestion,
           score,
         },
@@ -965,24 +963,20 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
 }
 
 /**
- * Suggest features with an optional AI strategy pass.
+ * Suggest features with an optional Pro strategy pass.
  *
- * Local mode is deterministic and performs no network requests. AI mode is
- * opt-in via input.mode or AXINT_SUGGEST_MODE and falls back to local results
- * if no provider is configured or the request fails.
+ * Local mode is deterministic and performs no network requests. Pro mode is
+ * opt-in via input.mode or AXINT_SUGGEST_MODE and calls an authenticated Axint
+ * Pro endpoint. Proprietary prompts, strategy packs, model routing, and
+ * customer-specific learning stay server-side; the OSS compiler only sends a
+ * sanitized request and falls back to local suggestions.
  */
 export async function suggestFeaturesSmart(
   input: SuggestInput
 ): Promise<FeatureSuggestion[]> {
   const localSuggestions = suggestFeatures(input);
-  if (!shouldUseAI(input)) return localSuggestions;
-
-  try {
-    const aiSuggestions = await suggestFeaturesWithAI(input, localSuggestions);
-    return aiSuggestions.length > 0 ? aiSuggestions : localSuggestions;
-  } catch {
-    return localSuggestions;
-  }
+  const pro = await requestProSuggestions(input, localSuggestions);
+  return pro.status === "used" ? pro.suggestions : localSuggestions;
 }
 
 function keywordScore(text: string, keywords: string[]): number {
@@ -1030,6 +1024,7 @@ function fallbackSuggestions(
         ? `Using the provided ${fallback.domain} domain as a weak hint because the description is broad.`
         : "Using broadly useful Apple-native workflow suggestions because the description is broad.",
     confidence: "low",
+    source: "local",
   }));
 }
 
@@ -1068,6 +1063,7 @@ function appSpecificFallbackSuggestions(
       domain: "custom",
       rationale,
       confidence: "medium",
+      source: "local",
     },
     {
       name: `${concept} Brief Widget`,
@@ -1078,6 +1074,7 @@ function appSpecificFallbackSuggestions(
       domain: "custom",
       rationale,
       confidence: "medium",
+      source: "local",
     },
     {
       name: `${concept} Review View`,
@@ -1088,280 +1085,11 @@ function appSpecificFallbackSuggestions(
       domain: "custom",
       rationale,
       confidence: "medium",
+      source: "local",
     },
   ];
 
   return suggestions.slice(0, limit);
-}
-
-function shouldUseAI(input: SuggestInput): boolean {
-  const mode = input.mode ?? process.env.AXINT_SUGGEST_MODE ?? "local";
-  if (mode === "local") return false;
-  if (mode === "ai") return hasAIProvider();
-  if (mode === "auto") {
-    return process.env.AXINT_SUGGEST_AI === "1" && hasAIProvider();
-  }
-  return false;
-}
-
-function hasAIProvider(): boolean {
-  return Boolean(process.env.AXINT_SUGGEST_AI_ENDPOINT || process.env.OPENAI_API_KEY);
-}
-
-async function suggestFeaturesWithAI(
-  input: SuggestInput,
-  localSuggestions: FeatureSuggestion[]
-): Promise<FeatureSuggestion[]> {
-  if (process.env.AXINT_SUGGEST_AI_ENDPOINT) {
-    return suggestFeaturesFromEndpoint(input, localSuggestions);
-  }
-
-  if (process.env.OPENAI_API_KEY) {
-    return suggestFeaturesFromOpenAI(input, localSuggestions);
-  }
-
-  return [];
-}
-
-async function suggestFeaturesFromEndpoint(
-  input: SuggestInput,
-  localSuggestions: FeatureSuggestion[]
-): Promise<FeatureSuggestion[]> {
-  const response = await fetchWithTimeout(process.env.AXINT_SUGGEST_AI_ENDPOINT!, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(process.env.AXINT_SUGGEST_AI_TOKEN
-        ? { Authorization: `Bearer ${process.env.AXINT_SUGGEST_AI_TOKEN}` }
-        : {}),
-    },
-    body: JSON.stringify(buildAIPayload(input, localSuggestions)),
-  });
-
-  if (!response.ok) return [];
-  const json = (await response.json()) as unknown;
-  return parseAISuggestions(json, input.limit);
-}
-
-async function suggestFeaturesFromOpenAI(
-  input: SuggestInput,
-  localSuggestions: FeatureSuggestion[]
-): Promise<FeatureSuggestion[]> {
-  const response = await fetchWithTimeout("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: process.env.AXINT_SUGGEST_MODEL ?? "gpt-4.1-mini",
-      instructions: AI_SUGGEST_SYSTEM_PROMPT,
-      input: JSON.stringify(buildAIPayload(input, localSuggestions)),
-      text: {
-        format: {
-          type: "json_schema",
-          name: "axint_suggestions",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              suggestions: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    name: { type: "string" },
-                    description: { type: "string" },
-                    surfaces: {
-                      type: "array",
-                      items: {
-                        enum: ["intent", "view", "widget", "component", "app", "store"],
-                        type: "string",
-                      },
-                    },
-                    complexity: {
-                      enum: ["low", "medium", "high"],
-                      type: "string",
-                    },
-                    featurePrompt: { type: "string" },
-                    domain: { type: "string" },
-                    rationale: { type: "string" },
-                    confidence: {
-                      enum: ["low", "medium", "high"],
-                      type: "string",
-                    },
-                  },
-                  required: [
-                    "name",
-                    "description",
-                    "surfaces",
-                    "complexity",
-                    "featurePrompt",
-                    "domain",
-                    "rationale",
-                    "confidence",
-                  ],
-                },
-              },
-            },
-            required: ["suggestions"],
-          },
-        },
-        verbosity: "low",
-      },
-      max_output_tokens: 1800,
-    }),
-  });
-
-  if (!response.ok) return [];
-  const json = (await response.json()) as Record<string, unknown>;
-  const outputText = extractOpenAIOutputText(json);
-  if (!outputText) return [];
-
-  try {
-    return parseAISuggestions(JSON.parse(outputText), input.limit);
-  } catch {
-    return [];
-  }
-}
-
-function buildAIPayload(
-  input: SuggestInput,
-  localSuggestions: FeatureSuggestion[]
-): Record<string, unknown> {
-  return {
-    appDescription: input.appDescription,
-    domainHint: input.domain,
-    platform: input.platform,
-    audience: input.audience,
-    exclude: input.exclude,
-    limit: clampLimit(input.limit),
-    localBaseline: localSuggestions.slice(0, clampLimit(input.limit)).map((s) => ({
-      name: s.name,
-      description: s.description,
-      surfaces: s.surfaces,
-      complexity: s.complexity,
-      featurePrompt: s.featurePrompt,
-      domain: s.domain,
-    })),
-    outputContract: {
-      suggestions: [
-        {
-          name: "short feature name",
-          description: "one sentence explaining the user value",
-          surfaces: ["intent", "view", "widget", "component", "app", "store"],
-          complexity: "low | medium | high",
-          featurePrompt: "one-line prompt for axint.feature",
-          domain: "short lowercase category",
-          rationale: "why this fits this exact app",
-          confidence: "low | medium | high",
-        },
-      ],
-    },
-  };
-}
-
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), AI_SUGGEST_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-function parseAISuggestions(
-  value: unknown,
-  requestedLimit?: number
-): FeatureSuggestion[] {
-  const rawSuggestions = Array.isArray((value as { suggestions?: unknown })?.suggestions)
-    ? (value as { suggestions: unknown[] }).suggestions
-    : [];
-  const limit = clampLimit(requestedLimit);
-
-  return rawSuggestions
-    .map(normalizeAISuggestion)
-    .filter((suggestion): suggestion is FeatureSuggestion => Boolean(suggestion))
-    .slice(0, limit);
-}
-
-function normalizeAISuggestion(value: unknown): FeatureSuggestion | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  const name = stringValue(record.name);
-  const description = stringValue(record.description);
-  const featurePrompt = stringValue(record.featurePrompt);
-  const domain = stringValue(record.domain) || "custom";
-  const surfaces = normalizeSurfaces(record.surfaces);
-  const complexity = normalizeComplexity(record.complexity);
-  const confidence = normalizeConfidence(record.confidence);
-  const rationale = stringValue(record.rationale);
-
-  if (!name || !description || !featurePrompt || surfaces.length === 0) {
-    return null;
-  }
-
-  return {
-    name,
-    description,
-    surfaces,
-    complexity,
-    featurePrompt,
-    domain,
-    ...(rationale ? { rationale } : {}),
-    ...(confidence ? { confidence } : {}),
-  };
-}
-
-function stringValue(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizeSurfaces(
-  value: unknown
-): Array<"intent" | "view" | "widget" | "component" | "app" | "store"> {
-  if (!Array.isArray(value)) return [];
-  const allowed = new Set(["intent", "view", "widget", "component", "app", "store"]);
-  return Array.from(
-    new Set(
-      value
-        .filter((surface): surface is string => typeof surface === "string")
-        .map((surface) => surface.toLowerCase())
-        .filter((surface) => allowed.has(surface))
-    )
-  ) as Array<"intent" | "view" | "widget" | "component" | "app" | "store">;
-}
-
-function normalizeComplexity(value: unknown): "low" | "medium" | "high" {
-  return value === "high" || value === "medium" || value === "low" ? value : "medium";
-}
-
-function normalizeConfidence(value: unknown): "low" | "medium" | "high" | undefined {
-  return value === "high" || value === "medium" || value === "low" ? value : undefined;
-}
-
-function extractOpenAIOutputText(response: Record<string, unknown>): string {
-  if (typeof response.output_text === "string") return response.output_text;
-
-  const output = response.output;
-  if (!Array.isArray(output)) return "";
-
-  const chunks: string[] = [];
-  for (const item of output) {
-    if (!item || typeof item !== "object") continue;
-    const content = (item as { content?: unknown }).content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if (!part || typeof part !== "object") continue;
-      const record = part as Record<string, unknown>;
-      if (typeof record.text === "string") chunks.push(record.text);
-    }
-  }
-
-  return chunks.join("\n").trim();
 }
 
 function normalizeText(value: string): string {

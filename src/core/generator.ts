@@ -66,6 +66,7 @@ export function generatedFileHeader(fileName: string): string[] {
  */
 export function generateSwift(intent: IRIntent): string {
   const lines: string[] = [];
+  const safeIntent = makeIntentParametersSwiftSafe(intent);
 
   // File header
   lines.push(...generatedFileHeader(`${intent.name}Intent.swift`));
@@ -75,8 +76,8 @@ export function generateSwift(intent: IRIntent): string {
   lines.push(``);
 
   // Generate entities before the intent
-  if (intent.entities && intent.entities.length > 0) {
-    for (const entity of intent.entities) {
+  if (safeIntent.entities && safeIntent.entities.length > 0) {
+    for (const entity of safeIntent.entities) {
       lines.push(generateEntity(entity));
       lines.push(``);
       lines.push(generateEntityQuery(entity));
@@ -84,65 +85,65 @@ export function generateSwift(intent: IRIntent): string {
     }
   }
 
-  for (const provider of collectDynamicOptionsProviders(intent.parameters)) {
+  for (const provider of collectDynamicOptionsProviders(safeIntent.parameters)) {
     lines.push(generateDynamicOptionsProvider(provider.providerName, provider.valueType));
     lines.push(``);
   }
 
   // Struct declaration
-  lines.push(`struct ${intent.name}Intent: AppIntent {`);
+  lines.push(`struct ${safeIntent.name}Intent: AppIntent {`);
 
   // Static metadata
   lines.push(
-    `    static var title: LocalizedStringResource = "${escapeSwiftString(intent.title)}"`
+    `    static var title: LocalizedStringResource = "${escapeSwiftString(safeIntent.title)}"`
   );
   lines.push(
-    `    static var description: IntentDescription = IntentDescription("${escapeSwiftString(intent.description)}")`
+    `    static var description: IntentDescription = IntentDescription("${escapeSwiftString(safeIntent.description)}")`
   );
-  if (intent.isDiscoverable !== undefined) {
-    lines.push(`    static let isDiscoverable: Bool = ${intent.isDiscoverable}`);
+  if (safeIntent.isDiscoverable !== undefined) {
+    lines.push(`    static let isDiscoverable: Bool = ${safeIntent.isDiscoverable}`);
   }
   lines.push(``);
 
   // Parameters
-  for (const param of intent.parameters) {
+  for (const param of safeIntent.parameters) {
     lines.push(generateParameter(param));
   }
 
-  if (intent.parameters.length > 0) {
+  if (safeIntent.parameters.length > 0) {
     lines.push(``);
   }
 
-  if (intent.parameterSummary) {
+  if (safeIntent.parameterSummary) {
     lines.push(`    static var parameterSummary: some ParameterSummary {`);
-    lines.push(...generateParameterSummary(intent.parameterSummary, 8));
+    lines.push(...generateParameterSummary(safeIntent.parameterSummary, 8));
     lines.push(`    }`);
     lines.push(``);
   }
 
   // Perform function with return-type aware signature
   const returnTypeSignature = generateReturnSignature(
-    intent.returnType,
-    intent.customResultType
+    safeIntent.returnType,
+    safeIntent.customResultType
   );
   lines.push(`    func perform() async throws -> ${returnTypeSignature} {`);
   lines.push(`        // TODO: Implement your intent logic here.`);
 
-  if (intent.parameters.length > 0) {
-    const paramList = intent.parameters.map((p) => p.name).join(", ");
+  if (safeIntent.parameters.length > 0) {
+    const paramList = safeIntent.parameters.map((p) => p.name).join(", ");
     lines.push(`        // Parameters available: ${paramList}`);
   }
 
   // Donate this intent to the system prediction engine so Siri and
   // Spotlight can surface it proactively. The donate API lives on the
   // intent itself since iOS 16 — no separate manager type needed.
-  if (intent.donateOnPerform) {
+  if (safeIntent.donateOnPerform) {
     lines.push(`        `);
     lines.push(`        // Donate to Siri and Spotlight`);
     lines.push(`        try? await self.donate()`);
   }
 
-  lines.push(generatePerformReturn(intent.returnType, intent.customResultType));
+  lines.push(generatePerformReturn(safeIntent.returnType, safeIntent.customResultType));
   lines.push(`    }`);
   lines.push(`}`);
   lines.push(``);
@@ -399,6 +400,93 @@ export function generateEntitlementsFragment(intent: IRIntent): string | undefin
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
+
+const APP_INTENT_MEMBER_NAMES = new Set([
+  "title",
+  "description",
+  "parameterSummary",
+  "perform",
+  "isDiscoverable",
+  "openAppWhenRun",
+  "authenticationPolicy",
+]);
+
+function makeIntentParametersSwiftSafe(intent: IRIntent): IRIntent {
+  const renames = new Map<string, string>();
+  const used = new Set<string>();
+  const parameters = intent.parameters.map((param) => {
+    let name = param.name;
+    if (APP_INTENT_MEMBER_NAMES.has(name)) {
+      name = safeIntentParameterName(name, used);
+      renames.set(param.name, name);
+    }
+    used.add(name);
+    return name === param.name ? param : { ...param, name };
+  });
+
+  if (renames.size === 0) return intent;
+
+  return {
+    ...intent,
+    parameters,
+    parameterSummary: intent.parameterSummary
+      ? renameParameterSummary(intent.parameterSummary, renames)
+      : undefined,
+  };
+}
+
+function safeIntentParameterName(name: string, used: Set<string>): string {
+  const preferred =
+    name === "title"
+      ? "intentTitle"
+      : name === "description"
+        ? "intentDescription"
+        : `${name}Value`;
+  if (!used.has(preferred)) return preferred;
+
+  let index = 2;
+  while (used.has(`${preferred}${index}`)) index += 1;
+  return `${preferred}${index}`;
+}
+
+function renameParameterSummary(
+  summary: IRParameterSummary,
+  renames: Map<string, string>
+): IRParameterSummary {
+  if (summary.kind === "summary") {
+    return {
+      ...summary,
+      template: rewriteSummaryTemplate(summary.template, renames),
+    };
+  }
+  if (summary.kind === "when") {
+    return {
+      ...summary,
+      parameter: renames.get(summary.parameter) ?? summary.parameter,
+      then: renameParameterSummary(summary.then, renames),
+      otherwise: summary.otherwise
+        ? renameParameterSummary(summary.otherwise, renames)
+        : undefined,
+    };
+  }
+  return {
+    ...summary,
+    parameter: renames.get(summary.parameter) ?? summary.parameter,
+    cases: summary.cases.map((item) => ({
+      ...item,
+      summary: renameParameterSummary(item.summary, renames),
+    })),
+    default: summary.default
+      ? renameParameterSummary(summary.default, renames)
+      : undefined,
+  };
+}
+
+function rewriteSummaryTemplate(template: string, renames: Map<string, string>): string {
+  return template.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (match, name) => {
+    return `\${${renames.get(name) ?? name}}`;
+  });
+}
 
 function generateParameter(param: IRParameter): string {
   const swiftType = irTypeToSwift(param.type);

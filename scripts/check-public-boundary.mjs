@@ -19,6 +19,10 @@ const FORBIDDEN_PATTERNS = [
   { label: "memory citation markers", pattern: /<oai-mem-citation>/ },
   { label: "hidden admin route", pattern: /status\/compatibility\/x7f3a/ },
   { label: "private admin domain", pattern: /admin\.agenticempire\.co/ },
+  { label: "direct model provider key in OSS intelligence path", pattern: /OPENAI_API_KEY/ },
+  { label: "direct model selector in OSS intelligence path", pattern: /AXINT_SUGGEST_MODEL/ },
+  { label: "private growth-book reference", pattern: /\bHooked\b/ },
+  { label: "private growth-framework author reference", pattern: /\bNir\s+Eyal\b/i },
 ];
 
 function trackedFiles() {

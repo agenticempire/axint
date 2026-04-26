@@ -6,8 +6,13 @@
  * automatically.
  *
  * Tools:
+ *   - axint.doctor:           Audit version truth and project MCP wiring
+ *   - axint.session.start:    Start enforced session token + recovery context
  *   - axint.feature:          Generate a scaffolded Apple-native feature package
  *   - axint.suggest:          Suggest Apple-native features for an app domain
+ *   - axint.workflow.check:   Check whether an agent used the Axint workflow
+ *   - axint.context.memory:   Return compact operating memory after context loss
+ *   - axint.context.docs:     Return compact docs context after context loss
  *   - axint.scaffold:         Generate a starter TypeScript intent file
  *   - axint.compile:          Compile TypeScript intent → Swift App Intent
  *   - axint.fix-packet: Read the latest emitted Fix Packet / AI repair prompt
@@ -20,6 +25,7 @@
  *   - axint.templates.list:   List bundled reference templates
  *   - axint.templates.get:    Return the source of a specific template
  *   - axint.status:           Report the running MCP server version + restart help
+ *   - axint.project.pack:     Generate first-try project-start files
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -59,6 +65,31 @@ import {
   type TokenIngestArgs,
   type TokenOutputFormat,
 } from "./tokens.js";
+import {
+  renderWorkflowCheckReport,
+  runWorkflowCheck,
+  type WorkflowCheckInput,
+} from "./workflow-check.js";
+import {
+  renderMachineDoctorReport,
+  runMachineDoctor,
+  type DoctorFormat,
+} from "./doctor.js";
+import {
+  buildProjectStartPack,
+  renderProjectStartPack,
+  type ProjectAgent,
+  type ProjectMcpMode,
+  type ProjectStartPackFormat,
+} from "../project/start-pack.js";
+import { buildAxintDocsContext } from "../project/docs-context.js";
+import { buildAxintOperatingMemory } from "../project/operating-memory.js";
+import {
+  renderAxintSessionStart,
+  startAxintSession,
+  type AxintSessionAgent,
+  type AxintSessionFormat,
+} from "../project/session.js";
 
 type PackageInfo = {
   name?: string;
@@ -68,6 +99,20 @@ type PackageInfo = {
 
 type StatusArgs = {
   format?: "markdown" | "json" | "prompt";
+};
+type DoctorArgs = {
+  cwd?: string;
+  expectedVersion?: string;
+  format?: DoctorFormat;
+};
+type SessionStartArgs = {
+  targetDir?: string;
+  projectName?: string;
+  expectedVersion?: string;
+  platform?: string;
+  agent?: AxintSessionAgent;
+  ttlMinutes?: number;
+  format?: AxintSessionFormat;
 };
 
 // Read version from package.json so it stays in sync.
@@ -124,6 +169,21 @@ type ToolResult = {
   content: Array<{ type: string; text: string }>;
   isError?: boolean;
 };
+type ProjectPackArgs = {
+  projectName?: string;
+  targetDir?: string;
+  agent?: ProjectAgent;
+  mode?: ProjectMcpMode;
+  format?: ProjectStartPackFormat;
+};
+
+type ContextMemoryArgs = {
+  projectName?: string;
+  expectedVersion?: string;
+  platform?: string;
+};
+
+type ContextDocsArgs = ContextMemoryArgs;
 
 function diagnosticsText(text: string): ToolResult {
   return {
@@ -159,6 +219,8 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     restartRequiredAfterUpdate: true,
     updateCommand: "npm install -g @axint/compiler@latest",
     xcodeSetupCommand: "axint xcode setup --agent claude",
+    doctorCommand: "axint doctor",
+    projectInitCommand: "axint project init",
     xcodeRestartInstruction:
       "Restart the Xcode Claude Agent chat or MCP server after updating. MCP clients keep the old Node process alive until it is restarted.",
   };
@@ -206,6 +268,8 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     "3. Restart the Xcode Claude Agent chat or MCP server.",
     "",
     "4. In the new chat, ask: `Call axint.status and tell me the running version.`",
+    "",
+    "For a brand-new project, run `axint project init` once, then `axint doctor` to confirm the machine is wired.",
   ].join("\n");
 }
 
@@ -224,6 +288,40 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
     return diagnosticsText(renderStatus(a?.format ?? "markdown"));
   }
 
+  if (name === "axint.doctor") {
+    const a = args as DoctorArgs | undefined;
+    const report = runMachineDoctor({
+      cwd: a?.cwd,
+      expectedVersion: a?.expectedVersion,
+      runningVersion: pkg.version,
+      toolsRegistered: TOOL_MANIFEST.length,
+      promptsRegistered: PROMPT_MANIFEST.length,
+      packageJsonPath,
+    });
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderMachineDoctorReport(report, a?.format ?? "markdown"),
+        },
+      ],
+      isError: report.status === "fail",
+    };
+  }
+
+  if (name === "axint.session.start") {
+    const a = args as SessionStartArgs | undefined;
+    const result = startAxintSession({
+      targetDir: a?.targetDir,
+      projectName: a?.projectName,
+      expectedVersion: a?.expectedVersion ?? pkg.version,
+      platform: a?.platform,
+      agent: a?.agent,
+      ttlMinutes: a?.ttlMinutes,
+    });
+    return diagnosticsText(renderAxintSessionStart(result, a?.format ?? "markdown"));
+  }
+
   if (name === "axint.feature") {
     const a = args as FeatureInput & { format?: boolean };
     if (!a.description) {
@@ -239,6 +337,7 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       platform: a.platform,
       tokenNamespace: a.tokenNamespace,
       componentKind: a.componentKind,
+      context: a.context,
     });
 
     const shouldFormat = a.format !== false;
@@ -277,8 +376,12 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
         const surfaces = s.surfaces.join(", ");
         const rationale = s.rationale ? `\n   Why: ${s.rationale}` : "";
         const confidence = s.confidence ? ` | Confidence: ${s.confidence}` : "";
+        const source = s.source ? ` | Source: ${s.source}` : "";
+        const impact = s.impact ? `\n   Impact: ${s.impact}` : "";
+        const loop = s.loop ? `\n   Loop: ${s.loop}` : "";
+        const nextStep = s.nextStep ? `\n   Next: ${s.nextStep}` : "";
         const generateCommand = `axint.feature({ description: "${s.featurePrompt}", surfaces: ${JSON.stringify(s.surfaces)} })`;
-        return `${i + 1}. ${s.name}\n   ${s.description}${rationale}\n   Surfaces: ${surfaces} | Complexity: ${s.complexity}${confidence}\n   Generate: ${generateCommand}\n   Proof loop: write the generated files, run axint.cloud.check with platform/build/test evidence, then build in Xcode.`;
+        return `${i + 1}. ${s.name}\n   ${s.description}${rationale}${impact}${loop}${nextStep}\n   Surfaces: ${surfaces} | Complexity: ${s.complexity}${confidence}${source}\n   Generate: ${generateCommand}\n   Proof loop: write the generated files, run axint.cloud.check with platform/build/test evidence, then build in Xcode.`;
       })
       .join("\n\n");
 
@@ -286,6 +389,50 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       suggestions.length > 0
         ? `Suggested Apple-native features:\n${domainSummary}\n\n${output}\n\nUse axint.feature with any prompt above to generate the full feature package.`
         : "No specific suggestions for this app description. Try providing more detail about the app's purpose."
+    );
+  }
+
+  if (name === "axint.workflow.check") {
+    const a = args as WorkflowCheckInput;
+    const report = runWorkflowCheck(a);
+    return diagnosticsText(
+      a.format === "json"
+        ? JSON.stringify(report, null, 2)
+        : renderWorkflowCheckReport(report)
+    );
+  }
+
+  if (name === "axint.project.pack") {
+    const a = args as ProjectPackArgs | undefined;
+    const pack = buildProjectStartPack({
+      projectName: a?.projectName,
+      targetDir: a?.targetDir,
+      agent: a?.agent,
+      mode: a?.mode,
+      version: pkg.version,
+    });
+    return diagnosticsText(renderProjectStartPack(pack, a?.format ?? "markdown"));
+  }
+
+  if (name === "axint.context.memory") {
+    const a = args as ContextMemoryArgs | undefined;
+    return diagnosticsText(
+      buildAxintOperatingMemory({
+        projectName: a?.projectName,
+        expectedVersion: a?.expectedVersion ?? pkg.version,
+        platform: a?.platform,
+      })
+    );
+  }
+
+  if (name === "axint.context.docs") {
+    const a = args as ContextDocsArgs | undefined;
+    return diagnosticsText(
+      buildAxintDocsContext({
+        projectName: a?.projectName,
+        expectedVersion: a?.expectedVersion ?? pkg.version,
+        platform: a?.platform,
+      })
     );
   }
 

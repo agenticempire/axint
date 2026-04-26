@@ -41,12 +41,25 @@ export function usesSettingsBlueprint(description: string): boolean {
   );
 }
 
+export function usesInboxBlueprint(description: string): boolean {
+  const lower = description.toLowerCase();
+  return (
+    /\b(inbox|saved item|saved items|capture|composer|universal capture|classification|classifications)\b/.test(
+      lower
+    ) &&
+    /\b(search|filter|unread|pinned|archived|tag|tags|source badge|classification chip|summarize|save to project|turn into post|action buttons?)\b/.test(
+      lower
+    )
+  );
+}
+
 export function buildSmartViewBody(input: ViewBlueprintInput): string | null {
   const description = input.description ?? "";
   const explicitKind = normalizeKind(input.componentKind);
   if (explicitKind) return buildComponentBody(explicitKind, input);
   if (usesThreePaneBlueprint(description)) return buildThreePaneBody(input);
   if (usesSettingsBlueprint(description)) return buildSettingsBody(input);
+  if (usesInboxBlueprint(description)) return buildInboxBody(input);
   if (usesProfileCardBlueprint(description)) return buildProfileCardBody(input.platform);
 
   const inferredKind = normalizeKind(inferComponentKind(input.name, description));
@@ -729,6 +742,147 @@ function buildProfileCardBody(platform: BlueprintPlatform | undefined): string {
   return `NavigationStack {
             ${card}
                 .navigationTitle("Profile")
+        }`;
+}
+
+function buildInboxBody(input: ViewBlueprintInput): string {
+  const body = `VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Inbox")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                    Text("Capture, classify, and route everything before it gets lost.")
+                        .font(.callout)
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+
+                Spacer()
+
+                Button {
+                    draftText = ""
+                } label: {
+                    Label("New Capture", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                TextEditor(text: $draftText)
+                    .frame(minHeight: 88)
+                    .scrollContentBackground(.hidden)
+                    .padding(10)
+                    .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+                    .overlay(alignment: .topLeading) {
+                        if draftText.isEmpty {
+                            Text("Paste a note, link, transcript, or agent output...")
+                                .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 18)
+                                .allowsHitTesting(false)
+                        }
+                    }
+
+                HStack(spacing: 8) {
+                    Button("Save to Project") {
+                        selectedFilter = "Pinned"
+                    }
+                    Button("Summarize") {
+                        selectedFilter = "Unread"
+                    }
+                    Button("Turn into Post") {
+                        selectedFilter = "All"
+                    }
+                    Spacer()
+                    Text("classified automatically")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "success", ".green")})
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(14)
+            .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "16")}, style: .continuous))
+
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                TextField("Search saved items", text: $searchText)
+                    .textFieldStyle(.plain)
+
+                Picker("Filter", selection: $selectedFilter) {
+                    ForEach(["All", "Unread", "Pinned", "Archived"], id: \\.self) { filter in
+                        Text(filter).tag(filter)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+            }
+            .padding(10)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))
+
+            List {
+                ForEach(["Agent handoff", "Voice capture", "Design reference", "Customer note"], id: \\.self) { item in
+                    HStack(alignment: .top, spacing: 12) {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")})
+                            .frame(width: 38, height: 38)
+                            .overlay {
+                                Image(systemName: item == "Voice capture" ? "waveform" : "tray.full")
+                                    .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                            }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Text(item)
+                                    .font(.headline)
+                                    .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                                Text(item == "Agent handoff" ? "agent" : "source")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.14)")}, in: Capsule())
+                            }
+                            Text("Related project, classification chip, source badge, tags, and next action live here.")
+                                .font(.callout)
+                                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                                .lineLimit(2)
+                            HStack(spacing: 6) {
+                                Text("#project")
+                                Text("#context")
+                                Text("#follow-up")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                        }
+
+                        Spacer()
+
+                        HStack(spacing: 6) {
+                            Button { selectedFilter = "Pinned" } label: {
+                                Image(systemName: "pin")
+                            }
+                            Button { selectedFilter = "Archived" } label: {
+                                Image(systemName: "archivebox")
+                            }
+                            Button { selectedFilter = "Unread" } label: {
+                                Image(systemName: "text.bubble")
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            .listStyle(.plain)
+        }
+        .padding(20)
+        .background(${colorRef(input.tokenNamespace, "bg", "Color.clear")})`;
+
+  if (input.platform === "macOS") return body;
+  return `NavigationStack {
+            ${body}
+                .navigationTitle("Inbox")
         }`;
 }
 

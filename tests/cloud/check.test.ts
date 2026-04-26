@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { renderCloudCheckReport, runCloudCheck } from "../../src/cloud/check.js";
+import { writeCloudFeedbackSignal } from "../../src/cloud/feedback-store.js";
 import { handleToolCall } from "../../src/mcp/server.js";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("cloud check", () => {
   it("runs a Swift source check and returns an agent repair prompt", () => {
@@ -16,6 +20,8 @@ struct BrokenIntent: AppIntent {
     });
 
     expect(report.status).toBe("fail");
+    expect(report.gate.decision).toBe("fix_required");
+    expect(report.gate.canClaimFixed).toBe(false);
     expect(report.language).toBe("swift");
     expect(report.surface).toBe("intent");
     expect(report.errors).toBeGreaterThan(0);
@@ -96,6 +102,8 @@ struct ContentView: View {
     expect(result.isError).not.toBe(true);
     const payload = JSON.parse(result.content[0].text);
     expect(payload.status).toBe("needs_review");
+    expect(payload.gate.decision).toBe("evidence_required");
+    expect(payload.gate.canClaimFixed).toBe(false);
     expect(payload.fileName).toBe("ContentView.swift");
     expect(payload.confidence.level).toBe("medium");
     expect(payload.coverage).toContainEqual(
@@ -188,6 +196,8 @@ struct ContentView: View {
     });
 
     expect(report.status).toBe("pass");
+    expect(report.gate.decision).toBe("ready_to_ship");
+    expect(report.gate.canClaimFixed).toBe(true);
     expect(report.evidence.provided).toContain("xcodeBuildLog");
     expect(report.checks).toContainEqual(
       expect.objectContaining({
@@ -226,6 +236,75 @@ struct BrokenIntent: AppIntent {
     expect(report.learningSignal?.signals).toContain("runtime-evidence-supplied");
   });
 
+  it("classifies app freeze runtime evidence and likely main-thread blockers", () => {
+    const report = runCloudCheck({
+      fileName: "SwarmApp.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+@main
+struct SwarmApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .onAppear {
+                    Thread.sleep(forTimeInterval: 10)
+                }
+        }
+    }
+}
+`,
+      runtimeFailure:
+        "Swarm opens and freezes. The UI is unresponsive and the launch smoke test timed out waiting for Workspace.",
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-RUNTIME-FREEZE");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-RUNTIME-MAIN-BLOCKER"
+    );
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-RUNTIME-SLEEP");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-RUNTIME-LIFECYCLE-BLOCKER"
+    );
+    expect(report.repairPrompt).toContain("app freezes");
+    expect(report.repairPrompt).toContain("sample <AppProcessName>");
+    expect(report.repairPlan.map((step) => step.title).join("\n")).toContain(
+      "Capture a macOS hang sample"
+    );
+    expect(report.gate.canClaimFixed).toBe(false);
+    expect(report.learningSignal?.signals).toContain("runtime-evidence-supplied");
+    expect(report.learningSignal?.signals).toContain("runtime-freeze-evidence");
+  });
+
+  it("flags synchronous I/O as a likely freeze cause when runtime evidence says the UI hangs", () => {
+    const report = runCloudCheck({
+      fileName: "ProfileData.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct ProfileDataView: View {
+    var body: some View {
+        Text(loadProfiles())
+    }
+
+    func loadProfiles() -> String {
+        String(data: try! Data(contentsOf: URL(fileURLWithPath: "/tmp/profiles.json")), encoding: .utf8) ?? ""
+    }
+}
+`,
+      runtimeFailure:
+        "App beachballs after launch and the workspace never becomes interactive.",
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-RUNTIME-FREEZE");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-RUNTIME-SYNC-IO");
+    expect(report.repairPrompt).toContain("Synchronous I/O");
+  });
+
   it("emits a learning signal when static SwiftUI validation needs runtime evidence", () => {
     const report = runCloudCheck({
       fileName: "ContentView.swift",
@@ -244,6 +323,7 @@ struct ContentView: View {
     expect(report.learningSignal?.diagnosticCodes).toContain("AXCLOUD-RUNTIME-COVERAGE");
     expect(report.learningSignal?.signals).toContain("runtime-evidence-missing");
     expect(report.learningSignal?.suggestedOwner).toBe("cloud");
+    expect(report.gate.decision).toBe("evidence_required");
   });
 
   it("returns a redacted feedback signal as an MCP output format", async () => {
@@ -264,5 +344,28 @@ struct BrokenIntent: AppIntent {
     expect(payload.fingerprint).toMatch(/^learn-/);
     expect(payload.redaction).toBe("source_not_included");
     expect(payload.diagnosticCodes).toContain("AX704");
+  });
+
+  it("writes a redacted feedback signal for the learning flywheel", () => {
+    const root = mkdtempSync(join(tmpdir(), "axint-feedback-"));
+    try {
+      const report = runCloudCheck({
+        fileName: "BrokenIntent.swift",
+        source: `
+import AppIntents
+
+struct BrokenIntent: AppIntent {
+    static let title: LocalizedStringResource = "Broken"
+}
+`,
+      });
+      expect(report.learningSignal).toBeTruthy();
+      const stored = writeCloudFeedbackSignal(report.learningSignal!, { cwd: root });
+      const json = JSON.parse(readFileSync(stored.path, "utf-8"));
+      expect(json.redaction).toBe("source_not_included");
+      expect(json.diagnosticCodes).toContain("AX704");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

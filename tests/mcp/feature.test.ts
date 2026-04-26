@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateFeature } from "../../src/mcp/feature.js";
 import { suggestFeatures, suggestFeaturesSmart } from "../../src/mcp/suggest.js";
 import { validateSwiftSource } from "../../src/core/swift-validator.js";
+import { buildProSuggestionRequest } from "../../src/mcp/pro-intelligence.js";
 
 describe("axint.feature", () => {
   it("generates intent from natural language description", () => {
@@ -349,6 +350,59 @@ describe("axint.feature", () => {
     expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
   });
 
+  it("generates a token-aware inbox view from search, filter, composer, and list cues", () => {
+    const result = generateFeature({
+      description:
+        "Universal capture inbox with a composer, saved items by classification, filter bar for all unread pinned archived, search, action buttons to pin archive save to project summarize and turn into post, source badges, classification chips, tags, and related project.",
+      surfaces: ["view"],
+      name: "SwarmInbox",
+      platform: "macOS",
+      tokenNamespace: "SwarmDesignTokens",
+      domain: "productivity",
+    });
+
+    expect(result.success).toBe(true);
+    const view = result.files.find(
+      (f) => f.path === "Sources/Views/SwarmInboxView.swift"
+    );
+    expect(view).toBeDefined();
+    expect(view!.content).toContain("TextEditor(text: $draftText)");
+    expect(view!.content).toContain('TextField("Search saved items"');
+    expect(view!.content).toContain('Picker("Filter"');
+    expect(view!.content).toContain("List {");
+    expect(view!.content).toContain("SwarmDesignTokens.Colors.surface");
+    expect(view!.content).toContain("@State private var searchText");
+    expect(view!.content).not.toContain("Title:");
+    expect(view!.content).not.toContain("@State private var title");
+    expect(view!.content).not.toContain("Date:");
+    expect(view!.content).not.toContain("Notes:");
+    expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
+  });
+
+  it("uses nearby context as a structural hint for view generation", () => {
+    const result = generateFeature({
+      description: "Create the primary workspace shell for a Mac project room.",
+      context:
+        "Existing design uses a three-pane HSplitView with a 56px sidebar rail, 244px channels column, flexible content area, and right context pane.",
+      surfaces: ["view"],
+      name: "WorkspaceShell",
+      platform: "macOS",
+      tokenNamespace: "SwarmDesignTokens",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.summary).toContain("Context: nearby project/design context");
+    const view = result.files.find(
+      (f) => f.path === "Sources/Views/WorkspaceShellView.swift"
+    );
+    expect(view).toBeDefined();
+    expect(view!.content).toContain("HStack(spacing: 0)");
+    expect(view!.content).toContain("SwarmDesignTokens.Layout.sidebarRail");
+    expect(view!.content).toContain("SwarmDesignTokens.Layout.channelsColumn");
+    expect(view!.content).toContain("Context");
+    expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
+  });
+
   it("infers collaboration parameters for agent mission workflows instead of generic input", () => {
     const result = generateFeature({
       description:
@@ -444,26 +498,69 @@ describe("axint.suggest", () => {
     expect(suggestions.some((s) => /profile|event/i.test(s.featurePrompt))).toBe(false);
   });
 
-  it("falls back to local suggestions when ai mode has no provider", async () => {
-    const previousOpenAIKey = process.env.OPENAI_API_KEY;
+  it("falls back to local suggestions when pro mode has no authenticated endpoint", async () => {
+    const previousProToken = process.env.AXINT_PRO_TOKEN;
+    const previousProUrl = process.env.AXINT_PRO_SUGGEST_URL;
+    const previousProInsightsUrl = process.env.AXINT_PRO_INSIGHTS_URL;
+    const previousProInsights = process.env.AXINT_PRO_INSIGHTS;
     const previousEndpoint = process.env.AXINT_SUGGEST_AI_ENDPOINT;
-    delete process.env.OPENAI_API_KEY;
+    const previousEndpointToken = process.env.AXINT_SUGGEST_AI_TOKEN;
+    process.env.AXINT_PRO_TOKEN = "";
+    delete process.env.AXINT_PRO_SUGGEST_URL;
+    delete process.env.AXINT_PRO_INSIGHTS_URL;
+    delete process.env.AXINT_PRO_INSIGHTS;
     delete process.env.AXINT_SUGGEST_AI_ENDPOINT;
+    process.env.AXINT_SUGGEST_AI_TOKEN = "";
 
     try {
       const suggestions = await suggestFeaturesSmart({
         appDescription: "A design review app for brand assets",
-        mode: "ai",
+        mode: "pro",
       });
 
       expect(suggestions.length).toBeGreaterThan(0);
       expect(suggestions[0].domain).toBe("creative");
     } finally {
-      if (previousOpenAIKey) process.env.OPENAI_API_KEY = previousOpenAIKey;
+      if (previousProToken) process.env.AXINT_PRO_TOKEN = previousProToken;
+      else delete process.env.AXINT_PRO_TOKEN;
+      if (previousProUrl) process.env.AXINT_PRO_SUGGEST_URL = previousProUrl;
+      if (previousProInsightsUrl) {
+        process.env.AXINT_PRO_INSIGHTS_URL = previousProInsightsUrl;
+      }
+      if (previousProInsights) process.env.AXINT_PRO_INSIGHTS = previousProInsights;
       if (previousEndpoint) {
         process.env.AXINT_SUGGEST_AI_ENDPOINT = previousEndpoint;
       }
+      if (previousEndpointToken) {
+        process.env.AXINT_SUGGEST_AI_TOKEN = previousEndpointToken;
+      } else delete process.env.AXINT_SUGGEST_AI_TOKEN;
     }
+  });
+
+  it("keeps Pro suggestion requests as a sanitized OSS client contract", () => {
+    const local = suggestFeatures({
+      appDescription:
+        "A Mac app for AI agent project rooms with missions, handoffs, voice capture, and context files",
+      limit: 2,
+    });
+    const request = buildProSuggestionRequest(
+      {
+        appDescription:
+          "A Mac app for AI agent project rooms with missions, handoffs, voice capture, and context files",
+        mode: "pro",
+        goals: ["activation", "retention"],
+        stage: "mvp",
+        constraints: ["macOS-native"],
+      },
+      local
+    );
+
+    expect(request.compiler.boundary).toBe("open-source-client");
+    expect(request.input.mode).toBe("pro");
+    expect(request.input.goals).toEqual(["activation", "retention"]);
+    expect(JSON.stringify(request)).not.toMatch(
+      /privatePrompt|systemPrompt|modelProvider|strategyPack/i
+    );
   });
 
   it("creates app-specific fallback suggestions instead of generic domain guesses", () => {
