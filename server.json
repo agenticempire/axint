@@ -2,11 +2,13 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.agenticempire/axint",
   "title": "Axint",
-  "description": "Compile TypeScript or Python to native Swift — App Intents, SwiftUI, WidgetKit, and full apps.",
+  "description": "Compiler and repair loop for agent-built Apple apps: App Intents, SwiftUI, WidgetKit.",
   "repository": {
     "url": "https://github.com/agenticempire/axint",
     "source": "github"
   },
+  "homepage": "https://axint.ai",
+  "documentation": "https://docs.axint.ai",
   "version": "0.4.8",
   "remotes": [
     {
@@ -31,5 +33,9 @@
         "type": "stdio"
       }
     }
-  ]
+  ],
+  "capabilities": {
+    "tools": 20,
+    "prompts": 5
+  }
 }
