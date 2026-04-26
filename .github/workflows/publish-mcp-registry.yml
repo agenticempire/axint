@@ -32,4 +32,17 @@ jobs:
         run: ./mcp-publisher login github-oidc
 
       - name: Publish server.json
-        run: ./mcp-publisher publish
+        run: |
+          set -euo pipefail
+          if output=$(./mcp-publisher publish 2>&1); then
+            echo "$output"
+            exit 0
+          fi
+
+          echo "$output"
+          if grep -qi "duplicate version" <<<"$output"; then
+            echo "::notice::This server.json version is already published in the official MCP Registry."
+            exit 0
+          fi
+
+          exit 1
