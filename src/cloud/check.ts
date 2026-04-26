@@ -8,6 +8,11 @@ import type { CompilerOutput, Diagnostic } from "../core/types.js";
 export type CloudCheckFormat = "markdown" | "json" | "prompt" | "feedback";
 export type CloudCheckLanguage = "swift" | "typescript" | "unknown";
 export type CloudCheckStatus = "pass" | "needs_review" | "fail";
+export type CloudCheckGateDecision =
+  | "fix_required"
+  | "evidence_required"
+  | "ready_for_build"
+  | "ready_to_ship";
 export type CloudLearningKind =
   | "compiler_gap"
   | "generator_gap"
@@ -47,6 +52,12 @@ export interface CloudCheckReport {
     level: CloudCheckConfidenceLevel;
     detail: string;
     missingEvidence: string[];
+  };
+  gate: {
+    decision: CloudCheckGateDecision;
+    canClaimFixed: boolean;
+    reason: string;
+    requiredEvidence: string[];
   };
   compilerVersion: string;
   language: CloudCheckLanguage;
@@ -224,6 +235,14 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     evidenceProvided: evidence.provided.length > 0,
     runtimeEvidenceProvided,
   });
+  const gate = buildCloudGate({
+    status,
+    errors,
+    warnings,
+    runtimeCoverageRequired,
+    runtimeEvidenceProvided,
+    evidenceProvided: evidence.provided.length > 0,
+  });
 
   const nextSteps = diagnostics
     .filter((d) => d.severity !== "info")
@@ -266,6 +285,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     status,
     label: labelForStatus(status),
     confidence,
+    gate,
     compilerVersion: packageVersion(),
     language,
     surface,
@@ -318,6 +338,7 @@ export function renderCloudCheckReport(
     `- Language: ${report.language}`,
     `- Compiler: Axint ${report.compilerVersion}`,
     `- Confidence: ${report.confidence.level} — ${report.confidence.detail}`,
+    `- Gate: ${report.gate.decision} — ${report.gate.reason}`,
     `- Diagnostics: ${report.errors} errors, ${report.warnings} warnings, ${report.infos} info`,
     "",
     "## Checks",
@@ -350,6 +371,17 @@ export function renderCloudCheckReport(
       ...report.confidence.missingEvidence.map((item) => `- ${item}`)
     );
   }
+
+  lines.push(
+    "",
+    "## Ship Gate",
+    `- Can claim fixed: ${report.gate.canClaimFixed ? "yes" : "no"}`,
+    `- Decision: ${report.gate.decision}`,
+    `- Reason: ${report.gate.reason}`,
+    ...(report.gate.requiredEvidence.length > 0
+      ? report.gate.requiredEvidence.map((item) => `- Required evidence: ${item}`)
+      : ["- Required evidence: none"])
+  );
 
   if (report.diagnostics.length > 0) {
     lines.push("", "## Findings");
@@ -526,7 +558,9 @@ function inferEvidenceDiagnostics(input: {
   }
 
   if (input.input.runtimeFailure) {
-    diagnostics.push(...diagnosticsFromRuntimeFailure(input.input.runtimeFailure, file));
+    diagnostics.push(
+      ...diagnosticsFromRuntimeFailure(input.input.runtimeFailure, source, file)
+    );
   }
 
   if (
@@ -619,6 +653,22 @@ function buildCloudRepairPlan(input: {
       title: `${diagnostic.code} (${diagnostic.severity})`,
       detail: diagnostic.suggestion || diagnostic.message,
     }));
+
+  if (input.diagnostics.some((d) => d.code === "AXCLOUD-RUNTIME-FREEZE")) {
+    steps.unshift(
+      {
+        title: "Capture a macOS hang sample",
+        detail:
+          "While the app is frozen, capture a short sample so Cloud Check can reason from the main-thread stack instead of guessing from static source.",
+        command: "sample <AppProcessName> 5 -file /tmp/axint-freeze-sample.txt",
+      },
+      {
+        title: "Inspect the first app-owned main-thread frame",
+        detail:
+          "Open the sample output, find Thread 0, and look for the first frame from your app module. Rerun Cloud Check with that source file and the sample excerpt.",
+      }
+    );
+  }
 
   steps.push({
     title: "Re-run Cloud Check",
@@ -729,27 +779,241 @@ function diagnosticsFromTestFailure(
 
 function diagnosticsFromRuntimeFailure(
   runtimeFailure: string,
+  source: string,
   file: string
 ): Diagnostic[] {
   const text = normalizeTextForEvidence(runtimeFailure);
+  const diagnostics: Diagnostic[] = [];
+
   if (
-    !/\b(crash|fatal|exception|assertion|precondition|mainactor|actor|thread)\b/.test(
+    /\b(freeze|freezes|frozen|hang|hangs|hung|unresponsive|beachball|beachballs|spinning|stuck|launch timeout|launch timed out|timed out launching|ui does not respond|doesn't respond|not responding)\b/.test(
       text
     )
   ) {
-    return [];
+    diagnostics.push({
+      code: "AXCLOUD-RUNTIME-FREEZE",
+      severity: "error",
+      file,
+      line: findLikelyMainThreadBlockerLine(source),
+      message:
+        "Runtime evidence says the app freezes, hangs, or becomes unresponsive. A static pass cannot clear this without launch/runtime evidence.",
+      suggestion:
+        "Treat this as a runtime blocker. Capture a sample stack or UI-test launch timeout, inspect app-owned frames on the main thread, and remove synchronous work, infinite loops, or blocking waits from View.body, init, onAppear, .task, App startup, and shared stores.",
+    });
   }
 
-  return [
-    {
+  const blocker = findLikelyMainThreadBlocker(source);
+  if (blocker) {
+    diagnostics.push({
+      code: "AXCLOUD-RUNTIME-MAIN-BLOCKER",
+      severity: "error",
+      file,
+      line: blocker.line,
+      message: `${blocker.pattern} is a likely main-thread freeze source when it runs during SwiftUI rendering, app launch, or view appearance.`,
+      suggestion:
+        "Move blocking work off the main actor, make it asynchronous, add cancellation/timeouts, and keep View.body/init/onAppear lightweight. Rerun Cloud Check with runtime evidence and then launch the app again.",
+    });
+  }
+
+  diagnostics.push(...runtimeHazardDiagnostics(source, file));
+
+  if (
+    /\b(crash|fatal|exception|assertion|precondition|mainactor|actor|thread)\b/.test(text)
+  ) {
+    diagnostics.push({
       code: "AXCLOUD-RUNTIME-FAILURE",
       severity: "error",
       file,
       message: "Runtime evidence reports a crash or actor/thread failure.",
       suggestion:
         "Preserve the failing stack trace, identify the first app-owned frame, and rerun Cloud Check with that source file plus the runtimeFailure text.",
+    });
+  }
+
+  return dedupeDiagnostics(diagnostics);
+}
+
+function runtimeHazardDiagnostics(source: string, file: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const hazards = findRuntimeHazards(source);
+
+  for (const hazard of hazards.slice(0, 4)) {
+    diagnostics.push({
+      code: hazard.code,
+      severity: "error",
+      file,
+      line: hazard.line,
+      message: hazard.message,
+      suggestion: hazard.suggestion,
+    });
+  }
+
+  const lifecycle = findLifecycleRuntimeHazard(source);
+  if (lifecycle) {
+    diagnostics.push({
+      code: "AXCLOUD-RUNTIME-LIFECYCLE-BLOCKER",
+      severity: "error",
+      file,
+      line: lifecycle.line,
+      message: `${lifecycle.context} contains ${lifecycle.pattern}, which can freeze or repeatedly block SwiftUI rendering when the view appears.`,
+      suggestion:
+        "Move blocking or long-running lifecycle work into a cancellable async model method. Keep View.body, init, onAppear, and .task lightweight; add a launch/UI smoke test that proves the screen becomes interactive.",
+    });
+  }
+
+  return diagnostics;
+}
+
+type RuntimeHazard = {
+  code: string;
+  pattern: string;
+  line?: number;
+  message: string;
+  suggestion: string;
+};
+
+function findRuntimeHazards(source: string): RuntimeHazard[] {
+  const hazardDefinitions = [
+    {
+      needles: ["DispatchQueue.main.sync"],
+      code: "AXCLOUD-RUNTIME-MAIN-SYNC",
+      pattern: "DispatchQueue.main.sync",
+      message:
+        "DispatchQueue.main.sync can deadlock when called from the main thread during app launch or SwiftUI rendering.",
+      suggestion:
+        "Replace main-thread sync dispatch with direct main-actor access or an async hop. Never call DispatchQueue.main.sync from View.body, init, onAppear, or app startup.",
+    },
+    {
+      needles: ["DispatchSemaphore", ".wait()", "DispatchGroup"],
+      code: "AXCLOUD-RUNTIME-BLOCKING-WAIT",
+      pattern: "blocking wait",
+      message:
+        "Blocking waits can freeze SwiftUI/macOS apps when they run on the main thread.",
+      suggestion:
+        "Replace semaphores, DispatchGroup waits, and synchronous waits with async/await plus cancellation and timeout handling.",
+    },
+    {
+      needles: ["Thread.sleep", "sleep(", "usleep("],
+      code: "AXCLOUD-RUNTIME-SLEEP",
+      pattern: "sleep",
+      message:
+        "Sleep calls block the current thread and commonly freeze launch, previews, or UI interactions when used in SwiftUI lifecycle code.",
+      suggestion:
+        "Use Task.sleep inside an async task, keep it off View.body/init/onAppear startup work, and make the task cancellable.",
+    },
+    {
+      needles: ["while true", "while(true)", "for ;;"],
+      code: "AXCLOUD-RUNTIME-INFINITE-LOOP",
+      pattern: "infinite loop",
+      message:
+        "An unbounded loop is a likely freeze source if it runs during launch, rendering, or a main-actor task.",
+      suggestion:
+        "Add an exit condition, move repeated work to a cancellable timer/AsyncSequence, and prove the UI stays interactive with a launch smoke test.",
+    },
+    {
+      needles: [
+        "Data(contentsOf:",
+        "String(contentsOf:",
+        "NSImage(contentsOf:",
+        "FileManager.default.contentsOfDirectory",
+      ],
+      code: "AXCLOUD-RUNTIME-SYNC-IO",
+      pattern: "synchronous I/O",
+      message:
+        "Synchronous I/O, file, network, or image loading can freeze the UI when performed on the main actor or during SwiftUI view construction.",
+      suggestion:
+        "Move I/O into an async loader or background task, cache results in a model, and render loading state instead of blocking the view tree.",
     },
   ];
+
+  const hazards: RuntimeHazard[] = [];
+  for (const definition of hazardDefinitions) {
+    for (const needle of definition.needles) {
+      const line = findLine(source, needle);
+      if (line) {
+        hazards.push({
+          code: definition.code,
+          pattern: definition.pattern,
+          line,
+          message: definition.message,
+          suggestion: definition.suggestion,
+        });
+        break;
+      }
+    }
+  }
+
+  return hazards;
+}
+
+function findLifecycleRuntimeHazard(
+  source: string
+): { context: string; pattern: string; line?: number } | undefined {
+  const lifecyclePatterns = [
+    { context: ".onAppear", needle: ".onAppear" },
+    { context: ".task", needle: ".task" },
+    { context: "View init", needle: "init(" },
+    { context: "App startup", needle: "WindowGroup" },
+  ];
+  const hazardNeedles = [
+    "DispatchQueue.main.sync",
+    "DispatchSemaphore",
+    ".wait()",
+    "Thread.sleep",
+    "sleep(",
+    "while true",
+    "Data(contentsOf:",
+    "String(contentsOf:",
+  ];
+
+  const lines = source.split("\n");
+  for (const lifecycle of lifecyclePatterns) {
+    const index = lines.findIndex((line) =>
+      line.toLowerCase().includes(lifecycle.needle.toLowerCase())
+    );
+    if (index < 0) continue;
+    const window = lines.slice(index, Math.min(lines.length, index + 16)).join("\n");
+    const hazard = hazardNeedles.find((needle) =>
+      window.toLowerCase().includes(needle.toLowerCase())
+    );
+    if (hazard) {
+      return {
+        context: lifecycle.context,
+        pattern: hazard,
+        line: index + 1,
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function findLikelyMainThreadBlocker(
+  source: string
+): { pattern: string; line?: number } | undefined {
+  const patterns: Array<{ needle: string; label: string }> = [
+    { needle: "DispatchQueue.main.sync", label: "DispatchQueue.main.sync" },
+    { needle: "DispatchSemaphore", label: "DispatchSemaphore" },
+    { needle: ".wait()", label: "Blocking wait()" },
+    { needle: "DispatchGroup", label: "DispatchGroup" },
+    { needle: "Thread.sleep", label: "Thread.sleep" },
+    { needle: "sleep(", label: "sleep(...)" },
+    { needle: "usleep(", label: "usleep(...)" },
+    { needle: "while true", label: "while true" },
+    { needle: "while(true)", label: "while true" },
+    { needle: "for ;;", label: "for ;;" },
+  ];
+
+  for (const pattern of patterns) {
+    const line = findLine(source, pattern.needle);
+    if (line) return { pattern: pattern.label, line };
+  }
+
+  return undefined;
+}
+
+function findLikelyMainThreadBlockerLine(source: string): number | undefined {
+  return findLikelyMainThreadBlocker(source)?.line;
 }
 
 function findIosOnlySwiftUIUsage(
@@ -918,6 +1182,60 @@ function buildCloudConfidence(input: {
   };
 }
 
+function buildCloudGate(input: {
+  status: CloudCheckStatus;
+  errors: number;
+  warnings: number;
+  runtimeCoverageRequired: boolean;
+  runtimeEvidenceProvided: boolean;
+  evidenceProvided: boolean;
+}): CloudCheckReport["gate"] {
+  if (input.errors > 0 || input.warnings > 0 || input.status === "fail") {
+    return {
+      decision: "fix_required",
+      canClaimFixed: false,
+      reason:
+        input.errors > 0
+          ? "Cloud Check found blocking diagnostics."
+          : "Cloud Check found warnings that need review before claiming the issue is fixed.",
+      requiredEvidence: ["Edited source", "Cloud Check rerun", "Xcode build/test proof"],
+    };
+  }
+
+  if (input.runtimeCoverageRequired && !input.runtimeEvidenceProvided) {
+    return {
+      decision: "evidence_required",
+      canClaimFixed: false,
+      reason:
+        "Static SwiftUI/app checks are clean, but runtime, route, accessibility, and state behavior still need Xcode evidence.",
+      requiredEvidence: [
+        "Xcode build",
+        "Relevant unit or UI test",
+        "Runtime/preview verification for the touched flow",
+      ],
+    };
+  }
+
+  if (input.runtimeCoverageRequired && input.runtimeEvidenceProvided) {
+    return {
+      decision: "ready_to_ship",
+      canClaimFixed: true,
+      reason:
+        "Static checks and supplied runtime/build/test evidence did not surface a classified issue.",
+      requiredEvidence: [],
+    };
+  }
+
+  return {
+    decision: input.evidenceProvided ? "ready_to_ship" : "ready_for_build",
+    canClaimFixed: input.evidenceProvided,
+    reason: input.evidenceProvided
+      ? "Static checks and supplied evidence were clean."
+      : "Static Apple-facing checks are clean; build proof is still the next step.",
+    requiredEvidence: input.evidenceProvided ? [] : ["Xcode build"],
+  };
+}
+
 function buildCloudRepairPrompt(report: CloudCheckReport): string {
   const actionable = report.diagnostics.filter((d) => d.severity !== "info").slice(0, 4);
 
@@ -927,6 +1245,7 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
         `Review ${report.fileName}.`,
         "Axint Cloud Check did not find blocking static Apple-facing issues.",
         `Static confidence: ${report.confidence.level}. ${report.confidence.detail}`,
+        `Ship gate: ${report.gate.decision}. ${report.gate.reason}`,
         `Checked: ${checkedCoverageSummary(report)}.`,
         "This is not a runtime pass. Run the Xcode build plus the relevant unit/UI tests before claiming there is no bug.",
         "",
@@ -942,6 +1261,7 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
       `Review ${report.fileName}.`,
       "Axint Cloud Check did not find blocking Apple-facing issues.",
       `Static confidence: ${report.confidence.level}. ${report.confidence.detail}`,
+      `Ship gate: ${report.gate.decision}. ${report.gate.reason}`,
       `Checked: ${checkedCoverageSummary(report)}.`,
       `Repair plan: ${report.repairPlan.map((step) => step.title).join(" -> ")}.`,
       "Preserve the feature behavior and rerun Cloud Check after the next agent edit.",
@@ -952,6 +1272,7 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
     `Fix the Apple-facing issues in ${report.fileName} without changing the user's intended feature behavior.`,
     `Surface: ${report.surface}`,
     `Confidence: ${report.confidence.level}. ${report.confidence.detail}`,
+    `Ship gate: ${report.gate.decision}. ${report.gate.reason}`,
     ...(report.evidence.provided.length > 0
       ? ["", "Evidence supplied:", ...report.evidence.summary.map((item) => `- ${item}`)]
       : []),
@@ -960,6 +1281,16 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
     ...actionable.map(
       (d) => `- ${d.code}: ${d.message}${d.suggestion ? ` Fix: ${d.suggestion}` : ""}`
     ),
+    ...(report.diagnostics.some((d) => d.code === "AXCLOUD-RUNTIME-FREEZE")
+      ? [
+          "",
+          "Freeze triage:",
+          "- Capture a macOS sample while the app is frozen: `sample <AppProcessName> 5 -file /tmp/axint-freeze-sample.txt`.",
+          "- Inspect Thread 0 for the first app-owned frame.",
+          "- Check View.body, init, onAppear, .task, App startup, and shared stores for blocking work.",
+          "- Rerun Cloud Check with the sample excerpt and then rerun the launch/UI smoke test.",
+        ]
+      : []),
     "",
     "Repair plan:",
     ...report.repairPlan.map(
@@ -1061,6 +1392,16 @@ function inferLearningSignals(report: CloudCheckReport): string[] {
   if (report.evidence.provided.length > 0) {
     signals.push("runtime-evidence-supplied");
   }
+  if (/\bAXCLOUD-RUNTIME-FREEZE\b/i.test(body)) {
+    signals.push("runtime-freeze-evidence");
+  }
+  if (
+    /\bAXCLOUD-RUNTIME-(MAIN-BLOCKER|MAIN-SYNC|BLOCKING-WAIT|SLEEP|INFINITE-LOOP|SYNC-IO|LIFECYCLE-BLOCKER)\b/i.test(
+      body
+    )
+  ) {
+    signals.push("runtime-main-thread-blocker");
+  }
   if (/\bAXCLOUD-UI-TEST|AXCLOUD-UI-ACCESSIBILITY\b/i.test(body)) {
     signals.push("ui-test-evidence-gap");
   }
@@ -1111,6 +1452,7 @@ function inferLearningKind(
   signals: string[]
 ): CloudLearningKind {
   if (signals.includes("platform-availability-gap")) return "platform_gap";
+  if (signals.includes("runtime-freeze-evidence")) return "validator_gap";
   if (signals.includes("runtime-evidence-missing")) return "validator_gap";
   if (report.language === "swift") return "validator_gap";
   if (signals.includes("generator-validator-contract-drift")) return "generator_gap";
@@ -1127,6 +1469,7 @@ function inferLearningOwner(
   signals: string[]
 ): CloudLearningOwner {
   if (signals.includes("platform-availability-gap")) return "swift-validator";
+  if (signals.includes("runtime-freeze-evidence")) return "cloud";
   if (signals.includes("runtime-evidence-missing")) return "cloud";
   if (signals.includes("ui-test-evidence-gap")) return "cloud";
   if (kind === "validator_gap") return "swift-validator";
@@ -1157,6 +1500,9 @@ function titleForLearningSignal(
   if (diagnosticCodes.includes("AXCLOUD-RUNTIME-COVERAGE")) {
     return "Static Cloud Check needs runtime evidence";
   }
+  if (diagnosticCodes.includes("AXCLOUD-RUNTIME-FREEZE")) {
+    return "Runtime freeze evidence needs Cloud triage";
+  }
   if (kind === "compiler_gap")
     return `Compiler could not lower source cleanly (${codeList})`;
   if (kind === "swift_api_gap") return `Apple metadata or API contract gap (${codeList})`;
@@ -1170,6 +1516,9 @@ function suggestedActionForLearningSignal(
   kind: CloudLearningKind,
   owner: CloudLearningOwner
 ): string {
+  if (report.diagnostics.some((d) => d.code === "AXCLOUD-RUNTIME-FREEZE")) {
+    return "Capture a freeze sample fixture, classify the first app-owned main-thread frame, and promote repeated freeze signatures into Cloud runtime diagnostics.";
+  }
   if (kind === "generator_gap") {
     return "Create a regression fixture from the source shape, fix the generator, then require the generated Swift to pass axint.swift.validate.";
   }

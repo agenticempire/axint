@@ -58,7 +58,7 @@ struct CreateReminderIntent: AppIntent {
     static var description: IntentDescription = IntentDescription("Creates a reminder")
 
     @Parameter(title: "Title", description: "Reminder title")
-    var title: String
+    var intentTitle: String
 
     @Parameter(title: "Notes", description: "Optional notes")
     var notes: String?
@@ -69,7 +69,7 @@ struct CreateReminderIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         // TODO: Implement your intent logic here.
-        // Parameters available: title, notes, priority
+        // Parameters available: intentTitle, notes, priority
         return .result(value: "")
     }
 }

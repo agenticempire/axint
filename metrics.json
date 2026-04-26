@@ -1,10 +1,16 @@
 {
-  "version": "0.4.7",
-  "mcpTools": 14,
+  "version": "0.4.8",
+  "mcpTools": 20,
   "mcpToolNames": [
     "axint.status",
+    "axint.doctor",
+    "axint.session.start",
     "axint.feature",
+    "axint.project.pack",
+    "axint.context.memory",
+    "axint.context.docs",
     "axint.suggest",
+    "axint.workflow.check",
     "axint.scaffold",
     "axint.compile",
     "axint.validate",
@@ -17,10 +23,11 @@
     "axint.templates.list",
     "axint.templates.get"
   ],
-  "mcpPrompts": 4,
+  "mcpPrompts": 5,
   "mcpPromptNames": [
     "axint.quick-start",
     "axint.project-start",
+    "axint.context-recovery",
     "axint.create-widget",
     "axint.create-intent"
   ],
@@ -63,7 +70,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 946,
+    "typescript": 967,
     "python": 114
   },
   "registryPackages": 14,

@@ -8,6 +8,7 @@ import {
   type CloudCheckFormat,
   type CloudCheckInput,
 } from "../cloud/check.js";
+import { writeCloudFeedbackSignal } from "../cloud/feedback-store.js";
 import { runAxintLogin } from "./login.js";
 
 type CloudUsagePayload = {
@@ -67,11 +68,15 @@ export function registerCloud(program: Command) {
     )
     .option(
       "--runtime-failure <text>",
-      "Inline runtime, preview, or crash failure output"
+      "Inline runtime, preview, freeze, hang, launch-timeout, or crash failure output"
     )
     .option("--runtime-failure-file <file>", "Read runtime failure evidence from a file")
     .option("--expected <text>", "Expected behavior when checking a semantic bug")
     .option("--actual <text>", "Actual behavior when checking a semantic bug")
+    .option(
+      "--write-feedback [dir]",
+      "Write the redacted learning signal to .axint/feedback or the provided directory"
+    )
     .action(
       (
         file: string | undefined,
@@ -90,6 +95,7 @@ export function registerCloud(program: Command) {
           runtimeFailureFile?: string;
           expected?: string;
           actual?: string;
+          writeFeedback?: boolean | string;
         }
       ) => {
         try {
@@ -116,6 +122,15 @@ export function registerCloud(program: Command) {
             expectedBehavior: options.expected,
             actualBehavior: options.actual,
           });
+          if (options.writeFeedback && report.learningSignal) {
+            const stored = writeCloudFeedbackSignal(report.learningSignal, {
+              dir:
+                typeof options.writeFeedback === "string"
+                  ? options.writeFeedback
+                  : undefined,
+            });
+            console.error(`Axint feedback signal written: ${stored.path}`);
+          }
           console.log(renderCloudCheckReport(report, format));
         } catch (err: unknown) {
           console.error(`\x1b[31merror:\x1b[0m ${(err as Error).message ?? err}`);
