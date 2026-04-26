@@ -11,12 +11,15 @@
  */
 
 import {
-  compileFromIR,
-  compileAppFromIR,
-  compileViewFromIR,
-  compileWidgetFromIR,
-} from "../core/compiler.js";
+  generateEntitlementsFragment,
+  generateInfoPlistFragment,
+  generateSwift,
+} from "../core/generator.js";
+import { generateSwiftApp } from "../core/app-generator.js";
+import { generateSwiftUIView } from "../core/view-generator.js";
+import { generateSwiftWidget } from "../core/widget-generator.js";
 import type {
+  Diagnostic,
   IRApp,
   IRIntent,
   IRView,
@@ -28,7 +31,11 @@ import type {
   WidgetFamily,
 } from "../core/types.js";
 import { isPrimitiveType, type IRPrimitiveType } from "../core/types.js";
+import { validateApp, validateSwiftAppSource } from "../core/app-validator.js";
+import { validateIntent } from "../core/validator.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
+import { validateView, validateSwiftUISource } from "../core/view-validator.js";
+import { validateWidget, validateSwiftWidgetSource } from "../core/widget-validator.js";
 import {
   buildSmartViewBody,
   reservedViewPropertyName,
@@ -312,6 +319,16 @@ function validateGeneratedSwift(files: FeatureFile[]): string[] {
     );
 }
 
+function hasBlockingDiagnostic(diagnostics: Diagnostic[]): boolean {
+  return diagnostics.some((diagnostic) => diagnostic.severity === "error");
+}
+
+function formatDiagnostics(diagnostics: Diagnostic[]): string[] {
+  return diagnostics.map(
+    (diagnostic) => `[${diagnostic.code}] ${diagnostic.severity}: ${diagnostic.message}`
+  );
+}
+
 // ─── Surface builders ───────────────────────────────────────────────
 
 interface SurfaceOutput {
@@ -345,27 +362,28 @@ function buildIntent(
     infoPlistKeys: plistKeys,
   };
 
-  const result = compileFromIR(ir, {
-    emitInfoPlist: !!plistKeys,
-    emitEntitlements: !!entitlements,
-  });
-
-  if (!result.success || !result.output) {
+  const irDiagnostics = validateIntent(ir);
+  if (hasBlockingDiagnostic(irDiagnostics)) {
     return {
       swift: null,
       plist: null,
       entitlements: null,
-      diagnostics: result.diagnostics.map(
-        (d) => `[${d.code}] ${d.severity}: ${d.message}`
-      ),
+      diagnostics: formatDiagnostics(irDiagnostics),
     };
   }
 
+  const swift = generateSwift(ir);
+  const generatedDiagnostics = validateSwiftSource(
+    swift,
+    `${name}Intent.swift`
+  ).diagnostics;
+  const diagnostics = [...irDiagnostics, ...generatedDiagnostics];
+
   return {
-    swift: result.output.swiftCode,
-    plist: result.output.infoPlistFragment || null,
-    entitlements: result.output.entitlementsFragment || null,
-    diagnostics: result.diagnostics.map((d) => `[${d.code}] ${d.severity}: ${d.message}`),
+    swift: hasBlockingDiagnostic(generatedDiagnostics) ? null : swift,
+    plist: plistKeys ? (generateInfoPlistFragment(ir) ?? null) : null,
+    entitlements: entitlements ? (generateEntitlementsFragment(ir) ?? null) : null,
+    diagnostics: formatDiagnostics(diagnostics),
   };
 }
 
@@ -402,24 +420,25 @@ function buildWidget(
     sourceFile: "<feature>",
   };
 
-  const result = compileWidgetFromIR(ir);
-
-  if (!result.success || !result.output) {
+  const irDiagnostics = validateWidget(ir);
+  if (hasBlockingDiagnostic(irDiagnostics)) {
     return {
       swift: null,
       plist: null,
       entitlements: null,
-      diagnostics: result.diagnostics.map(
-        (d) => `[${d.code}] ${d.severity}: ${d.message}`
-      ),
+      diagnostics: formatDiagnostics(irDiagnostics),
     };
   }
 
+  const swift = generateSwiftWidget(ir);
+  const generatedDiagnostics = validateSwiftWidgetSource(swift, ir.name);
+  const diagnostics = [...irDiagnostics, ...generatedDiagnostics];
+
   return {
-    swift: result.output.swiftCode,
+    swift: hasBlockingDiagnostic(generatedDiagnostics) ? null : swift,
     plist: null,
     entitlements: null,
-    diagnostics: result.diagnostics.map((d) => `[${d.code}] ${d.severity}: ${d.message}`),
+    diagnostics: formatDiagnostics(diagnostics),
   };
 }
 
@@ -490,24 +509,25 @@ function buildView(
     sourceFile: "<feature>",
   };
 
-  const result = compileViewFromIR(ir);
-
-  if (!result.success || !result.output) {
+  const irDiagnostics = validateView(ir);
+  if (hasBlockingDiagnostic(irDiagnostics)) {
     return {
       swift: null,
       plist: null,
       entitlements: null,
-      diagnostics: result.diagnostics.map(
-        (d) => `[${d.code}] ${d.severity}: ${d.message}`
-      ),
+      diagnostics: formatDiagnostics(irDiagnostics),
     };
   }
 
+  const swift = generateSwiftUIView(ir);
+  const generatedDiagnostics = validateSwiftUISource(swift);
+  const diagnostics = [...irDiagnostics, ...generatedDiagnostics];
+
   return {
-    swift: result.output.swiftCode,
+    swift: hasBlockingDiagnostic(generatedDiagnostics) ? null : swift,
     plist: null,
     entitlements: null,
-    diagnostics: result.diagnostics.map((d) => `[${d.code}] ${d.severity}: ${d.message}`),
+    diagnostics: formatDiagnostics(diagnostics),
   };
 }
 
@@ -533,23 +553,25 @@ function buildApp(
     sourceFile: "<feature>",
   };
 
-  const result = compileAppFromIR(ir);
-  if (!result.success || !result.output) {
+  const irDiagnostics = validateApp(ir);
+  if (hasBlockingDiagnostic(irDiagnostics)) {
     return {
       swift: null,
       plist: null,
       entitlements: null,
-      diagnostics: result.diagnostics.map(
-        (d) => `[${d.code}] ${d.severity}: ${d.message}`
-      ),
+      diagnostics: formatDiagnostics(irDiagnostics),
     };
   }
 
+  const swift = generateSwiftApp(ir);
+  const generatedDiagnostics = validateSwiftAppSource(swift, ir.name);
+  const diagnostics = [...irDiagnostics, ...generatedDiagnostics];
+
   return {
-    swift: result.output.swiftCode,
+    swift: hasBlockingDiagnostic(generatedDiagnostics) ? null : swift,
     plist: null,
     entitlements: null,
-    diagnostics: result.diagnostics.map((d) => `[${d.code}] ${d.severity}: ${d.message}`),
+    diagnostics: formatDiagnostics(diagnostics),
   };
 }
 
