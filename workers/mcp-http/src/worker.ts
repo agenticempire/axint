@@ -73,6 +73,54 @@ const VERSION = "0.4.8";
 
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
 
+const SERVER_CARD = {
+  $schema: "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  name: "io.github.agenticempire/axint",
+  title: "Axint",
+  description:
+    "Compiler and repair loop for agent-built Apple-native software: App Intents, SwiftUI, WidgetKit, Cloud Check, Fix Packets, and Xcode agent workflow tools.",
+  repository: {
+    url: "https://github.com/agenticempire/axint",
+    source: "github",
+  },
+  homepage: "https://axint.ai",
+  documentation: "https://docs.axint.ai",
+  version: VERSION,
+  remotes: [
+    {
+      type: "streamable-http",
+      url: "https://mcp.axint.ai/mcp",
+    },
+  ],
+  packages: [
+    {
+      registryType: "npm",
+      identifier: "@axint/compiler",
+      version: VERSION,
+      transport: {
+        type: "stdio",
+      },
+    },
+    {
+      registryType: "pypi",
+      identifier: "axint",
+      version: VERSION,
+      transport: {
+        type: "stdio",
+      },
+    },
+  ],
+  capabilities: {
+    tools: TOOL_MANIFEST.length,
+    prompts: PROMPT_MANIFEST.length,
+  },
+};
+
+const GLAMA_SERVER_MARKER = {
+  $schema: "https://glama.ai/mcp/schemas/server.json",
+  maintainers: ["nimatime"],
+};
+
 type Env = {
   ALLOWED_ORIGINS?: string;
   MAX_BODY_BYTES?: string;
@@ -737,6 +785,17 @@ export default {
 
     if (url.pathname === "/health") {
       return json({ ok: true, server: "axint-mcp", version: VERSION }, cors);
+    }
+
+    if (
+      url.pathname === "/server.json" ||
+      url.pathname === "/.well-known/mcp-server.json"
+    ) {
+      return json(SERVER_CARD, cors);
+    }
+
+    if (url.pathname === "/glama.json" || url.pathname === "/.well-known/glama.json") {
+      return json(GLAMA_SERVER_MARKER, cors);
     }
 
     if (url.pathname !== "/mcp") {
