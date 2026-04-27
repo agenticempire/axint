@@ -1,4 +1,5 @@
 import type { IRViewProp, IRViewState } from "../core/types.js";
+import { semanticLabels, usesSemanticLayout } from "./semantic-planner.js";
 
 export type BlueprintPlatform = "iOS" | "macOS" | "visionOS" | "all";
 
@@ -61,6 +62,7 @@ export function buildSmartViewBody(input: ViewBlueprintInput): string | null {
   if (usesSettingsBlueprint(description)) return buildSettingsBody(input);
   if (usesInboxBlueprint(description)) return buildInboxBody(input);
   if (usesProfileCardBlueprint(description)) return buildProfileCardBody(input.platform);
+  if (usesSemanticLayout(description)) return buildSemanticSurfaceBody(input);
 
   const inferredKind = normalizeKind(inferComponentKind(input.name, description));
   if (inferredKind) return buildComponentBody(inferredKind, input);
@@ -76,6 +78,24 @@ export function reservedViewPropertyName(name: string): string {
 
 function inferComponentKind(name: string, description: string): string | undefined {
   const haystack = `${name} ${description}`.toLowerCase();
+  if (
+    /\b(feed post|feedpost|post card|postcard|author avatar|reaction|comment|action row)\b/.test(
+      haystack
+    )
+  )
+    return "feedCard";
+  if (
+    /\b(project media|media card|mediacard|cover image|cover asset|gallery|nsimage|asset preview)\b/.test(
+      haystack
+    )
+  )
+    return "mediaCard";
+  if (
+    /\b(compact utility|utility row|utilityrow|quick action|status row|trailing action)\b/.test(
+      haystack
+    )
+  )
+    return "utilityRow";
   if (haystack.includes("avatar")) return "avatar";
   if (haystack.includes("status ring") || haystack.includes("statusring"))
     return "statusRing";
@@ -107,6 +127,12 @@ function inferComponentKind(name: string, description: string): string | undefin
 function normalizeKind(kind: string | undefined): string | undefined {
   if (!kind) return undefined;
   const lower = kind.replace(/[\s_-]+/g, "").toLowerCase();
+  if (lower === "feedcard" || lower === "feedpostcard" || lower === "postcard")
+    return "feedCard";
+  if (lower === "mediacard" || lower === "projectmediacard" || lower === "covercard")
+    return "mediaCard";
+  if (lower === "utilityrow" || lower === "compactutilityrow" || lower === "utilitycard")
+    return "utilityRow";
   if (lower === "avatar") return "avatar";
   if (lower === "statusring") return "statusRing";
   if (lower === "missioncard") return "missionCard";
@@ -123,12 +149,213 @@ function normalizeKind(kind: string | undefined): string | undefined {
   if (lower === "settingsview" || lower === "settings" || lower === "preferences")
     return "settingsView";
   if (lower === "profilecard") return "profileCard";
+  if (lower === "semanticcard" || lower === "generativecard") return "semanticCard";
+  if (lower === "semanticrow" || lower === "generativerow") return "semanticRow";
+  if (lower === "semanticpill" || lower === "semanticbadge") return "semanticPill";
+  if (lower === "semanticpanel" || lower === "generativepanel") return "semanticPanel";
+  if (lower === "semanticbar" || lower === "semantictoolbar") return "semanticBar";
+  if (lower === "semanticlist" || lower === "semanticgrid") return "semanticList";
   if (lower === "custom") return undefined;
   return undefined;
 }
 
 function buildComponentBody(kind: string, input: ViewBlueprintInput): string {
   switch (kind) {
+    case "feedCard":
+      return `VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Circle()
+                    .fill(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")})
+                    .overlay {
+                        Text(authorInitials)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                    }
+                    .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(authorName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                        Text("2m ago")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    }
+                    Text(headline)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                }
+
+                Spacer()
+
+                if isPinned {
+                    Label("Pinned", systemImage: "pin.fill")
+                        .font(.caption2.weight(.bold))
+                        .labelStyle(.titleAndIcon)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.12)")}, in: Capsule())
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                }
+            }
+
+            Text(bodyText)
+                .font(.callout)
+                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                ForEach(["Context", "Design", "Build"], id: \\.self) { tag in
+                    Text(tag)
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: Capsule())
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+                Spacer()
+            }
+
+            Divider()
+
+            HStack(spacing: 12) {
+                Button { } label: {
+                    Label("\\(reactionCount)", systemImage: "sparkles")
+                }
+                Button { } label: {
+                    Label("\\(commentCount)", systemImage: "bubble.left")
+                }
+                Spacer()
+                Button { } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+        }
+        .padding(14)
+        .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous)
+                .strokeBorder(${colorRef(input.tokenNamespace, "border", "Color.secondary.opacity(0.16)")}, lineWidth: 1)
+        }`;
+
+    case "mediaCard":
+      return `VStack(alignment: .leading, spacing: 12) {
+            ZStack(alignment: .bottomLeading) {
+                #if os(macOS)
+                if let nsImage = NSImage(named: coverImageName) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous)
+                        .fill(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")})
+                        .overlay {
+                            Image(systemName: coverSymbol)
+                                .font(.system(size: 34, weight: .semibold))
+                                .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                        }
+                }
+                #else
+                Image(coverImageName)
+                    .resizable()
+                    .scaledToFill()
+                #endif
+
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.64)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Text(subtitle)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.white.opacity(0.78))
+                    }
+                    Spacer()
+                    Text(status)
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(.white.opacity(0.16), in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                .padding(12)
+            }
+            .frame(height: 178)
+            .clipShape(RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            HStack(spacing: 10) {
+                Label(mediaLabel, systemImage: coverSymbol)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                Spacer()
+                Button { } label: {
+                    Label(actionTitle, systemImage: "arrow.up.right")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(12)
+        .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "16")}, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "16")}, style: .continuous)
+                .strokeBorder(${colorRef(input.tokenNamespace, "border", "Color.secondary.opacity(0.16)")}, lineWidth: 1)
+        }`;
+
+    case "utilityRow":
+      return `HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "10")}, style: .continuous)
+                .fill(isActive ? ${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")} : ${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")})
+                .frame(width: 40, height: 40)
+                .overlay {
+                    Image(systemName: iconName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(isActive ? ${colorRef(input.tokenNamespace, "accent", "Color.accentColor")} : ${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text(status)
+                .font(.caption2.weight(.bold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(isActive ? ${colorRef(input.tokenNamespace, "successSoft", "Color.green.opacity(0.14)")} : ${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.12)")}, in: Capsule())
+                .foregroundStyle(isActive ? ${colorRef(input.tokenNamespace, "success", ".green")} : ${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+
+            Button { } label: {
+                Image(systemName: "chevron.right")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous)
+                .strokeBorder(${colorRef(input.tokenNamespace, "border", "Color.secondary.opacity(0.14)")}, lineWidth: 1)
+        }`;
+
     case "avatar":
       return `ZStack(alignment: .bottomTrailing) {
             Circle()
@@ -449,9 +676,306 @@ function buildComponentBody(kind: string, input: ViewBlueprintInput): string {
     case "profileCard":
       return buildProfileCardBody(input.platform);
 
+    case "semanticCard":
+      return buildSemanticCardBody(input);
+
+    case "semanticRow":
+      return buildSemanticRowBody(input);
+
+    case "semanticPill":
+      return buildSemanticPillBody(input);
+
+    case "semanticPanel":
+      return buildSemanticPanelBody(input);
+
+    case "semanticBar":
+      return buildSemanticBarBody(input);
+
+    case "semanticList":
+      return buildSemanticListBody(input);
+
     default:
       return `VStack { Text("${input.name}") }`;
   }
+}
+
+function buildSemanticSurfaceBody(input: ViewBlueprintInput): string {
+  const description = input.description ?? "";
+  const lower = description.toLowerCase();
+  if (/\b(search|filter|toolbar|command bar|capture bar)\b/.test(lower))
+    return buildSemanticBarBody(input);
+  if (/\b(grid|gallery|tiles?)\b/.test(lower)) return buildSemanticGridBody(input);
+  if (/\b(list|queue|table|timeline|inbox|feed)\b/.test(lower))
+    return buildSemanticListBody(input);
+  if (/\b(panel|inspector|detail|sheet)\b/.test(lower))
+    return buildSemanticPanelBody(input);
+  return buildSemanticDashboardBody(input);
+}
+
+function buildSemanticDashboardBody(input: ViewBlueprintInput): string {
+  const labels = swiftStringArray(semanticLabels(input.description ?? input.name, 4));
+  return `VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("${escapeSwiftString(humanizeLocal(input.name))}")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                    Text("Generated from the requested product vocabulary, not a generic starter.")
+                        .font(.caption)
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+                Spacer()
+                Button { } label: {
+                    Label("New", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
+                ForEach(${labels}, id: \\.self) { item in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                            Spacer()
+                            Text("Live")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(${colorRef(input.tokenNamespace, "success", ".green")})
+                        }
+                        Text(item)
+                            .font(.headline.weight(.semibold))
+                        Text("Status, owner, next action, and context are visible at a glance.")
+                            .font(.caption)
+                            .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                    }
+                    .padding(14)
+                    .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+                }
+            }
+
+            ${buildSemanticListRows(input)}
+
+            Spacer()
+        }
+        .padding(20)
+        .background(${colorRef(input.tokenNamespace, "bg", "Color.clear")})`;
+}
+
+function buildSemanticCardBody(input: ViewBlueprintInput): string {
+  const labels = semanticLabels(input.description ?? input.name, 3);
+  const title = labels[0] ?? humanizeLocal(input.name);
+  const subtitle = labels.slice(1).join(" · ") || "Ready for review";
+  return `VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "10")}, style: .continuous)
+                    .fill(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")})
+                    .frame(width: 42, height: 42)
+                    .overlay {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                    }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("${escapeSwiftString(title)}")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                    Text("${escapeSwiftString(subtitle)}")
+                        .font(.caption)
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+
+                Spacer()
+            }
+
+            Text("Primary state, context, and next action live together so the component is useful on first render.")
+                .font(.callout)
+                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+
+            HStack(spacing: 8) {
+                Button("Review") { }
+                    .buttonStyle(.borderedProminent)
+                Button("Open") { }
+                    .buttonStyle(.bordered)
+                Spacer()
+            }
+            .controlSize(.small)
+        }
+        .padding(14)
+        .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous)
+                .strokeBorder(${colorRef(input.tokenNamespace, "border", "Color.secondary.opacity(0.16)")}, lineWidth: 1)
+        }`;
+}
+
+function buildSemanticRowBody(input: ViewBlueprintInput): string {
+  const labels = semanticLabels(input.description ?? input.name, 2);
+  return `HStack(spacing: 12) {
+            Image(systemName: "bolt.fill")
+                .frame(width: 34, height: 34)
+                .background(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "9")}, style: .continuous))
+                .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("${escapeSwiftString(labels[0] ?? humanizeLocal(input.name))}")
+                    .font(.subheadline.weight(.semibold))
+                Text("${escapeSwiftString(labels[1] ?? "Ready for the next action")}")
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+            }
+
+            Spacer()
+
+            Text("Ready")
+                .font(.caption2.weight(.bold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(${colorRef(input.tokenNamespace, "successSoft", "Color.green.opacity(0.14)")}, in: Capsule())
+                .foregroundStyle(${colorRef(input.tokenNamespace, "success", ".green")})
+        }
+        .padding(10)
+        .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))`;
+}
+
+function buildSemanticPillBody(input: ViewBlueprintInput): string {
+  const label =
+    semanticLabels(input.description ?? input.name, 1)[0] ?? humanizeLocal(input.name);
+  return `Label("${escapeSwiftString(label)}", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")}, in: Capsule())
+            .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})`;
+}
+
+function buildSemanticPanelBody(input: ViewBlueprintInput): string {
+  return `VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("${escapeSwiftString(humanizeLocal(input.name))}")
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                Button { } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .buttonStyle(.plain)
+            }
+
+            ${buildSemanticListRows(input)}
+
+            HStack {
+                Button("Approve") { }
+                    .buttonStyle(.borderedProminent)
+                Button("Defer") { }
+                    .buttonStyle(.bordered)
+                Spacer()
+            }
+            .controlSize(.small)
+        }
+        .padding(16)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))`;
+}
+
+function buildSemanticBarBody(input: ViewBlueprintInput): string {
+  const labels = swiftStringArray(semanticLabels(input.description ?? input.name, 3));
+  return `HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+            TextField("Search ${escapeSwiftString(humanizeLocal(input.name).toLowerCase())}", text: .constant(""))
+                .textFieldStyle(.plain)
+
+            Picker("Filter", selection: .constant("All")) {
+                ForEach(["All", "Open", "Blocked"], id: \\.self) { filter in
+                    Text(filter).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 280)
+
+            Menu {
+                ForEach(${labels}, id: \\.self) { item in
+                    Button(item) { }
+                }
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+            }
+            .menuStyle(.borderlessButton)
+        }
+        .padding(10)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))`;
+}
+
+function buildSemanticListBody(input: ViewBlueprintInput): string {
+  return `VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("${escapeSwiftString(humanizeLocal(input.name))}")
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                Button { } label: {
+                    Label("Add", systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            ${buildSemanticListRows(input)}
+        }
+        .padding(14)
+        .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))`;
+}
+
+function buildSemanticGridBody(input: ViewBlueprintInput): string {
+  const labels = swiftStringArray(semanticLabels(input.description ?? input.name, 5));
+  return `LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
+            ForEach(${labels}, id: \\.self) { item in
+                VStack(alignment: .leading, spacing: 8) {
+                    RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "10")}, style: .continuous)
+                        .fill(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")})
+                        .frame(height: 90)
+                        .overlay {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                        }
+                    Text(item)
+                        .font(.subheadline.weight(.semibold))
+                    Text("Preview, state, and next action.")
+                        .font(.caption)
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+                .padding(12)
+                .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+            }
+        }`;
+}
+
+function buildSemanticListRows(input: ViewBlueprintInput): string {
+  const labels = swiftStringArray(semanticLabels(input.description ?? input.name, 4));
+  return `VStack(spacing: 8) {
+                ForEach(${labels}, id: \\.self) { item in
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")})
+                            .frame(width: 28, height: 28)
+                            .overlay {
+                                Image(systemName: "checkmark")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                            }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item)
+                                .font(.subheadline.weight(.semibold))
+                            Text("Owner, status, and next action")
+                                .font(.caption)
+                                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    }
+                    .padding(10)
+                    .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "10")}, style: .continuous))
+                }
+            }`;
 }
 
 function buildSettingsBody(input: ViewBlueprintInput): string {
@@ -888,6 +1412,19 @@ function buildInboxBody(input: ViewBlueprintInput): string {
 
 function colorRef(namespace: string | undefined, name: string, fallback: string): string {
   return namespace ? `${namespace}.Colors.${name}` : fallback;
+}
+
+function humanizeLocal(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function swiftStringArray(values: string[]): string {
+  const escaped = values.map((value) => `"${escapeSwiftString(value)}"`);
+  return `[${escaped.join(", ")}]`;
 }
 
 function radiusRef(

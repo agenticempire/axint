@@ -857,6 +857,18 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "Swift type declares the same stored property more than once",
     category: "swift-validator",
   },
+  AX738: {
+    code: "AX738",
+    severity: "warning",
+    message: "Swift file uses AppKit types without importing AppKit",
+    category: "swift-imports",
+  },
+  AX739: {
+    code: "AX739",
+    severity: "error",
+    message: "SwiftUI body references a property that is not declared on the View",
+    category: "swiftui-scope",
+  },
 
   // ─── Live Activities / ActivityKit (AX740–AX749) ────────
   AX740: {
@@ -918,6 +930,32 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     severity: "warning",
     message: "Activity<>.request must be called from a @MainActor context",
     category: "swift-live-activities",
+  },
+
+  // ─── Generated Output Quality (AX850–AX859) ─────────────
+  AX850: {
+    code: "AX850",
+    severity: "error",
+    message: "Generated feature missed a requested named component",
+    category: "generation-quality",
+  },
+  AX851: {
+    code: "AX851",
+    severity: "warning",
+    message: "Generated UI did not use the supplied design token namespace",
+    category: "generation-quality",
+  },
+  AX852: {
+    code: "AX852",
+    severity: "error",
+    message: "Generated UI still looks like a generic placeholder",
+    category: "generation-quality",
+  },
+  AX853: {
+    code: "AX853",
+    severity: "warning",
+    message: "Generated UI has low semantic coverage of the prompt",
+    category: "generation-quality",
   },
 };
 

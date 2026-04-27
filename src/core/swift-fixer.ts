@@ -50,6 +50,74 @@ export function fixSwiftSource(source: string, file: string): FixResult {
   return { source: out, fixed, remaining };
 }
 
+export interface MultipassFixResult {
+  source: string;
+  fixed: Diagnostic[];
+  remaining: Diagnostic[];
+  iterations: number;
+  /** True when the loop stopped because no fix applied; false on iteration cap or oscillation. */
+  quiescent: boolean;
+}
+
+const DEFAULT_MAX_FIX_ITERATIONS = 5;
+
+/**
+ * Runs the Swift fixer in a loop until the source stops changing or a
+ * cap is hit. Catches the common case where applying fix A unblocks
+ * fix B (e.g., adding `import AppIntents` then later flagging a missing
+ * `LocalizedStringResource` once the import resolves).
+ *
+ * Fixed diagnostics are deduplicated across iterations by `code:line` so
+ * a flapping rule doesn't pollute the report.
+ */
+export function fixSwiftSourceMultipass(
+  source: string,
+  file: string,
+  options: { maxIterations?: number } = {}
+): MultipassFixResult {
+  const maxIterations = Math.max(1, options.maxIterations ?? DEFAULT_MAX_FIX_ITERATIONS);
+  const fixedSeen = new Map<string, Diagnostic>();
+  const sourceHistory = new Set<string>([source]);
+
+  let current = source;
+  let lastResult: FixResult = { source: current, fixed: [], remaining: [] };
+  let iterations = 0;
+  let quiescent = false;
+
+  while (iterations < maxIterations) {
+    iterations += 1;
+    lastResult = fixSwiftSource(current, file);
+
+    for (const diag of lastResult.fixed) {
+      const key = `${diag.code}:${diag.line ?? 0}`;
+      if (!fixedSeen.has(key)) fixedSeen.set(key, diag);
+    }
+
+    if (lastResult.fixed.length === 0) {
+      quiescent = true;
+      break;
+    }
+
+    if (sourceHistory.has(lastResult.source)) {
+      // The fixer is rewriting back to a source we've already seen.
+      // Stop to avoid infinite oscillation; report non-quiescent so
+      // operators know to investigate.
+      break;
+    }
+
+    sourceHistory.add(lastResult.source);
+    current = lastResult.source;
+  }
+
+  return {
+    source: lastResult.source,
+    fixed: [...fixedSeen.values()],
+    remaining: lastResult.remaining,
+    iterations,
+    quiescent,
+  };
+}
+
 function applyFix(source: string, d: Diagnostic): string | null {
   if (d.code === "AX704") return fixAppIntentTitle(source);
 

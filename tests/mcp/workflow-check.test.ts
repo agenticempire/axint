@@ -47,17 +47,19 @@ describe("axint.workflow.check", () => {
     const report = runWorkflowCheck({
       ...sessionArgs(),
       stage: "context-recovery",
+      readRehydrationContext: false,
       readAgentInstructions: false,
       ranStatus: false,
     });
 
     expect(report.status).toBe("needs_action");
+    expect(report.required.join("\n")).toMatch(/AXINT_REHYDRATE/);
     expect(report.required.join("\n")).toMatch(/AXINT_MEMORY/);
     expect(report.required.join("\n")).toMatch(/AXINT_DOCS_CONTEXT/);
     expect(report.required.join("\n")).toMatch(/axint\.context\.docs/);
     expect(report.required.join("\n")).toMatch(/AGENTS\.md/);
     expect(report.required.join("\n")).toMatch(/axint\.status/);
-    expect(report.nextTool).toBe("axint.status");
+    expect(report.nextTool).toBe("axint.session.start");
   });
 
   it("nudges agents to use suggest before planning", () => {
@@ -88,6 +90,37 @@ describe("axint.workflow.check", () => {
     expect(report.required.join("\n")).toMatch(/axint\.swift\.validate/);
     expect(report.required.join("\n")).toMatch(/axint\.cloud\.check/);
     expect(report.nextTool).toBe("axint.swift.validate");
+  });
+
+  it("detects drift language and forces rehydration before continuing", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      stage: "before-write",
+      surfaces: ["view"],
+      ranSuggest: true,
+      ranFeature: true,
+      notes: "This is a new chat after compaction and I may have lost context.",
+    });
+
+    expect(report.status).toBe("needs_action");
+    expect(report.required.join("\n")).toMatch(/context recovery/i);
+    expect(report.required.join("\n")).toMatch(/AXINT_REHYDRATE/);
+    expect(report.nextTool).toBe("axint.session.start");
+  });
+
+  it("allows explicit feature bypasses while keeping validation gates", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      stage: "before-write",
+      surfaces: ["view"],
+      ranSuggest: true,
+      ranFeature: false,
+      featureBypassReason: "Editing an existing hand-written view; no new surface.",
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.required).toEqual([]);
+    expect(report.checked.join("\n")).toMatch(/intentionally bypassed/);
   });
 
   it("passes when static checks and build evidence are present", () => {

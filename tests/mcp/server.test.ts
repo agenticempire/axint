@@ -556,6 +556,39 @@ describe("axint.schema.compile — component", () => {
     expect(result.content[0].text).toContain("PROJECT_CONTEXT.md");
     expect(result.content[0].text).not.toContain("ContextFileRow");
   });
+
+  it("compiles concrete card archetype component blueprints", async () => {
+    const feed = await handleToolCall("axint.schema.compile", {
+      type: "component",
+      name: "FeedPostCard",
+      componentKind: "feedCard",
+      tokenNamespace: "SwarmTokens",
+      format: false,
+    });
+    const media = await handleToolCall("axint.schema.compile", {
+      type: "component",
+      name: "ProjectMediaCard",
+      componentKind: "mediaCard",
+      tokenNamespace: "SwarmTokens",
+      platform: "macOS",
+      format: false,
+    });
+    const row = await handleToolCall("axint.schema.compile", {
+      type: "component",
+      name: "CompactUtilityRow",
+      componentKind: "utilityRow",
+      tokenNamespace: "SwarmTokens",
+      format: false,
+    });
+
+    expect(feed.isError).not.toBe(true);
+    expect(media.isError).not.toBe(true);
+    expect(row.isError).not.toBe(true);
+    expect(feed.content[0].text).toContain("authorName");
+    expect(feed.content[0].text).toContain("sparkles");
+    expect(media.content[0].text).toContain("NSImage(named: coverImageName)");
+    expect(row.content[0].text).toContain("Image(systemName: iconName)");
+  });
 });
 
 describe("axint.tokens.ingest", () => {

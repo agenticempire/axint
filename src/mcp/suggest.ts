@@ -8,6 +8,7 @@
  */
 
 import { requestProSuggestions } from "./pro-intelligence.js";
+import { semanticLabels } from "./semantic-planner.js";
 
 export interface SuggestInput {
   appDescription: string;
@@ -956,7 +957,18 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   if (suggestions.length > 0) {
     const dynamic = !explicitDomain ? appSpecificFallbackSuggestions(text, limit) : [];
     if (strongestDescriptionScore < 2 && dynamic.length > 0) return dynamic;
-    return suggestions;
+    const adaptive = adaptiveSemanticSuggestions(
+      input,
+      text,
+      suggestions[0]?.domain ?? explicitDomain ?? "custom",
+      limit
+    );
+    return mergeSuggestions(
+      shouldLeadWithAdaptive(text, strongestDescriptionScore)
+        ? [...adaptive, ...suggestions]
+        : [...suggestions, ...adaptive],
+      limit
+    );
   }
 
   return fallbackSuggestions(limit, explicitDomain, text);
@@ -1090,6 +1102,107 @@ function appSpecificFallbackSuggestions(
   ];
 
   return suggestions.slice(0, limit);
+}
+
+function adaptiveSemanticSuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  domain: string,
+  limit: number
+): FeatureSuggestion[] {
+  const labels = semanticLabels(normalizedAppDescription, 4).filter(
+    (label) => !["Overview", "Active", "Needs Review"].includes(label)
+  );
+  if (labels.length < 2) return [];
+
+  const concept = labels.slice(0, 2).join(" ");
+  const lowerConcept = concept.toLowerCase();
+  const platform = input.platform ? `${input.platform} ` : "";
+  const rationale = `Generated from the app description terms ${labels
+    .slice(0, 4)
+    .join(", ")} instead of relying only on a stock domain template.`;
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `${concept} Command Surface`,
+      description: `Expose the core ${lowerConcept} workflow through Siri, Shortcuts, and an in-app command entry point.`,
+      surfaces: ["intent", "view"],
+      complexity: "medium",
+      featurePrompt: `Create a ${platform}${lowerConcept} command surface with intent entry, visible status, and next action controls`,
+      domain,
+      rationale,
+      confidence: "medium",
+      source: "local",
+      impact: "Turns the app's core noun into an Apple-native action loop.",
+      loop: "Capture -> validate -> route -> resume",
+      nextStep: "Generate the view and intent together so they share vocabulary.",
+    },
+    {
+      name: `${concept} State Loop`,
+      description: `Shared state for ${lowerConcept} so views, shortcuts, widgets, and agents read from the same source of truth.`,
+      surfaces: ["store", "view", "intent"],
+      complexity: "medium",
+      featurePrompt: `Create a shared ${lowerConcept} store with a review view and App Intent that reads and updates the same state`,
+      domain,
+      rationale,
+      confidence: "medium",
+      source: "local",
+      impact: "Prevents generated surfaces from becoming isolated demo files.",
+      loop: "Store -> view -> intent -> widget",
+      nextStep: "Generate store first, then generate each surface against it.",
+    },
+    {
+      name: `${concept} Review Queue`,
+      description: `A focused review queue for scanning ${lowerConcept} items, risk, owner, status, and the next decision.`,
+      surfaces: ["view", "component"],
+      complexity: "medium",
+      featurePrompt: `Create a ${platform}${lowerConcept} review queue component kit with rows, status pills, owner metadata, and approve or defer actions`,
+      domain,
+      rationale,
+      confidence: "medium",
+      source: "local",
+      impact: "Makes the app feel operational instead of static.",
+      loop: "Scan -> decide -> approve -> archive",
+      nextStep: "Generate row, card, and toolbar components as a kit.",
+    },
+  ];
+
+  return suggestions.slice(0, Math.max(0, limit));
+}
+
+function shouldLeadWithAdaptive(
+  normalizedAppDescription: string,
+  strongestDescriptionScore: number
+): boolean {
+  if (strongestDescriptionScore < 3) return true;
+  return [
+    "agent",
+    "approval",
+    "context",
+    "handoff",
+    "mission",
+    "operator",
+    "project room",
+    "transcription",
+    "voice",
+    "workflow",
+  ].some((keyword) => hasKeyword(normalizedAppDescription, keyword));
+}
+
+function mergeSuggestions(
+  suggestions: FeatureSuggestion[],
+  limit: number
+): FeatureSuggestion[] {
+  const seen = new Set<string>();
+  const merged: FeatureSuggestion[] = [];
+  for (const suggestion of suggestions) {
+    const key = normalizeText(suggestion.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(suggestion);
+    if (merged.length >= limit) break;
+  }
+  return merged;
 }
 
 function normalizeText(value: string): string {

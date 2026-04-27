@@ -297,6 +297,118 @@ describe("axint.feature", () => {
     ).toBeDefined();
   });
 
+  it("expands card archetype requests into distinct reusable components", () => {
+    const result = generateFeature({
+      description:
+        "Create CardArchetypes: three distinct card components named FeedPostCard, ProjectMediaCard, and CompactUtilityRow. FeedPostCard needs an author avatar and action row. ProjectMediaCard needs an NSImage cover media slot and project metadata. CompactUtilityRow needs an icon, status, and trailing action. Use SwarmTokens.",
+      surfaces: ["component"],
+      name: "CardArchetypes",
+      componentKind: "cardArchetypes",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    expect(result.success).toBe(true);
+    expect(
+      result.files.find((f) => f.path === "Sources/Components/CardArchetypes.swift")
+    ).toBeUndefined();
+
+    const feed = result.files.find(
+      (f) => f.path === "Sources/Components/FeedPostCard.swift"
+    );
+    const media = result.files.find(
+      (f) => f.path === "Sources/Components/ProjectMediaCard.swift"
+    );
+    const utility = result.files.find(
+      (f) => f.path === "Sources/Components/CompactUtilityRow.swift"
+    );
+
+    expect(feed).toBeDefined();
+    expect(media).toBeDefined();
+    expect(utility).toBeDefined();
+
+    expect(feed!.content).toContain("struct FeedPostCard: View");
+    expect(feed!.content).toContain("@State private var authorName");
+    expect(feed!.content).toContain(
+      'Label("\\(reactionCount)", systemImage: "sparkles")'
+    );
+    expect(feed!.content).toContain("SwarmTokens.Colors.accent");
+
+    expect(media!.content).toContain("struct ProjectMediaCard: View");
+    expect(media!.content).toContain("NSImage(named: coverImageName)");
+    expect(media!.content).toContain("@State private var mediaLabel");
+
+    expect(utility!.content).toContain("struct CompactUtilityRow: View");
+    expect(utility!.content).toContain("@State private var iconName");
+    expect(utility!.content).toContain('Image(systemName: "chevron.right")');
+
+    for (const file of [feed!, media!, utility!]) {
+      expect(file.content).not.toContain("ProgressView(value: progress)");
+      expect(validateSwiftSource(file.content, file.path).diagnostics).toEqual([]);
+    }
+  });
+
+  it("extracts named component kits instead of returning one generic scaffold", () => {
+    const result = generateFeature({
+      description:
+        "Create a component kit with VoiceCaptureBar, AgentStatusPill, and ApprovalQueueRow for a Mac project room. Voice capture needs waveform, transcript status, and command action. Agent status needs online state. Approval queue needs risk and approve action.",
+      surfaces: ["component"],
+      name: "ProjectRoomKit",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    expect(result.success).toBe(true);
+    expect(
+      result.files.find((f) => f.path === "Sources/Components/ProjectRoomKit.swift")
+    ).toBeUndefined();
+
+    const voice = result.files.find(
+      (f) => f.path === "Sources/Components/VoiceCaptureBar.swift"
+    );
+    const pill = result.files.find(
+      (f) => f.path === "Sources/Components/AgentStatusPill.swift"
+    );
+    const approval = result.files.find(
+      (f) => f.path === "Sources/Components/ApprovalQueueRow.swift"
+    );
+
+    expect(voice?.content).toContain("struct VoiceCaptureBar: View");
+    expect(voice?.content).toContain('TextField("Search voice capture bar"');
+    expect(pill?.content).toContain("struct AgentStatusPill: View");
+    expect(pill?.content).toContain("Capsule()");
+    expect(approval?.content).toContain("struct ApprovalQueueRow: View");
+    expect(approval?.content).toContain("Approve");
+
+    for (const file of [voice!, pill!, approval!]) {
+      expect(file.content).toContain("SwarmTokens.");
+      expect(validateSwiftSource(file.content, file.path).diagnostics).toEqual([]);
+    }
+  });
+
+  it("uses semantic UI signals to avoid generic view output for unknown products", () => {
+    const result = generateFeature({
+      description:
+        "Create a semantic analytics dashboard with search, filters, metric cards, chart area, action toolbar, and review queue for a Mac project room.",
+      surfaces: ["view"],
+      name: "ProjectPulse",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    const view = result.files.find(
+      (f) => f.path === "Sources/Views/ProjectPulseView.swift"
+    );
+
+    expect(result.success).toBe(true);
+    expect(view?.content).toContain("TextField");
+    expect(view?.content).toContain('Picker("Filter"');
+    expect(view?.content).toContain("Menu");
+    expect(view?.content).toContain("SwarmTokens.Colors.surfaceRaised");
+    expect(view?.content).not.toContain('Text("Hello")');
+    expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
+  });
+
   it("can generate a shared store and app shell for real project starts", () => {
     const result = generateFeature({
       description:
@@ -477,6 +589,22 @@ describe("axint.suggest", () => {
     expect(suggestions.some((s) => /dating|match|swolemate/i.test(s.featurePrompt))).toBe(
       false
     );
+  });
+
+  it("adds app-specific adaptive suggestions for non-standard agent workflows", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "A Mac project room for AI agent coordination, voice capture, approval queues, context memory, and operator handoffs.",
+      platform: "macOS",
+      limit: 4,
+    });
+
+    expect(suggestions.length).toBeGreaterThan(0);
+    expect(suggestions[0].rationale).toContain("Generated from the app description");
+    expect(suggestions[0].featurePrompt).toMatch(/project|agent|voice|context/i);
+    expect(
+      suggestions.some((s) => /dating|hydration|smart home/i.test(s.featurePrompt))
+    ).toBe(false);
   });
 
   it("uses broader app context instead of falling back to collaboration for recipes", () => {

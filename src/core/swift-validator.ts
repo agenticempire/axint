@@ -40,7 +40,7 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   const stripped = stripCommentsAndStrings(source);
   const decls = findTypeDeclarations(stripped, source);
 
-  checkRequiredFrameworkImports(decls, source, file, diagnostics);
+  checkRequiredFrameworkImports(decls, source, stripped, file, diagnostics);
 
   for (const decl of decls) {
     checkDuplicateStoredProperties(decl, file, diagnostics);
@@ -68,6 +68,7 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
     }
     if (hasConformance(decl, "View")) {
       checkPropertyWrappersAreVar(decl, file, diagnostics);
+      checkViewBodyReferencesDeclaredProperties(decl, file, diagnostics);
     }
   }
 
@@ -193,6 +194,7 @@ function checkDuplicateStoredProperties(
 function checkRequiredFrameworkImports(
   decls: SwiftDeclaration[],
   source: string,
+  stripped: string,
   file: string,
   diagnostics: Diagnostic[]
 ) {
@@ -213,6 +215,7 @@ function checkRequiredFrameworkImports(
   const hasAppIntentsImport = /^\s*import\s+AppIntents\b/m.test(source);
   const hasWidgetKitImport = /^\s*import\s+WidgetKit\b/m.test(source);
   const hasSwiftUIImport = /^\s*import\s+SwiftUI\b/m.test(source);
+  const hasAppKitImport = /^\s*import\s+AppKit\b/m.test(source);
 
   if (hasAppIntentSurface && !hasAppIntentsImport) {
     diagnostics.push(
@@ -241,6 +244,43 @@ function checkRequiredFrameworkImports(
         suggestion: "Add `import SwiftUI` at the top of the file.",
       })
     );
+  }
+
+  checkAppKitTypeImports(source, stripped, hasAppKitImport, file, diagnostics);
+}
+
+const APPKIT_TYPE_NAMES = [
+  "NSPasteboard",
+  "NSImage",
+  "NSColor",
+  "NSWorkspace",
+  "NSOpenPanel",
+  "NSSavePanel",
+  "NSView",
+  "NSWindow",
+  "NSEvent",
+];
+
+function checkAppKitTypeImports(
+  source: string,
+  stripped: string,
+  hasAppKitImport: boolean,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  if (hasAppKitImport) return;
+
+  for (const typeName of APPKIT_TYPE_NAMES) {
+    const match = new RegExp(`\\b${typeName}\\b`).exec(stripped);
+    if (!match) continue;
+    diagnostics.push(
+      makeDiagnostic("AX738", file, 1 + countNewlinesUpTo(source, match.index), {
+        message: `This file uses ${typeName} but does not import AppKit`,
+        suggestion:
+          "Add `import AppKit` at the top of the file, or wrap the AppKit usage in `#if os(macOS)` with an AppKit import.",
+      })
+    );
+    return;
   }
 }
 
@@ -323,6 +363,136 @@ function checkPropertyWrappersAreVar(
       }
     }
   }
+}
+
+function checkViewBodyReferencesDeclaredProperties(
+  decl: SwiftDeclaration,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const typeBody = decl.source.slice(decl.bodyStart, decl.bodyEnd);
+  const strippedTypeBody = stripCommentsAndStrings(typeBody);
+  const bodyMatch = /\bvar\s+body\s*:\s*some\s+View\s*\{/.exec(strippedTypeBody);
+  if (!bodyMatch) return;
+
+  const bodyOpen = bodyMatch.index + bodyMatch[0].lastIndexOf("{");
+  const bodyClose = findMatchingBrace(strippedTypeBody, bodyOpen);
+  if (bodyClose === -1) return;
+
+  const bodySource = strippedTypeBody.slice(bodyOpen + 1, bodyClose);
+  const declared = collectTopLevelPropertyNames(typeBody, strippedTypeBody);
+  const localNames = collectLocalNames(bodySource);
+  const reported = new Set<string>();
+  const identifierPattern = /\b([a-z][A-Za-z0-9_]*)\b/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = identifierPattern.exec(bodySource)) !== null) {
+    const name = match[1]!;
+    const prev = bodySource[match.index - 1] ?? "";
+    const next = nextNonWhitespace(bodySource, match.index + name.length);
+
+    if (prev === "." || /[A-Za-z0-9_]/.test(prev)) continue;
+    if (next === ":" || next === "(") continue;
+    if (
+      declared.has(name) ||
+      localNames.has(name) ||
+      VIEW_BODY_KNOWN_IDENTIFIERS.has(name)
+    )
+      continue;
+    if (reported.has(name)) continue;
+
+    reported.add(name);
+    const absoluteOffset = decl.bodyStart + bodyOpen + 1 + match.index;
+    diagnostics.push(
+      makeDiagnostic("AX739", file, 1 + countNewlinesUpTo(decl.source, absoluteOffset), {
+        message: `SwiftUI view '${decl.name}' references '${name}' in body but the property is not declared in the view`,
+        suggestion: `Declare \`${name}\` as @State, @Binding, @Environment, a stored property, or a local value before using it in \`body\`.`,
+      })
+    );
+  }
+}
+
+const VIEW_BODY_KNOWN_IDENTIFIERS = new Set([
+  "true",
+  "false",
+  "nil",
+  "self",
+  "some",
+  "if",
+  "else",
+  "elseif",
+  "endif",
+  "for",
+  "in",
+  "let",
+  "var",
+  "guard",
+  "switch",
+  "case",
+  "return",
+  "try",
+  "await",
+  "async",
+  "throws",
+  "os",
+  "macOS",
+  "iOS",
+  "visionOS",
+]);
+
+function collectTopLevelPropertyNames(
+  typeBody: string,
+  strippedTypeBody: string
+): Set<string> {
+  const names = new Set<string>();
+  const lines = typeBody.split("\n");
+  const strippedLines = strippedTypeBody.split("\n");
+  let depth = 0;
+
+  for (let i = 0; i < strippedLines.length; i++) {
+    const strippedLine = strippedLines[i] ?? "";
+    const rawLine = lines[i] ?? "";
+    const match =
+      depth === 0
+        ? rawLine.match(
+            /^\s*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*(?:(?:public|private|fileprivate|internal|open|static|weak|unowned|nonisolated)\s+)*(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\b/
+          )
+        : null;
+    if (match?.[1]) names.add(match[1]);
+
+    for (const ch of strippedLine) {
+      if (ch === "{") depth++;
+      if (ch === "}") depth = Math.max(0, depth - 1);
+    }
+  }
+
+  return names;
+}
+
+function collectLocalNames(bodySource: string): Set<string> {
+  const names = new Set<string>();
+  for (const match of bodySource.matchAll(/\{\s*([A-Za-z_][A-Za-z0-9_]*)\s+in\b/g)) {
+    names.add(match[1]!);
+  }
+  for (const match of bodySource.matchAll(
+    /\b(?:if|guard)\s+(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g
+  )) {
+    names.add(match[1]!);
+  }
+  for (const match of bodySource.matchAll(
+    /\b(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=/g
+  )) {
+    names.add(match[1]!);
+  }
+  return names;
+}
+
+function nextNonWhitespace(source: string, index: number): string {
+  for (let i = index; i < source.length; i++) {
+    const ch = source[i] ?? "";
+    if (!/\s/.test(ch)) return ch;
+  }
+  return "";
 }
 
 // ─── Rule: AX704 — AppIntent must have a `title` ─────────────────────

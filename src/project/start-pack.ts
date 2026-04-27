@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { buildAxintDocsContext } from "./docs-context.js";
 import { buildAxintOperatingMemory } from "./operating-memory.js";
+import { buildAxintRehydrationGuide } from "./rehydration.js";
 
 export type ProjectAgent = "claude" | "codex" | "all";
 export type ProjectMcpMode = "local" | "remote";
@@ -91,6 +92,15 @@ export function buildProjectStartPack(
       }),
     },
     {
+      path: ".axint/AXINT_REHYDRATE.md",
+      purpose:
+        "Short rehydration contract that agents must read after new chats, compaction, or drift.",
+      content: buildAxintRehydrationGuide({
+        projectName,
+        expectedVersion: version,
+      }),
+    },
+    {
       path: ".axint/AXINT_DOCS_CONTEXT.md",
       purpose:
         "Project-local Axint docs context so agents can reload the workflow after compaction without rereading the web.",
@@ -135,11 +145,12 @@ export function buildProjectStartPack(
             ],
             requiredActions: [
               "call axint.session.start",
+              "read .axint/AXINT_REHYDRATE.md",
               "read .axint/AXINT_MEMORY.md",
               "read .axint/AXINT_DOCS_CONTEXT.md or call axint.context.docs",
               "read AGENTS.md, CLAUDE.md, or .axint/project.json",
               "call axint.status",
-              "call axint.workflow.check with stage context-recovery, sessionToken=<token>, readDocsContext=true, readAgentInstructions=true, and ranStatus=true",
+              "call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readDocsContext=true, readAgentInstructions=true, and ranStatus=true",
               "state the next Axint tool that will be used",
             ],
           },
@@ -264,11 +275,11 @@ function buildStartPrompt(input: { projectName: string; version: string }): stri
     "",
     "Then do this exact startup sequence:",
     "1. Call axint.session.start for this project. Keep the returned sessionToken visible.",
-    "2. Read .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, or .axint/project.json if present.",
+    "2. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, or .axint/project.json if present.",
     "3. If those files are missing, call axint.context.memory and axint.context.docs, then use those as the compact Axint operating memory and docs context.",
     "4. List MCP servers/tools and confirm axint is available.",
     "5. Call axint.status and report the running MCP server version.",
-    "6. Call axint.workflow.check with stage context-recovery, sessionToken=<token>, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.",
+    "6. Call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.",
     `7. Expected Axint package version from this project pack: ${input.version}.`,
     "8. If the running MCP version is stale, stop and tell me to update Axint, rerun axint xcode setup --agent claude, and restart this Xcode agent chat.",
     "9. Call axint.workflow.check with sessionToken at planning, before-write, pre-build, and pre-commit checkpoints.",
@@ -312,10 +323,10 @@ ${buildStartPrompt({ projectName: input.projectName, version: input.version })}
 If the chat was restarted, compacted, summarized, or has drifted into ordinary Xcode coding, run this before continuing:
 
 1. Call \`axint.session.start\` and keep the returned \`sessionToken\`.
-2. Read \`.axint/AXINT_MEMORY.md\`, \`.axint/AXINT_DOCS_CONTEXT.md\`, \`AGENTS.md\`, \`CLAUDE.md\`, or \`.axint/project.json\`.
+2. Read \`.axint/AXINT_REHYDRATE.md\`, \`.axint/AXINT_MEMORY.md\`, \`.axint/AXINT_DOCS_CONTEXT.md\`, \`AGENTS.md\`, \`CLAUDE.md\`, or \`.axint/project.json\`.
 3. If either Axint context file is missing, call \`axint.context.memory\` and \`axint.context.docs\`.
 4. Call \`axint.status\` and compare it with the expected version above.
-5. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
+5. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
 6. State the next Axint tool to use before editing code.
 
 Do not rely on model memory alone. Rehydrate the workflow from the files.
@@ -352,6 +363,7 @@ function buildLocalAxintReadme(input: {
 This folder stores Axint project metadata for ${input.projectName}.
 
 - Expected Axint version: ${input.version}
+- Rehydration contract: \`.axint/AXINT_REHYDRATE.md\`
 - Compact agent memory: \`.axint/AXINT_MEMORY.md\`
 - Project-local docs context: \`.axint/AXINT_DOCS_CONTEXT.md\`
 - Project workflow: \`.axint/project.json\`
@@ -370,7 +382,7 @@ ${input.startPrompt}
 Ask it to run the Axint context recovery loop:
 
 \`\`\`text
-Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If either Axint context file is missing, call axint.context.memory and axint.context.docs. Then call axint.status, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readAgentInstructions=true, readDocsContext=true, ranStatus=true, and tell me the next Axint tool you will use before editing code.
+Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If either Axint context file is missing, call axint.context.memory and axint.context.docs. Then call axint.status, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, ranStatus=true, and tell me the next Axint tool you will use before editing code.
 \`\`\`
 
 ## CLI Session Start

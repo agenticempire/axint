@@ -6,6 +6,19 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.9] — 2026-04-26
+
+### Added
+
+- **Axint rehydration contract** — `axint.session.start` now refreshes `.axint/AXINT_REHYDRATE.md` alongside the session token, operating memory, docs context, and project contract so Xcode/Claude/Codex agents can recover Axint after new chats and context compaction.
+- **Workflow drift detection** — `axint.workflow.check` now detects compaction, stale MCP, missing Axint, and long-drift language in agent notes, then blocks progress until the agent runs the Axint recovery loop.
+- **Semantic generation hardening** — feature, component, and suggestion flows now lean on semantic planning and self-audit diagnostics instead of narrow domain templates.
+
+### Changed
+
+- Project start packs, MCP prompts, doctor checks, README proof surfaces, and local docs memory now point agents at the rehydration-first workflow.
+- `axint.swift.fix` uses the multipass fixer path through MCP so mechanical fixes can converge without reintroducing duplicate declarations.
+
 ## [0.4.6] — 2026-04-25
 
 ### Added

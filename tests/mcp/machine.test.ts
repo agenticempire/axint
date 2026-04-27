@@ -37,6 +37,7 @@ describe("Axint project machine", () => {
       "AGENTS.md",
       "CLAUDE.md",
       ".axint/AXINT_MEMORY.md",
+      ".axint/AXINT_REHYDRATE.md",
       ".axint/AXINT_DOCS_CONTEXT.md",
       ".axint/project.json",
       ".axint/README.md",
@@ -52,6 +53,9 @@ describe("Axint project machine", () => {
     expect(
       pack.files.find((file) => file.path === ".axint/AXINT_MEMORY.md")?.content
     ).toContain("Axint Operating Memory");
+    expect(
+      pack.files.find((file) => file.path === ".axint/AXINT_REHYDRATE.md")?.content
+    ).toContain("Axint Rehydration Contract");
     expect(
       pack.files.find((file) => file.path === ".axint/AXINT_DOCS_CONTEXT.md")?.content
     ).toContain("Axint Docs Context");
@@ -78,6 +82,9 @@ describe("Axint project machine", () => {
     expect(readFileSync(join(dir, "CLAUDE.md"), "utf-8")).toContain("Context Recovery");
     expect(readFileSync(join(dir, "CLAUDE.md"), "utf-8")).toContain(
       "axint.session.start"
+    );
+    expect(readFileSync(join(dir, ".axint/AXINT_REHYDRATE.md"), "utf-8")).toContain(
+      "Non-Negotiable Rule"
     );
     expect(readFileSync(join(dir, ".axint/AXINT_MEMORY.md"), "utf-8")).toContain(
       "Do not silently fall back"
@@ -106,7 +113,11 @@ describe("Axint project machine", () => {
 
     const sessionJson = readFileSync(join(dir, ".axint/session/current.json"), "utf-8");
     expect(sessionJson).toContain(result.session.token);
+    expect(readFileSync(join(dir, ".axint/AXINT_REHYDRATE.md"), "utf-8")).toContain(
+      result.session.token
+    );
     expect(result.workflowCheckArgs.sessionToken).toBe(result.session.token);
+    expect(result.workflowCheckArgs.readRehydrationContext).toBe(true);
     expect(result.recoveryPrompt).toContain("Do not edit Apple-native code");
   });
 
@@ -137,6 +148,9 @@ describe("Axint project machine", () => {
     expect(pack.files.map((file: { path: string }) => file.path)).toContain("CLAUDE.md");
     expect(pack.files.map((file: { path: string }) => file.path)).toContain(
       ".axint/AXINT_MEMORY.md"
+    );
+    expect(pack.files.map((file: { path: string }) => file.path)).toContain(
+      ".axint/AXINT_REHYDRATE.md"
     );
     expect(pack.files.map((file: { path: string }) => file.path)).toContain(
       ".axint/AXINT_DOCS_CONTEXT.md"
