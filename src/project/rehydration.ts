@@ -57,6 +57,7 @@ The model's memory is not the source of truth. These project files are. If the a
 - New Swift file: prefer \`axint.xcode.write\` so the write runs validation, Cloud Check, and guard proof immediately.
 - Before build: prefer \`axint.run\` for the full enforced loop. If doing it manually, call \`axint.workflow.check\` with \`stage: "pre-build"\`, \`ranSwiftValidate: true\`, and \`ranCloudCheck: true\`.
 - Before done: \`axint.workflow.check\` with \`stage: "pre-commit"\`, validation, Cloud Check, build evidence, and relevant tests.
+- If \`axint.workflow.check\` returns \`ready\`, it is not permission to stop using Axint. Read the \`Next Axint Action\` line and call that tool before ordinary Xcode work.
 
 ## Drift Triggers
 

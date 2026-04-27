@@ -601,7 +601,9 @@ export const TOOL_MANIFEST = [
       "building, or committing to make sure the agent has actually used the " +
       "right Axint tools: suggest for planning, feature for new surfaces, " +
       "swift.validate for modified Swift, cloud.check for coverage-aware " +
-      "repair feedback, and Xcode build/test evidence for runtime proof.",
+      "repair feedback, and Xcode build/test evidence for runtime proof. " +
+      "A ready result is not a completion stamp: the response includes the next " +
+      "Axint action the agent should call before returning to ordinary Xcode work.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,

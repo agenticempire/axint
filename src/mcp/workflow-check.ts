@@ -188,6 +188,10 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   }
 
   const status = required.length === 0 ? "ready" : "needs_action";
+  const nextTool =
+    status === "needs_action"
+      ? nextToolForRequired(required)
+      : nextToolForSatisfiedStage(stage, surfaces, modifiedFiles);
   const score = Math.max(
     0,
     100 - required.length * 30 - recommended.length * 10 - (checked.length === 0 ? 10 : 0)
@@ -198,12 +202,14 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
     stage,
     summary:
       status === "ready"
-        ? "Axint workflow gate is satisfied for this stage."
+        ? nextTool
+          ? `Axint workflow gate is satisfied for this stage. This is not a completion stamp; continue with ${nextTool} before ordinary Xcode work.`
+          : "Axint workflow gate is satisfied for this stage."
         : "Axint workflow gate needs one or more agent actions before moving on.",
     score,
     required,
     recommended,
-    nextTool: nextToolFor(required),
+    nextTool,
     checked,
   };
 }
@@ -233,7 +239,12 @@ export function renderWorkflowCheckReport(report: WorkflowCheckReport): string {
   ];
 
   if (report.nextTool) {
-    lines.push("", "## Next Tool", `- ${report.nextTool}`);
+    lines.push(
+      "",
+      "## Next Axint Action",
+      `- ${report.nextTool}`,
+      "- Do not treat this workflow check as the only Axint step. Call the next Axint action before continuing with raw Xcode tools or hand-written Swift."
+    );
   }
 
   return lines.join("\n");
@@ -250,7 +261,7 @@ function inferSurfaces(files: string[]): Surface[] {
   return [...surfaces];
 }
 
-function nextToolFor(required: string[]): string | undefined {
+function nextToolForRequired(required: string[]): string | undefined {
   const text = required.join(" ").toLowerCase();
   if (text.includes("axint.session.start")) return "axint.session.start";
   if (
@@ -268,6 +279,33 @@ function nextToolFor(required: string[]): string | undefined {
   if (text.includes("axint.feature")) return "axint.feature";
   if (text.includes("axint.swift.validate")) return "axint.swift.validate";
   if (text.includes("axint.cloud.check")) return "axint.cloud.check";
+  return undefined;
+}
+
+function nextToolForSatisfiedStage(
+  stage: WorkflowStage,
+  surfaces: Surface[],
+  modifiedFiles: string[]
+): string | undefined {
+  if (stage === "session-start" || stage === "context-recovery") {
+    return "axint.suggest";
+  }
+  if (stage === "planning") {
+    return surfaces.some((surface) =>
+      ["view", "component", "intent", "widget", "app", "store"].includes(surface)
+    )
+      ? "axint.feature"
+      : "axint.xcode.guard";
+  }
+  if (stage === "before-write") {
+    return "axint.xcode.write";
+  }
+  if (stage === "pre-build") {
+    return "axint.run";
+  }
+  if (stage === "pre-commit" && modifiedFiles.some((file) => file.endsWith(".swift"))) {
+    return "axint.cloud.check";
+  }
   return undefined;
 }
 

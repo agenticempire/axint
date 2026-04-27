@@ -137,8 +137,27 @@ describe("axint.workflow.check", () => {
 
     expect(report.status).toBe("ready");
     expect(report.required).toEqual([]);
+    expect(report.nextTool).toBe("axint.run");
     expect(renderWorkflowCheckReport(report)).toContain(
       "Axint workflow gate is satisfied"
     );
+  });
+
+  it("returns the next Axint action even when context recovery is satisfied", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      stage: "context-recovery",
+      readRehydrationContext: true,
+      readAgentInstructions: true,
+      readDocsContext: true,
+      ranStatus: true,
+    });
+
+    const rendered = renderWorkflowCheckReport(report);
+    expect(report.status).toBe("ready");
+    expect(report.nextTool).toBe("axint.suggest");
+    expect(report.summary).toContain("not a completion stamp");
+    expect(rendered).toContain("Next Axint Action");
+    expect(rendered).toContain("Do not treat this workflow check as the only Axint step");
   });
 });

@@ -349,11 +349,12 @@ Do not rely on model memory alone. Rehydrate the workflow from the files.
 3. Read the Axint docs listed in the start prompt.
 4. Call \`axint.status\`.
 5. Call \`axint.workflow.check\` with \`sessionToken\` at session start, after context recovery, before planning, before writing, before building, and before committing.
-6. Use \`axint.suggest\` for feature planning.
-7. Use \`axint.feature\`, \`axint.scaffold\`, \`axint.compile\`, or \`axint.schema.compile\` for Apple-native surfaces.
-8. Prefer \`axint.xcode.write\` for new Swift files so Axint validation, Cloud Check, and guard proof happen as part of the write.
-9. Run \`axint.swift.validate\` on modified Swift.
-10. Run \`axint.cloud.check\` with Xcode build, test, runtime, or behavior evidence when available.
+6. If \`axint.workflow.check\` returns \`ready\`, call the report's \`Next Axint Action\` before ordinary Xcode work.
+7. Use \`axint.suggest\` for feature planning.
+8. Use \`axint.feature\`, \`axint.scaffold\`, \`axint.compile\`, or \`axint.schema.compile\` for Apple-native surfaces.
+9. Prefer \`axint.xcode.write\` for new Swift files so Axint validation, Cloud Check, and guard proof happen as part of the write.
+10. Run \`axint.swift.validate\` on modified Swift.
+11. Run \`axint.cloud.check\` with Xcode build, test, runtime, or behavior evidence when available.
 11. Prefer \`axint.run\` when moving toward build/test/runtime proof so Axint owns the loop instead of relying on memory.
 12. Build in Xcode or via \`xcodebuild\`. Static Axint checks are not a replacement for runtime proof.
 
