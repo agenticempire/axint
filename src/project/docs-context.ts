@@ -180,6 +180,8 @@ Use \`axint.workflow.check\` at these stages:
 - \`pre-build\`: requires Swift validation and Cloud Check.
 - \`pre-commit\`: requires validation, Cloud Check, build evidence, and focused tests when relevant.
 
+A \`ready\` workflow check is not the last Axint step. The report includes \`Next Axint Action\`; call that tool before returning to raw Xcode tools or hand-written Swift.
+
 ## Cloud Check Rules
 
 Cloud Check is not a rubber stamp. It should return a ship gate:
