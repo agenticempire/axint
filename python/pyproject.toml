@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "axint"
-version = "0.4.9"
+version = "0.4.10"
 description = "Python SDK for Axint — define Apple App Intents, Views, Widgets, and Apps in Python."
 readme = "README.md"
 requires-python = ">=3.11"
