@@ -191,7 +191,13 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   const nextTool =
     status === "needs_action"
       ? nextToolForRequired(required)
-      : nextToolForSatisfiedStage(stage, surfaces, modifiedFiles);
+      : nextToolForSatisfiedStage({
+          stage,
+          surfaces,
+          modifiedFiles,
+          xcodeBuildPassed: Boolean(input.xcodeBuildPassed),
+          xcodeTestsPassed: Boolean(input.xcodeTestsPassed),
+        });
   const score = Math.max(
     0,
     100 - required.length * 30 - recommended.length * 10 - (checked.length === 0 ? 10 : 0)
@@ -282,11 +288,14 @@ function nextToolForRequired(required: string[]): string | undefined {
   return undefined;
 }
 
-function nextToolForSatisfiedStage(
-  stage: WorkflowStage,
-  surfaces: Surface[],
-  modifiedFiles: string[]
-): string | undefined {
+function nextToolForSatisfiedStage(input: {
+  stage: WorkflowStage;
+  surfaces: Surface[];
+  modifiedFiles: string[];
+  xcodeBuildPassed: boolean;
+  xcodeTestsPassed: boolean;
+}): string | undefined {
+  const { stage, surfaces, modifiedFiles, xcodeBuildPassed, xcodeTestsPassed } = input;
   if (stage === "session-start" || stage === "context-recovery") {
     return "axint.suggest";
   }
@@ -301,10 +310,13 @@ function nextToolForSatisfiedStage(
     return "axint.xcode.write";
   }
   if (stage === "pre-build") {
-    return "axint.run";
+    return xcodeBuildPassed ? "axint.workflow.check(stage=pre-commit)" : "axint.run";
   }
-  if (stage === "pre-commit" && modifiedFiles.some((file) => file.endsWith(".swift"))) {
-    return "axint.cloud.check";
+  if (stage === "pre-commit") {
+    if (!xcodeTestsPassed) return "axint.run";
+    if (modifiedFiles.some((file) => file.endsWith(".swift"))) {
+      return "axint.xcode.guard(stage=finish)";
+    }
   }
   return undefined;
 }

@@ -137,10 +137,40 @@ describe("axint.workflow.check", () => {
 
     expect(report.status).toBe("ready");
     expect(report.required).toEqual([]);
-    expect(report.nextTool).toBe("axint.run");
+    expect(report.nextTool).toBe("axint.workflow.check(stage=pre-commit)");
     expect(renderWorkflowCheckReport(report)).toContain(
       "Axint workflow gate is satisfied"
     );
+  });
+
+  it("sends a ready pre-build gate to axint.run when build evidence is still missing", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      stage: "pre-build",
+      modifiedFiles: ["CreateMissionIntent.swift"],
+      ranSwiftValidate: true,
+      ranCloudCheck: true,
+      xcodeBuildPassed: false,
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.nextTool).toBe("axint.run");
+    expect(report.recommended.join("\n")).toMatch(/Xcode build/);
+  });
+
+  it("sends a ready pre-commit gate to finish guard after tests pass", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      stage: "pre-commit",
+      modifiedFiles: ["HomeFeedView.swift"],
+      ranSwiftValidate: true,
+      ranCloudCheck: true,
+      xcodeBuildPassed: true,
+      xcodeTestsPassed: true,
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.nextTool).toBe("axint.xcode.guard(stage=finish)");
   });
 
   it("returns the next Axint action even when context recovery is satisfied", () => {
