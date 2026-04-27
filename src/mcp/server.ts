@@ -7,7 +7,7 @@
  *
  * Tools:
  *   - axint.doctor:           Audit version truth and project MCP wiring
- *   - axint.session.start:    Start enforced session token + recovery context
+ *   - axint.session.start:    Start enforced session token + rehydration context
  *   - axint.feature:          Generate a scaffolded Apple-native feature package
  *   - axint.suggest:          Suggest Apple-native features for an app domain
  *   - axint.workflow.check:   Check whether an agent used the Axint workflow
@@ -46,7 +46,7 @@ import { generateFeature, type FeatureInput, type Surface } from "./feature.js";
 import { suggestFeaturesSmart, type SuggestInput } from "./suggest.js";
 import { TEMPLATES, getTemplate } from "../templates/index.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
-import { fixSwiftSource } from "../core/swift-fixer.js";
+import { fixSwiftSourceMultipass } from "../core/swift-fixer.js";
 import { TOOL_MANIFEST } from "./manifest.js";
 import { PROMPT_MANIFEST, getPromptMessages } from "./prompts.js";
 import { handleCompileFromSchema, type SchemaCompileArgs } from "./schema-compile.js";
@@ -569,18 +569,29 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
   }
 
   if (name === "axint.swift.fix") {
-    const a = args as { source: string; file?: string; format?: boolean };
-    const result = fixSwiftSource(a.source, a.file ?? "<input>");
+    const a = args as {
+      source: string;
+      file?: string;
+      format?: boolean;
+      maxIterations?: number;
+    };
+    const result = fixSwiftSourceMultipass(a.source, a.file ?? "<input>", {
+      maxIterations: a.maxIterations,
+    });
+    const passSuffix = result.iterations > 1 ? ` over ${result.iterations} passes` : "";
     const summary =
       result.fixed.length === 0
         ? "No mechanical fixes applied."
-        : `Applied ${result.fixed.length} fix${result.fixed.length === 1 ? "" : "es"}: ${result.fixed.map((d) => d.code).join(", ")}`;
+        : `Applied ${result.fixed.length} fix${result.fixed.length === 1 ? "" : "es"}${passSuffix}: ${result.fixed.map((d) => d.code).join(", ")}`;
     const remaining =
       result.remaining.length > 0
         ? `\nRemaining: ${result.remaining.map((d) => `[${d.code}] ${d.message}`).join("; ")}`
         : "";
+    const stability = result.quiescent
+      ? ""
+      : `\nNote: stopped at iteration cap; rerun with maxIterations to keep applying fixes.`;
     const swift = await maybeFormatSwift(result.source, a.format !== false);
-    return diagnosticsText(`${summary}${remaining}\n\n${swift}`);
+    return diagnosticsText(`${summary}${remaining}${stability}\n\n${swift}`);
   }
 
   if (name === "axint.templates.list") {

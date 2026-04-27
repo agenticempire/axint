@@ -214,7 +214,7 @@ axint compile my-app.ts --out ios/App/
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.8 · 20 MCP tools + 5 prompts · 176 diagnostic codes · 1081 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.9 · 20 MCP tools + 5 prompts · 182 diagnostic codes · 1098 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -259,16 +259,16 @@ MCP tools and built-in prompts:
 | --- | --- |
 | `axint.status` | Report the running MCP server version, package path, uptime, and Xcode restart/update instructions |
 | `axint.doctor` | Audit version truth, Node/npm/npx paths, project MCP wiring, and agent start-pack files |
-| `axint.session.start` | Start an enforced agent session, write `.axint/session/current.json`, and return the token required by workflow gates |
+| `axint.session.start` | Start an enforced agent session, refresh `.axint/AXINT_REHYDRATE.md`, write `.axint/session/current.json`, and return the token required by workflow gates |
 | `axint.compile` | Full pipeline: TypeScript → Swift + plist + entitlements |
 | `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents) |
 | `axint.validate` | Dry-run validation with diagnostics |
 | `axint.feature` | Generate an editable feature package: intents, views, widgets, components, app shells, stores, tests, and support fragments |
-| `axint.project.pack` | Generate `.mcp.json`, `AGENTS.md`, `CLAUDE.md`, `.axint` memory/docs/project files, and the session-first workflow for first-try agent setup |
+| `axint.project.pack` | Generate `.mcp.json`, `AGENTS.md`, `CLAUDE.md`, `.axint` rehydration/memory/docs/project files, and the session-first workflow for first-try agent setup |
 | `axint.context.memory` | Return the compact Axint operating memory for new chats and context-compaction recovery |
 | `axint.context.docs` | Return the project-local Axint docs context so agents can reload docs after compaction |
 | `axint.suggest` | Suggest app-specific Apple-native features, reusable components, and shared stores from a product description |
-| `axint.workflow.check` | Check whether an agent has an active session token and used suggest, feature, swift.validate, cloud.check, and Xcode proof before moving on |
+| `axint.workflow.check` | Check whether an agent rehydrated Axint after compaction, has an active session token, and used suggest, feature, swift.validate, cloud.check, and Xcode proof before moving on |
 | `axint.scaffold` | Generate a starter TypeScript intent from a description |
 | `axint.swift.validate` | Validate existing Swift against build-time rules |
 | `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |

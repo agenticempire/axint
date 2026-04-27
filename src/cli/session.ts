@@ -13,7 +13,9 @@ export function registerSession(program: Command, version: string) {
 
   session
     .command("start")
-    .description("Create .axint/session/current.json and return the required context")
+    .description(
+      "Create .axint/session/current.json, refresh Axint context files, and return the required context"
+    )
     .option("--dir <dir>", "Project directory", ".")
     .option("--name <name>", "Project name")
     .option("--platform <platform>", "Target Apple platform", "the target Apple platform")

@@ -327,48 +327,89 @@ function buildComponentProps(args: SchemaCompileArgs): IRViewProp[] {
 
   const kind = inferComponentKind(args);
   const defaults: Record<string, string> =
-    kind === "avatar"
-      ? { initials: "string", status: "string" }
-      : kind === "statusRing"
-        ? { value: "double", label: "string" }
-        : kind === "missionCard"
-          ? { title: "string", subtitle: "string", progress: "double", status: "string" }
-          : kind === "contextPanel"
-            ? {
-                northStar: "string",
-                syncStatus: "string",
-                suggestedUpdates: "int",
-              }
-            : kind === "contextUpdateCard"
-              ? { summary: "string" }
-              : kind === "decisionLog"
+    kind === "feedCard"
+      ? {
+          authorName: "string",
+          authorInitials: "string",
+          headline: "string",
+          bodyText: "string",
+          reactionCount: "int",
+          commentCount: "int",
+          isPinned: "boolean",
+        }
+      : kind === "mediaCard"
+        ? {
+            coverImageName: "string",
+            coverSymbol: "string",
+            title: "string",
+            subtitle: "string",
+            mediaLabel: "string",
+            status: "string",
+            actionTitle: "string",
+          }
+        : kind === "utilityRow"
+          ? {
+              iconName: "string",
+              title: "string",
+              subtitle: "string",
+              status: "string",
+              isActive: "boolean",
+            }
+          : kind === "avatar"
+            ? { initials: "string", status: "string" }
+            : kind === "statusRing"
+              ? { value: "double", label: "string" }
+              : kind === "missionCard"
                 ? {
                     title: "string",
-                    owner: "string",
-                    decision: "string",
-                    impact: "string",
+                    subtitle: "string",
+                    progress: "double",
+                    status: "string",
                   }
-                : kind === "approvalCard"
-                  ? { missionTitle: "string", risk: "string", costEstimate: "string" }
-                  : kind === "agentRow"
-                    ? { name: "string", role: "string", status: "string" }
-                    : kind === "roleCard"
-                      ? { title: "string", description: "string", status: "string" }
-                      : kind === "signalCard"
-                        ? { sourceTitle: "string", insight: "string" }
-                        : kind === "channelRow"
-                          ? { title: "string", unreadCount: "int", isSelected: "boolean" }
-                          : kind === "sidebarRail"
-                            ? { selectedIndex: "int" }
-                            : kind === "profileCard"
-                              ? {
-                                  photoURL: "url",
-                                  name: "string",
-                                  age: "int",
-                                  bio: "string",
-                                  workoutPreferences: "string",
-                                }
-                              : { title: "string" };
+                : kind === "contextPanel"
+                  ? {
+                      northStar: "string",
+                      syncStatus: "string",
+                      suggestedUpdates: "int",
+                    }
+                  : kind === "contextUpdateCard"
+                    ? { summary: "string" }
+                    : kind === "decisionLog"
+                      ? {
+                          title: "string",
+                          owner: "string",
+                          decision: "string",
+                          impact: "string",
+                        }
+                      : kind === "approvalCard"
+                        ? {
+                            missionTitle: "string",
+                            risk: "string",
+                            costEstimate: "string",
+                          }
+                        : kind === "agentRow"
+                          ? { name: "string", role: "string", status: "string" }
+                          : kind === "roleCard"
+                            ? { title: "string", description: "string", status: "string" }
+                            : kind === "signalCard"
+                              ? { sourceTitle: "string", insight: "string" }
+                              : kind === "channelRow"
+                                ? {
+                                    title: "string",
+                                    unreadCount: "int",
+                                    isSelected: "boolean",
+                                  }
+                                : kind === "sidebarRail"
+                                  ? { selectedIndex: "int" }
+                                  : kind === "profileCard"
+                                    ? {
+                                        photoURL: "url",
+                                        name: "string",
+                                        age: "int",
+                                        bio: "string",
+                                        workoutPreferences: "string",
+                                      }
+                                    : { title: "string" };
 
   return Object.entries(defaults).map(([name, typeStr]) => ({
     name,
@@ -414,6 +455,21 @@ function buildComponentState(args: SchemaCompileArgs): IRViewState[] {
 function inferComponentKind(args: SchemaCompileArgs): string {
   const raw = `${args.componentKind ?? ""} ${args.name} ${args.description ?? ""}`;
   const lower = raw.replace(/[\s_-]+/g, "").toLowerCase();
+  if (
+    lower.includes("feedcard") ||
+    lower.includes("feedpostcard") ||
+    lower.includes("postcard")
+  )
+    return "feedCard";
+  if (
+    lower.includes("mediacard") ||
+    lower.includes("projectmediacard") ||
+    lower.includes("covercard") ||
+    lower.includes("nsimage")
+  )
+    return "mediaCard";
+  if (lower.includes("utilityrow") || lower.includes("compactutilityrow"))
+    return "utilityRow";
   if (lower.includes("avatar")) return "avatar";
   if (lower.includes("statusring")) return "statusRing";
   if (lower.includes("missioncard")) return "missionCard";
@@ -449,6 +505,20 @@ function defaultValueForType(typeStr: string, name: string): unknown {
   if (typeStr === "duration") return 0;
   if (typeStr === "url") return "https://example.com/avatar.png";
   if (name === "initials") return "AE";
+  if (name === "authorName") return "Nima Nejat";
+  if (name === "authorInitials") return "NN";
+  if (name === "headline") return "Visual overhaul is ready for review";
+  if (name === "bodyText")
+    return "Three reusable card archetypes now cover feed posts, project media, and compact utility actions.";
+  if (name === "reactionCount") return 24;
+  if (name === "commentCount") return 7;
+  if (name === "isPinned") return true;
+  if (name === "coverImageName") return "project-cover";
+  if (name === "coverSymbol") return "photo.on.rectangle.angled";
+  if (name === "mediaLabel") return "NSImage-ready cover slot";
+  if (name === "actionTitle") return "Open";
+  if (name === "iconName") return "bolt.fill";
+  if (name === "isActive") return true;
   if (name === "status") return "online";
   if (name === "label") return "Ready";
   if (name === "title") return "Mission";

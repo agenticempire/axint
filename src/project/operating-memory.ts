@@ -15,7 +15,7 @@ Project: ${projectName}
 Platform: ${platform}
 Expected Axint version: ${expectedVersion}
 
-This file is the compact Axint memory for agents. Read it with \`.axint/AXINT_DOCS_CONTEXT.md\` at the start of every new chat, after context compaction, and before any long Apple-native implementation pass.
+This file is the compact Axint memory for agents. Read it with \`.axint/AXINT_REHYDRATE.md\` and \`.axint/AXINT_DOCS_CONTEXT.md\` at the start of every new chat, after context compaction, and before any long Apple-native implementation pass.
 
 ## Default Posture
 
@@ -37,11 +37,11 @@ Work in Axint first:
 Models lose memory when chats compact. The project does not. When context is missing, compacted, or uncertain:
 
 1. Call \`axint.session.start\` and keep the returned \`sessionToken\`.
-2. Read this file, \`.axint/AXINT_DOCS_CONTEXT.md\`, \`AGENTS.md\`, \`CLAUDE.md\`, and \`.axint/project.json\`.
+2. Read \`.axint/AXINT_REHYDRATE.md\`, this file, \`.axint/AXINT_DOCS_CONTEXT.md\`, \`AGENTS.md\`, \`CLAUDE.md\`, and \`.axint/project.json\`.
 3. If the docs context file is missing, call \`axint.context.docs\`.
 4. List MCP servers/tools and confirm \`axint\` is present.
 5. Call \`axint.status\` and compare the running MCP version with the expected version above.
-6. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
+6. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
 7. Name the next Axint tool before editing code.
 
 If Axint is missing or stale, stop. Do not continue by hand. Tell the user to reinstall/update Axint, rerun the Xcode setup, and restart the Xcode agent chat.
@@ -87,7 +87,7 @@ If the agent cannot fill this out, it must run \`axint.workflow.check\` before c
 ## Recovery Prompt
 
 \`\`\`text
-Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If docs context is missing, call axint.context.docs. Then list MCP servers, call axint.status, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readAgentInstructions=true, readDocsContext=true, and ranStatus=true, and tell me the next Axint tool you will use before editing code.
+Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If docs context is missing, call axint.context.docs. Then list MCP servers, call axint.status, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true, and tell me the next Axint tool you will use before editing code.
 \`\`\`
 `;
 }

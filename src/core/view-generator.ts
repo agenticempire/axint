@@ -19,6 +19,11 @@ export function generateSwiftUIView(view: IRView): string {
   lines.push(...generatedFileHeader(`${view.name}.swift`));
   lines.push(``);
   lines.push(`import SwiftUI`);
+  if (viewRequiresAppKit(view)) {
+    lines.push(`#if os(macOS)`);
+    lines.push(`import AppKit`);
+    lines.push(`#endif`);
+  }
   lines.push(``);
 
   lines.push(`struct ${view.name}: View {`);
@@ -73,6 +78,16 @@ export function generateSwiftUIView(view: IRView): string {
   lines.push(``);
 
   return lines.join("\n");
+}
+
+function viewRequiresAppKit(view: IRView): boolean {
+  const rawBody = view.body
+    .filter((node) => node.kind === "raw")
+    .map((node) => node.swift)
+    .join("\n");
+  return /\bNS(?:Image|Color|Pasteboard|Workspace|OpenPanel|SavePanel|View|Window|Event)\b/.test(
+    rawBody
+  );
 }
 
 function generateStateProperty(s: IRViewState): string {

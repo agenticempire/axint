@@ -48,6 +48,9 @@ export function runMachineDoctor(input: MachineDoctorInput = {}): MachineDoctorR
   checks.push(projectFileCheck(cwd, ".mcp.json", "Run axint project init."));
   checks.push(projectFileCheck(cwd, "AGENTS.md", "Run axint project init."));
   checks.push(projectFileCheck(cwd, "CLAUDE.md", "Run axint project init."));
+  checks.push(
+    projectFileCheck(cwd, ".axint/AXINT_REHYDRATE.md", "Run axint project init.")
+  );
   checks.push(projectFileCheck(cwd, ".axint/AXINT_MEMORY.md", "Run axint project init."));
   checks.push(
     projectFileCheck(cwd, ".axint/AXINT_DOCS_CONTEXT.md", "Run axint project init.")

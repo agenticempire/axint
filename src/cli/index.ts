@@ -23,7 +23,7 @@
  *   axint status                  Show local package/runtime status and Xcode restart steps
  *   axint doctor                  Audit version truth, MCP wiring, and project start files
  *   axint project init            Write Axint project-start files for agent workflows
- *   axint session start           Start an enforced Axint agent session
+ *   axint session start           Start an enforced Axint agent session and refresh context
  *   axint mcp                     Start the MCP server (stdio)
  *   axint mcp status              Show local MCP launch command and Xcode restart steps
  *   axint xcode setup             Configure Axint for Xcode agentic coding

@@ -22,12 +22,13 @@ This is the project-local docs memory. It exists because agents forget web docs 
 When a chat is new, compacted, summarized, or confused, reload context in this order:
 
 1. \`.axint/AXINT_MEMORY.md\`: the compact operating contract.
-2. \`.axint/AXINT_DOCS_CONTEXT.md\`: this docs context.
-3. \`.axint/project.json\`: machine-readable gates and pinned version.
-4. \`AGENTS.md\` and \`CLAUDE.md\`: local instructions for the active agent.
-5. \`axint.session.start\`: writes \`.axint/session/current.json\` and returns the session token.
-6. \`axint.status\`: current MCP version and restart/setup guidance.
-7. \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
+2. \`.axint/AXINT_REHYDRATE.md\`: the short no-drift recovery contract.
+3. \`.axint/AXINT_DOCS_CONTEXT.md\`: this docs context.
+4. \`.axint/project.json\`: machine-readable gates and pinned version.
+5. \`AGENTS.md\` and \`CLAUDE.md\`: local instructions for the active agent.
+6. \`axint.session.start\`: writes \`.axint/session/current.json\` and returns the session token.
+7. \`axint.status\`: current MCP version and restart/setup guidance.
+8. \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
 
 If any local context file is missing, call \`axint.context.memory\` and \`axint.context.docs\`, then continue from those returned documents.
 
@@ -165,7 +166,7 @@ axint.tokens.ingest -> axint.suggest -> axint.feature with context -> axint.swif
 
 Use \`axint.workflow.check\` at these stages:
 
-- \`session-start\`: requires \`axint.session.start\`, project memory and docs context, then status.
+- \`session-start\`: requires \`axint.session.start\`, rehydration file, project memory and docs context, then status.
 - \`context-recovery\`: after new chat, summary, compaction, or drift.
 - \`planning\`: requires \`axint.suggest\` before choosing surfaces.
 - \`before-write\`: requires \`axint.feature\` or an explicit reason it is not useful.
@@ -210,7 +211,7 @@ If Xcode cannot find \`npx\`, configure the project MCP file with an absolute co
 ## Context Recovery Prompt
 
 \`\`\`text
-Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If any are missing, call axint.context.memory and axint.context.docs. Then list MCP servers, call axint.status, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readAgentInstructions=true, readDocsContext=true, and ranStatus=true, and tell me the next Axint tool you will use before editing code.
+Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If any are missing, call axint.context.memory and axint.context.docs. Then list MCP servers, call axint.status, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true, and tell me the next Axint tool you will use before editing code.
 \`\`\`
 
 ## Runtime Freeze Prompt

@@ -43,6 +43,12 @@ import {
   usesProfileCardBlueprint,
   usesInboxBlueprint,
 } from "./view-blueprints.js";
+import {
+  auditGeneratedFeature,
+  inferSemanticComponentArchetypes,
+  inferSemanticComponentKind,
+  usesSemanticLayout,
+} from "./semantic-planner.js";
 
 export type Surface = "intent" | "view" | "widget" | "component" | "app" | "store";
 
@@ -187,30 +193,62 @@ export function generateFeature(input: FeatureInput): FeatureResult {
   // --- Component surface ---
   if (surfaces.includes("component")) {
     const componentName = withoutSuffix(withoutSuffix(name, "View"), "Component");
-    const componentKind =
-      input.componentKind ??
-      inferComponentKindForFeature(planningDescription, componentName);
-    const componentResult = buildView(
-      componentName,
+    const archetypes = inferComponentArchetypes(
       planningDescription,
-      input.params ?? {},
-      input.platform,
-      input.tokenNamespace,
-      componentKind
+      componentName,
+      input.componentKind
     );
-    if (componentResult.swift) {
+
+    if (archetypes.length > 0) {
+      for (const archetype of archetypes) {
+        const componentResult = buildView(
+          archetype.name,
+          `${planningDescription}\n\nComponent archetype: ${archetype.description}`,
+          input.params ?? {},
+          input.platform,
+          input.tokenNamespace,
+          archetype.kind
+        );
+        if (componentResult.swift) {
+          files.push({
+            path: `Sources/Components/${archetype.name}.swift`,
+            content: componentResult.swift,
+            type: "swift",
+          });
+        }
+        files.push({
+          path: `Tests/${archetype.name}Tests.swift`,
+          content: generateViewTest(archetype.name),
+          type: "test",
+        });
+        diagnostics.push(...componentResult.diagnostics);
+      }
+    } else {
+      const componentKind =
+        input.componentKind ??
+        inferComponentKindForFeature(planningDescription, componentName);
+      const componentResult = buildView(
+        componentName,
+        planningDescription,
+        input.params ?? {},
+        input.platform,
+        input.tokenNamespace,
+        componentKind
+      );
+      if (componentResult.swift) {
+        files.push({
+          path: `Sources/Components/${componentName}.swift`,
+          content: componentResult.swift,
+          type: "swift",
+        });
+      }
       files.push({
-        path: `Sources/Components/${componentName}.swift`,
-        content: componentResult.swift,
-        type: "swift",
+        path: `Tests/${componentName}Tests.swift`,
+        content: generateViewTest(componentName),
+        type: "test",
       });
+      diagnostics.push(...componentResult.diagnostics);
     }
-    files.push({
-      path: `Tests/${componentName}Tests.swift`,
-      content: generateViewTest(componentName),
-      type: "test",
-    });
-    diagnostics.push(...componentResult.diagnostics);
   }
 
   // --- Store surface ---
@@ -279,6 +317,8 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     });
   }
 
+  diagnostics.push(...auditGeneratedFeature(input, files));
+
   const success = !diagnostics.some((d) => /^\[AX[^\]]+\]\s+error\b/.test(d));
   const surfaceList = surfaces.join(", ");
   const fileCount = files.filter((f) => f.type === "swift").length;
@@ -336,6 +376,12 @@ interface SurfaceOutput {
   plist: string | null;
   entitlements: string | null;
   diagnostics: string[];
+}
+
+interface ComponentArchetype {
+  name: string;
+  kind: string;
+  description: string;
 }
 
 function buildIntent(
@@ -458,6 +504,21 @@ function buildView(
   }));
 
   if (usesProfileCardBlueprint(description)) {
+    ensureState(state, "photoURL", "url", "https://example.com/profile.jpg");
+    ensureState(state, "name", "string", "Alex");
+    ensureState(state, "age", "int", 29);
+    ensureState(
+      state,
+      "bio",
+      "string",
+      "Building strength, consistency, and better software."
+    );
+    ensureState(
+      state,
+      "workoutPreferences",
+      "string",
+      "Strength training · Morning sessions"
+    );
     state.push(
       {
         name: "swipeOffset",
@@ -671,34 +732,72 @@ function ensureBlueprintState(
   description: string,
   componentKind?: string
 ): void {
+  const explicitKind = (componentKind ?? "").replace(/[\s_-]+/g, "").toLowerCase();
   const haystack = `${componentKind ?? ""} ${name} ${description}`
     .replace(/[\s_-]+/g, "")
     .toLowerCase();
+  const matchesKind = (...kinds: string[]) =>
+    explicitKind
+      ? kinds.includes(explicitKind)
+      : kinds.some((kind) => haystack.includes(kind));
 
-  if (haystack.includes("missioncard")) {
+  if (matchesKind("feedcard", "feedpostcard")) {
+    ensureState(state, "authorName", "string", "Nima Nejat");
+    ensureState(state, "authorInitials", "string", "NN");
+    ensureState(state, "headline", "string", "Visual overhaul is ready for review");
+    ensureState(
+      state,
+      "bodyText",
+      "string",
+      "Three reusable card archetypes now cover feed posts, project media, and compact utility actions."
+    );
+    ensureState(state, "reactionCount", "int", 24);
+    ensureState(state, "commentCount", "int", 7);
+    ensureState(state, "isPinned", "boolean", true);
+  }
+
+  if (matchesKind("mediacard", "projectmediacard")) {
+    ensureState(state, "coverImageName", "string", "project-cover");
+    ensureState(state, "coverSymbol", "string", "photo.on.rectangle.angled");
+    ensureState(state, "title", "string", "Launch Room");
+    ensureState(state, "subtitle", "string", "Prototype, assets, and notes");
+    ensureState(state, "mediaLabel", "string", "NSImage-ready cover slot");
+    ensureState(state, "status", "string", "Ready");
+    ensureState(state, "actionTitle", "string", "Open");
+  }
+
+  if (matchesKind("utilityrow", "compactutilityrow")) {
+    ensureState(state, "iconName", "string", "bolt.fill");
+    ensureState(state, "title", "string", "Run polish pass");
+    ensureState(state, "subtitle", "string", "Tighten the room before handoff");
+    ensureState(state, "status", "string", "Live");
+    ensureState(state, "isActive", "boolean", true);
+  }
+
+  if (matchesKind("missioncard")) {
     ensureState(state, "title", "string", "Launch mission");
     ensureState(state, "subtitle", "string", "Owned by Design Agent");
     ensureState(state, "status", "string", "ready");
     ensureState(state, "progress", "double", 0.42);
   }
 
-  if (haystack.includes("avatar")) {
+  if (matchesKind("avatar")) {
     ensureState(state, "initials", "string", "AE");
     ensureState(state, "status", "string", "online");
   }
 
-  if (haystack.includes("statusring")) {
+  if (matchesKind("statusring")) {
     ensureState(state, "value", "double", 0.72);
     ensureState(state, "label", "string", "Ready");
   }
 
-  if (haystack.includes("channelrow")) {
+  if (matchesKind("channelrow")) {
     ensureState(state, "title", "string", "agents");
     ensureState(state, "isSelected", "boolean", true);
     ensureState(state, "unreadCount", "int", 3);
   }
 
-  if (haystack.includes("agentrow")) {
+  if (matchesKind("agentrow")) {
     ensureState(state, "name", "string", "Research Agent");
     ensureState(state, "role", "string", "Tracks the frontier");
     ensureState(state, "status", "string", "awake");
@@ -1105,6 +1204,7 @@ function usesDescriptionDrivenViewBlueprint(description: string): boolean {
     usesSettingsBlueprint(description) ||
     usesProfileCardBlueprint(description) ||
     usesInboxBlueprint(description) ||
+    usesSemanticLayout(description) ||
     /\b(three|3)[-\s]?pane|sidebar rail|channels column|split view|list|filter|search|composer|picker|toggle|grid|table|settings|profile card|mission card|agent row|status ring\b/.test(
       lower
     )
@@ -1176,7 +1276,26 @@ function inferComponentKindForFeature(
   description: string,
   name: string
 ): string | undefined {
+  const semanticKind = inferSemanticComponentKind(description, name);
+  if (semanticKind) return semanticKind;
+
   const lower = `${name} ${description}`.toLowerCase();
+  if (
+    /\b(feed post|feedpost|post card|author avatar|reaction|comment|action row)\b/.test(
+      lower
+    )
+  )
+    return "feedCard";
+  if (
+    /\b(project media|media card|cover image|cover asset|gallery|nsimage)\b/.test(lower)
+  )
+    return "mediaCard";
+  if (
+    /\b(compact utility|utility row|quick action|status row|trailing action)\b/.test(
+      lower
+    )
+  )
+    return "utilityRow";
   if (/\bmission|task|handoff|approval\b/.test(lower)) return "missionCard";
   if (/\bagent|operator|teammate|member\b/.test(lower)) return "agentRow";
   if (/\bchannel|room|conversation\b/.test(lower)) return "channelRow";
@@ -1185,6 +1304,62 @@ function inferComponentKindForFeature(
   if (/\bcontext|north star|memory\b/.test(lower)) return "contextPanel";
   if (/\bprofile|swipe|dating\b/.test(lower)) return "profileCard";
   return undefined;
+}
+
+function inferComponentArchetypes(
+  description: string,
+  baseName: string,
+  componentKind?: string
+): ComponentArchetype[] {
+  const semanticArchetypes = inferSemanticComponentArchetypes(
+    description,
+    baseName,
+    componentKind
+  );
+  if (semanticArchetypes.length > 0) return semanticArchetypes;
+
+  const haystack = `${componentKind ?? ""} ${baseName} ${description}`;
+  const compact = haystack.replace(/[\s_-]+/g, "").toLowerCase();
+  const lower = haystack.toLowerCase();
+  const wantsKit =
+    compact.includes("cardarchetypes") ||
+    compact.includes("componentkit") ||
+    compact.includes("cardkit") ||
+    /\b(three|3)\s+(distinct\s+)?(card|component)s?\b/.test(lower) ||
+    /\b(card archetype|card archetypes|component archetype|component archetypes)\b/.test(
+      lower
+    );
+
+  if (!wantsKit) return [];
+
+  const defaults: ComponentArchetype[] = [
+    {
+      name: "FeedPostCard",
+      kind: "feedCard",
+      description:
+        "Feed post card with author avatar, headline, body text, tags, and reaction/comment/share actions.",
+    },
+    {
+      name: "ProjectMediaCard",
+      kind: "mediaCard",
+      description:
+        "Project media card with an NSImage-backed macOS cover slot, title, metadata, status, and action.",
+    },
+    {
+      name: "CompactUtilityRow",
+      kind: "utilityRow",
+      description:
+        "Compact utility row with icon, title, supporting text, status pill, and trailing action.",
+    },
+  ];
+
+  const detected = defaults.filter((archetype) => {
+    const name = archetype.name.toLowerCase();
+    const spaced = humanize(archetype.name).toLowerCase();
+    return lower.includes(name) || lower.includes(spaced);
+  });
+
+  return detected.length >= 2 ? detected : defaults;
 }
 
 function isReadOnlyQuery(description: string): boolean {

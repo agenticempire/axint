@@ -71,8 +71,9 @@ export const TOOL_MANIFEST = [
     name: "axint.session.start",
     description:
       "Start an enforced Axint agent session. Writes " +
-      ".axint/session/current.json, returns compact operating memory, docs " +
-      "context, a session token, and the exact axint.workflow.check args. Use " +
+      ".axint/session/current.json, refreshes .axint/AXINT_REHYDRATE.md, " +
+      "returns compact operating memory, docs context, a session token, and " +
+      "the exact axint.workflow.check args. Use " +
       "this as the first Axint tool in Xcode after a new chat, MCP restart, or " +
       "context compaction so the agent cannot silently drift away from Axint.",
     annotations: {
@@ -214,7 +215,7 @@ export const TOOL_MANIFEST = [
         componentKind: {
           type: "string",
           description:
-            "Optional component blueprint for the component surface, such as avatar, statusRing, missionCard, contextPanel, decisionLog, approvalCard, agentRow, roleCard, signalCard, channelRow, sidebarRail, profileCard, or settingsView.",
+            "Optional component blueprint for the component surface, such as feedCard, mediaCard, utilityRow, avatar, statusRing, missionCard, contextPanel, decisionLog, approvalCard, agentRow, roleCard, signalCard, channelRow, sidebarRail, profileCard, settingsView, semanticCard, semanticRow, semanticPill, semanticPanel, semanticBar, semanticList, or cardArchetypes for a multi-component kit. Omit to let Axint infer from the description.",
         },
         context: {
           type: "string",
@@ -499,6 +500,11 @@ export const TOOL_MANIFEST = [
           description:
             "Whether axint.status was called to confirm the running MCP version.",
         },
+        readRehydrationContext: {
+          type: "boolean",
+          description:
+            "Whether .axint/AXINT_REHYDRATE.md was read after a new chat, context compaction, MCP restart, or drift.",
+        },
         readAgentInstructions: {
           type: "boolean",
           description:
@@ -512,6 +518,11 @@ export const TOOL_MANIFEST = [
         ranFeature: {
           type: "boolean",
           description: "Whether axint.feature was used for a new surface scaffold.",
+        },
+        featureBypassReason: {
+          type: "string",
+          description:
+            "Concrete reason axint.feature was intentionally bypassed for a new surface. Use only for existing-code edits or when generation is not useful.",
         },
         ranSwiftValidate: {
           type: "boolean",
@@ -916,16 +927,34 @@ export const TOOL_MANIFEST = [
         componentKind: {
           type: "string",
           enum: [
+            "feedCard",
+            "mediaCard",
+            "utilityRow",
+            "cardArchetypes",
             "avatar",
             "statusRing",
             "missionCard",
+            "contextPanel",
+            "contextUpdateCard",
+            "decisionLog",
+            "approvalCard",
+            "agentRow",
+            "roleCard",
+            "signalCard",
             "channelRow",
             "sidebarRail",
             "profileCard",
+            "settingsView",
+            "semanticCard",
+            "semanticRow",
+            "semanticPill",
+            "semanticPanel",
+            "semanticBar",
+            "semanticList",
             "custom",
           ],
           description:
-            "Component only. Optional known component shape. If omitted, Axint infers it from the name and description.",
+            "Component only. Optional known component shape. Use cardArchetypes for a multi-component card kit, or omit to infer from name and description.",
         },
         tokenNamespace: {
           type: "string",

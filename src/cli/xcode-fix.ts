@@ -9,7 +9,7 @@
 
 import { readFileSync, writeFileSync, statSync, readdirSync } from "node:fs";
 import { resolve, join, extname, relative } from "node:path";
-import { fixSwiftSource } from "../core/swift-fixer.js";
+import { fixSwiftSourceMultipass } from "../core/swift-fixer.js";
 import type { Diagnostic } from "../core/types.js";
 
 const ORANGE = "\x1b[38;5;208m";
@@ -30,6 +30,8 @@ interface FileResult {
   fixed: Diagnostic[];
   remaining: Diagnostic[];
   rewritten: boolean;
+  iterations: number;
+  quiescent: boolean;
 }
 
 export async function runXcodeFix(pathArg: string, options: FixOptions) {
@@ -44,7 +46,7 @@ export async function runXcodeFix(pathArg: string, options: FixOptions) {
   const results: FileResult[] = [];
   for (const file of files) {
     const original = readFileSync(file, "utf-8");
-    const result = fixSwiftSource(original, file);
+    const result = fixSwiftSourceMultipass(original, file);
 
     const rewritten = result.fixed.length > 0;
     if (rewritten && options.apply) {
@@ -56,6 +58,8 @@ export async function runXcodeFix(pathArg: string, options: FixOptions) {
       fixed: result.fixed,
       remaining: result.remaining,
       rewritten,
+      iterations: result.iterations,
+      quiescent: result.quiescent,
     });
   }
 
@@ -116,9 +120,18 @@ function printReport(results: FileResult[], options: FixOptions, _root: string) 
   }
 
   const verb = options.apply ? "applied" : "would apply";
+  const maxPasses = results.reduce((n, r) => Math.max(n, r.iterations), 0);
+  const passSuffix = maxPasses > 1 ? ` over up to ${maxPasses} passes` : "";
   console.log(
-    `  ${verb} ${BOLD}${totalFixed}${RESET} fix${totalFixed === 1 ? "" : "es"} across ${touched.length} file${touched.length === 1 ? "" : "s"}`
+    `  ${verb} ${BOLD}${totalFixed}${RESET} fix${totalFixed === 1 ? "" : "es"} across ${touched.length} file${touched.length === 1 ? "" : "s"}${passSuffix}`
   );
+
+  const nonQuiescent = results.filter((r) => !r.quiescent && r.fixed.length > 0);
+  if (nonQuiescent.length > 0) {
+    console.log(
+      `  ${YELLOW}note${RESET} ${DIM}${nonQuiescent.length} file${nonQuiescent.length === 1 ? "" : "s"} hit the iteration cap; rerun to keep applying fixes${RESET}`
+    );
+  }
 
   if (!options.apply && totalFixed > 0) {
     console.log(`  ${DIM}re-run with --apply to write changes${RESET}`);

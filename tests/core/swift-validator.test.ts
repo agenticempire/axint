@@ -525,6 +525,41 @@ describe("swift validator — AX718 missing import SwiftUI", () => {
   });
 });
 
+describe("swift validator — AX738 missing import AppKit", () => {
+  it("warns when AppKit types are used without importing AppKit", () => {
+    const source = `
+      import Foundation
+
+      final class ClipboardStore {
+          func copy(_ value: String) {
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString(value, forType: .string)
+          }
+      }
+    `;
+
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX738");
+    expect(diagnostic?.message).toContain("NSPasteboard");
+    expect(diagnostic?.suggestion).toContain("import AppKit");
+  });
+
+  it("accepts AppKit usage when AppKit is imported", () => {
+    const source = `
+      import AppKit
+
+      final class ClipboardStore {
+          func copy(_ value: String) {
+              NSPasteboard.general.clearContents()
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX738")).toHaveLength(
+      0
+    );
+  });
+});
+
 describe("swift validator — AX719 missing @Parameter on AppIntent inputs", () => {
   it("flags instance properties without @Parameter when they look like intent inputs", () => {
     const source = `
@@ -685,6 +720,52 @@ describe("swift validator — AX736 accessibility identifier propagation", () =>
     `;
 
     expect(validate(source).diagnostics.filter((d) => d.code === "AX736")).toHaveLength(
+      0
+    );
+  });
+});
+
+describe("swift validator — AX739 undeclared SwiftUI body references", () => {
+  it("flags body references to missing view state", () => {
+    const source = `
+      import SwiftUI
+
+      struct DiscoverView: View {
+          var body: some View {
+              VStack {
+                  Text("Agents")
+              }
+              .opacity(agentsAppeared ? 1 : 0)
+              .animation(.easeOut, value: agentsAppeared)
+          }
+      }
+    `;
+
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX739");
+    expect(diagnostic?.message).toContain("agentsAppeared");
+    expect(diagnostic?.suggestion).toContain("@State");
+  });
+
+  it("accepts declared properties and local closure variables", () => {
+    const source = `
+      import SwiftUI
+
+      struct DiscoverView: View {
+          @State private var agentsAppeared = false
+          let titles = ["One", "Two"]
+
+          var body: some View {
+              VStack {
+                  ForEach(titles, id: \\.self) { title in
+                      Text(title)
+                  }
+              }
+              .opacity(agentsAppeared ? 1 : 0)
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX739")).toHaveLength(
       0
     );
   });

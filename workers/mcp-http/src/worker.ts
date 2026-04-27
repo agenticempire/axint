@@ -48,7 +48,7 @@ import type { FeatureInput, Surface } from "../../../src/mcp/feature.js";
 import type { SuggestInput } from "../../../src/mcp/suggest.js";
 import { TEMPLATES, getTemplate } from "../../../src/templates/index.js";
 import { validateSwiftSource } from "../../../src/core/swift-validator.js";
-import { fixSwiftSource } from "../../../src/core/swift-fixer.js";
+import { fixSwiftSourceMultipass } from "../../../src/core/swift-fixer.js";
 import { TOOL_MANIFEST } from "../../../src/mcp/manifest.js";
 import { PROMPT_MANIFEST, getPromptMessages } from "../../../src/mcp/prompts.js";
 import type {
@@ -69,7 +69,7 @@ import type {
 } from "../../../src/core/types.js";
 import { isPrimitiveType, isSceneKind } from "../../../src/core/types.js";
 
-const VERSION = "0.4.8";
+const VERSION = "0.4.9";
 
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
 
@@ -749,13 +749,17 @@ function handleTool(name: string, args: Record<string, unknown>) {
     const source = (args as { source: string; file?: string }).source;
     const file = (args as { file?: string }).file || "input.swift";
     if (!source) return textResult("Error: 'source' is required", true);
-    const result = fixSwiftSource(source, file);
+    const result = fixSwiftSourceMultipass(source, file);
     const parts: string[] = [];
     if (result.fixed.length > 0) {
-      parts.push(`Applied ${result.fixed.length} fix(es):\n${result.fixed.map((f) => `  - [${f.code}] ${f.message}`).join("\n")}`);
+      const passes = result.iterations > 1 ? ` over ${result.iterations} passes` : "";
+      parts.push(`Applied ${result.fixed.length} fix(es)${passes}:\n${result.fixed.map((f) => `  - [${f.code}] ${f.message}`).join("\n")}`);
     }
     if (result.remaining.length > 0) {
       parts.push(`\nRemaining issues (${result.remaining.length}):\n${result.remaining.map((d) => `  - [${d.code}] ${d.message}`).join("\n")}`);
+    }
+    if (!result.quiescent) {
+      parts.push("\nNote: stopped at iteration cap; rerun to keep applying fixes.");
     }
     parts.push("\n// ─── Fixed source ───\n" + result.source);
     return textResult(parts.join("\n"));
