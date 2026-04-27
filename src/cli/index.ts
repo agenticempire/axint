@@ -24,9 +24,12 @@
  *   axint doctor                  Audit version truth, MCP wiring, and project start files
  *   axint project init            Write Axint project-start files for agent workflows
  *   axint session start           Start an enforced Axint agent session and refresh context
+ *   axint run                     Run Axint's enforced Apple build/test/runtime loop
+ *   axint runner once             Execute one BYO-Mac runner Axint job
  *   axint mcp                     Start the MCP server (stdio)
  *   axint mcp status              Show local MCP launch command and Xcode restart steps
  *   axint xcode setup             Configure Axint for Xcode agentic coding
+ *   axint xcode guard             Check/write the Axint Xcode drift guard
  *   axint xcode verify            Verify the MCP connection is working
  *   axint xcode fix <path>        Auto-fix mechanical Swift validator errors
  *   axint xcode doctor            Audit environment for Apple-platform agentic coding
@@ -63,6 +66,8 @@ import { registerStatus, renderCliStatus } from "./status.js";
 import { registerDoctor } from "./doctor.js";
 import { registerProject } from "./project.js";
 import { registerSession } from "./session.js";
+import { registerRun } from "./run.js";
+import { registerXcodeGuard } from "./xcode-guard.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
@@ -176,6 +181,7 @@ registerStatus(program, VERSION);
 registerDoctor(program, VERSION);
 registerProject(program, VERSION);
 registerSession(program, VERSION);
+registerRun(program, VERSION);
 
 // ─── mcp ─────────────────────────────────────────────────────────────
 
@@ -208,10 +214,31 @@ xcode
   .description("Configure Axint as an MCP server for Xcode's agentic coding workflow")
   .option("--agent <agent>", "Which agent to configure (claude, codex, all)", "all")
   .option("--remote", "Use the hosted remote MCP endpoint instead of local stdio")
-  .action(async (options: { agent: string; remote: boolean }) => {
-    const { setupXcode } = await import("./xcode-setup.js");
-    await setupXcode(options);
-  });
+  .option(
+    "--guarded",
+    "Also write project Axint memory and an Xcode guard proof file for this project"
+  )
+  .option(
+    "--local-build",
+    "Use this checkout's built dist/mcp/register.js instead of the npm package"
+  )
+  .option("--project <dir>", "Project directory for guarded setup", ".")
+  .option("--name <name>", "Project name for guarded setup")
+  .action(
+    async (options: {
+      agent: string;
+      remote: boolean;
+      guarded?: boolean;
+      localBuild?: boolean;
+      project?: string;
+      name?: string;
+    }) => {
+      const { setupXcode } = await import("./xcode-setup.js");
+      await setupXcode(options);
+    }
+  );
+
+registerXcodeGuard(xcode);
 
 xcode
   .command("verify")

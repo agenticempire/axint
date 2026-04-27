@@ -32,7 +32,7 @@ export function renderCliStatus(
     cwd: process.cwd(),
     mcpCommand: `${which("npx") ?? "npx"} -y @axint/compiler axint-mcp`,
     updateCommand: `${which("npm") ?? "npm"} install -g @axint/compiler@latest`,
-    xcodeSetupCommand: "axint xcode setup --agent claude",
+    xcodeSetupCommand: "axint xcode setup --agent claude --guarded",
     doctorCommand: "axint doctor",
     projectInitCommand: "axint project init",
     verificationPrompt:
@@ -47,6 +47,7 @@ export function renderCliStatus(
     return [
       "Use Axint before editing Apple-native code.",
       status.verificationPrompt,
+      "Call axint.xcode.guard with stage=context-recovery so this Xcode chat writes durable guard proof.",
       `Expected local package version: ${status.version}.`,
       "If axint.status reports an older version, stop and ask me to update/restart the Xcode agent chat.",
       "After each generated Swift surface, run axint.cloud.check or axint cloud check --source <file> with build/test evidence when available.",
@@ -69,6 +70,7 @@ export function renderCliStatus(
     "",
     "```text",
     status.verificationPrompt,
+    "Call axint.xcode.guard with stage=context-recovery before any long task.",
     "If Axint is not available, inspect the project .mcp.json, make sure npx uses a durable full path, then restart this Xcode agent chat.",
     "```",
     "",

@@ -146,17 +146,19 @@ export function getPromptMessages(
               "   - https://docs.axint.ai/guides/fix-packets/\n" +
               "   - https://docs.axint.ai/reference/cli/\n" +
               "2. Call `axint.session.start` and keep the returned `sessionToken` visible.\n" +
-              "3. Read `.axint/AXINT_REHYDRATE.md`, `.axint/AXINT_MEMORY.md`, `.axint/AXINT_DOCS_CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, or `.axint/project.json` if present.\n" +
-              "4. List the available MCP servers and confirm both xcode-tools and axint are present.\n" +
-              "5. Call `axint.status` and report the running MCP server version before editing code. If the version is older than expected, stop and tell me to update Axint, rerun `axint xcode setup --agent claude`, and restart the Xcode agent chat.\n" +
-              "6. If axint is missing in Xcode, tell me to run `axint xcode setup --agent claude`, restart the Xcode agent session, and ask again for available MCP servers.\n" +
-              "7. Call `axint.workflow.check` with stage `context-recovery`, sessionToken, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.\n" +
-              "8. Call `axint.workflow.check` with `sessionToken` at planning, before-write, and pre-build checkpoints so you do not skip the Axint loop by accident.\n" +
-              "9. Use Axint tools before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.\n" +
-              "10. Work in short checkpoints. Do not spend 20+ minutes on a task without running Axint and Xcode validation.\n" +
-              "11. After each generated Apple surface, run `axint.cloud.check` or `axint cloud check <file> --feedback` and then build in Xcode.\n" +
-              "12. Do not claim there is no bug from Axint alone. Cloud Check is static; Xcode build, unit tests, UI tests, accessibility flows, and runtime behavior are separate evidence.\n" +
-              "13. If Axint passes but Xcode/tests/runtime fails, report the exact failure as an Axint validator or runtime-coverage gap before continuing.\n\n" +
+              "3. Call `axint.xcode.guard` with stage `context-recovery` so this chat writes `.axint/guard/latest.*` proof before any long task.\n" +
+              "4. Read `.axint/AXINT_REHYDRATE.md`, `.axint/AXINT_MEMORY.md`, `.axint/AXINT_DOCS_CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, or `.axint/project.json` if present.\n" +
+              "5. List the available MCP servers and confirm both xcode-tools and axint are present.\n" +
+              "6. Call `axint.status` and report the running MCP server version before editing code. If the version is older than expected, stop and tell me to update Axint, rerun `axint xcode setup --agent claude --guarded`, and restart the Xcode agent chat.\n" +
+              "7. If axint is missing in Xcode, tell me to run `axint xcode setup --agent claude --guarded`, restart the Xcode agent session, and ask again for available MCP servers.\n" +
+              "8. Call `axint.workflow.check` with stage `context-recovery`, sessionToken, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.\n" +
+              "9. Call `axint.xcode.guard` before long tasks and `axint.workflow.check` with `sessionToken` at planning, before-write, and pre-build checkpoints so you do not skip the Axint loop by accident.\n" +
+              "10. Use Axint tools before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.\n" +
+              "11. Prefer `axint.xcode.write` when writing new Swift files so validation, Cloud Check, and guard proof happen with the write.\n" +
+              "12. Work in short checkpoints. Do not spend 20+ minutes on a task without running Axint and Xcode validation.\n" +
+              "13. After each generated Apple surface, run `axint.cloud.check` or `axint cloud check <file> --feedback` and then build in Xcode.\n" +
+              "14. Do not claim there is no bug from Axint alone. Cloud Check is static; Xcode build, unit tests, UI tests, accessibility flows, and runtime behavior are separate evidence.\n" +
+              "15. If Axint passes but Xcode/tests/runtime fails, report the exact failure as an Axint validator or runtime-coverage gap before continuing.\n\n" +
               "If this chat was compacted or restarted, run axint.context-recovery before continuing.\n\n" +
               "Once that is done, summarize which docs you read, the running Axint MCP version, which MCP servers are available, and the first Axint command you will use.",
           },
@@ -178,14 +180,15 @@ export function getPromptMessages(
               `Recover the Axint workflow for ${projectName}.${lastTask}\n\n` +
               "Assume this chat may have lost context. Before editing code or continuing the prior task:\n\n" +
               "1. Call axint.session.start and keep the returned sessionToken.\n" +
-              "2. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json if they exist.\n" +
-              "3. If those files are missing, call axint.context.memory and axint.context.docs, then use them as the compact Axint operating memory and docs context.\n" +
-              "4. List the available MCP servers/tools and confirm axint is present.\n" +
-              "5. Call axint.status and report the running Axint MCP version.\n" +
-              "6. Call axint.workflow.check with stage `context-recovery`, sessionToken, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.\n" +
-              "7. If Axint is missing or stale, stop and give the exact setup/restart command instead of continuing by hand.\n" +
-              "8. Name the next Axint tool you will use before editing code.\n" +
-              "9. Do not claim a bug is fixed until Axint validation, Cloud Check, Xcode build, and relevant tests/runtime evidence support it.\n\n" +
+              "2. Call axint.xcode.guard with stage `context-recovery` so this chat writes `.axint/guard/latest.*` proof.\n" +
+              "3. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json if they exist.\n" +
+              "4. If those files are missing, call axint.context.memory and axint.context.docs, then use them as the compact Axint operating memory and docs context.\n" +
+              "5. List the available MCP servers/tools and confirm axint is present.\n" +
+              "6. Call axint.status and report the running Axint MCP version.\n" +
+              "7. Call axint.workflow.check with stage `context-recovery`, sessionToken, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.\n" +
+              "8. If Axint is missing or stale, stop and give the exact setup/restart command instead of continuing by hand.\n" +
+              "9. Name the next Axint tool you will use before editing code.\n" +
+              "10. Do not claim a bug is fixed until Axint validation, Cloud Check, Xcode build, and relevant tests/runtime evidence support it.\n\n" +
               "Output a short recovery report with: files read, Axint version, available MCP servers, workflow gate result, and next Axint action.",
           },
         },

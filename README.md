@@ -214,7 +214,7 @@ axint compile my-app.ts --out ios/App/
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.9 · 20 MCP tools + 5 prompts · 182 diagnostic codes · 1098 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.9 · 23 MCP tools + 5 prompts · 182 diagnostic codes · 1107 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -230,6 +230,33 @@ Recompiles on every save with 150ms debounce, inline errors, and optional `swift
 axint watch ./intents/ --out ios/Intents/ --emit-info-plist --emit-entitlements
 axint watch my-intent.ts --out ios/Intents/ --format --swift-build
 ```
+
+---
+
+## Axint Run
+
+`axint run` is the local/BYO-Mac build loop for Apple projects. It exists so agents do not have to remember separate Axint steps after a long chat or context compaction.
+
+```bash
+axint xcode setup --agent claude --guarded --project /path/to/MyApp --name MyApp
+axint xcode setup --agent claude --guarded --local-build --project /path/to/MyApp --name MyApp
+axint xcode guard --dir /path/to/MyApp --stage context-recovery
+axint run --dir /path/to/MyApp --scheme MyApp --destination "platform=macOS"
+axint run --dir /path/to/MyApp --scheme MyApp --runtime
+axint runner once --dir /path/to/MyApp --scheme MyApp
+```
+
+`axint xcode setup --guarded` configures the Xcode Claude Agent with durable MCP paths, writes the project memory pack, starts a session, and creates `.axint/guard/latest.json` plus `.axint/guard/latest.md`. That guard report is the audit trail for the problem where an Xcode agent works for a long block, compacts context, and silently stops using Axint.
+
+Use `--local-build` only while dogfooding this checkout before publishing; it points Xcode at the built local MCP server instead of the npm package.
+
+When an MCP agent is creating a new Swift file, use `axint.xcode.write` instead of a raw file write. The tool writes inside the project root, validates Swift, runs Cloud Check, and updates the guard proof in one call.
+
+The run starts an Axint session, refreshes the project recovery context, validates changed Swift, runs Cloud Check, executes `xcodebuild build` and `xcodebuild test`, optionally launches a macOS app for runtime proof, and writes `.axint/run/latest.json` plus `.axint/run/latest.md`.
+
+Use `--dry-run` to prove the harness and planned `xcodebuild` commands before letting a local or BYO Mac runner execute the job.
+
+This open-source repository does not include the proprietary hosted Axint Cloud control plane: job queues, Mac fleet orchestration, billing, signed-in Pro entitlements, stored report history, or learning pipelines live outside the compiler package.
 
 ---
 
@@ -259,6 +286,8 @@ MCP tools and built-in prompts:
 | --- | --- |
 | `axint.status` | Report the running MCP server version, package path, uptime, and Xcode restart/update instructions |
 | `axint.doctor` | Audit version truth, Node/npm/npx paths, project MCP wiring, and agent start-pack files |
+| `axint.xcode.guard` | Guard Xcode agent sessions against context compaction and Axint drift, then write `.axint/guard/latest.*` proof artifacts |
+| `axint.xcode.write` | Write a project file through Axint, then validate Swift, run Cloud Check, and update guard proof for Swift files |
 | `axint.session.start` | Start an enforced agent session, refresh `.axint/AXINT_REHYDRATE.md`, write `.axint/session/current.json`, and return the token required by workflow gates |
 | `axint.compile` | Full pipeline: TypeScript → Swift + plist + entitlements |
 | `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents) |
@@ -274,6 +303,7 @@ MCP tools and built-in prompts:
 | `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
 | `axint.fix-packet` | Read the latest AI-ready repair packet from a local compile or watch run |
 | `axint.cloud.check` | Run an agent-callable Cloud Check report against Swift or TypeScript source |
+| `axint.run` | Run the enforced Apple build loop: session, workflow gate, Swift validation, Cloud Check, xcodebuild build/test, optional runtime launch, and `.axint/run` artifacts |
 | `axint.tokens.ingest` | Convert design tokens into SwiftUI token enums for generated views |
 | `axint.templates.list` | List bundled reference templates |
 | `axint.templates.get` | Return the source of a specific template |

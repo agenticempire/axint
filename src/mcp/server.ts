@@ -7,6 +7,8 @@
  *
  * Tools:
  *   - axint.doctor:           Audit version truth and project MCP wiring
+ *   - axint.xcode.guard:      Guard Xcode agent sessions against Axint drift
+ *   - axint.xcode.write:      Write files through Axint validation/guard path
  *   - axint.session.start:    Start enforced session token + rehydration context
  *   - axint.feature:          Generate a scaffolded Apple-native feature package
  *   - axint.suggest:          Suggest Apple-native features for an app domain
@@ -17,6 +19,7 @@
  *   - axint.compile:          Compile TypeScript intent → Swift App Intent
  *   - axint.fix-packet: Read the latest emitted Fix Packet / AI repair prompt
  *   - axint.cloud.check:     Run an agent-callable Cloud Check report
+ *   - axint.run:             Run enforced build/test/runtime loop outside Xcode UI
  *   - axint.tokens.ingest:    Convert design tokens into SwiftUI token enums
  *   - axint.validate:         Validate an intent definition without codegen
  *   - axint.schema.compile:   Compile minimal JSON schema → Swift (token saver)
@@ -76,6 +79,14 @@ import {
   type DoctorFormat,
 } from "./doctor.js";
 import {
+  renderXcodeGuardReport,
+  renderXcodeWriteReport,
+  runXcodeGuard,
+  runXcodeWrite,
+  type XcodeGuardFormat,
+  type XcodeGuardStage,
+} from "../project/xcode-guard.js";
+import {
   buildProjectStartPack,
   renderProjectStartPack,
   type ProjectAgent,
@@ -90,6 +101,12 @@ import {
   type AxintSessionAgent,
   type AxintSessionFormat,
 } from "../project/session.js";
+import {
+  renderAxintRunReport,
+  runAxintProject,
+  type AxintRunFormat,
+  type AxintRunPlatform,
+} from "../run/project-runner.js";
 
 type PackageInfo = {
   name?: string;
@@ -104,6 +121,36 @@ type DoctorArgs = {
   cwd?: string;
   expectedVersion?: string;
   format?: DoctorFormat;
+};
+type XcodeGuardArgs = {
+  cwd?: string;
+  projectName?: string;
+  expectedVersion?: string;
+  platform?: string;
+  stage?: XcodeGuardStage;
+  sessionToken?: string;
+  modifiedFiles?: string[];
+  notes?: string;
+  lastAxintTool?: string;
+  lastAxintResult?: string;
+  maxMinutesSinceAxint?: number;
+  autoStartSession?: boolean;
+  writeReport?: boolean;
+  format?: XcodeGuardFormat;
+};
+type XcodeWriteArgs = {
+  cwd?: string;
+  path: string;
+  content: string;
+  projectName?: string;
+  expectedVersion?: string;
+  platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "all";
+  sessionToken?: string;
+  createDirs?: boolean;
+  validateSwift?: boolean;
+  cloudCheck?: boolean;
+  notes?: string;
+  format?: XcodeGuardFormat;
 };
 type SessionStartArgs = {
   targetDir?: string;
@@ -162,6 +209,31 @@ type CloudCheckArgs = {
   actualBehavior?: string;
   format?: CloudCheckFormat;
 };
+type AxintRunArgs = {
+  cwd?: string;
+  projectName?: string;
+  expectedVersion?: string;
+  platform?: AxintRunPlatform;
+  scheme?: string;
+  workspace?: string;
+  project?: string;
+  destination?: string;
+  configuration?: string;
+  derivedDataPath?: string;
+  testPlan?: string;
+  modifiedFiles?: string[];
+  skipBuild?: boolean;
+  skipTests?: boolean;
+  runtime?: boolean;
+  runtimeTimeoutSeconds?: number;
+  timeoutSeconds?: number;
+  expectedBehavior?: string;
+  actualBehavior?: string;
+  runtimeFailure?: string;
+  dryRun?: boolean;
+  writeReport?: boolean;
+  format?: AxintRunFormat;
+};
 type TokensIngestArgs = TokenIngestArgs & {
   format?: TokenOutputFormat;
 };
@@ -218,7 +290,7 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     promptsRegistered: PROMPT_MANIFEST.length,
     restartRequiredAfterUpdate: true,
     updateCommand: "npm install -g @axint/compiler@latest",
-    xcodeSetupCommand: "axint xcode setup --agent claude",
+    xcodeSetupCommand: "axint xcode setup --agent claude --guarded",
     doctorCommand: "axint doctor",
     projectInitCommand: "axint project init",
     xcodeRestartInstruction:
@@ -231,7 +303,7 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     return [
       `The running Axint MCP server is v${status.version}.`,
       "If this is older than the version the user expects, stop before editing code.",
-      "Tell the user to update Axint, rerun `axint xcode setup --agent claude`, and restart the Xcode Claude Agent chat.",
+      "Tell the user to update Axint, rerun `axint xcode setup --agent claude --guarded`, and restart the Xcode Claude Agent chat.",
     ].join("\n");
   }
 
@@ -259,7 +331,7 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     status.updateCommand,
     "```",
     "",
-    "2. Rewrite the Xcode Claude Agent MCP config with durable paths:",
+    "2. Rewrite the Xcode Claude Agent MCP config with durable paths and guarded project proof:",
     "",
     "```sh",
     status.xcodeSetupCommand,
@@ -303,6 +375,64 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
         {
           type: "text" as const,
           text: renderMachineDoctorReport(report, a?.format ?? "markdown"),
+        },
+      ],
+      isError: report.status === "fail",
+    };
+  }
+
+  if (name === "axint.xcode.guard") {
+    const a = args as XcodeGuardArgs | undefined;
+    const report = runXcodeGuard({
+      cwd: a?.cwd,
+      projectName: a?.projectName,
+      expectedVersion: a?.expectedVersion ?? pkg.version,
+      platform: a?.platform,
+      stage: a?.stage,
+      sessionToken: a?.sessionToken,
+      modifiedFiles: a?.modifiedFiles,
+      notes: a?.notes,
+      lastAxintTool: a?.lastAxintTool,
+      lastAxintResult: a?.lastAxintResult,
+      maxMinutesSinceAxint: a?.maxMinutesSinceAxint,
+      autoStartSession: a?.autoStartSession ?? true,
+      writeReport: a?.writeReport ?? true,
+    });
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderXcodeGuardReport(report, a?.format ?? "markdown"),
+        },
+      ],
+      isError: report.status === "needs_action",
+    };
+  }
+
+  if (name === "axint.xcode.write") {
+    const a = args as XcodeWriteArgs;
+    if (!a?.path || typeof a.content !== "string") {
+      return errorText("Error: 'path' and 'content' are required for axint.xcode.write");
+    }
+    const report = runXcodeWrite({
+      cwd: a.cwd,
+      path: a.path,
+      content: a.content,
+      projectName: a.projectName,
+      expectedVersion: a.expectedVersion ?? pkg.version,
+      platform: a.platform,
+      sessionToken: a.sessionToken,
+      createDirs: a.createDirs,
+      validateSwift: a.validateSwift,
+      cloudCheck: a.cloudCheck,
+      notes: a.notes,
+      format: a.format,
+    });
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderXcodeWriteReport(report, a.format ?? "markdown"),
         },
       ],
       isError: report.status === "fail",
@@ -520,6 +650,44 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
         {
           type: "text" as const,
           text: renderCloudCheckReport(report, a.format ?? "markdown"),
+        },
+      ],
+      isError: report.status === "fail",
+    };
+  }
+
+  if (name === "axint.run") {
+    const a = args as AxintRunArgs;
+    const report = await runAxintProject({
+      cwd: a.cwd,
+      kind: "local",
+      projectName: a.projectName,
+      expectedVersion: a.expectedVersion ?? pkg.version,
+      platform: a.platform,
+      scheme: a.scheme,
+      workspace: a.workspace,
+      project: a.project,
+      destination: a.destination,
+      configuration: a.configuration,
+      derivedDataPath: a.derivedDataPath,
+      testPlan: a.testPlan,
+      modifiedFiles: a.modifiedFiles,
+      skipBuild: a.skipBuild,
+      skipTests: a.skipTests,
+      runtime: a.runtime,
+      runtimeTimeoutSeconds: a.runtimeTimeoutSeconds,
+      timeoutSeconds: a.timeoutSeconds,
+      expectedBehavior: a.expectedBehavior,
+      actualBehavior: a.actualBehavior,
+      runtimeFailure: a.runtimeFailure,
+      dryRun: a.dryRun,
+      writeReport: a.writeReport,
+    });
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderAxintRunReport(report, a.format ?? "markdown"),
         },
       ],
       isError: report.status === "fail",
