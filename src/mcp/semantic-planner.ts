@@ -261,6 +261,9 @@ function extractComponentNames(description: string): string[] {
   const suffixPattern = COMPONENT_SUFFIXES.join("|");
   const pascalRe = new RegExp(`\\b[A-Z][A-Za-z0-9]*(?:${suffixPattern})\\b`, "g");
   for (const match of description.matchAll(pascalRe)) {
+    if (isContextComponentReference(description, match.index ?? 0, match[0].length)) {
+      continue;
+    }
     names.add(match[0]);
   }
 
@@ -270,6 +273,9 @@ function extractComponentNames(description: string): string[] {
     "gi"
   );
   for (const match of phraseSource.matchAll(phraseRe)) {
+    if (isContextComponentReference(phraseSource, match.index ?? 0, match[0].length)) {
+      continue;
+    }
     const name = phraseToComponentName(match[1] ?? "", match[2] ?? "");
     if (name.length > 4) names.add(name);
   }
@@ -283,6 +289,26 @@ function extractComponentNames(description: string): string[] {
         "NavigationSplitView",
         "HSplitView",
       ].includes(name)
+  );
+}
+
+function isContextComponentReference(
+  description: string,
+  index: number,
+  length: number
+): boolean {
+  const before = description.slice(Math.max(0, index - 90), index).toLowerCase();
+  const after = description.slice(index + length, index + length + 90).toLowerCase();
+  const window = `${before} ${after}`;
+  const explicitlyRequested =
+    /\b(named|called)\b/.test(before.slice(-60)) ||
+    /\b(create|generate|emit|build)\s+(?:a\s+|an\s+|the\s+)?(?:new\s+)?$/.test(
+      before.slice(-80)
+    );
+  if (explicitlyRequested) return false;
+
+  return /\b(existing|current|provided|nearby|already|context|without replacing|do not replace|don't replace|not replace|not replacing|preserve existing|reuse existing|use existing|existing app)\b/.test(
+    window
   );
 }
 
@@ -441,17 +467,26 @@ function phraseToComponentName(lead: string, suffix: string): string {
           "basic",
           "build",
           "create",
+          "and",
+          "context",
           "distinct",
+          "existing",
           "first",
           "generic",
           "make",
           "new",
+          "or",
           "primary",
+          "provided",
           "real",
+          "replacing",
           "reusable",
+          "right",
           "second",
           "swiftui",
           "third",
+          "use",
+          "using",
         ].includes(word)
     );
   if (words.length === 0) return "";
