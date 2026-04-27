@@ -144,7 +144,7 @@ function versionCheck(
     detail: `running ${runningVersion}, expected ${expectedVersion}`,
     fix: matches
       ? undefined
-      : "Install the expected Axint version, rerun axint xcode setup --agent claude, then restart the Xcode agent chat.",
+      : "Install the expected Axint version, rerun axint xcode setup --agent claude --guarded, then restart the Xcode agent chat.",
   };
 }
 
@@ -216,7 +216,7 @@ function mcpConfigCheck(cwd: string): MachineDoctorCheck {
       fix:
         hasAxint && durable
           ? undefined
-          : "Run axint project init --force or axint xcode setup --agent claude.",
+          : "Run axint project init --force or axint xcode setup --agent claude --guarded.",
     };
   } catch {
     return {
@@ -243,7 +243,7 @@ function agentConfigCheck(): MachineDoctorCheck {
       label: "Xcode Claude Agent config",
       status: "warn",
       detail: "not found",
-      fix: "Run axint xcode setup --agent claude after installing Axint.",
+      fix: "Run axint xcode setup --agent claude --guarded after installing Axint.",
     };
   }
   const text = readFileSync(configPath, "utf-8");
@@ -252,7 +252,7 @@ function agentConfigCheck(): MachineDoctorCheck {
     label: "Xcode Claude Agent config",
     status: hasAxint ? "ok" : "warn",
     detail: hasAxint ? "axint registered" : "config exists but axint not registered",
-    fix: hasAxint ? undefined : "Run axint xcode setup --agent claude.",
+    fix: hasAxint ? undefined : "Run axint xcode setup --agent claude --guarded.",
   };
 }
 

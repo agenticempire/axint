@@ -68,6 +68,172 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.xcode.guard",
+    description:
+      "Guard an Xcode agent session against context compaction and Axint drift. " +
+      "Checks project memory files, active Axint session, latest Axint Run or guard proof, " +
+      "and long-task freshness. Writes .axint/guard/latest.json and latest.md so the " +
+      "user can audit whether Axint was actually used during a long Xcode task. " +
+      "Use this before long Xcode tasks, after context recovery, before broad Swift edits, " +
+      "and before claiming a build/runtime fix is done.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory to guard. Defaults to the MCP process cwd.",
+        },
+        projectName: {
+          type: "string",
+          description: "Project name for the guard report.",
+        },
+        expectedVersion: {
+          type: "string",
+          description: "Expected Axint version for the active project.",
+        },
+        platform: {
+          type: "string",
+          description: "Target Apple platform, such as macOS, iOS, visionOS, or all.",
+        },
+        stage: {
+          type: "string",
+          enum: [
+            "context-recovery",
+            "planning",
+            "before-write",
+            "after-write",
+            "pre-build",
+            "runtime",
+            "finish",
+          ],
+          description: "Current Xcode workflow stage. Defaults to context-recovery.",
+        },
+        sessionToken: {
+          type: "string",
+          description: "Current axint.session.start token, if already known.",
+        },
+        modifiedFiles: {
+          type: "array",
+          items: { type: "string" },
+          description: "Files in scope for this task.",
+        },
+        notes: {
+          type: "string",
+          description:
+            "Agent/user notes to scan for compaction, drift, forgotten Axint usage, or long-task risk.",
+        },
+        lastAxintTool: {
+          type: "string",
+          description:
+            "Last Axint tool the agent used, e.g. axint.suggest or axint.feature.",
+        },
+        lastAxintResult: {
+          type: "string",
+          description: "Short result from the last Axint tool call.",
+        },
+        maxMinutesSinceAxint: {
+          type: "number",
+          description:
+            "Maximum allowed minutes since latest Axint evidence. Defaults to 10.",
+        },
+        autoStartSession: {
+          type: "boolean",
+          description:
+            "Whether to start axint.session.start automatically if no active session exists. Defaults to true.",
+        },
+        writeReport: {
+          type: "boolean",
+          description:
+            "Whether to write .axint/guard/latest.json and latest.md. Defaults to true.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.xcode.write",
+    description:
+      "Write a file inside the Xcode project through the Axint guard path. " +
+      "For Swift files, runs axint.swift.validate and axint.cloud.check immediately, " +
+      "then records .axint/guard/latest.* proof. Use this instead of raw XcodeWrite " +
+      "when an agent is editing Apple-native files during a long task.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      required: ["path", "content"],
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project root. Defaults to the MCP process cwd.",
+        },
+        path: {
+          type: "string",
+          description:
+            "File path to write. Relative paths are resolved inside cwd; absolute paths must still be inside cwd.",
+        },
+        content: {
+          type: "string",
+          description: "Full file contents to write.",
+        },
+        projectName: {
+          type: "string",
+          description: "Project name for guard/session reports.",
+        },
+        expectedVersion: {
+          type: "string",
+          description: "Expected Axint version for this project.",
+        },
+        platform: {
+          type: "string",
+          enum: ["iOS", "macOS", "watchOS", "visionOS", "all"],
+          description: "Target Apple platform for Cloud Check.",
+        },
+        sessionToken: {
+          type: "string",
+          description: "Current axint.session.start token, if already known.",
+        },
+        createDirs: {
+          type: "boolean",
+          description:
+            "Whether to create parent directories before writing. Defaults to true.",
+        },
+        validateSwift: {
+          type: "boolean",
+          description:
+            "Whether to run Swift validation for .swift files. Defaults to true.",
+        },
+        cloudCheck: {
+          type: "boolean",
+          description: "Whether to run Cloud Check for .swift files. Defaults to true.",
+        },
+        notes: {
+          type: "string",
+          description: "Agent notes or user feedback to scan for drift while writing.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.session.start",
     description:
       "Start an enforced Axint agent session. Writes " +
@@ -832,6 +998,127 @@ export const TOOL_MANIFEST = [
           enum: ["markdown", "json", "prompt", "feedback"],
           description:
             "Output format. markdown returns the report, json returns structured data, prompt returns only the repair prompt, and feedback returns only the privacy-preserving learning signal.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.run",
+    description:
+      "Run the enforced Axint Apple build loop outside the Xcode UI. Starts or refreshes " +
+      "the Axint session, validates Swift, runs Cloud Check, executes xcodebuild build/test " +
+      "when a project or workspace is present, optionally launches a macOS app for runtime " +
+      "evidence, writes .axint/run/latest artifacts, and returns an agent-ready repair prompt. " +
+      "Use this when the agent might forget the Axint workflow: one tool call owns the gate.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory to run. Defaults to the MCP process cwd.",
+        },
+        projectName: {
+          type: "string",
+          description: "Project name for Axint session and report labels.",
+        },
+        expectedVersion: {
+          type: "string",
+          description: "Expected Axint package version for the run session.",
+        },
+        platform: {
+          type: "string",
+          enum: ["macOS", "iOS", "watchOS", "visionOS", "all"],
+          description:
+            "Target Apple platform. Defaults to macOS unless inferred from destination.",
+        },
+        scheme: {
+          type: "string",
+          description: "Xcode scheme. If omitted, Axint tries to infer one.",
+        },
+        workspace: {
+          type: "string",
+          description: "Path to .xcworkspace, relative to cwd or absolute.",
+        },
+        project: {
+          type: "string",
+          description: "Path to .xcodeproj, relative to cwd or absolute.",
+        },
+        destination: {
+          type: "string",
+          description:
+            "xcodebuild destination, e.g. platform=macOS or platform=iOS Simulator,name=iPhone 16.",
+        },
+        configuration: {
+          type: "string",
+          description: "Xcode build configuration, e.g. Debug or Release.",
+        },
+        derivedDataPath: {
+          type: "string",
+          description: "Optional xcodebuild -derivedDataPath.",
+        },
+        testPlan: {
+          type: "string",
+          description: "Optional xcodebuild -testPlan for test runs.",
+        },
+        modifiedFiles: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Changed Swift files to validate and Cloud Check. If omitted, Axint scans project Swift files.",
+        },
+        skipBuild: {
+          type: "boolean",
+          description: "Skip xcodebuild build and only run Axint static gates.",
+        },
+        skipTests: {
+          type: "boolean",
+          description: "Skip xcodebuild test.",
+        },
+        runtime: {
+          type: "boolean",
+          description:
+            "After build, launch the built macOS .app and capture runtime/timeout evidence.",
+        },
+        runtimeTimeoutSeconds: {
+          type: "number",
+          description: "Runtime launch timeout in seconds.",
+        },
+        timeoutSeconds: {
+          type: "number",
+          description: "Build/test timeout in seconds.",
+        },
+        expectedBehavior: {
+          type: "string",
+          description: "Expected runtime behavior for semantic bug checks.",
+        },
+        actualBehavior: {
+          type: "string",
+          description: "Actual runtime behavior for semantic bug checks.",
+        },
+        runtimeFailure: {
+          type: "string",
+          description: "Crash, freeze, hang, launch timeout, or UI failure evidence.",
+        },
+        dryRun: {
+          type: "boolean",
+          description: "Plan xcodebuild commands without executing them.",
+        },
+        writeReport: {
+          type: "boolean",
+          description:
+            "Whether to write .axint/run/latest.json and latest.md. Defaults to true.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json", "prompt"],
+          description:
+            "Output format. markdown returns the run report, json returns structured data, prompt returns only the repair prompt.",
         },
       },
     },

@@ -11,6 +11,10 @@ import { scaffoldIntent } from "../../src/mcp/scaffold.js";
 import { TEMPLATES, getTemplate } from "../../src/templates/index.js";
 import { validateSwiftSource } from "../../src/core/swift-validator.js";
 import { fixSwiftSource } from "../../src/core/swift-fixer.js";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { writeProjectStartPack } from "../../src/project/start-pack.js";
 
 describe("axint.status tool", () => {
   it("reports the running MCP server version and restart instructions", async () => {
@@ -26,7 +30,7 @@ describe("axint.status tool", () => {
     expect(payload.server).toBe("axint-mcp");
     expect(payload.version).toMatch(/^\d+\.\d+\.\d+/);
     expect(payload.restartRequiredAfterUpdate).toBe(true);
-    expect(payload.xcodeSetupCommand).toBe("axint xcode setup --agent claude");
+    expect(payload.xcodeSetupCommand).toBe("axint xcode setup --agent claude --guarded");
   });
 
   it("returns a human-readable Xcode update path", async () => {
@@ -35,6 +39,104 @@ describe("axint.status tool", () => {
     expect(result.content[0].text).toContain("# Axint MCP Status");
     expect(result.content[0].text).toContain("Call axint.status");
     expect(result.content[0].text).toContain("Restart the Xcode Claude Agent");
+  });
+});
+
+describe("axint.run tool", () => {
+  it("returns a structured Axint Run report for a dry-run Xcode project", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-run-"));
+    const schemeDir = join(dir, "Demo.xcodeproj", "xcshareddata", "xcschemes");
+    mkdirSync(schemeDir, { recursive: true });
+    writeFileSync(join(schemeDir, "Demo.xcscheme"), "<Scheme></Scheme>\n");
+    writeFileSync(
+      join(dir, "ContentView.swift"),
+      'import SwiftUI\nstruct ContentView: View { var body: some View { Text("Hi") } }\n'
+    );
+
+    const result = await handleToolCall("axint.run", {
+      cwd: dir,
+      dryRun: true,
+      format: "json",
+    });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      session: { token: string };
+      commands: { build: { dryRun: boolean } };
+      cloudChecks: unknown[];
+    };
+    expect(payload.session.token).toMatch(/^axsess_/);
+    expect(payload.commands.build.dryRun).toBe(true);
+    expect(payload.cloudChecks.length).toBe(1);
+  });
+});
+
+describe("axint.xcode.guard tool", () => {
+  it("starts a guarded Xcode session and writes durable proof artifacts", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-guard-"));
+    writeProjectStartPack({
+      targetDir: dir,
+      projectName: "GuardedDemo",
+      version: "0.4.9",
+      force: true,
+    });
+
+    const result = await handleToolCall("axint.xcode.guard", {
+      cwd: dir,
+      projectName: "GuardedDemo",
+      stage: "context-recovery",
+      format: "json",
+    });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      status: string;
+      session: { token: string; autoStarted: boolean };
+      proofFiles: { json: string; markdown: string };
+      latestEvidence: { kind: string };
+    };
+    expect(payload.status).toBe("ready");
+    expect(payload.session.token).toMatch(/^axsess_/);
+    expect(payload.session.autoStarted).toBe(true);
+    expect(payload.latestEvidence.kind).toBe("session");
+    expect(existsSync(payload.proofFiles.json)).toBe(true);
+    expect(existsSync(payload.proofFiles.markdown)).toBe(true);
+  });
+
+  it("writes Swift through the guarded Xcode path", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-write-"));
+    writeProjectStartPack({
+      targetDir: dir,
+      projectName: "WriteDemo",
+      version: "0.4.9",
+      force: true,
+    });
+
+    const source =
+      'import SwiftUI\nstruct GuardedView: View { var body: some View { Text("Guarded") } }\n';
+    const result = await handleToolCall("axint.xcode.write", {
+      cwd: dir,
+      projectName: "WriteDemo",
+      path: "Sources/GuardedView.swift",
+      content: source,
+      platform: "macOS",
+      format: "json",
+    });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      status: string;
+      relativePath: string;
+      swiftValidation: { diagnostics: unknown[] };
+      cloudCheck: { status: string };
+      guard: { status: string };
+    };
+    expect(payload.status).toBe("pass");
+    expect(payload.relativePath).toBe("Sources/GuardedView.swift");
+    expect(payload.swiftValidation.diagnostics).toHaveLength(0);
+    expect(payload.cloudCheck.status).toBe("needs_review");
+    expect(payload.guard.status).toBe("ready");
+    expect(readFileSync(join(dir, "Sources", "GuardedView.swift"), "utf-8")).toBe(source);
   });
 });
 

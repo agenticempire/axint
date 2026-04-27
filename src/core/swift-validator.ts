@@ -459,6 +459,13 @@ function collectTopLevelPropertyNames(
           )
         : null;
     if (match?.[1]) names.add(match[1]);
+    const funcMatch =
+      depth === 0
+        ? rawLine.match(
+            /^\s*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*(?:(?:public|private|fileprivate|internal|open|static|nonisolated)\s+)*func\s+([A-Za-z_][A-Za-z0-9_]*)\b/
+          )
+        : null;
+    if (funcMatch?.[1]) names.add(funcMatch[1]);
 
     for (const ch of strippedLine) {
       if (ch === "{") depth++;
@@ -471,8 +478,13 @@ function collectTopLevelPropertyNames(
 
 function collectLocalNames(bodySource: string): Set<string> {
   const names = new Set<string>();
-  for (const match of bodySource.matchAll(/\{\s*([A-Za-z_][A-Za-z0-9_]*)\s+in\b/g)) {
-    names.add(match[1]!);
+  for (const match of bodySource.matchAll(
+    /\{\s*\(?\s*((?:[A-Za-z_][A-Za-z0-9_]*|_)(?:\s*,\s*(?:[A-Za-z_][A-Za-z0-9_]*|_))*)\s*\)?\s+in\b/g
+  )) {
+    for (const part of match[1]!.split(",")) {
+      const name = part.trim();
+      if (name && name !== "_") names.add(name);
+    }
   }
   for (const match of bodySource.matchAll(
     /\b(?:if|guard)\s+(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g

@@ -121,12 +121,15 @@ export function buildProjectStartPack(
           docs: DOCS,
           requiredLoop: [
             "axint.session.start",
+            "axint.xcode.guard",
             "axint.status",
             "axint.workflow.check",
             "axint.suggest",
             "axint.feature or axint.scaffold",
+            "axint.xcode.write for guarded file writes when available",
             "axint.swift.validate",
             "axint.cloud.check",
+            "axint.run",
             "Xcode build/test evidence",
           ],
           session: {
@@ -145,21 +148,24 @@ export function buildProjectStartPack(
             ],
             requiredActions: [
               "call axint.session.start",
+              "call axint.xcode.guard with stage=context-recovery",
               "read .axint/AXINT_REHYDRATE.md",
               "read .axint/AXINT_MEMORY.md",
               "read .axint/AXINT_DOCS_CONTEXT.md or call axint.context.docs",
               "read AGENTS.md, CLAUDE.md, or .axint/project.json",
               "call axint.status",
               "call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readDocsContext=true, readAgentInstructions=true, and ranStatus=true",
-              "state the next Axint tool that will be used",
+              "state the next Axint tool that will be used, or call axint.run for the full validation/build loop",
             ],
           },
           rules: {
             noStaticOnlyBugClaims: true,
             restartMcpAfterUpdate: true,
             cloudCheckNeedsRuntimeEvidenceForViews: true,
+            preferAxintRunForBuildTestRuntimeProof: true,
             recoverAxintAfterContextCompaction: true,
             doNotWorkLongerThanTenMinutesWithoutAxintCheckpoint: true,
+            preferXcodeGuardBeforeLongTasks: true,
           },
         },
         null,
@@ -275,19 +281,23 @@ function buildStartPrompt(input: { projectName: string; version: string }): stri
     "",
     "Then do this exact startup sequence:",
     "1. Call axint.session.start for this project. Keep the returned sessionToken visible.",
-    "2. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, or .axint/project.json if present.",
-    "3. If those files are missing, call axint.context.memory and axint.context.docs, then use those as the compact Axint operating memory and docs context.",
-    "4. List MCP servers/tools and confirm axint is available.",
-    "5. Call axint.status and report the running MCP server version.",
-    "6. Call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.",
-    `7. Expected Axint package version from this project pack: ${input.version}.`,
-    "8. If the running MCP version is stale, stop and tell me to update Axint, rerun axint xcode setup --agent claude, and restart this Xcode agent chat.",
-    "9. Call axint.workflow.check with sessionToken at planning, before-write, pre-build, and pre-commit checkpoints.",
-    "10. Before planning new Apple-native surfaces, call axint.suggest.",
-    "11. For generated surfaces, use axint.feature, axint.scaffold, axint.compile, or axint.schema.compile before hand-writing from scratch.",
-    "12. Before each build, run axint.swift.validate on changed Swift and axint.cloud.check with source plus Xcode/test/runtime evidence when available.",
-    "13. Never claim there is no bug from Axint alone. Cloud Check is static unless build, UI test, or runtime evidence is supplied.",
-    "14. If Axint passes but Xcode/tests/runtime fails, report the failure as an Axint feedback signal before continuing.",
+    "2. Call axint.xcode.guard with stage=context-recovery so this chat writes .axint/guard/latest.* proof before any long task.",
+    "3. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, or .axint/project.json if present.",
+    "4. If those files are missing, call axint.context.memory and axint.context.docs, then use those as the compact Axint operating memory and docs context.",
+    "5. List MCP servers/tools and confirm axint is available.",
+    "6. Call axint.status and report the running MCP server version.",
+    "7. Call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.",
+    `8. Expected Axint package version from this project pack: ${input.version}.`,
+    "9. If the running MCP version is stale, stop and tell me to update Axint, rerun axint xcode setup --agent claude --guarded, and restart this Xcode agent chat.",
+    "10. Call axint.xcode.guard before long tasks, before broad Swift edits, and after any context recovery.",
+    "11. Call axint.workflow.check with sessionToken at planning, before-write, pre-build, and pre-commit checkpoints.",
+    "12. Before planning new Apple-native surfaces, call axint.suggest.",
+    "13. For generated surfaces, use axint.feature, axint.scaffold, axint.compile, or axint.schema.compile before hand-writing from scratch.",
+    "14. Prefer axint.run before each build so the session, workflow gate, Swift validation, Cloud Check, xcodebuild, tests, and runtime evidence stay tied together.",
+    "15. When writing new Swift files from MCP, prefer axint.xcode.write so validation, Cloud Check, and guard proof happen with the write.",
+    "16. If you cannot use axint.run, manually run axint.swift.validate on changed Swift and axint.cloud.check with source plus Xcode/test/runtime evidence when available.",
+    "17. Never claim there is no bug from Axint alone. Cloud Check is static unless build, UI test, or runtime evidence is supplied.",
+    "18. If Axint passes but Xcode/tests/runtime fails, report the failure as an Axint feedback signal before continuing.",
     "",
     "Context recovery rule: if this chat was compacted, restarted, or you are unsure whether Axint was used recently, stop and rerun steps 1-6 before continuing.",
     "Long-task rule: do not work more than 10 minutes or make broad multi-file Swift changes without an Axint checkpoint.",
@@ -323,25 +333,29 @@ ${buildStartPrompt({ projectName: input.projectName, version: input.version })}
 If the chat was restarted, compacted, summarized, or has drifted into ordinary Xcode coding, run this before continuing:
 
 1. Call \`axint.session.start\` and keep the returned \`sessionToken\`.
-2. Read \`.axint/AXINT_REHYDRATE.md\`, \`.axint/AXINT_MEMORY.md\`, \`.axint/AXINT_DOCS_CONTEXT.md\`, \`AGENTS.md\`, \`CLAUDE.md\`, or \`.axint/project.json\`.
-3. If either Axint context file is missing, call \`axint.context.memory\` and \`axint.context.docs\`.
-4. Call \`axint.status\` and compare it with the expected version above.
-5. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
-6. State the next Axint tool to use before editing code.
+2. Call \`axint.xcode.guard\` with \`stage: "context-recovery"\` so the project records \`.axint/guard/latest.*\` proof for this chat.
+3. Read \`.axint/AXINT_REHYDRATE.md\`, \`.axint/AXINT_MEMORY.md\`, \`.axint/AXINT_DOCS_CONTEXT.md\`, \`AGENTS.md\`, \`CLAUDE.md\`, or \`.axint/project.json\`.
+4. If either Axint context file is missing, call \`axint.context.memory\` and \`axint.context.docs\`.
+5. Call \`axint.status\` and compare it with the expected version above.
+6. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
+7. State the next Axint tool to use before editing code. For proof passes, prefer \`axint.run\`.
 
 Do not rely on model memory alone. Rehydrate the workflow from the files.
 
 ## Required Loop
 
 1. Call \`axint.session.start\` and persist the returned token in the workflow check calls.
-2. Read the Axint docs listed in the start prompt.
-3. Call \`axint.status\`.
-4. Call \`axint.workflow.check\` with \`sessionToken\` at session start, after context recovery, before planning, before writing, before building, and before committing.
-5. Use \`axint.suggest\` for feature planning.
-6. Use \`axint.feature\`, \`axint.scaffold\`, \`axint.compile\`, or \`axint.schema.compile\` for Apple-native surfaces.
-7. Run \`axint.swift.validate\` on modified Swift.
-8. Run \`axint.cloud.check\` with Xcode build, test, runtime, or behavior evidence when available.
-9. Build in Xcode. Axint is not a replacement for Xcode proof.
+2. Call \`axint.xcode.guard\` after session start, before long tasks, and after context recovery.
+3. Read the Axint docs listed in the start prompt.
+4. Call \`axint.status\`.
+5. Call \`axint.workflow.check\` with \`sessionToken\` at session start, after context recovery, before planning, before writing, before building, and before committing.
+6. Use \`axint.suggest\` for feature planning.
+7. Use \`axint.feature\`, \`axint.scaffold\`, \`axint.compile\`, or \`axint.schema.compile\` for Apple-native surfaces.
+8. Prefer \`axint.xcode.write\` for new Swift files so Axint validation, Cloud Check, and guard proof happen as part of the write.
+9. Run \`axint.swift.validate\` on modified Swift.
+10. Run \`axint.cloud.check\` with Xcode build, test, runtime, or behavior evidence when available.
+11. Prefer \`axint.run\` when moving toward build/test/runtime proof so Axint owns the loop instead of relying on memory.
+12. Build in Xcode or via \`xcodebuild\`. Static Axint checks are not a replacement for runtime proof.
 
 ## Hard Rule
 
@@ -350,6 +364,8 @@ Do not tell the user a bug is gone because static validation passed. Say what Ax
 ## Drift Guard
 
 If you are about to spend a long uninterrupted block on implementation, first name the Axint checkpoint you just ran or the one you will run next. If no Axint checkpoint has run in the last task, stop and run one.
+
+In Xcode, the safest checkpoint is \`axint.xcode.guard\`. It writes \`.axint/guard/latest.json\` and \`.axint/guard/latest.md\`, which lets the user audit whether Axint was actually used during a long task.
 `;
 }
 
@@ -367,6 +383,8 @@ This folder stores Axint project metadata for ${input.projectName}.
 - Compact agent memory: \`.axint/AXINT_MEMORY.md\`
 - Project-local docs context: \`.axint/AXINT_DOCS_CONTEXT.md\`
 - Project workflow: \`.axint/project.json\`
+- Axint Run artifacts: \`.axint/run/latest.json\` and \`.axint/run/latest.md\`
+- Xcode Guard artifacts: \`.axint/guard/latest.json\` and \`.axint/guard/latest.md\`
 - Active session token: \`.axint/session/current.json\`
 - MCP config: \`.mcp.json\`
 - Agent instructions: \`AGENTS.md\` and \`CLAUDE.md\`
@@ -382,7 +400,8 @@ ${input.startPrompt}
 Ask it to run the Axint context recovery loop:
 
 \`\`\`text
-Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If either Axint context file is missing, call axint.context.memory and axint.context.docs. Then call axint.status, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, ranStatus=true, and tell me the next Axint tool you will use before editing code.
+Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If either Axint context file is missing, call axint.context.memory and axint.context.docs. Then call axint.status, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, ranStatus=true. For build/test/runtime proof, call axint.run so Axint owns the full loop.
+Call axint.xcode.guard with stage=context-recovery first, then call axint.session.start if the guard asks for it. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. Then call axint.status and axint.workflow.check. For build/test/runtime proof, call axint.run so Axint owns the full loop.
 \`\`\`
 
 ## CLI Session Start
@@ -390,7 +409,13 @@ Call axint.session.start for this project and keep the returned sessionToken. Re
 \`\`\`bash
 axint session start --dir /path/to/${input.projectName} --name ${input.projectName}
 \`\`\`
-`;
+
+## Full Build Loop
+
+\`\`\`bash
+axint run --dir /path/to/${input.projectName} --scheme ${input.projectName} --runtime
+\`\`\`
+	`;
 }
 
 function detectNpxPath(): string | null {

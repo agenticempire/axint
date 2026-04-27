@@ -769,4 +769,77 @@ describe("swift validator — AX739 undeclared SwiftUI body references", () => {
       0
     );
   });
+
+  it("accepts tuple closure parameters in ForEach bodies", () => {
+    const source = `
+      import SwiftUI
+
+      struct HomeFeedView: View {
+          let posts = ["Launch", "Build"]
+
+          var body: some View {
+              VStack {
+                  ForEach(Array(posts.enumerated()), id: \\.offset) { index, post in
+                      Text("\\(index): \\(post)")
+                  }
+              }
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX739")).toHaveLength(
+      0
+    );
+  });
+
+  it("accepts modifier closure parameters like onChange values", () => {
+    const source = `
+      import SwiftUI
+
+      struct ProjectImportProgressView: View {
+          @State private var phase = "idle"
+
+          var body: some View {
+              Text(phase)
+                  .onChange(of: phase) { _, newPhase in
+                      if newPhase == "complete" {
+                          print(newPhase)
+                      }
+                  }
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX739")).toHaveLength(
+      0
+    );
+  });
+
+  it("accepts private helper methods declared on the view", () => {
+    const source = `
+      import SwiftUI
+
+      struct OverlayView: View {
+          var body: some View {
+              ZStack {
+                  detailOverlayScrim()
+                  detailCloseButton()
+              }
+          }
+
+          @ViewBuilder
+          private func detailOverlayScrim() -> some View {
+              Color.black.opacity(0.2)
+          }
+
+          private func detailCloseButton() -> some View {
+              Button("Close") {}
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX739")).toHaveLength(
+      0
+    );
+  });
 });
