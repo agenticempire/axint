@@ -566,17 +566,19 @@ function inferEvidenceDiagnostics(input: {
   if (
     input.input.expectedBehavior &&
     input.input.actualBehavior &&
-    normalizeTextForEvidence(input.input.expectedBehavior) !==
-      normalizeTextForEvidence(input.input.actualBehavior)
+    behaviorEvidenceContradictsExpectation(
+      input.input.expectedBehavior,
+      input.input.actualBehavior
+    )
   ) {
     diagnostics.push({
       code: "AXCLOUD-BEHAVIOR-MISMATCH",
       severity: "warning",
       file,
       message:
-        "The supplied expected behavior and actual behavior differ, so the static pass is not enough to call this fixed.",
+        "The supplied actual behavior appears to contradict or miss the expected behavior, so the static pass is not enough to call this fixed.",
       suggestion:
-        "Add or update a focused unit/UI test for the expected behavior, then include the failing test output in the next Cloud Check call.",
+        "Add or update a focused unit/UI test for the expected behavior. If the behavior is implemented, include clean build/test proof rather than only prose evidence.",
     });
   }
 
@@ -703,6 +705,44 @@ function diagnosticsFromBuildLog(buildLog: string, file: string): Diagnostic[] {
       message: "Xcode build evidence reports a missing symbol.",
       suggestion:
         "Add the missing file to the target, import the required framework, or rename the generated reference to match the real project symbol.",
+    });
+  }
+
+  if (/\b(?:type|value)\s+'[^']+'\s+has no member\s+'[^']+'/.test(text)) {
+    diagnostics.push({
+      code: "AXCLOUD-BUILD-MISSING-MEMBER",
+      severity: "error",
+      file,
+      message:
+        "Xcode build evidence reports a member reference that does not exist on the resolved type.",
+      suggestion:
+        "Rename the generated enum case, static token, or type member to match the project symbol. If Axint generated it, feed the declaring type or design-token file as context before regenerating.",
+    });
+  }
+
+  if (
+    /\bincorrect argument label\b|\bextraneous argument label\b|\bmissing argument label\b/.test(
+      text
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-BUILD-ARGUMENT-LABEL",
+      severity: "error",
+      file,
+      message: "Xcode build evidence reports an incorrect function argument label.",
+      suggestion:
+        "Update the call site to the callee's real signature. For generated code, include the target method declaration as context before regenerating.",
+    });
+  }
+
+  if (/\bcannot convert value of type\b|\bcannot assign value of type\b/.test(text)) {
+    diagnostics.push({
+      code: "AXCLOUD-BUILD-TYPE-MISMATCH",
+      severity: "error",
+      file,
+      message: "Xcode build evidence reports a Swift type mismatch.",
+      suggestion:
+        "Fix the expression type instead of suppressing the error. Common agent mistakes include mapping a String/Substring into [String], quoting non-string defaults, or returning an array where a scalar is expected.",
     });
   }
 
@@ -1054,6 +1094,78 @@ function dedupeDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
 
 function normalizeTextForEvidence(value: string): string {
   return value.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim();
+}
+
+function behaviorEvidenceContradictsExpectation(
+  expectedBehavior: string,
+  actualBehavior: string
+): boolean {
+  const expected = normalizeTextForEvidence(expectedBehavior);
+  const actual = normalizeTextForEvidence(actualBehavior);
+  if (!expected || !actual || expected === actual) return false;
+
+  const negativeEvidence =
+    /\b(fail|fails|failed|failing|missing|misses|missed|never|no longer|wrong|incorrect|broken|regress|regressed|regression|freeze|freezes|frozen|hang|hangs|hung|crash|crashes|unresponsive|timeout|timed out|instead|mismatch|contradict|contradicts)\b/.test(
+      actual
+    ) ||
+    /\b(?:not|doesn't|does not|can't|cannot)\s+(?:work|working|implemented|show|render|match|pass|compile|build|load|open|respond|appear|exist|route|preserve)\b/.test(
+      actual
+    );
+  if (negativeEvidence) return true;
+
+  const implementationEvidence =
+    /\b(implemented|added|wired|built|created|preserved|kept|supports|shows|renders|uses|matches|includes|completed|fixed|passes|passed|clean|succeeds|succeeded)\b/.test(
+      actual
+    );
+  if (implementationEvidence) return false;
+
+  const expectedTokens = evidenceConceptTokens(expected);
+  const actualTokens = evidenceConceptTokens(actual);
+  if (expectedTokens.length === 0 || actualTokens.length === 0) return false;
+
+  const actualSet = new Set(actualTokens);
+  const overlap = expectedTokens.filter((token) => actualSet.has(token)).length;
+  const overlapRatio = overlap / Math.max(1, Math.min(expectedTokens.length, 10));
+  return overlap < 2 && overlapRatio < 0.25;
+}
+
+function evidenceConceptTokens(text: string): string[] {
+  const stopWords = new Set([
+    "about",
+    "actual",
+    "after",
+    "and",
+    "are",
+    "behavior",
+    "but",
+    "can",
+    "code",
+    "expected",
+    "for",
+    "from",
+    "has",
+    "have",
+    "into",
+    "its",
+    "not",
+    "now",
+    "out",
+    "should",
+    "that",
+    "the",
+    "this",
+    "through",
+    "with",
+  ]);
+  return Array.from(
+    new Set(
+      text
+        .replace(/[^a-z0-9\s-]/g, " ")
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length > 3 && !stopWords.has(token))
+    )
+  );
 }
 
 function labelForStatus(status: CloudCheckStatus): string {

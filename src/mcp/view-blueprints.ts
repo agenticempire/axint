@@ -849,6 +849,8 @@ function buildSemanticPillBody(input: ViewBlueprintInput): string {
 }
 
 function buildSemanticPanelBody(input: ViewBlueprintInput): string {
+  if (usesCommandLayerPanel(input)) return buildCommandLayerPanelBody(input);
+
   return `VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("${escapeSwiftString(humanizeLocal(input.name))}")
@@ -873,6 +875,87 @@ function buildSemanticPanelBody(input: ViewBlueprintInput): string {
         }
         .padding(16)
         .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))`;
+}
+
+function usesCommandLayerPanel(input: ViewBlueprintInput): boolean {
+  const lower = `${input.name} ${input.description ?? ""}`.toLowerCase();
+  return (
+    /\b(command layer|command center|composer|ambient activity|feed-first|top layer|status pill|status pills|home hierarchy)\b/.test(
+      lower
+    ) ||
+    (lower.includes("command") && lower.includes("feed"))
+  );
+}
+
+function buildCommandLayerPanelBody(input: ViewBlueprintInput): string {
+  return `VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Command layer")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                    Text("Feed stays primary. Agent actions stay one move away.")
+                        .font(.caption)
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+
+                Spacer()
+
+                Label("Ready", systemImage: "checkmark.seal.fill")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(${colorRef(input.tokenNamespace, "successSoft", "Color.green.opacity(0.14)")}, in: Capsule())
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "success", ".green")})
+            }
+
+            HStack(spacing: 8) {
+                ForEach(["Command Summary", "Ambient Activity", "Composer"], id: \\.self) { item in
+                    Text(item)
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(1)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: Capsule())
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+            }
+
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                TextField("Ask the swarm to route, summarize, or prepare a handoff", text: .constant(""))
+                    .textFieldStyle(.plain)
+                Button { } label: {
+                    Image(systemName: "arrow.up.right")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+            .padding(10)
+            .background(${colorRef(input.tokenNamespace, "bg", "Color.black.opacity(0.06)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))
+
+            HStack(spacing: 10) {
+                ForEach(["2 handoffs", "5 updates", "1 risk"], id: \\.self) { item in
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+                            .frame(width: 6, height: 6)
+                        Text(item)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: 180, alignment: .topLeading)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous)
+                .strokeBorder(${colorRef(input.tokenNamespace, "border", "Color.secondary.opacity(0.16)")}, lineWidth: 1)
+        }`;
 }
 
 function buildSemanticBarBody(input: ViewBlueprintInput): string {

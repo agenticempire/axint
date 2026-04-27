@@ -348,6 +348,42 @@ describe("axint.feature", () => {
     }
   });
 
+  it("keeps existing context components out of new semantic panel output", () => {
+    const result = generateFeature({
+      description:
+        "A scoped Swarm Home premium command-layer component. It should sit as a compact 15-20 percent top layer above the feed, preserve feed-first browsing, show command summary, status pills, ambient activity, composer interactivity, and use existing HomeFeedView, FeedPostCard, BuilderAvatarView, ProjectLogoView, and right rail context without replacing those existing types.",
+      surfaces: ["component"],
+      name: "HomeCommandLayer",
+      componentKind: "semanticPanel",
+      platform: "macOS",
+      tokenNamespace: "SwarmDesignTokens",
+    });
+
+    expect(result.success).toBe(true);
+    const paths = result.files.map((f) => f.path).join("\n");
+    expect(paths).toContain("Sources/Components/HomeCommandLayer.swift");
+    expect(paths).not.toContain("Sources/Components/HomeFeedView.swift");
+    expect(paths).not.toContain("Sources/Components/FeedPostCard.swift");
+    expect(paths).not.toContain("Sources/Components/BuilderAvatarView.swift");
+    expect(paths).not.toContain("Sources/Components/ProjectLogoView.swift");
+    expect(paths).not.toContain("RightRail.swift");
+
+    const component = result.files.find(
+      (f) => f.path === "Sources/Components/HomeCommandLayer.swift"
+    );
+    expect(component).toBeDefined();
+    expect(component!.content).toContain("struct HomeCommandLayer: View");
+    expect(component!.content).toContain("Command layer");
+    expect(component!.content).toContain("TextField");
+    expect(component!.content).toContain("SwarmDesignTokens.");
+    expect(component!.content).toContain("maxHeight: 180");
+    expect(component!.content).not.toContain("Approve");
+    expect(component!.content).not.toContain("Defer");
+    expect(validateSwiftSource(component!.content, component!.path).diagnostics).toEqual(
+      []
+    );
+  });
+
   it("extracts named component kits instead of returning one generic scaffold", () => {
     const result = generateFeature({
       description:

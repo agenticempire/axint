@@ -842,4 +842,41 @@ describe("swift validator — AX739 undeclared SwiftUI body references", () => {
       0
     );
   });
+
+  it("accepts private helper methods invoked with trailing closures", () => {
+    const source = `
+      import SwiftUI
+
+      struct HomeFeedView: View {
+          @State private var selectedPost: String?
+
+          var body: some View {
+              ZStack {
+                  if selectedPost != nil {
+                      detailOverlayScrim {
+                          selectedPost = nil
+                      }
+                      detailCloseButton {
+                          selectedPost = nil
+                      }
+                  }
+              }
+          }
+
+          @ViewBuilder
+          private func detailOverlayScrim(_ dismiss: @escaping () -> Void) -> some View {
+              Color.black.opacity(0.24)
+                  .onTapGesture(perform: dismiss)
+          }
+
+          private func detailCloseButton(_ dismiss: @escaping () -> Void) -> some View {
+              Button("Close", action: dismiss)
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX739")).toHaveLength(
+      0
+    );
+  });
 });

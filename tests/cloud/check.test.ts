@@ -214,6 +214,60 @@ struct ContentView: View {
     );
   });
 
+  it("treats expected and actual behavior as semantic evidence instead of string equality", () => {
+    const report = runCloudCheck({
+      fileName: "HomeCommandLayer.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct HomeCommandLayer: View {
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("Command layer")
+            TextField("Ask the swarm", text: .constant(""))
+        }
+    }
+}
+`,
+      expectedBehavior:
+        "Compact 15-20 percent top command layer above the feed with command summary, status pills, ambient activity, and composer interactivity.",
+      actualBehavior:
+        "Implemented a compact command layer that does not bury the feed, preserves feed-first browsing, shows command summary, status pills, ambient activity, and a composer row.",
+      xcodeBuildLog: "Build succeeded. 38 tests passed.",
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).not.toContain(
+      "AXCLOUD-BEHAVIOR-MISMATCH"
+    );
+    expect(report.status).toBe("pass");
+    expect(report.gate.decision).toBe("ready_to_ship");
+  });
+
+  it("flags behavior evidence only when the actual text describes a failure", () => {
+    const report = runCloudCheck({
+      fileName: "HomeCommandLayer.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct HomeCommandLayer: View {
+    var body: some View {
+        Text("Home")
+    }
+}
+`,
+      expectedBehavior:
+        "Compact top command layer with command summary, status pills, ambient activity, and composer interactivity.",
+      actualBehavior:
+        "The command layer is missing. The app still shows the old home view instead.",
+    });
+
+    expect(report.status).toBe("needs_review");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-BEHAVIOR-MISMATCH");
+    expect(report.gate.decision).toBe("fix_required");
+  });
+
   it("classifies Xcode duplicate symbol build logs", () => {
     const report = runCloudCheck({
       fileName: "BrokenIntent.swift",
@@ -233,6 +287,38 @@ struct BrokenIntent: AppIntent {
     expect(report.diagnostics.map((d) => d.code)).toContain(
       "AXCLOUD-BUILD-REDECLARATION"
     );
+    expect(report.learningSignal?.signals).toContain("runtime-evidence-supplied");
+  });
+
+  it("classifies common hallucinated-symbol Xcode build logs", () => {
+    const report = runCloudCheck({
+      fileName: "ProjectImportProgressView.swift",
+      source: `
+import SwiftUI
+
+struct ProjectImportProgressView: View {
+    var body: some View { Text("Importing") }
+}
+`,
+      xcodeBuildLog: [
+        "error: type 'ImportSource.Kind' has no member 'githubRepo'",
+        "error: incorrect argument label in call (have 'threadID:content:', expected 'to:content:')",
+        "error: type 'SwarmFont' has no member 'codeCaption'",
+        "error: cannot convert value of type '[String]' to expected argument type 'String'",
+      ].join("\n"),
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-BUILD-MISSING-MEMBER"
+    );
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-BUILD-ARGUMENT-LABEL"
+    );
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-BUILD-TYPE-MISMATCH"
+    );
+    expect(report.repairPrompt).toContain("AXCLOUD-BUILD-MISSING-MEMBER");
     expect(report.learningSignal?.signals).toContain("runtime-evidence-supplied");
   });
 
