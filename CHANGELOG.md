@@ -6,6 +6,17 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.10] — 2026-04-27
+
+### Added
+
+- **Guarded Xcode run loop** — `axint.xcode.guard` and workflow prompts now keep Xcode agents inside the Axint loop across planning, writing, pre-build, pre-commit, and finish checkpoints.
+
+### Changed
+
+- **Workflow check next actions** — `axint.workflow.check` now returns the next concrete Axint action even when the checkpoint is ready, so agents do not treat the check itself as the only required Axint step.
+- **Stage transitions** now advance cleanly from context recovery to suggestion, feature generation, guarded writes, build evidence, pre-commit validation, and finish-state guardrails.
+
 ## [0.4.9] — 2026-04-26
 
 ### Added
