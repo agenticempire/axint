@@ -10,6 +10,7 @@ import {
 import { basename, extname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { runCloudCheck, type CloudCheckReport } from "../cloud/check.js";
+import { writeProjectContextIndex } from "../project/context-index.js";
 import { startAxintSession } from "../project/session.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
@@ -37,6 +38,7 @@ export interface AxintRunInput {
   configuration?: string;
   derivedDataPath?: string;
   testPlan?: string;
+  onlyTesting?: string[];
   modifiedFiles?: string[];
   skipBuild?: boolean;
   skipTests?: boolean;
@@ -105,6 +107,8 @@ export interface AxintRunReport {
   artifacts: {
     json?: string;
     markdown?: string;
+    projectContextJson?: string;
+    projectContextMarkdown?: string;
   };
   nextSteps: string[];
   repairPrompt: string;
@@ -118,6 +122,7 @@ interface XcodePlan {
   configuration?: string;
   derivedDataPath?: string;
   testPlan?: string;
+  onlyTesting: string[];
 }
 
 export async function runAxintProject(
@@ -134,6 +139,11 @@ export async function runAxintProject(
     platform,
     agent: "all",
   });
+  const projectContext = writeProjectContextIndex({
+    targetDir: cwd,
+    projectName,
+    changedFiles: input.modifiedFiles,
+  });
   const swiftFiles = resolveSwiftFiles(cwd, input.modifiedFiles);
   const validationDiagnostics: Diagnostic[] = [];
   const cloudChecks: CloudCheckReport[] = [];
@@ -142,6 +152,11 @@ export async function runAxintProject(
       name: "Axint session",
       state: "pass",
       detail: `Started session ${session.session.token}.`,
+    },
+    {
+      name: "Project context index",
+      state: "pass",
+      detail: `Indexed ${projectContext.index.files.swift} Swift files and wrote ${relativeOrAbsolute(cwd, projectContext.jsonPath)}.`,
     },
   ];
 
@@ -174,6 +189,7 @@ export async function runAxintProject(
         runtimeFailure: input.runtimeFailure,
         expectedBehavior: input.expectedBehavior,
         actualBehavior: input.actualBehavior,
+        projectContext: projectContext.index,
       })
     );
   }
@@ -280,6 +296,29 @@ export async function runAxintProject(
     });
   }
 
+  const xcodeEvidence = buildXcodeEvidence(commands);
+  if (xcodeEvidence && cloudTargets.length > 0) {
+    cloudChecks.splice(
+      0,
+      cloudChecks.length,
+      ...cloudTargets.map((file) =>
+        runCloudCheck({
+          sourcePath: file,
+          platform,
+          xcodeBuildLog: xcodeEvidence,
+          runtimeFailure:
+            input.runtimeFailure ?? runtimeFailureFromCommand(commands.runtime),
+          expectedBehavior: input.expectedBehavior,
+          actualBehavior: input.actualBehavior,
+          projectContext: projectContext.index,
+        })
+      )
+    );
+    updateCloudCheckStep(steps, cloudChecks, {
+      refreshedWithEvidence: true,
+    });
+  }
+
   const status = summarizeStatus(steps, workflow, validationDiagnostics, cloudChecks);
   const report: AxintRunReport = {
     id: `axrun_${randomUUID()}`,
@@ -308,7 +347,10 @@ export async function runAxintProject(
         ? { ...step, durationMs: Date.now() - startedAt }
         : step
     ),
-    artifacts: {},
+    artifacts: {
+      projectContextJson: projectContext.jsonPath,
+      projectContextMarkdown: projectContext.markdownPath,
+    },
     nextSteps: buildNextSteps(status, steps, workflow, cloudChecks),
     repairPrompt: buildRunRepairPrompt({
       status,
@@ -381,11 +423,24 @@ export function renderAxintRunReport(
       : ["- None."]),
   ];
 
-  if (report.artifacts.json || report.artifacts.markdown) {
+  if (
+    report.artifacts.json ||
+    report.artifacts.markdown ||
+    report.artifacts.projectContextJson ||
+    report.artifacts.projectContextMarkdown
+  ) {
     lines.push("", "## Artifacts");
     if (report.artifacts.json) lines.push(`- JSON: ${report.artifacts.json}`);
     if (report.artifacts.markdown) {
       lines.push(`- Markdown: ${report.artifacts.markdown}`);
+    }
+    if (report.artifacts.projectContextJson) {
+      lines.push(`- Project context JSON: ${report.artifacts.projectContextJson}`);
+    }
+    if (report.artifacts.projectContextMarkdown) {
+      lines.push(
+        `- Project context Markdown: ${report.artifacts.projectContextMarkdown}`
+      );
     }
   }
 
@@ -420,6 +475,7 @@ function createXcodePlan(
     configuration: input.configuration,
     derivedDataPath: input.derivedDataPath,
     testPlan: input.testPlan,
+    onlyTesting: normalizeOnlyTesting(input.onlyTesting),
   };
 }
 
@@ -432,9 +488,27 @@ function buildXcodeArgs(plan: XcodePlan, action: "build" | "test"): string[] {
   if (plan.destination) args.push("-destination", plan.destination);
   if (plan.configuration) args.push("-configuration", plan.configuration);
   if (plan.derivedDataPath) args.push("-derivedDataPath", plan.derivedDataPath);
-  if (action === "test" && plan.testPlan) args.push("-testPlan", plan.testPlan);
+  if (action === "test") {
+    if (plan.testPlan) args.push("-testPlan", plan.testPlan);
+    for (const selector of plan.onlyTesting) {
+      args.push(formatOnlyTestingArg(selector));
+    }
+  }
   args.push(action);
   return args;
+}
+
+function normalizeOnlyTesting(selectors?: string[]): string[] {
+  return unique(
+    (selectors ?? [])
+      .flatMap((selector) => selector.split(","))
+      .map((selector) => selector.trim())
+      .filter(Boolean)
+  );
+}
+
+function formatOnlyTestingArg(selector: string): string {
+  return selector.startsWith("-only-testing:") ? selector : `-only-testing:${selector}`;
 }
 
 function runCommand(
@@ -696,6 +770,73 @@ function stepFromCommand(name: string, result: AxintRunCommandResult): AxintRunS
   };
 }
 
+function updateCloudCheckStep(
+  steps: AxintRunStep[],
+  cloudChecks: CloudCheckReport[],
+  options: { refreshedWithEvidence?: boolean } = {}
+) {
+  const step = steps.find((item) => item.name === "Cloud Check");
+  if (!step) return;
+  step.state =
+    cloudChecks.length === 0
+      ? "skipped"
+      : cloudChecks.some((check) => check.status === "fail")
+        ? "fail"
+        : cloudChecks.some((check) => check.status === "needs_review")
+          ? "warn"
+          : "pass";
+  step.detail =
+    cloudChecks.length === 0
+      ? "No source file was available for Cloud Check."
+      : options.refreshedWithEvidence
+        ? `Reconciled ${cloudChecks.length} Cloud Check report${cloudChecks.length === 1 ? "" : "s"} with Xcode build/test/runtime evidence.`
+        : `Ran ${cloudChecks.length} Cloud Check report${cloudChecks.length === 1 ? "" : "s"}.`;
+}
+
+function buildXcodeEvidence(commands: AxintRunReport["commands"]): string | undefined {
+  const chunks = [
+    commandEvidence("Xcode build", commands.build),
+    commandEvidence("Xcode test", commands.test),
+    commandEvidence("Runtime launch", commands.runtime),
+  ].filter(Boolean);
+  return chunks.length > 0 ? chunks.join("\n\n") : undefined;
+}
+
+function commandEvidence(
+  label: string,
+  result?: AxintRunCommandResult
+): string | undefined {
+  if (!result || result.dryRun) return undefined;
+
+  const state = result.exitCode === 0 && !result.timedOut ? "succeeded" : "failed";
+  const header = `${label} ${state}. Exit: ${
+    result.exitCode ?? result.signal ?? "unknown"
+  }.`;
+  const output = trimCommandEvidence([result.stdout, result.stderr].join("\n"));
+  return output ? `${header}\n${output}` : header;
+}
+
+function runtimeFailureFromCommand(result?: AxintRunCommandResult): string | undefined {
+  if (!result || result.dryRun || (result.exitCode === 0 && !result.timedOut)) {
+    return undefined;
+  }
+  return trimCommandEvidence(
+    [
+      `Runtime command failed. Exit: ${result.exitCode ?? result.signal ?? "unknown"}.`,
+      result.stderr,
+      result.stdout,
+    ].join("\n")
+  );
+}
+
+function trimCommandEvidence(value: string, maxChars = 12000): string {
+  const text = value.trim();
+  if (text.length <= maxChars) return text;
+  const head = text.slice(0, 1600).trimEnd();
+  const tail = text.slice(-(maxChars - head.length - 80)).trimStart();
+  return `${head}\n\n[... axint trimmed long command evidence ...]\n\n${tail}`;
+}
+
 function summarizeStatus(
   steps: AxintRunStep[],
   workflow: WorkflowCheckReport,
@@ -839,6 +980,8 @@ function writeRunArtifacts(report: AxintRunReport) {
     artifacts: {
       json: jsonPath,
       markdown: markdownPath,
+      projectContextJson: report.artifacts.projectContextJson,
+      projectContextMarkdown: report.artifacts.projectContextMarkdown,
     },
   };
   writeFileSync(jsonPath, `${JSON.stringify(serializable, null, 2)}\n`, "utf-8");
@@ -846,6 +989,8 @@ function writeRunArtifacts(report: AxintRunReport) {
   return {
     json: jsonPath,
     markdown: markdownPath,
+    projectContextJson: report.artifacts.projectContextJson,
+    projectContextMarkdown: report.artifacts.projectContextMarkdown,
   };
 }
 

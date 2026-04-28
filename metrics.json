@@ -1,6 +1,6 @@
 {
-  "version": "0.4.10",
-  "mcpTools": 23,
+  "version": "0.4.11",
+  "mcpTools": 24,
   "mcpToolNames": [
     "axint.status",
     "axint.doctor",
@@ -9,6 +9,7 @@
     "axint.session.start",
     "axint.feature",
     "axint.project.pack",
+    "axint.project.index",
     "axint.context.memory",
     "axint.context.docs",
     "axint.suggest",
@@ -35,7 +36,7 @@
     "axint.create-intent"
   ],
   "bundledTemplates": 26,
-  "diagnostics": 182,
+  "diagnostics": 183,
   "xcodeFixRules": 33,
   "xcodeFixRuleCodes": [
     "AX701",
@@ -73,7 +74,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 1001,
+    "typescript": 1017,
     "python": 114
   },
   "registryPackages": 14,

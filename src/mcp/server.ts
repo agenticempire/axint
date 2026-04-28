@@ -29,6 +29,7 @@
  *   - axint.templates.get:    Return the source of a specific template
  *   - axint.status:           Report the running MCP server version + restart help
  *   - axint.project.pack:     Generate first-try project-start files
+ *   - axint.project.index:    Index the local Apple project into .axint/context
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -93,6 +94,11 @@ import {
   type ProjectMcpMode,
   type ProjectStartPackFormat,
 } from "../project/start-pack.js";
+import {
+  renderProjectContextIndex,
+  writeProjectContextIndex,
+  type ProjectContextIndexFormat,
+} from "../project/context-index.js";
 import { buildAxintDocsContext } from "../project/docs-context.js";
 import { buildAxintOperatingMemory } from "../project/operating-memory.js";
 import {
@@ -161,6 +167,14 @@ type SessionStartArgs = {
   ttlMinutes?: number;
   format?: AxintSessionFormat;
 };
+type ProjectContextArgs = {
+  targetDir?: string;
+  projectName?: string;
+  changedFiles?: string[];
+  includeGit?: boolean;
+  dryRun?: boolean;
+  format?: ProjectContextIndexFormat;
+};
 
 // Read version from package.json so it stays in sync.
 let pkg: PackageInfo = { version: "0.3.9" };
@@ -207,6 +221,7 @@ type CloudCheckArgs = {
   runtimeFailure?: string;
   expectedBehavior?: string;
   actualBehavior?: string;
+  projectContextPath?: string;
   format?: CloudCheckFormat;
 };
 type AxintRunArgs = {
@@ -221,6 +236,7 @@ type AxintRunArgs = {
   configuration?: string;
   derivedDataPath?: string;
   testPlan?: string;
+  onlyTesting?: string[];
   modifiedFiles?: string[];
   skipBuild?: boolean;
   skipTests?: boolean;
@@ -290,7 +306,7 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     promptsRegistered: PROMPT_MANIFEST.length,
     restartRequiredAfterUpdate: true,
     updateCommand: "npm install -g @axint/compiler@latest",
-    xcodeSetupCommand: "axint xcode setup --agent claude --guarded",
+    xcodeSetupCommand: "axint xcode install --project .",
     doctorCommand: "axint doctor",
     projectInitCommand: "axint project init",
     xcodeRestartInstruction:
@@ -303,7 +319,7 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     return [
       `The running Axint MCP server is v${status.version}.`,
       "If this is older than the version the user expects, stop before editing code.",
-      "Tell the user to update Axint, rerun `axint xcode setup --agent claude --guarded`, and restart the Xcode Claude Agent chat.",
+      "Tell the user to update Axint, rerun `axint xcode install --project .`, and restart the Xcode Claude Agent chat.",
     ].join("\n");
   }
 
@@ -341,7 +357,7 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     "",
     "4. In the new chat, ask: `Call axint.status and tell me the running version.`",
     "",
-    "For a brand-new project, run `axint project init` once, then `axint doctor` to confirm the machine is wired.",
+    "For a brand-new project, run `axint xcode install --project .`, then `axint doctor` to confirm the machine is wired.",
   ].join("\n");
 }
 
@@ -511,7 +527,11 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
         const loop = s.loop ? `\n   Loop: ${s.loop}` : "";
         const nextStep = s.nextStep ? `\n   Next: ${s.nextStep}` : "";
         const generateCommand = `axint.feature({ description: "${s.featurePrompt}", surfaces: ${JSON.stringify(s.surfaces)} })`;
-        return `${i + 1}. ${s.name}\n   ${s.description}${rationale}${impact}${loop}${nextStep}\n   Surfaces: ${surfaces} | Complexity: ${s.complexity}${confidence}${source}\n   Generate: ${generateCommand}\n   Proof loop: write the generated files, run axint.cloud.check with platform/build/test evidence, then build in Xcode.`;
+        const action =
+          s.domain === "repair"
+            ? `Patch path: ${s.featurePrompt}\n   Proof loop: patch existing files, run axint.swift.validate, run axint.cloud.check with platform/build/test evidence, then run axint.run with focused evidence.`
+            : `Generate: ${generateCommand}\n   Proof loop: write the generated files, run axint.cloud.check with platform/build/test evidence, then build in Xcode.`;
+        return `${i + 1}. ${s.name}\n   ${s.description}${rationale}${impact}${loop}${nextStep}\n   Surfaces: ${surfaces} | Complexity: ${s.complexity}${confidence}${source}\n   ${action}`;
       })
       .join("\n\n");
 
@@ -542,6 +562,25 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       version: pkg.version,
     });
     return diagnosticsText(renderProjectStartPack(pack, a?.format ?? "markdown"));
+  }
+
+  if (name === "axint.project.index") {
+    const payload = (args ?? {}) as ProjectContextArgs;
+    const result = writeProjectContextIndex({
+      targetDir: payload.targetDir,
+      projectName: payload.projectName,
+      changedFiles: payload.changedFiles,
+      includeGit: payload.includeGit,
+      dryRun: payload.dryRun,
+    });
+    return {
+      content: [
+        {
+          type: "text",
+          text: renderProjectContextIndex(result.index, payload.format ?? "markdown"),
+        },
+      ],
+    };
   }
 
   if (name === "axint.context.memory") {
@@ -644,6 +683,7 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       runtimeFailure: a.runtimeFailure,
       expectedBehavior: a.expectedBehavior,
       actualBehavior: a.actualBehavior,
+      projectContextPath: a.projectContextPath,
     });
     return {
       content: [
@@ -671,6 +711,7 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       configuration: a.configuration,
       derivedDataPath: a.derivedDataPath,
       testPlan: a.testPlan,
+      onlyTesting: a.onlyTesting,
       modifiedFiles: a.modifiedFiles,
       skipBuild: a.skipBuild,
       skipTests: a.skipTests,

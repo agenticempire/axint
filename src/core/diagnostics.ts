@@ -707,6 +707,12 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "TimelineEntry declares duplicate 'let date: Date' properties",
     category: "swift-validator",
   },
+  AX764: {
+    code: "AX764",
+    severity: "warning",
+    message: "Overlay on a SwiftUI text input may block hit testing",
+    category: "swiftui-hit-testing",
+  },
   AX714: {
     code: "AX714",
     severity: "error",

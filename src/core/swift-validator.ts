@@ -75,6 +75,7 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkConcurrency(decls, source, file, diagnostics);
   checkLiveActivities(decls, source, file, diagnostics);
   checkContainerAccessibilityIdentifierPropagation(source, stripped, file, diagnostics);
+  checkInteractiveInputOverlayHitTesting(source, stripped, file, diagnostics);
 
   return { file, diagnostics };
 }
@@ -134,6 +135,49 @@ function checkContainerAccessibilityIdentifierPropagation(
         message: `${containerName} has an accessibilityIdentifier while nested controls also define identifiers; UI tests may match the container and hide child identifiers`,
         suggestion:
           "Put the identifier on the specific button/text/row the test needs, or assert on a visible child element instead of tagging the whole container.",
+      })
+    );
+  }
+}
+
+function checkInteractiveInputOverlayHitTesting(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const lines = source.split("\n");
+  const strippedLines = stripped.split("\n");
+
+  for (let i = 0; i < strippedLines.length; i++) {
+    const inputMatch = strippedLines[i]?.match(
+      /\b(TextField|TextEditor|SecureField)\s*\(/
+    );
+    if (!inputMatch) continue;
+
+    const windowStart = i;
+    const windowEnd = Math.min(strippedLines.length, i + 18);
+    const windowLines = strippedLines.slice(windowStart, windowEnd);
+    const windowText = windowLines.join("\n");
+
+    if (!/\.overlay\s*(?:\(|\{)/.test(windowText)) continue;
+    if (/\.allowsHitTesting\s*\(\s*false\s*\)/.test(windowText)) continue;
+
+    const overlayLineOffset = windowLines.findIndex((line) =>
+      /\.overlay\s*(?:\(|\{)/.test(line)
+    );
+    const overlayLine =
+      overlayLineOffset >= 0 ? windowStart + overlayLineOffset + 1 : i + 1;
+    const inputKind = inputMatch[1];
+    const nearbySource = lines.slice(windowStart, windowEnd).join("\n");
+
+    if (!/\boverlay\b/i.test(nearbySource)) continue;
+
+    diagnostics.push(
+      makeDiagnostic("AX764", file, overlayLine, {
+        message: `${inputKind} has an overlay without .allowsHitTesting(false), which can block taps, focus, or text entry`,
+        suggestion:
+          "If the overlay is decorative or placeholder-only, add `.allowsHitTesting(false)` to the overlay content. Otherwise move the hit target so it does not sit on top of the text input.",
       })
     );
   }

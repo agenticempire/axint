@@ -51,6 +51,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   const recommended: string[] = [];
   const checked: string[] = [];
   const requireSession = input.requireSession !== false;
+  const patchFirstRepair = looksLikePatchFirstRepair(input);
 
   if (requireSession) {
     const session = validateAxintSessionToken({
@@ -152,6 +153,12 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
         );
       }
     }
+    if (patchFirstRepair) {
+      checked.push("Existing-code repair is in patch-first mode.");
+      recommended.push(
+        "Use a small patch edit for the existing dirty SwiftUI file, then run axint.swift.validate and axint.cloud.check on the changed files. Avoid full-file axint.xcode.write unless this is a new file or a clean full-file replacement."
+      );
+    }
   }
 
   if (stage === "pre-build" || stage === "pre-commit") {
@@ -197,6 +204,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
           modifiedFiles,
           xcodeBuildPassed: Boolean(input.xcodeBuildPassed),
           xcodeTestsPassed: Boolean(input.xcodeTestsPassed),
+          patchFirstRepair,
         });
   const score = Math.max(
     0,
@@ -245,12 +253,13 @@ export function renderWorkflowCheckReport(report: WorkflowCheckReport): string {
   ];
 
   if (report.nextTool) {
-    lines.push(
-      "",
-      "## Next Axint Action",
-      `- ${report.nextTool}`,
-      "- Do not treat this workflow check as the only Axint step. Call the next Axint action before continuing with raw Xcode tools or hand-written Swift."
-    );
+    const actionHeading = report.nextTool.startsWith("axint.")
+      ? "## Next Axint Action"
+      : "## Next Action";
+    const actionReminder = report.nextTool.startsWith("axint.")
+      ? "- Do not treat this workflow check as the only Axint step. Call the next Axint action before continuing with raw Xcode tools or hand-written Swift."
+      : "- Do not treat this workflow check as the only gate. Patch surgically, then return to Axint validation before claiming the repair is done.";
+    lines.push("", actionHeading, `- ${report.nextTool}`, actionReminder);
   }
 
   return lines.join("\n");
@@ -294,8 +303,16 @@ function nextToolForSatisfiedStage(input: {
   modifiedFiles: string[];
   xcodeBuildPassed: boolean;
   xcodeTestsPassed: boolean;
+  patchFirstRepair: boolean;
 }): string | undefined {
-  const { stage, surfaces, modifiedFiles, xcodeBuildPassed, xcodeTestsPassed } = input;
+  const {
+    stage,
+    surfaces,
+    modifiedFiles,
+    xcodeBuildPassed,
+    xcodeTestsPassed,
+    patchFirstRepair,
+  } = input;
   if (stage === "session-start" || stage === "context-recovery") {
     return "axint.suggest";
   }
@@ -307,6 +324,9 @@ function nextToolForSatisfiedStage(input: {
       : "axint.xcode.guard";
   }
   if (stage === "before-write") {
+    if (patchFirstRepair) {
+      return "apply_patch, then axint.swift.validate";
+    }
     return "axint.xcode.write";
   }
   if (stage === "pre-build") {
@@ -326,4 +346,22 @@ function looksLikeContextDrift(notes: string | undefined): boolean {
   return /\b(compacted|compaction|summarized|summary|new chat|restarted|restart|forgot|forget|drift|stale|ordinary xcode|not using axint|axint unavailable|missing axint|mcp missing|long block|long coding|lost context)\b/i.test(
     notes
   );
+}
+
+function looksLikePatchFirstRepair(input: WorkflowCheckInput): boolean {
+  const text = [input.featureBypassReason, input.notes, ...(input.modifiedFiles ?? [])]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const patchMode =
+    /\b(codex|apply_patch|patch|surgical|small edit|dirty|existing|hand-written|handwritten|repair|bug|ux|swiftui)\b/.test(
+      text
+    );
+  const fullFileRisk = /\b(3000\+?|large|dirty|already changed|full-file|rewrite)\b/.test(
+    text
+  );
+  const existingBypass = Boolean(input.featureBypassReason);
+
+  return patchMode && (existingBypass || fullFileRisk || text.includes(".swift"));
 }

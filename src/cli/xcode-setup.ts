@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeProjectContextIndex } from "../project/context-index.js";
 import { writeProjectStartPack } from "../project/start-pack.js";
 import { renderXcodeGuardReport, runXcodeGuard } from "../project/xcode-guard.js";
 
@@ -35,11 +36,11 @@ const START_PROMPT = [
   "Then list MCP servers and confirm both xcode-tools and axint are available.",
   "Call axint.xcode.guard with stage=context-recovery so the project writes .axint/guard/latest.* proof before any long task.",
   "Call axint.status and report the running MCP server version before editing code.",
-  "If the version is older than expected, stop and tell me to update Axint, rerun `axint xcode setup --agent claude --guarded`, and restart the Xcode agent chat.",
+  "If the version is older than expected, stop and tell me to update Axint, rerun `axint xcode install --project .`, and restart the Xcode agent chat.",
   "Use Axint before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.",
   "Work in short checkpoints. Do not spend 20+ minutes on a task without running Axint and Xcode validation.",
   "For long build/debug work, prefer axint.run or axint.xcode.guard over raw Xcode actions so Axint proof survives context compaction.",
-  "After each generated Apple surface, run axint.cloud.check or axint cloud check <file> --feedback, then build in Xcode.",
+  "When a specific Swift file or screen is acting up, run `axint xcode check <file>` so Axint refreshes project context before guessing. Then build in Xcode.",
   "Do not claim there is no bug from Axint alone. Cloud Check is static; Xcode build, unit tests, UI tests, accessibility flows, and runtime behavior are separate evidence.",
   "If Axint passes but Xcode/tests/runtime fails, report the exact failure as an Axint validator or runtime-coverage gap before continuing.",
 ].join("\n");
@@ -72,6 +73,7 @@ interface SetupOptions {
   localBuild?: boolean;
   project?: string;
   name?: string;
+  showVerifyHint?: boolean;
 }
 
 export async function setupXcode(options: SetupOptions): Promise<void> {
@@ -149,9 +151,33 @@ export async function setupXcode(options: SetupOptions): Promise<void> {
     `    ${DIM}"Use axint.feature to add a Siri action for logging water intake"${RESET}`
   );
   console.log();
-  console.log(`  Run ${BOLD}axint xcode verify${RESET} to test the connection.`);
-  console.log();
+  if (options.showVerifyHint !== false) {
+    console.log(`  Run ${BOLD}axint xcode verify${RESET} to test the connection.`);
+    console.log();
+  }
   printAgentStartPrompt();
+  console.log();
+}
+
+export async function installXcodeWorkflow(
+  options: Omit<SetupOptions, "guarded"> & { verify?: boolean }
+): Promise<void> {
+  await setupXcode({
+    ...options,
+    guarded: true,
+    showVerifyHint: options.showVerifyHint ?? false,
+  });
+
+  if (options.verify !== false) {
+    await verifyXcode();
+  }
+
+  console.log();
+  console.log(`  ${ORANGE}◆${RESET} ${BOLD}Xcode workflow ready${RESET}`);
+  console.log();
+  console.log(
+    `  Next inside Xcode: ask Axint to ${BOLD}check the current file${RESET} or ${BOLD}run proof${RESET} instead of manually juggling setup, context, and validation steps.`
+  );
   console.log();
 }
 
@@ -180,6 +206,13 @@ function setupGuardedProject(input: {
   console.log(
     `  ${GREEN}✓${RESET} Project guard memory checked (${pack.written.length} written, ${pack.skipped.length} existing)`
   );
+
+  const context = writeProjectContextIndex({
+    targetDir,
+    projectName,
+  });
+  console.log(`  ${GREEN}✓${RESET} Project context indexed`);
+  console.log(`  ${DIM}  ${context.markdownPath}${RESET}`);
 
   const guard = runXcodeGuard({
     cwd: targetDir,
@@ -235,7 +268,7 @@ export async function verifyXcode(): Promise<void> {
     } else if (output.includes("axint.feature")) {
       console.log(`  ${RED}✗${RESET} MCP server is old: axint.status not found`);
       console.log(
-        `  ${DIM}  Update Axint, rerun: axint xcode setup --agent claude --guarded, then restart the Xcode agent chat${RESET}`
+        `  ${DIM}  Update Axint, rerun: axint xcode install --project ., then restart the Xcode agent chat${RESET}`
       );
     } else {
       console.log(`  ${RED}✗${RESET} Server responded but axint.feature not found`);
@@ -382,7 +415,7 @@ function setupXcodeClaudeAgent(options: { localBuild: boolean }): void {
       `  ${DIM}ℹ${RESET} Could not find a durable Axint MCP script. Install globally, then rerun:`
     );
     console.log(`  ${DIM}  npm install -g ${AXINT_NPM_PACKAGE}${RESET}`);
-    console.log(`  ${DIM}  axint xcode setup --agent claude --guarded${RESET}`);
+    console.log(`  ${DIM}  axint xcode install --project .${RESET}`);
     return;
   }
 
@@ -583,7 +616,7 @@ function printManualClaude(remote: boolean): void {
     );
     console.log();
     console.log(
-      `  ${DIM}For Xcode's built-in Claude Agent, run: axint xcode setup --agent claude --guarded${RESET}`
+      `  ${DIM}For the full Xcode workflow, run: axint xcode install --project .${RESET}`
     );
   }
   console.log();

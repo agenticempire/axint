@@ -149,8 +149,8 @@ export function getPromptMessages(
               "3. Call `axint.xcode.guard` with stage `context-recovery` so this chat writes `.axint/guard/latest.*` proof before any long task.\n" +
               "4. Read `.axint/AXINT_REHYDRATE.md`, `.axint/AXINT_MEMORY.md`, `.axint/AXINT_DOCS_CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, or `.axint/project.json` if present.\n" +
               "5. List the available MCP servers and confirm both xcode-tools and axint are present.\n" +
-              "6. Call `axint.status` and report the running MCP server version before editing code. If the version is older than expected, stop and tell me to update Axint, rerun `axint xcode setup --agent claude --guarded`, and restart the Xcode agent chat.\n" +
-              "7. If axint is missing in Xcode, tell me to run `axint xcode setup --agent claude --guarded`, restart the Xcode agent session, and ask again for available MCP servers.\n" +
+              "6. Call `axint.status` and report the running MCP server version before editing code. If the version is older than expected, stop and tell me to update Axint, rerun `axint xcode install --project .`, and restart the Xcode agent chat.\n" +
+              "7. If axint is missing in Xcode, tell me to run `axint xcode install --project .`, restart the Xcode agent session, and ask again for available MCP servers.\n" +
               "8. Call `axint.workflow.check` with stage `context-recovery`, sessionToken, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.\n" +
               "9. Call `axint.xcode.guard` before long tasks and `axint.workflow.check` with `sessionToken` at planning, before-write, and pre-build checkpoints so you do not skip the Axint loop by accident.\n" +
               "10. Use Axint tools before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.\n" +

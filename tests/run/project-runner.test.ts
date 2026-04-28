@@ -44,6 +44,10 @@ describe("runAxintProject", () => {
     expect(report.commands.build?.args).toContain("-project");
     expect(report.commands.build?.args).toContain("Swarm");
     expect(report.artifacts.json).toBeDefined();
+    expect(report.artifacts.projectContextJson).toBeDefined();
+    expect(readFileSync(report.artifacts.projectContextJson!, "utf-8")).toContain(
+      '"schema": "https://axint.ai/schemas/project-context-index.v1.json"'
+    );
     expect(readFileSync(report.artifacts.json!, "utf-8")).toContain('"status"');
   });
 
@@ -59,5 +63,28 @@ describe("runAxintProject", () => {
     const prompt = renderAxintRunReport(report, "prompt");
     expect(prompt).toContain("You are repairing an Apple-native project");
     expect(prompt).toContain("After repairing, rerun `axint run`");
+  });
+
+  it("plans focused Xcode UI tests with only-testing selectors", async () => {
+    const dir = makeFakeXcodeProject();
+    const report = await runAxintProject({
+      cwd: dir,
+      dryRun: true,
+      writeReport: false,
+      onlyTesting: [
+        "SwarmUITests/SwarmUITests/testProjectCommandCenterPrimaryActionsRouteToCoreTabs",
+        "SwarmUITests/SwarmUITests/testCaptureButtonIsHittable, -only-testing:SwarmUITests/SwarmUITests/testOpenVaultRoutes",
+      ],
+    });
+
+    expect(report.commands.test?.args).toContain(
+      "-only-testing:SwarmUITests/SwarmUITests/testProjectCommandCenterPrimaryActionsRouteToCoreTabs"
+    );
+    expect(report.commands.test?.args).toContain(
+      "-only-testing:SwarmUITests/SwarmUITests/testCaptureButtonIsHittable"
+    );
+    expect(report.commands.test?.args).toContain(
+      "-only-testing:SwarmUITests/SwarmUITests/testOpenVaultRoutes"
+    );
   });
 });

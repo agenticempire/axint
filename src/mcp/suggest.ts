@@ -908,6 +908,11 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   const text = normalizeText(input.appDescription);
   const excludedText = normalizeText((input.exclude ?? []).join(" "));
   const explicitDomain = normalizeDomain(input.domain);
+
+  if (looksLikeExistingProductRepair(input, text)) {
+    return existingProductRepairSuggestions(input, text, limit);
+  }
+
   const strongestDescriptionScore = Math.max(
     ...FEATURE_CATALOG.map((ds) => domainDescriptionScore(text, ds))
   );
@@ -1203,6 +1208,252 @@ function mergeSuggestions(
     if (merged.length >= limit) break;
   }
   return merged;
+}
+
+function looksLikeExistingProductRepair(
+  input: SuggestInput,
+  normalizedAppDescription: string
+): boolean {
+  if (!normalizedAppDescription) return false;
+
+  const goalsText = normalizeText((input.goals ?? []).join(" "));
+  const constraintsText = normalizeText((input.constraints ?? []).join(" "));
+  const combined = [normalizedAppDescription, goalsText, constraintsText]
+    .filter(Boolean)
+    .join(" ");
+
+  const repairIntent = [
+    "bug",
+    "broken",
+    "can't",
+    "cannot",
+    "does not",
+    "doesn't",
+    "fails",
+    "failing",
+    "fix",
+    "improve",
+    "no longer",
+    "polish",
+    "premium",
+    "not working",
+    "regression",
+    "repair",
+    "restore",
+    "stopped",
+    "turning",
+    "upgrade",
+    "won't",
+  ].some((keyword) => hasKeyword(combined, keyword));
+
+  const existingSurface = [
+    "animation",
+    "build",
+    "click",
+    "command center",
+    "composer",
+    "existing",
+    "focus",
+    "gesture",
+    "hittable",
+    "input",
+    "layout",
+    "project room",
+    "route",
+    "screen",
+    "scroll",
+    "swiftui",
+    "tab",
+    "tap",
+    "test",
+    "ui test",
+    "ux",
+    "view",
+    "xcode",
+    "zindex",
+  ].some((keyword) => hasKeyword(combined, keyword));
+
+  if (
+    /\b(create|generate|scaffold|build)\s+(?:a|an|new)\b/.test(combined) &&
+    /\b(bug report|issue tracker|support ticket)\b/.test(combined)
+  ) {
+    return false;
+  }
+
+  return repairIntent && existingSurface;
+}
+
+function existingProductRepairSuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  limit: number
+): FeatureSuggestion[] {
+  const focus = repairProblemFocus(normalizedAppDescription);
+  const concept = repairScreenConcept(normalizedAppDescription);
+  const promptCues = repairPromptCues(normalizedAppDescription);
+  const cueSentence =
+    promptCues.length > 0
+      ? ` Keep these prompt-specific cues in scope: ${promptCues.join(", ")}.`
+      : "";
+  const platform = input.platform ? `${input.platform} ` : "";
+  const rationale =
+    "Detected an existing-product repair request, so Axint is returning a proof-first repair loop instead of new feature ideas.";
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `Repair Existing ${titleCase(concept)} Flow`,
+      description: `Patch the current ${concept} in place, preserve the surrounding product, and avoid replacing working screens with a fresh scaffold.`,
+      surfaces: ["view", "component"],
+      complexity: "medium",
+      featurePrompt: `Repair the existing ${platform}${concept} SwiftUI flow without replacing the surrounding app. Preserve store state, existing tab routing, first-viewport hierarchy, primary buttons, accessibility identifiers, and the user's current product vocabulary.${cueSentence} Identify the touched files, reproduce the behavior, patch the smallest view/state/hit-testing/routing change, and keep existing components intact.`,
+      domain: "repair",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Moves Axint from idea generation into senior-engineer repair mode for an existing Apple product.",
+      loop: "Reproduce -> patch smallest surface -> validate source -> prove in Xcode",
+      nextStep:
+        "Run Cloud Check with expectedBehavior, actualBehavior, and the focused Xcode build or UI-test log.",
+    },
+    {
+      name: `Add Focused ${titleCase(focus)} Proof`,
+      description:
+        "Create or run the smallest unit/UI proof that can fail before the patch and pass after it.",
+      surfaces: ["view"],
+      complexity: "low",
+      featurePrompt: `Add a focused ${platform}Xcode unit or UI test for the existing ${focus} bug. The proof should exercise the exact tap, scroll, focus, layout, route, or state behavior that regressed and should not depend on unrelated screens.${cueSentence}`,
+      domain: "repair",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact: "Turns the repair into durable evidence an agent can trust.",
+      loop: "Failing proof -> targeted patch -> passing proof -> Cloud Check evidence",
+      nextStep:
+        "Paste the passing focused test log into Cloud Check so the gate can reconcile source and runtime evidence.",
+    },
+    {
+      name: `Preserve ${titleCase(concept)} Routing`,
+      description:
+        "Verify the upgraded screen still routes primary actions to the real existing destinations instead of decorative placeholder states.",
+      surfaces: ["view", "store"],
+      complexity: "medium",
+      featurePrompt: `Audit the existing ${platform}${concept} routes and primary actions. Confirm buttons such as capture, run agent, launch check, open vault, decisions, missions, agents, and project context route to real existing tabs or sheets.${cueSentence} Add accessibility identifiers and a focused UI test for each primary command-center action that must be hittable and route correctly.`,
+      domain: "repair",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Keeps premium UX work wired to the actual product instead of becoming a static mockup.",
+      loop: "Action map -> route proof -> focused UI test -> Cloud Check evidence",
+      nextStep:
+        "Run `axint run --only-testing <UITestTarget/Class/testName>` with the changed files so the proof lands in the final gate.",
+    },
+    {
+      name: `Inspect ${titleCase(focus)} Context`,
+      description:
+        "Look beyond the current file for the overlay, disabled state, gesture, z-index, route, or shared state that may be blocking the behavior.",
+      surfaces: ["view", "store"],
+      complexity: "medium",
+      featurePrompt: `Index the project context for the existing ${focus} bug, then inspect related SwiftUI views, stores, modifiers, overlays, disabled states, gestures, accessibility identifiers, route containers, and recently changed files before patching.${cueSentence}`,
+      domain: "repair",
+      rationale,
+      confidence: "medium",
+      source: "local",
+      impact:
+        "Prevents the agent from guessing inside one file when the blocker lives in a parent shell or shared state layer.",
+      loop: "Context index -> related files -> targeted repair -> proof",
+      nextStep:
+        "Run `axint project index` and rerun Cloud Check against the failing file with the generated project context.",
+    },
+  ];
+
+  return suggestions.slice(0, limit);
+}
+
+function repairProblemFocus(normalizedAppDescription: string): string {
+  if (
+    /\b(command center|command-center|hero|first viewport|first-viewport|primary action|primary actions)\b/.test(
+      normalizedAppDescription
+    )
+  ) {
+    return "command center";
+  }
+  if (
+    /\b(comment box|compose box|composer|reply box|post box|text field|textfield|text editor|texteditor|input|focus|type|tap)\b/.test(
+      normalizedAppDescription
+    )
+  ) {
+    return "input interaction";
+  }
+  if (
+    /\b(scroll|tab|sticky|header|list|feed|position|offset)\b/.test(
+      normalizedAppDescription
+    )
+  ) {
+    return "scroll and layout";
+  }
+  if (/\b(route|navigation|sheet|modal|window|screen)\b/.test(normalizedAppDescription)) {
+    return "route";
+  }
+  if (
+    /\b(accessibility|identifier|hittable|button|click)\b/.test(normalizedAppDescription)
+  ) {
+    return "hittable UI";
+  }
+  if (/\b(build|compile|xcode|diagnostic|error)\b/.test(normalizedAppDescription)) {
+    return "Xcode build";
+  }
+  return "SwiftUI repair";
+}
+
+function repairScreenConcept(normalizedAppDescription: string): string {
+  if (/\bproject room\b/.test(normalizedAppDescription)) return "project room";
+  if (/\bcommand center|command-center\b/.test(normalizedAppDescription)) {
+    return "command center";
+  }
+  if (/\bhome(?:page)?|home screen|home feed\b/.test(normalizedAppDescription)) {
+    return "home screen";
+  }
+  if (/\bdiscover\b/.test(normalizedAppDescription)) return "discover screen";
+  if (/\blaunch readiness|launch check|launch center\b/.test(normalizedAppDescription)) {
+    return "launch readiness";
+  }
+  return repairProblemFocus(normalizedAppDescription);
+}
+
+function repairPromptCues(normalizedAppDescription: string): string[] {
+  const cues: [RegExp, string][] = [
+    [/\bproject room\b/, "Project Room"],
+    [/\bmy project\b/, "My Project"],
+    [/\bcommand center|command-center\b/, "command center"],
+    [/\blaunch readiness|launch check|launch center\b/, "launch readiness"],
+    [/\bcapture\b/, "Capture"],
+    [/\bvault\b/, "Vault"],
+    [/\bagents?\b/, "Agents"],
+    [/\bmissions?\b/, "Missions"],
+    [/\bdecisions?\b/, "Decisions"],
+    [/\bproject context\b/, "project context"],
+    [/\bdiscover\b/, "Discover"],
+    [/\blive\b|\bevents?\b/, "Live/Events"],
+    [/\bbuilders?\b/, "Builders"],
+    [/\bmarketplace\b|\bmarket\b/, "Marketplace"],
+    [/\btab(?:s)?\b|\btab routing\b/, "tab routing"],
+    [/\bcard heights?\b|\buniform\b/, "uniform card heights"],
+    [/\bclick targets?\b|\bhittable\b|\bprimary action/, "real click targets"],
+    [/\breduced motion\b|\bmotion\b/, "reduced motion"],
+    [/\bscroll\b|\btop\b/, "scroll-to-top behavior"],
+  ];
+
+  return unique(
+    cues
+      .filter(([pattern]) => pattern.test(normalizedAppDescription))
+      .map(([, label]) => label)
+  );
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function normalizeText(value: string): string {

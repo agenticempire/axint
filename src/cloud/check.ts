@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 import { compileAnySource } from "../core/compiler.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import type { CompilerOutput, Diagnostic } from "../core/types.js";
+import {
+  buildProjectContextHint,
+  type ProjectContextIndex,
+  type ProjectContextHint,
+} from "../project/context-index.js";
 
 export type CloudCheckFormat = "markdown" | "json" | "prompt" | "feedback";
 export type CloudCheckLanguage = "swift" | "typescript" | "unknown";
@@ -42,6 +47,8 @@ export interface CloudCheckInput {
   runtimeFailure?: string;
   expectedBehavior?: string;
   actualBehavior?: string;
+  projectContextPath?: string;
+  projectContext?: ProjectContextIndex;
 }
 
 export interface CloudCheckReport {
@@ -85,6 +92,16 @@ export interface CloudCheckReport {
   evidence: {
     provided: string[];
     summary: string[];
+  };
+  projectContext?: {
+    path?: string;
+    summary: string[];
+    relatedFiles: Array<{
+      path: string;
+      reasons: string[];
+    }>;
+    changedFiles: string[];
+    currentFile?: string;
   };
   repairPlan: Array<{
     title: string;
@@ -153,6 +170,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
   }
 
   const evidence = collectCloudEvidence(input);
+  const projectContext = resolveCloudProjectContext({ input, fileName, surface });
   diagnostics = [
     ...diagnostics,
     ...inferEvidenceDiagnostics({
@@ -217,6 +235,15 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
           },
         ]
       : []),
+    ...(projectContext
+      ? [
+          {
+            label: "Project context pack",
+            state: "pass" as const,
+            detail: projectContext.summary.join(" "),
+          },
+        ]
+      : []),
   ] satisfies CloudCheckReport["checks"];
   const coverage = buildCloudCoverage({
     language,
@@ -226,6 +253,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     runtimeCoverageRequired,
     evidenceProvided: evidence.provided.length > 0,
     runtimeEvidenceProvided,
+    projectContextLoaded: Boolean(projectContext),
   });
   const confidence = buildCloudConfidence({
     status,
@@ -253,6 +281,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     runtimeCoverageRequired,
     runtimeEvidenceProvided,
     fileName,
+    projectContext,
   });
 
   if (nextSteps.length === 0) {
@@ -302,6 +331,18 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     checks,
     coverage,
     evidence,
+    projectContext: projectContext
+      ? {
+          path: projectContext.path,
+          summary: projectContext.summary,
+          relatedFiles: projectContext.relatedFiles.map((file) => ({
+            path: file.path,
+            reasons: file.reasons,
+          })),
+          changedFiles: projectContext.changedFiles,
+          currentFile: projectContext.currentFile?.path,
+        }
+      : undefined,
     repairPlan,
     nextSteps,
     repairPrompt: "",
@@ -316,7 +357,7 @@ export function renderCloudCheckReport(
   report: CloudCheckReport,
   format: CloudCheckFormat = "markdown"
 ): string {
-  if (format === "json") return JSON.stringify(report, null, 2);
+  if (format === "json") return JSON.stringify(compactCloudCheckReport(report), null, 2);
   if (format === "prompt") return report.repairPrompt;
   if (format === "feedback") {
     return JSON.stringify(
@@ -353,6 +394,22 @@ export function renderCloudCheckReport(
     ...(report.evidence.provided.length > 0
       ? report.evidence.summary.map((item) => `- ${item}`)
       : ["- No Xcode build, test, runtime, or behavior evidence was supplied."]),
+    ...(report.projectContext
+      ? [
+          "",
+          "## Project Context",
+          ...report.projectContext.summary.map((item) => `- ${item}`),
+          ...(report.projectContext.relatedFiles.length > 0
+            ? [
+                "- Related files:",
+                ...report.projectContext.relatedFiles.map(
+                  (file) =>
+                    `  - ${file.path}${file.reasons.length > 0 ? ` — ${file.reasons.join(", ")}` : ""}`
+                ),
+              ]
+            : []),
+        ]
+      : []),
     "",
     "## Repair Plan",
     ...report.repairPlan.map(
@@ -433,6 +490,37 @@ function readCloudCheckSource(input: CloudCheckInput): {
     source: readFileSync(path, "utf-8"),
     fileName: input.fileName || path,
   };
+}
+
+function resolveCloudProjectContext(input: {
+  input: CloudCheckInput;
+  fileName: string;
+  surface: string;
+}): ProjectContextHint | undefined {
+  const focus = looksLikeInputInteractivityFailure(
+    normalizeTextForEvidence(
+      [
+        input.input.runtimeFailure,
+        input.input.actualBehavior,
+        input.input.testFailure,
+        input.input.expectedBehavior,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+  )
+    ? "interactive-input"
+    : input.surface === "view" || input.surface === "app"
+      ? "runtime"
+      : "generic";
+
+  return buildProjectContextHint({
+    sourcePath: input.input.sourcePath,
+    fileName: input.fileName,
+    contextPath: input.input.projectContextPath,
+    projectContext: input.input.projectContext,
+    focus,
+  });
 }
 
 function inferLanguage(fileName: string, source: string): CloudCheckLanguage {
@@ -531,6 +619,7 @@ function inferEvidenceDiagnostics(input: {
   );
   const sourceText = normalizeTextForEvidence(source);
   const file = input.fileName;
+  const passingXcodeProof = hasPassingXcodeProof(input.input);
 
   if (input.input.platform === "macOS") {
     const iosOnly = findIosOnlySwiftUIUsage(source);
@@ -563,13 +652,24 @@ function inferEvidenceDiagnostics(input: {
     );
   }
 
+  diagnostics.push(
+    ...diagnosticsFromInputInteractivityEvidence(
+      [input.input.runtimeFailure, input.input.actualBehavior, input.input.testFailure]
+        .filter(Boolean)
+        .join("\n"),
+      source,
+      file
+    )
+  );
+
   if (
     input.input.expectedBehavior &&
     input.input.actualBehavior &&
     behaviorEvidenceContradictsExpectation(
       input.input.expectedBehavior,
       input.input.actualBehavior
-    )
+    ) &&
+    !(passingXcodeProof && !hasNegativeBehaviorEvidence(input.input.actualBehavior))
   ) {
     diagnostics.push({
       code: "AXCLOUD-BEHAVIOR-MISMATCH",
@@ -585,6 +685,7 @@ function inferEvidenceDiagnostics(input: {
   if (
     input.evidence.provided.length > 0 &&
     diagnostics.length === 0 &&
+    !passingXcodeProof &&
     /\b(fail|failed|error|crash|exception|not found|no match|timeout)\b/.test(
       evidenceText
     )
@@ -621,11 +722,40 @@ function inferEvidenceDiagnostics(input: {
   return dedupeDiagnostics(diagnostics);
 }
 
+function compactCloudCheckReport(report: CloudCheckReport): Omit<
+  CloudCheckReport,
+  "swiftCode"
+> & {
+  sourceRedaction?: {
+    swiftCode: "omitted_from_rendered_json";
+    reason: string;
+    sourceLines: number;
+    outputLines: number;
+  };
+} {
+  const { swiftCode, ...rest } = report;
+  return {
+    ...rest,
+    ...(swiftCode
+      ? {
+          sourceRedaction: {
+            swiftCode: "omitted_from_rendered_json" as const,
+            reason:
+              "Rendered JSON omits full Swift source by default. Use sourcePath/artifact files for code review and the repair prompt for agent guidance.",
+            sourceLines: report.sourceLines,
+            outputLines: report.outputLines,
+          },
+        }
+      : {}),
+  };
+}
+
 function buildCloudRepairPlan(input: {
   diagnostics: Diagnostic[];
   runtimeCoverageRequired: boolean;
   runtimeEvidenceProvided: boolean;
   fileName: string;
+  projectContext?: ProjectContextHint;
 }): CloudCheckReport["repairPlan"] {
   const actionable = input.diagnostics.filter((d) => d.severity !== "info");
 
@@ -670,6 +800,19 @@ function buildCloudRepairPlan(input: {
           "Open the sample output, find Thread 0, and look for the first frame from your app module. Rerun Cloud Check with that source file and the sample excerpt.",
       }
     );
+  }
+
+  if (input.projectContext?.relatedFiles.length) {
+    steps.push({
+      title: "Inspect related project files",
+      detail: `Project context flagged ${input.projectContext.relatedFiles
+        .slice(0, 5)
+        .map(
+          (file) =>
+            `${file.path}${file.reasons.length > 0 ? ` (${file.reasons.slice(0, 2).join(", ")})` : ""}`
+        )
+        .join(", ")} as nearby context to review before guessing at another fix.`,
+    });
   }
 
   steps.push({
@@ -871,6 +1014,182 @@ function diagnosticsFromRuntimeFailure(
   }
 
   return dedupeDiagnostics(diagnostics);
+}
+
+function diagnosticsFromInputInteractivityEvidence(
+  evidenceText: string,
+  source: string,
+  file: string
+): Diagnostic[] {
+  const text = normalizeTextForEvidence(evidenceText);
+  if (!looksLikeInputInteractivityFailure(text)) {
+    return [];
+  }
+
+  const diagnostics: Diagnostic[] = [];
+  const overlayHazard = findInputOverlayHazard(source);
+  const disabledHazard = findDisabledInputHazard(source);
+  const gestureHazard = findInputGestureHazard(source);
+
+  if (overlayHazard) {
+    diagnostics.push({
+      code: "AXCLOUD-UI-HIT-TEST-BLOCKER",
+      severity: "error",
+      file,
+      line: overlayHazard.line,
+      message: `${overlayHazard.input} is paired with an overlay that can intercept taps and focus.`,
+      suggestion:
+        "If the overlay is decorative or placeholder-only, add `.allowsHitTesting(false)` to it. If it is meant to stay interactive, move it so it does not sit on top of the input field.",
+    });
+  }
+
+  if (disabledHazard) {
+    diagnostics.push({
+      code: "AXCLOUD-UI-DISABLED-STATE",
+      severity: "error",
+      file,
+      line: disabledHazard.line,
+      message: `${disabledHazard.input} sits near .disabled(...), so a new loading, modal, or feature flag may be disabling the compose control.`,
+      suggestion:
+        "Trace the disabled condition and confirm the new feature did not start evaluating it to true. Keep unrelated loading or gating state off the composer subtree.",
+    });
+  }
+
+  if (gestureHazard) {
+    diagnostics.push({
+      code: "AXCLOUD-UI-GESTURE-CAPTURE",
+      severity: "warning",
+      file,
+      line: gestureHazard.line,
+      message: `${gestureHazard.input} sits near ${gestureHazard.pattern}, which can steal taps or prevent the field from becoming first responder.`,
+      suggestion:
+        "Move the gesture to a background container, narrow its hit area, or use a simultaneous gesture strategy that does not sit on top of the text input.",
+    });
+  }
+
+  if (diagnostics.length === 0) {
+    diagnostics.push({
+      code: "AXCLOUD-UI-INPUT-INTERACTION",
+      severity: "error",
+      file,
+      message:
+        "Runtime evidence says a visible input stopped accepting interaction. Common causes are overlay hit-testing, propagated disabled state, or gesture/focus conflicts.",
+      suggestion:
+        "Diff the input subtree for new `.overlay`, `.disabled`, `.gesture`, `.zIndex`, and focus-state changes. After each edit, rerun a focused tap/type smoke test instead of relying on a clean build alone.",
+    });
+  }
+
+  return dedupeDiagnostics(diagnostics);
+}
+
+function looksLikeInputInteractivityFailure(text: string): boolean {
+  if (!text) return false;
+  const subject =
+    /\b(comment box|compose box|composer|composer row|reply box|post box|text field|textfield|text editor|texteditor|input field|input|editor)\b/.test(
+      text
+    ) ||
+    /\b(can't tap|cannot tap|can't type|cannot type|won't focus|can't focus|cannot focus)\b/.test(
+      text
+    );
+  const symptom =
+    /\b(can't|cannot|won't|doesn't|does not|stopped|stop|no longer|never)\s+(?:tap|click|focus|type|edit|write|enter|respond|work)\b/.test(
+      text
+    ) ||
+    /\b(?:stopped|stop|no longer)\s+accept(?:ing|s)?\s+(?:input|focus|typing|taps?)\b/.test(
+      text
+    ) ||
+    /\b(not interactable|not editable|tap ignored|visible but dead|visible but won't focus|visible but can't type)\b/.test(
+      text
+    );
+  return subject && symptom;
+}
+
+type InputHazard = {
+  input: string;
+  line?: number;
+};
+
+function findInputOverlayHazard(source: string): InputHazard | undefined {
+  const lines = source.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    const inputMatch = lines[i]?.match(/\b(TextField|TextEditor|SecureField)\s*\(/);
+    if (!inputMatch) continue;
+
+    const windowStart = Math.max(0, i - 4);
+    const windowEnd = Math.min(lines.length, i + 18);
+    const windowText = lines.slice(windowStart, windowEnd).join("\n");
+    if (!/\.overlay\s*(?:\(|\{)/.test(windowText)) continue;
+    if (/\.allowsHitTesting\s*\(\s*false\s*\)/.test(windowText)) continue;
+
+    const overlayLineOffset = lines
+      .slice(windowStart, windowEnd)
+      .findIndex((line) => /\.overlay\s*(?:\(|\{)/.test(line));
+    return {
+      input: inputMatch[1],
+      line: overlayLineOffset >= 0 ? windowStart + overlayLineOffset + 1 : i + 1,
+    };
+  }
+
+  return undefined;
+}
+
+function findDisabledInputHazard(source: string): InputHazard | undefined {
+  const lines = source.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    const inputMatch = lines[i]?.match(/\b(TextField|TextEditor|SecureField)\s*\(/);
+    if (!inputMatch) continue;
+
+    const windowStart = Math.max(0, i - 8);
+    const windowEnd = Math.min(lines.length, i + 18);
+    const disabledLineOffset = lines
+      .slice(windowStart, windowEnd)
+      .findIndex(
+        (line) =>
+          /\.disabled\s*\(/.test(line) && !/\.disabled\s*\(\s*false\s*\)/.test(line)
+      );
+    if (disabledLineOffset < 0) continue;
+
+    return {
+      input: inputMatch[1],
+      line: windowStart + disabledLineOffset + 1,
+    };
+  }
+
+  return undefined;
+}
+
+function findInputGestureHazard(
+  source: string
+): (InputHazard & { pattern: string }) | undefined {
+  const lines = source.split("\n");
+  const gesturePatterns: Array<{ regex: RegExp; label: string }> = [
+    { regex: /\.highPriorityGesture\s*\(/, label: ".highPriorityGesture(...)" },
+    { regex: /\.gesture\s*\(/, label: ".gesture(...)" },
+    { regex: /\.onTapGesture\b/, label: ".onTapGesture" },
+  ];
+
+  for (let i = 0; i < lines.length; i++) {
+    const inputMatch = lines[i]?.match(/\b(TextField|TextEditor|SecureField)\s*\(/);
+    if (!inputMatch) continue;
+
+    const windowStart = Math.max(0, i - 8);
+    const windowEnd = Math.min(lines.length, i + 18);
+    const windowLines = lines.slice(windowStart, windowEnd);
+
+    for (const pattern of gesturePatterns) {
+      const gestureLineOffset = windowLines.findIndex((line) => pattern.regex.test(line));
+      if (gestureLineOffset < 0) continue;
+      return {
+        input: inputMatch[1],
+        line: windowStart + gestureLineOffset + 1,
+        pattern: pattern.label,
+      };
+    }
+  }
+
+  return undefined;
 }
 
 function runtimeHazardDiagnostics(source: string, file: string): Diagnostic[] {
@@ -1096,6 +1415,44 @@ function normalizeTextForEvidence(value: string): string {
   return value.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim();
 }
 
+function hasPassingXcodeProof(input: CloudCheckInput): boolean {
+  if (!input.xcodeBuildLog) return false;
+  const text = normalizeTextForEvidence(input.xcodeBuildLog);
+  if (!text) return false;
+  if (hasConcreteXcodeFailure(text)) return false;
+
+  return (
+    /\*\*\s*(?:test|build)\s+succeeded\s*\*\*/.test(text) ||
+    /\b(?:test|tests|test suite|test case|build)\s+(?:passed|succeeded)\b/.test(text) ||
+    /\b\d+\s+tests?\s+passed\b/.test(text) ||
+    /\bexecuted\s+\d+\s+tests?,?\s+with\s+0\s+failures\b/.test(text) ||
+    /\b0\s+failures\b/.test(text)
+  );
+}
+
+function hasConcreteXcodeFailure(normalizedXcodeLog: string): boolean {
+  const text = normalizedXcodeLog
+    .replace(/\b0\s+(?:failures?|failed|errors?)\b/g, " ")
+    .replace(/\bwith\s+0\s+failures\b/g, " ");
+
+  return /\*\*\s*(?:test|build)\s+failed\s*\*\*|\b(?:test|tests|test suite|test case|build)\s+failed\b|\berror:|\bfatal error\b|\bcrash(?:ed|es)?\b|\bexit(?:ed)?\s+(?:with\s+)?(?:code\s+)?[1-9]\d*\b/.test(
+    text
+  );
+}
+
+function hasNegativeBehaviorEvidence(actualBehavior: string): boolean {
+  const actual = normalizeTextForEvidence(actualBehavior);
+  if (!actual) return false;
+  return (
+    /\b(fail|fails|failed|failing|missing|misses|missed|never|no longer|wrong|incorrect|broken|regress|regressed|regression|freeze|freezes|frozen|hang|hangs|hung|crash|crashes|unresponsive|timeout|timed out|instead|mismatch|contradict|contradicts)\b/.test(
+      actual
+    ) ||
+    /\b(?:not|doesn't|does not|can't|cannot)\s+(?:work|working|implemented|show|render|match|pass|compile|build|load|open|respond|appear|exist|route|preserve)\b/.test(
+      actual
+    )
+  );
+}
+
 function behaviorEvidenceContradictsExpectation(
   expectedBehavior: string,
   actualBehavior: string
@@ -1104,14 +1461,7 @@ function behaviorEvidenceContradictsExpectation(
   const actual = normalizeTextForEvidence(actualBehavior);
   if (!expected || !actual || expected === actual) return false;
 
-  const negativeEvidence =
-    /\b(fail|fails|failed|failing|missing|misses|missed|never|no longer|wrong|incorrect|broken|regress|regressed|regression|freeze|freezes|frozen|hang|hangs|hung|crash|crashes|unresponsive|timeout|timed out|instead|mismatch|contradict|contradicts)\b/.test(
-      actual
-    ) ||
-    /\b(?:not|doesn't|does not|can't|cannot)\s+(?:work|working|implemented|show|render|match|pass|compile|build|load|open|respond|appear|exist|route|preserve)\b/.test(
-      actual
-    );
-  if (negativeEvidence) return true;
+  if (hasNegativeBehaviorEvidence(actual)) return true;
 
   const implementationEvidence =
     /\b(implemented|added|wired|built|created|preserved|kept|supports|shows|renders|uses|matches|includes|completed|fixed|passes|passed|clean|succeeds|succeeded)\b/.test(
@@ -1182,6 +1532,7 @@ function buildCloudCoverage(input: {
   runtimeCoverageRequired: boolean;
   evidenceProvided: boolean;
   runtimeEvidenceProvided: boolean;
+  projectContextLoaded: boolean;
 }): CloudCheckReport["coverage"] {
   const coverage: CloudCheckReport["coverage"] = [];
 
@@ -1229,6 +1580,14 @@ function buildCloudCoverage(input: {
       : input.runtimeCoverageRequired
         ? "Not executed by Cloud Check. Run Xcode build/test evidence for SwiftUI route, accessibility, state, and interaction claims."
         : "Not required for this static Apple contract check unless the surrounding project behavior is under investigation.",
+  });
+
+  coverage.push({
+    label: "Project-wide context",
+    state: input.projectContextLoaded ? "checked" : "not_applicable",
+    detail: input.projectContextLoaded
+      ? "Loaded a local .axint/context pack so Cloud Check could consider changed files, nearby SwiftUI surfaces, and interaction-risk files."
+      : "No local .axint/context pack was loaded. Run `axint project index` to give Cloud Check project-level visibility beyond the current file.",
   });
 
   return coverage;
@@ -1359,6 +1718,12 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
         `Static confidence: ${report.confidence.level}. ${report.confidence.detail}`,
         `Ship gate: ${report.gate.decision}. ${report.gate.reason}`,
         `Checked: ${checkedCoverageSummary(report)}.`,
+        ...(report.projectContext
+          ? [
+              "Project context:",
+              ...report.projectContext.summary.map((item) => `- ${item}`),
+            ]
+          : []),
         "This is not a runtime pass. Run the Xcode build plus the relevant unit/UI tests before claiming there is no bug.",
         "",
         "Repair plan:",
@@ -1375,6 +1740,12 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
       `Static confidence: ${report.confidence.level}. ${report.confidence.detail}`,
       `Ship gate: ${report.gate.decision}. ${report.gate.reason}`,
       `Checked: ${checkedCoverageSummary(report)}.`,
+      ...(report.projectContext
+        ? [
+            "Project context:",
+            ...report.projectContext.summary.map((item) => `- ${item}`),
+          ]
+        : []),
       `Repair plan: ${report.repairPlan.map((step) => step.title).join(" -> ")}.`,
       "Preserve the feature behavior and rerun Cloud Check after the next agent edit.",
     ].join("\n");
@@ -1387,6 +1758,22 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
     `Ship gate: ${report.gate.decision}. ${report.gate.reason}`,
     ...(report.evidence.provided.length > 0
       ? ["", "Evidence supplied:", ...report.evidence.summary.map((item) => `- ${item}`)]
+      : []),
+    ...(report.projectContext
+      ? [
+          "",
+          "Project context:",
+          ...report.projectContext.summary.map((item) => `- ${item}`),
+          ...(report.projectContext.relatedFiles.length > 0
+            ? [
+                "- Related files to inspect:",
+                ...report.projectContext.relatedFiles.map(
+                  (file) =>
+                    `  - ${file.path}${file.reasons.length > 0 ? ` (${file.reasons.slice(0, 2).join(", ")})` : ""}`
+                ),
+              ]
+            : []),
+        ]
       : []),
     "",
     "Address these findings:",
@@ -1514,8 +1901,8 @@ function inferLearningSignals(report: CloudCheckReport): string[] {
   ) {
     signals.push("runtime-main-thread-blocker");
   }
-  if (/\bAXCLOUD-UI-TEST|AXCLOUD-UI-ACCESSIBILITY\b/i.test(body)) {
-    signals.push("ui-test-evidence-gap");
+  if (/\bAXCLOUD-UI-[A-Z-]+\b/i.test(body)) {
+    signals.push("ui-interaction-evidence");
   }
 
   if (
@@ -1583,7 +1970,7 @@ function inferLearningOwner(
   if (signals.includes("platform-availability-gap")) return "swift-validator";
   if (signals.includes("runtime-freeze-evidence")) return "cloud";
   if (signals.includes("runtime-evidence-missing")) return "cloud";
-  if (signals.includes("ui-test-evidence-gap")) return "cloud";
+  if (signals.includes("ui-interaction-evidence")) return "cloud";
   if (kind === "validator_gap") return "swift-validator";
   if (signals.includes("generator-validator-contract-drift")) return "compiler";
   if (signals.includes("duplicate-generated-symbol")) return "feature-generator";
@@ -1615,6 +2002,9 @@ function titleForLearningSignal(
   if (diagnosticCodes.includes("AXCLOUD-RUNTIME-FREEZE")) {
     return "Runtime freeze evidence needs Cloud triage";
   }
+  if (diagnosticCodes.some((code) => code.startsWith("AXCLOUD-UI-"))) {
+    return `UI interaction evidence needs Cloud triage (${codeList})`;
+  }
   if (kind === "compiler_gap")
     return `Compiler could not lower source cleanly (${codeList})`;
   if (kind === "swift_api_gap") return `Apple metadata or API contract gap (${codeList})`;
@@ -1630,6 +2020,9 @@ function suggestedActionForLearningSignal(
 ): string {
   if (report.diagnostics.some((d) => d.code === "AXCLOUD-RUNTIME-FREEZE")) {
     return "Capture a freeze sample fixture, classify the first app-owned main-thread frame, and promote repeated freeze signatures into Cloud runtime diagnostics.";
+  }
+  if (report.diagnostics.some((d) => d.code.startsWith("AXCLOUD-UI-"))) {
+    return "Turn repeated tap/focus/input regressions into UI-interaction fixtures so Cloud Check can classify overlay, disabled-state, and gesture-capture bugs immediately.";
   }
   if (kind === "generator_gap") {
     return "Create a regression fixture from the source shape, fix the generator, then require the generated Swift to pass axint.swift.validate.";
