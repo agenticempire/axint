@@ -21,6 +21,10 @@ export function registerRun(program: Command, version: string) {
     .option("--derived-data <path>", "xcodebuild -derivedDataPath")
     .option("--test-plan <name>", "xcodebuild -testPlan")
     .option(
+      "--only-testing <selector...>",
+      "Focused xcodebuild -only-testing selector(s), e.g. SwarmUITests/SwarmUITests/testName"
+    )
+    .option(
       "--platform <platform>",
       "Target platform: macOS, iOS, watchOS, visionOS, all",
       parsePlatform
@@ -54,6 +58,7 @@ export function registerRun(program: Command, version: string) {
         configuration?: string;
         derivedData?: string;
         testPlan?: string;
+        onlyTesting?: string[];
         platform?: AxintRunPlatform;
         changed?: string[];
         skipBuild?: boolean;
@@ -82,6 +87,7 @@ export function registerRun(program: Command, version: string) {
           configuration: options.configuration,
           derivedDataPath: options.derivedData,
           testPlan: options.testPlan,
+          onlyTesting: options.onlyTesting,
           modifiedFiles: options.changed,
           skipBuild: options.skipBuild,
           skipTests: options.skipTests,
@@ -112,6 +118,10 @@ export function registerRun(program: Command, version: string) {
     .option("--dir <dir>", "Project directory", ".")
     .option("--scheme <scheme>", "Xcode scheme")
     .option("--destination <destination>", "xcodebuild destination")
+    .option(
+      "--only-testing <selector...>",
+      "Focused xcodebuild -only-testing selector(s)"
+    )
     .option("--skip-tests", "Skip xcodebuild test")
     .option("--runtime", "Launch the built macOS app and capture runtime evidence")
     .option("--dry-run", "Plan commands without executing them")
@@ -126,6 +136,7 @@ export function registerRun(program: Command, version: string) {
         dir: string;
         scheme?: string;
         destination?: string;
+        onlyTesting?: string[];
         skipTests?: boolean;
         runtime?: boolean;
         dryRun?: boolean;
@@ -137,6 +148,7 @@ export function registerRun(program: Command, version: string) {
           expectedVersion: version,
           scheme: options.scheme,
           destination: options.destination,
+          onlyTesting: options.onlyTesting,
           skipTests: options.skipTests,
           runtime: options.runtime,
           dryRun: options.dryRun,

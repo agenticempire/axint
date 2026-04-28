@@ -5,6 +5,7 @@ import { resolve, join } from "node:path";
 import { tmpdir } from "node:os";
 
 const CLI = resolve(__dirname, "../../dist/cli/index.js");
+const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
 
 const INVALID_SWIFT = `
 import AppIntents
@@ -103,5 +104,69 @@ describe("axint validate-swift", () => {
 
     expect(packet.outcome.verdict).toBe("pass");
     expect(packet.diagnostics).toHaveLength(0);
+  });
+
+  it("accepts multiple Swift file arguments in one run", () => {
+    const firstFile = join(tmpDir, "PlainSwift.swift");
+    const secondFile = join(tmpDir, "Second.swift");
+    const packetDir = join(tmpDir, "fix");
+    writeFileSync(firstFile, VALID_SWIFT, "utf-8");
+    writeFileSync(
+      secondFile,
+      `
+struct SecondSwift {
+    let value: String = "ok"
+}
+`,
+      "utf-8"
+    );
+
+    const result = spawnSync(
+      "node",
+      [CLI, "validate-swift", firstFile, secondFile, "--fix-packet-dir", packetDir],
+      {
+        cwd: tmpDir,
+        encoding: "utf-8",
+      }
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("2 Swift files passed axint validation");
+
+    const packetPath = join(packetDir, "latest.json");
+    const packet = JSON.parse(readFileSync(packetPath, "utf-8")) as {
+      outcome: { verdict: string };
+      diagnostics: Array<unknown>;
+    };
+
+    expect(packet.outcome.verdict).toBe("pass");
+    expect(packet.diagnostics).toHaveLength(0);
+  });
+
+  it("disables ANSI color in non-TTY output by default", () => {
+    const swiftFile = join(tmpDir, "PlainSwift.swift");
+    writeFileSync(swiftFile, VALID_SWIFT, "utf-8");
+
+    const result = spawnSync("node", [CLI, "validate-swift", swiftFile], {
+      cwd: tmpDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).not.toMatch(ANSI_PATTERN);
+    expect(result.stderr).not.toMatch(ANSI_PATTERN);
+  });
+
+  it("forces ANSI color when --color is set", () => {
+    const swiftFile = join(tmpDir, "PlainSwift.swift");
+    writeFileSync(swiftFile, VALID_SWIFT, "utf-8");
+
+    const result = spawnSync("node", [CLI, "validate-swift", swiftFile, "--color"], {
+      cwd: tmpDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(ANSI_PATTERN);
   });
 });

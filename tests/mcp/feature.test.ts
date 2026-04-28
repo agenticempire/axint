@@ -643,6 +643,47 @@ describe("axint.suggest", () => {
     ).toBe(false);
   });
 
+  it("switches to existing-product repair mode for SwiftUI UX bugs", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Existing Discover tab scroll UX bug: the header sticks wrong, the tab loses position, and a focused Xcode UI test should prove the repair.",
+      platform: "macOS",
+      limit: 3,
+    });
+
+    expect(suggestions).toHaveLength(3);
+    expect(suggestions[0].domain).toBe("repair");
+    expect(suggestions[0].name).toMatch(/Repair Existing/i);
+    expect(suggestions[0].featurePrompt).toMatch(
+      /existing macOS discover screen SwiftUI flow/i
+    );
+    expect(suggestions[0].featurePrompt).toMatch(/smallest view\/state/i);
+    expect(suggestions[1].featurePrompt).toMatch(/focused macOS Xcode/i);
+    expect(suggestions.map((s) => s.domain)).not.toContain("collaboration");
+  });
+
+  it("preserves product nouns for existing command-center screen repairs", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Turn the existing macOS SwiftUI Project Room screen for My Project into a premium command center with launch readiness, Capture, Vault, Agents, existing tab routing, and primary actions.",
+      platform: "macOS",
+      limit: 4,
+    });
+
+    const routing = suggestions.find((suggestion) => /routing/i.test(suggestion.name));
+
+    expect(suggestions[0].domain).toBe("repair");
+    expect(suggestions[0].name).toMatch(/Project Room/i);
+    expect(suggestions[0].featurePrompt).toMatch(/Project Room/);
+    expect(suggestions[0].featurePrompt).toMatch(/My Project/);
+    expect(suggestions[0].featurePrompt).toMatch(/command center/);
+    expect(suggestions[0].featurePrompt).toMatch(/launch readiness/);
+    expect(routing).toBeDefined();
+    expect(routing!.featurePrompt).toMatch(/capture|run agent|launch check|open vault/i);
+    expect(routing!.featurePrompt).toMatch(/tab routing|hittable|route/i);
+    expect(routing!.nextStep).toMatch(/--only-testing/);
+  });
+
   it("uses broader app context instead of falling back to collaboration for recipes", () => {
     const suggestions = suggestFeatures({
       appDescription: "A recipe and cooking app for meal plans and groceries",

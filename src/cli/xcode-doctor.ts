@@ -302,7 +302,7 @@ function agentCheck(name: string, paths: string[], needle: RegExp): Check {
         label: name,
         status: "warn",
         detail: "config found but axint not registered",
-        hint: `axint xcode setup --agent ${name.toLowerCase().split(" ")[0]}`,
+        hint: `axint xcode install --agent ${name.toLowerCase().split(" ")[0]} --project .`,
       };
     } catch {
       // fall through

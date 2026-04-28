@@ -6,7 +6,7 @@
  *   axint init [dir]              Scaffold a new Axint project
  *   axint compile <file>          Compile TS intent → Swift App Intent
  *   axint validate <file>         Validate a compiled intent
- *   axint validate-swift <path>   Validate existing Swift sources against Axint's build-time rules
+ *   axint validate-swift <path...> Validate existing Swift sources against Axint's build-time rules
  *   axint eject <file>            Eject intent to standalone Swift (no vendor lock-in)
  *   axint format <file>           Format a .axint source file in canonical style
  *   axint templates               List bundled intent templates
@@ -23,17 +23,19 @@
  *   axint status                  Show local package/runtime status and Xcode restart steps
  *   axint doctor                  Audit version truth, MCP wiring, and project start files
  *   axint project init            Write Axint project-start files for agent workflows
+ *   axint project index           Index the local Apple project into .axint/context
  *   axint session start           Start an enforced Axint agent session and refresh context
  *   axint run                     Run Axint's enforced Apple build/test/runtime loop
  *   axint runner once             Execute one BYO-Mac runner Axint job
  *   axint mcp                     Start the MCP server (stdio)
  *   axint mcp status              Show local MCP launch command and Xcode restart steps
+ *   axint xcode install           Install the full Axint Xcode workflow in one pass
  *   axint xcode setup             Configure Axint for Xcode agentic coding
  *   axint xcode guard             Check/write the Axint Xcode drift guard
  *   axint xcode verify            Verify the MCP connection is working
  *   axint xcode fix <path>        Auto-fix mechanical Swift validator errors
  *   axint xcode doctor            Audit environment for Apple-platform agentic coding
- *   axint xcode check             Print the latest Xcode Axint Check summary, prompt, or artifact path
+ *   axint xcode check             Check a Swift file directly or print the latest Xcode Axint Check summary
  *   axint xcode packet            Print the latest Xcode Fix Packet or AI prompt
  *   axint xcode extension install Install the notarized Axint Source Editor Extension
  *   axint xcode extension status  Report whether the extension is installed
@@ -210,6 +212,34 @@ const xcode = program
   .description("Xcode integration setup and management");
 
 xcode
+  .command("install")
+  .description(
+    "Install the full Axint Xcode workflow: MCP setup, guarded project files, context index, and verification"
+  )
+  .option("--agent <agent>", "Which agent to configure (claude, codex, all)", "claude")
+  .option("--remote", "Use the hosted remote MCP endpoint instead of local stdio")
+  .option(
+    "--local-build",
+    "Use this checkout's built dist/mcp/register.js instead of the npm package"
+  )
+  .option("--project <dir>", "Project directory for guarded setup", ".")
+  .option("--name <name>", "Project name for guarded setup")
+  .option("--no-verify", "Skip the final MCP verification pass")
+  .action(
+    async (options: {
+      agent: string;
+      remote: boolean;
+      localBuild?: boolean;
+      project?: string;
+      name?: string;
+      verify?: boolean;
+    }) => {
+      const { installXcodeWorkflow } = await import("./xcode-setup.js");
+      await installXcodeWorkflow(options);
+    }
+  );
+
+xcode
   .command("setup")
   .description("Configure Axint as an MCP server for Xcode's agentic coding workflow")
   .option("--agent <agent>", "Which agent to configure (claude, codex, all)", "all")
@@ -268,10 +298,38 @@ xcode
 
 xcode
   .command("check")
-  .description("Read the latest Xcode Axint Check summary emitted by Axint build plugins")
+  .description(
+    "Check a current Swift file directly, or read the latest emitted Xcode Axint Check summary"
+  )
+  .argument(
+    "[file]",
+    "Swift file to check directly. Omit to read the latest emitted Xcode packet summary."
+  )
   .option(
     "--root <dir>",
     "DerivedData root, plugin work directory, or exact latest.json packet path"
+  )
+  .option("--source <file>", "Swift file to check directly")
+  .option("--project <dir>", "Project root for direct file checks")
+  .option(
+    "--platform <platform>",
+    "Target platform for direct file checks (iOS, macOS, watchOS, visionOS, all)"
+  )
+  .option("--build-log <text>", "Inline Xcode build log evidence for direct file checks")
+  .option("--test-failure <text>", "Inline failing test evidence for direct file checks")
+  .option(
+    "--runtime-failure <text>",
+    "Inline runtime or interaction failure evidence for direct file checks"
+  )
+  .option("--expected <text>", "Expected behavior for direct file checks")
+  .option("--actual <text>", "Actual behavior for direct file checks")
+  .option(
+    "--changed <files...>",
+    "Changed files to pin into the refreshed project context"
+  )
+  .option(
+    "--no-refresh-context",
+    "Skip refreshing .axint/context before direct file checks"
   )
   .option(
     "--kind <kind>",
@@ -286,13 +344,40 @@ xcode
     "markdown"
   )
   .action(
-    async (options: {
-      root?: string;
-      kind: XcodePacketKind;
-      format: XcodeCheckOutput;
-    }) => {
+    async (
+      file: string | undefined,
+      options: {
+        root?: string;
+        source?: string;
+        project?: string;
+        platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "all";
+        buildLog?: string;
+        testFailure?: string;
+        runtimeFailure?: string;
+        expected?: string;
+        actual?: string;
+        changed?: string[];
+        refreshContext?: boolean;
+        kind: XcodePacketKind;
+        format: XcodeCheckOutput;
+      }
+    ) => {
       const { runXcodeCheck } = await import("./xcode-check.js");
-      await runXcodeCheck(options);
+      await runXcodeCheck({
+        root: options.root,
+        sourcePath: options.source ?? file,
+        project: options.project,
+        platform: options.platform,
+        xcodeBuildLog: options.buildLog,
+        testFailure: options.testFailure,
+        runtimeFailure: options.runtimeFailure,
+        expectedBehavior: options.expected,
+        actualBehavior: options.actual,
+        changedFiles: options.changed,
+        refreshContext: options.refreshContext,
+        kind: options.kind,
+        format: options.format,
+      });
     }
   );
 

@@ -3,8 +3,9 @@ import { readFileSync, statSync, readdirSync } from "node:fs";
 import { resolve, join, extname } from "node:path";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
+import { getAxintLoginState } from "../core/credentials.js";
 import {
-  printRepairArtifactLines,
+  renderRepairArtifactLines,
   tryEmitRepairArtifacts,
 } from "../repair/repair-artifacts.js";
 
@@ -14,9 +15,10 @@ export function registerValidateSwift(program: Command) {
     .description(
       "Validate existing Swift sources (App Intents, Widgets, SwiftUI views) against Axint's rules"
     )
-    .argument("<path>", "Swift file or directory to validate")
+    .argument("<paths...>", "Swift file(s) or directories to validate")
     .option("--quiet", "Only print errors, not the success banner")
     .option("--json", "Emit a machine-readable JSON report to stdout")
+    .option("--color", "Force ANSI color output even when stdout/stderr are not TTYs")
     .option(
       "--no-fix-packet",
       "Skip writing the local Fix Packet under .axint/fix/latest.{json,md}"
@@ -28,24 +30,46 @@ export function registerValidateSwift(program: Command) {
     )
     .action(
       async (
-        pathArg: string,
+        pathArgs: string[],
         options: {
           quiet?: boolean;
           json?: boolean;
+          color?: boolean;
           fixPacket?: boolean;
           fixPacketDir: string;
         }
       ) => {
-        const target = resolve(pathArg);
-        const files = collectSwiftFiles(target);
+        const color = shouldUseColor(options.color === true);
+        const targets = pathArgs.map((pathArg) => ({
+          input: pathArg,
+          resolved: resolve(pathArg),
+        }));
+        const files = new Set<string>();
+        const missingTargets: string[] = [];
 
-        if (files.length === 0) {
-          console.error(`\x1b[31merror:\x1b[0m no .swift files found at ${pathArg}`);
+        for (const target of targets) {
+          const targetFiles = collectSwiftFiles(target.resolved);
+          if (targetFiles.length === 0) {
+            missingTargets.push(target.input);
+            continue;
+          }
+          for (const file of targetFiles) files.add(file);
+        }
+
+        if (missingTargets.length > 0) {
+          printLine(
+            "error",
+            `no .swift files found at ${missingTargets.join(", ")}`,
+            color,
+            console.error
+          );
           process.exit(1);
         }
 
         const all: Diagnostic[] = [];
-        for (const file of files) {
+        const filesToScan = [...files].sort();
+
+        for (const file of filesToScan) {
           const source = readFileSync(file, "utf-8");
           const result = validateSwiftSource(source, file);
           all.push(...result.diagnostics);
@@ -62,12 +86,20 @@ export function registerValidateSwift(program: Command) {
               success: errors.length === 0,
               surface: "swift",
               diagnostics: all,
-              source: files.length === 1 ? readFileSync(files[0], "utf-8") : undefined,
+              source:
+                filesToScan.length === 1
+                  ? readFileSync(filesToScan[0], "utf-8")
+                  : undefined,
               fileName:
-                files.length === 1
-                  ? files[0].split(/[\\/]/).pop()
-                  : (target.split(/[\\/]/).pop() ?? "swift-validation"),
-              filePath: files.length === 1 ? files[0] : target,
+                filesToScan.length === 1
+                  ? filesToScan[0].split(/[\\/]/).pop()
+                  : "swift-validation",
+              filePath:
+                filesToScan.length === 1
+                  ? filesToScan[0]
+                  : targets.length === 1
+                    ? targets[0]!.resolved
+                    : process.cwd(),
               language: "swift",
               packetDir: options.fixPacketDir,
               command: "validate_swift",
@@ -77,7 +109,9 @@ export function registerValidateSwift(program: Command) {
           repairArtifacts = repairResult.artifacts;
           if (repairResult.error) {
             console.error(
-              `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${repairResult.error.message}`
+              color
+                ? `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${repairResult.error.message}`
+                : `warning: Fix Packet skipped — ${repairResult.error.message}`
             );
           }
         }
@@ -85,7 +119,7 @@ export function registerValidateSwift(program: Command) {
         if (options.json) {
           const payload = {
             ok: errors.length === 0,
-            filesScanned: files.length,
+            filesScanned: filesToScan.length,
             diagnostics: all,
             fixPacketPath: repairArtifacts?.packet.jsonPath ?? null,
             checkSummaryPath: repairArtifacts?.check.jsonPath ?? null,
@@ -95,25 +129,32 @@ export function registerValidateSwift(program: Command) {
         }
 
         for (const d of all) {
-          printDiagnostic(d);
+          printDiagnostic(d, color);
         }
 
         if (errors.length > 0) {
           if (repairArtifacts) {
-            printRepairArtifactLines(repairArtifacts, console.error);
+            printRepairArtifactLinesWithColor(repairArtifacts, color, console.error);
           }
-          console.error(
-            `\n\x1b[31m✗\x1b[0m ${errors.length} error${errors.length === 1 ? "" : "s"} in ${files.length} file${files.length === 1 ? "" : "s"}`
+          printLine(
+            "error",
+            `${errors.length} error${errors.length === 1 ? "" : "s"} in ${filesToScan.length} file${filesToScan.length === 1 ? "" : "s"}`,
+            color,
+            console.error,
+            "\n"
           );
           process.exit(1);
         }
 
         if (!options.quiet) {
           if (repairArtifacts) {
-            printRepairArtifactLines(repairArtifacts, console.log);
+            printRepairArtifactLinesWithColor(repairArtifacts, color, console.log);
           }
-          console.log(
-            `\x1b[32m✓\x1b[0m ${files.length} Swift file${files.length === 1 ? "" : "s"} passed axint validation`
+          printLine(
+            "success",
+            `${filesToScan.length} Swift file${filesToScan.length === 1 ? "" : "s"} passed axint validation`,
+            color,
+            console.log
           );
         }
       }
@@ -152,18 +193,57 @@ function walk(dir: string, out: string[]) {
   }
 }
 
-function printDiagnostic(d: Diagnostic) {
+function printDiagnostic(d: Diagnostic, color: boolean) {
   const loc = d.file ? `${d.file}${d.line ? `:${d.line}` : ""}` : "";
-  const color =
+  const severityColor =
     d.severity === "error"
       ? "\x1b[31m"
       : d.severity === "warning"
         ? "\x1b[33m"
         : "\x1b[36m";
-  console.error(
-    `${loc ? loc + " " : ""}${color}${d.severity}\x1b[0m[${d.code}]: ${d.message}`
-  );
+  const severityLabel = color ? `${severityColor}${d.severity}\x1b[0m` : d.severity;
+  console.error(`${loc ? loc + " " : ""}${severityLabel}[${d.code}]: ${d.message}`);
   if (d.suggestion) {
-    console.error(`  \x1b[2mhelp:\x1b[0m ${d.suggestion}`);
+    console.error(
+      color ? `  \x1b[2mhelp:\x1b[0m ${d.suggestion}` : `  help: ${d.suggestion}`
+    );
   }
+}
+
+function shouldUseColor(forceColor: boolean): boolean {
+  if (forceColor) return true;
+  if ("NO_COLOR" in process.env) return false;
+  return process.stdout.isTTY === true && process.stderr.isTTY === true;
+}
+
+function printRepairArtifactLinesWithColor(
+  artifacts: NonNullable<ReturnType<typeof tryEmitRepairArtifacts>["artifacts"]>,
+  color: boolean,
+  writeLine: (line: string) => void
+) {
+  for (const line of renderRepairArtifactLines(artifacts, {
+    signedIn: getAxintLoginState().signedIn,
+  })) {
+    writeLine(color ? line : stripAnsi(line));
+  }
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), "");
+}
+
+function printLine(
+  kind: "error" | "success",
+  message: string,
+  color: boolean,
+  writeLine: (line: string) => void,
+  prefix = ""
+) {
+  const symbol = kind === "error" ? "✗" : "✓";
+  const ansi = kind === "error" ? "\x1b[31m" : "\x1b[32m";
+  writeLine(
+    color
+      ? `${prefix}${ansi}${symbol}\x1b[0m ${message}`
+      : `${prefix}${symbol} ${message}`
+  );
 }

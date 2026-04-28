@@ -214,7 +214,7 @@ axint compile my-app.ts --out ios/App/
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.10 · 23 MCP tools + 5 prompts · 182 diagnostic codes · 1115 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.11 · 24 MCP tools + 5 prompts · 183 diagnostic codes · 1131 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -294,6 +294,7 @@ MCP tools and built-in prompts:
 | `axint.validate` | Dry-run validation with diagnostics |
 | `axint.feature` | Generate an editable feature package: intents, views, widgets, components, app shells, stores, tests, and support fragments |
 | `axint.project.pack` | Generate `.mcp.json`, `AGENTS.md`, `CLAUDE.md`, `.axint` rehydration/memory/docs/project files, and the session-first workflow for first-try agent setup |
+| `axint.project.index` | Scan the local Apple project and write a compact `.axint/context` pack so Cloud Check can reason over changed files and nearby SwiftUI surfaces |
 | `axint.context.memory` | Return the compact Axint operating memory for new chats and context-compaction recovery |
 | `axint.context.docs` | Return the project-local Axint docs context so agents can reload docs after compaction |
 | `axint.suggest` | Suggest app-specific Apple-native features, reusable components, and shared stores from a product description |

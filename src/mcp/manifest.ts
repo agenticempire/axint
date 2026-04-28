@@ -444,6 +444,50 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.project.index",
+    description:
+      "Scan the local Apple project and write a compact .axint/context pack so Axint can reason over changed files, nearby SwiftUI surfaces, and interaction-risk files instead of only one source file at a time.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        targetDir: {
+          type: "string",
+          description:
+            "Project directory to index. Defaults to the current working directory.",
+        },
+        projectName: {
+          type: "string",
+          description: "Optional project name override for the context pack.",
+        },
+        changedFiles: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional changed files to pin into the context pack.",
+        },
+        includeGit: {
+          type: "boolean",
+          description: "Whether to include git changed-file discovery. Defaults to true.",
+        },
+        dryRun: {
+          type: "boolean",
+          description:
+            "When true, returns the index without writing .axint/context files.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.context.memory",
     description:
       "Return the compact Axint operating memory that agents should reload " +
@@ -602,6 +646,8 @@ export const TOOL_MANIFEST = [
       "right Axint tools: suggest for planning, feature for new surfaces, " +
       "swift.validate for modified Swift, cloud.check for coverage-aware " +
       "repair feedback, and Xcode build/test evidence for runtime proof. " +
+      "For existing dirty SwiftUI files or Codex-style patch edits, it points " +
+      "agents toward surgical patching plus validation instead of full-file writes. " +
       "A ready result is not a completion stamp: the response includes the next " +
       "Axint action the agent should call before returning to ordinary Xcode work.",
     annotations: {
@@ -690,7 +736,7 @@ export const TOOL_MANIFEST = [
         featureBypassReason: {
           type: "string",
           description:
-            "Concrete reason axint.feature was intentionally bypassed for a new surface. Use only for existing-code edits or when generation is not useful.",
+            "Concrete reason axint.feature was intentionally bypassed. Use for existing-code edits, patch-first repairs, or cases where generation is not useful.",
         },
         ranSwiftValidate: {
           type: "boolean",
@@ -995,6 +1041,11 @@ export const TOOL_MANIFEST = [
           description:
             "Optional observed behavior for behavior-gap checks. Pair with expectedBehavior so Cloud Check can return a repair-oriented mismatch finding.",
         },
+        projectContextPath: {
+          type: "string",
+          description:
+            "Optional path to a local .axint/context/latest.json pack written by axint.project.index. Omit when sourcePath lives inside the same project and Cloud Check can auto-discover the context file.",
+        },
         format: {
           type: "string",
           enum: ["markdown", "json", "prompt", "feedback"],
@@ -1067,6 +1118,12 @@ export const TOOL_MANIFEST = [
         testPlan: {
           type: "string",
           description: "Optional xcodebuild -testPlan for test runs.",
+        },
+        onlyTesting: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional focused xcodebuild -only-testing selectors, e.g. SwarmUITests/SwarmUITests/testProjectCommandCenterPrimaryActionsRouteToCoreTabs.",
         },
         modifiedFiles: {
           type: "array",

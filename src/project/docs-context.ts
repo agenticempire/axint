@@ -211,7 +211,7 @@ Typical project setup:
 
 \`\`\`bash
 npm install -g @axint/compiler
-axint xcode setup --agent claude --guarded
+axint xcode install --project .
 axint project init --dir /path/to/App --name AppName --agent claude --force
 \`\`\`
 

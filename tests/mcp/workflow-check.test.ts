@@ -121,6 +121,10 @@ describe("axint.workflow.check", () => {
     expect(report.status).toBe("ready");
     expect(report.required).toEqual([]);
     expect(report.checked.join("\n")).toMatch(/intentionally bypassed/);
+    expect(report.checked.join("\n")).toMatch(/patch-first mode/);
+    expect(report.recommended.join("\n")).toMatch(/small patch edit/);
+    expect(report.nextTool).toBe("apply_patch, then axint.swift.validate");
+    expect(renderWorkflowCheckReport(report)).toContain("## Next Action");
   });
 
   it("passes when static checks and build evidence are present", () => {

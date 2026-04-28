@@ -194,5 +194,15 @@ describe("Axint project machine", () => {
     expect(
       readFileSync(join(sessionDir, ".axint/session/current.json"), "utf-8")
     ).toContain(session.session.token);
+
+    const contextResult = await handleToolCall("axint.project.index", {
+      targetDir: sessionDir,
+      projectName: "Swarm",
+      dryRun: true,
+      format: "json",
+    });
+    const context = JSON.parse(contextResult.content[0].text);
+    expect(context.schema).toBe("https://axint.ai/schemas/project-context-index.v1.json");
+    expect(context.projectName).toBe("Swarm");
   });
 });

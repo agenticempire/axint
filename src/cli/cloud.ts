@@ -74,6 +74,10 @@ export function registerCloud(program: Command) {
     .option("--expected <text>", "Expected behavior when checking a semantic bug")
     .option("--actual <text>", "Actual behavior when checking a semantic bug")
     .option(
+      "--context <file>",
+      "Read a local .axint/context pack written by `axint project index`"
+    )
+    .option(
       "--write-feedback [dir]",
       "Write the redacted learning signal to .axint/feedback or the provided directory"
     )
@@ -95,6 +99,7 @@ export function registerCloud(program: Command) {
           runtimeFailureFile?: string;
           expected?: string;
           actual?: string;
+          context?: string;
           writeFeedback?: boolean | string;
         }
       ) => {
@@ -121,6 +126,7 @@ export function registerCloud(program: Command) {
             ),
             expectedBehavior: options.expected,
             actualBehavior: options.actual,
+            projectContextPath: options.context,
           });
           if (options.writeFeedback && report.learningSignal) {
             const stored = writeCloudFeedbackSignal(report.learningSignal, {

@@ -30,7 +30,7 @@ describe("axint.status tool", () => {
     expect(payload.server).toBe("axint-mcp");
     expect(payload.version).toMatch(/^\d+\.\d+\.\d+/);
     expect(payload.restartRequiredAfterUpdate).toBe(true);
-    expect(payload.xcodeSetupCommand).toBe("axint xcode setup --agent claude --guarded");
+    expect(payload.xcodeSetupCommand).toBe("axint xcode install --project .");
   });
 
   it("returns a human-readable Xcode update path", async () => {

@@ -27,7 +27,11 @@ vi.mock("node:os", async () => {
   };
 });
 
-import { setupXcode, verifyXcode } from "../../src/cli/xcode-setup.js";
+import {
+  installXcodeWorkflow,
+  setupXcode,
+  verifyXcode,
+} from "../../src/cli/xcode-setup.js";
 import { xcodeExtensionStatus } from "../../src/cli/xcode-extension.js";
 
 describe("xcode CLI smoke coverage", () => {
@@ -202,6 +206,7 @@ describe("xcode CLI smoke coverage", () => {
     });
 
     const guardPath = join(projectDir, ".axint", "guard", "latest.json");
+    const contextPath = join(projectDir, ".axint", "context", "latest.json");
     const guard = JSON.parse(readFileSync(guardPath, "utf-8")) as {
       status: string;
       session?: { token: string };
@@ -212,6 +217,56 @@ describe("xcode CLI smoke coverage", () => {
     );
     expect(guard.status).toBe("ready");
     expect(guard.session?.token).toMatch(/^axsess_/);
+    expect(readFileSync(contextPath, "utf-8")).toContain('"projectName": "Swarm"');
+  });
+
+  it("installs the full Xcode workflow in one pass", async () => {
+    const projectDir = join(tempRoot, "Swarm");
+    const npxPath = join(tempRoot, "bin", "npx");
+    mkdirSync(dirname(npxPath), { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(npxPath, "", "utf-8");
+
+    execSyncMock.mockImplementation((command: string) => {
+      if (command.startsWith("xcodebuild -version")) {
+        return "Xcode 26.3\nBuild version 17E123";
+      }
+      if (command.startsWith("xcrun mcpbridge --help")) {
+        return "";
+      }
+      if (command.startsWith("which axint")) {
+        return "/usr/local/bin/axint\n";
+      }
+      if (command.startsWith("claude mcp add --transport stdio")) {
+        return "";
+      }
+      if (command.startsWith("command -v npx")) {
+        return `${npxPath}\n`;
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    spawnSyncMock.mockReturnValue({
+      stdout: JSON.stringify({
+        tools: [
+          { name: "axint.status" },
+          { name: "axint.feature" },
+          { name: "axint.project.index" },
+        ],
+      }),
+      stderr: "",
+    });
+
+    await installXcodeWorkflow({
+      agent: "claude",
+      remote: false,
+      project: projectDir,
+      name: "Swarm",
+    });
+
+    expect(
+      readFileSync(join(projectDir, ".axint", "context", "latest.json"), "utf-8")
+    ).toContain('"projectName": "Swarm"');
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Xcode workflow ready"));
   });
 
   it("covers extension status when the app is installed", async () => {

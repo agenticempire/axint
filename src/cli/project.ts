@@ -6,6 +6,11 @@ import {
   type ProjectMcpMode,
   type ProjectStartPackFormat,
 } from "../project/start-pack.js";
+import {
+  renderProjectContextIndex,
+  writeProjectContextIndex,
+  type ProjectContextIndexFormat,
+} from "../project/context-index.js";
 
 export function registerProject(program: Command, version: string) {
   const project = program
@@ -59,6 +64,42 @@ export function registerProject(program: Command, version: string) {
         console.log(renderProjectStartPack(result, options.format));
       }
     );
+
+  project
+    .command("index")
+    .description(
+      "Scan the local Apple project and write a compact .axint/context pack for project-aware checks"
+    )
+    .option("--dir <dir>", "Project directory to scan", ".")
+    .option("--name <name>", "Project name override")
+    .option("--changed <file...>", "Changed files to pin into the context pack")
+    .option("--no-git", "Skip git changed-file discovery")
+    .option("--dry-run", "Print the context pack without writing .axint/context")
+    .option(
+      "--format <format>",
+      "Output format: markdown or json",
+      parseContextIndexFormat,
+      "markdown" as ProjectContextIndexFormat
+    )
+    .action(
+      (options: {
+        dir: string;
+        name?: string;
+        changed?: string[];
+        git?: boolean;
+        dryRun?: boolean;
+        format: ProjectContextIndexFormat;
+      }) => {
+        const result = writeProjectContextIndex({
+          targetDir: options.dir,
+          projectName: options.name,
+          changedFiles: options.changed,
+          includeGit: options.git,
+          dryRun: options.dryRun ?? false,
+        });
+        console.log(renderProjectContextIndex(result.index, options.format));
+      }
+    );
 }
 
 function parseAgent(value: string): ProjectAgent {
@@ -74,4 +115,9 @@ function parseMode(value: string): ProjectMcpMode {
 function parseFormat(value: string): ProjectStartPackFormat {
   if (value === "markdown" || value === "json") return value;
   throw new Error(`invalid format: ${value}`);
+}
+
+function parseContextIndexFormat(value: string): ProjectContextIndexFormat {
+  if (value === "markdown" || value === "json") return value;
+  throw new Error(`invalid context index format: ${value}`);
 }

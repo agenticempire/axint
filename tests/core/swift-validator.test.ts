@@ -880,3 +880,58 @@ describe("swift validator — AX739 undeclared SwiftUI body references", () => {
     );
   });
 });
+
+describe("swift validator — AX764 input overlay hit testing", () => {
+  it("warns when a text input overlay can block hit testing", () => {
+    const source = `
+      import SwiftUI
+
+      struct ComposerView: View {
+          @State private var draft = ""
+
+          var body: some View {
+              TextEditor(text: $draft)
+                  .frame(minHeight: 120)
+                  .overlay(alignment: .topLeading) {
+                      if draft.isEmpty {
+                          Text("Write a comment")
+                              .padding(.top, 12)
+                              .padding(.leading, 16)
+                      }
+                  }
+          }
+      }
+    `;
+
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX764");
+    expect(diagnostic?.message).toContain("TextEditor");
+    expect(diagnostic?.suggestion).toContain("allowsHitTesting(false)");
+  });
+
+  it("does not warn when the overlay explicitly disables hit testing", () => {
+    const source = `
+      import SwiftUI
+
+      struct ComposerView: View {
+          @State private var draft = ""
+
+          var body: some View {
+              TextEditor(text: $draft)
+                  .frame(minHeight: 120)
+                  .overlay(alignment: .topLeading) {
+                      if draft.isEmpty {
+                          Text("Write a comment")
+                              .padding(.top, 12)
+                              .padding(.leading, 16)
+                              .allowsHitTesting(false)
+                      }
+                  }
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX764")).toHaveLength(
+      0
+    );
+  });
+});

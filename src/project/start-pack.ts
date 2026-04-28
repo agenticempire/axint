@@ -288,7 +288,7 @@ function buildStartPrompt(input: { projectName: string; version: string }): stri
     "6. Call axint.status and report the running MCP server version.",
     "7. Call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.",
     `8. Expected Axint package version from this project pack: ${input.version}.`,
-    "9. If the running MCP version is stale, stop and tell me to update Axint, rerun axint xcode setup --agent claude --guarded, and restart this Xcode agent chat.",
+    "9. If the running MCP version is stale, stop and tell me to update Axint, rerun axint xcode install --project ., and restart this Xcode agent chat.",
     "10. Call axint.xcode.guard before long tasks, before broad Swift edits, and after any context recovery.",
     "11. Call axint.workflow.check with sessionToken at planning, before-write, pre-build, and pre-commit checkpoints.",
     "12. Before planning new Apple-native surfaces, call axint.suggest.",

@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { renderCloudCheckReport, runCloudCheck } from "../../src/cloud/check.js";
 import { writeCloudFeedbackSignal } from "../../src/cloud/feedback-store.js";
 import { handleToolCall } from "../../src/mcp/server.js";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { writeProjectContextIndex } from "../../src/project/context-index.js";
 
 describe("cloud check", () => {
   it("runs a Swift source check and returns an agent repair prompt", () => {
@@ -105,6 +106,8 @@ struct ContentView: View {
     expect(payload.gate.decision).toBe("evidence_required");
     expect(payload.gate.canClaimFixed).toBe(false);
     expect(payload.fileName).toBe("ContentView.swift");
+    expect(payload.swiftCode).toBeUndefined();
+    expect(payload.sourceRedaction.swiftCode).toBe("omitted_from_rendered_json");
     expect(payload.confidence.level).toBe("medium");
     expect(payload.coverage).toContainEqual(
       expect.objectContaining({
@@ -242,6 +245,51 @@ struct HomeCommandLayer: View {
     );
     expect(report.status).toBe("pass");
     expect(report.gate.decision).toBe("ready_to_ship");
+  });
+
+  it("trusts passing focused Xcode proof when behavior prose uses different wording", () => {
+    const report = runCloudCheck({
+      fileName: "DiscoverTabView.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct DiscoverTabView: View {
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, pinnedViews: [.sectionHeaders]) {
+                Section {
+                    Text("Feed")
+                } header: {
+                    Text("Discover")
+                }
+            }
+        }
+    }
+}
+`,
+      expectedBehavior:
+        "Discover tab preserves scroll offset, sticky header position, visible feed cards, and composer tap target after filter changes.",
+      actualBehavior:
+        "Focused UITest transcript attached for the current branch repair proof.",
+      xcodeBuildLog: [
+        "Test Suite 'SwarmUITests' started.",
+        "Test Case '-[SwarmUITests testDiscoverTabScrollAnchors]' passed (1.18 seconds).",
+        "Test Case '-[SwarmUITests testDiscoverComposerRemainsHittable]' passed (0.92 seconds).",
+        "** TEST SUCCEEDED **",
+        "Executed 2 tests, with 0 failures",
+      ].join("\n"),
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).not.toContain(
+      "AXCLOUD-BEHAVIOR-MISMATCH"
+    );
+    expect(report.diagnostics.map((d) => d.code)).not.toContain(
+      "AXCLOUD-EVIDENCE-UNCLASSIFIED"
+    );
+    expect(report.status).toBe("pass");
+    expect(report.gate.decision).toBe("ready_to_ship");
+    expect(report.repairPrompt).not.toContain("This is not a runtime pass");
   });
 
   it("flags behavior evidence only when the actual text describes a failure", () => {
@@ -389,6 +437,126 @@ struct ProfileDataView: View {
     expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-RUNTIME-FREEZE");
     expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-RUNTIME-SYNC-IO");
     expect(report.repairPrompt).toContain("Synchronous I/O");
+  });
+
+  it("classifies overlay hit-testing blockers when a compose box stops accepting input", () => {
+    const report = runCloudCheck({
+      fileName: "HomeComposer.swift",
+      platform: "iOS",
+      source: `
+import SwiftUI
+
+struct HomeComposer: View {
+    @State private var draft = ""
+
+    var body: some View {
+        TextEditor(text: $draft)
+            .frame(minHeight: 120)
+            .overlay(alignment: .topLeading) {
+                if draft.isEmpty {
+                    Text("Write a comment")
+                        .padding(.top, 12)
+                        .padding(.leading, 16)
+                }
+            }
+    }
+}
+`,
+      runtimeFailure:
+        "The home feed still renders, but the comment box is visible and I can't tap into it or type anymore.",
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-UI-HIT-TEST-BLOCKER"
+    );
+    expect(report.repairPrompt).toContain("allowsHitTesting(false)");
+    expect(report.learningSignal?.signals).toContain("ui-interaction-evidence");
+  });
+
+  it("classifies propagated disabled state when a compose box no longer works", () => {
+    const report = runCloudCheck({
+      fileName: "HomeComposer.swift",
+      platform: "iOS",
+      source: `
+import SwiftUI
+
+struct HomeComposer: View {
+    @State private var draft = ""
+    @State private var isPosting = false
+    @State private var isShowingFeatureGate = false
+
+    var body: some View {
+        VStack {
+            TextField("Write a comment", text: $draft)
+                .textFieldStyle(.roundedBorder)
+        }
+        .disabled(isPosting || isShowingFeatureGate)
+    }
+}
+`,
+      actualBehavior:
+        "After adding the new feature, the compose box is visible but no longer accepts input or focus.",
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-UI-DISABLED-STATE");
+  });
+
+  it("loads local project context and surfaces related files for a dead composer", () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-cloud-context-"));
+    try {
+      mkdirSync(join(dir, ".axint"), { recursive: true });
+      writeFileSync(
+        join(dir, "HomeComposer.swift"),
+        [
+          "import SwiftUI",
+          "",
+          "struct HomeComposer: View {",
+          '    @State private var draft = ""',
+          "    var body: some View {",
+          "        TextEditor(text: $draft)",
+          "    }",
+          "}",
+          "",
+        ].join("\n")
+      );
+      writeFileSync(
+        join(dir, "FeedShell.swift"),
+        [
+          "import SwiftUI",
+          "",
+          "struct FeedShell: View {",
+          "    @State private var isPosting = false",
+          "    var body: some View {",
+          "        HomeComposer()",
+          "            .disabled(isPosting)",
+          "    }",
+          "}",
+          "",
+        ].join("\n")
+      );
+      writeProjectContextIndex({
+        targetDir: dir,
+        changedFiles: ["FeedShell.swift"],
+      });
+
+      const report = runCloudCheck({
+        sourcePath: join(dir, "HomeComposer.swift"),
+        actualBehavior:
+          "The comment box is visible, but after the new feature landed I can't tap into it or type anymore.",
+      });
+
+      expect(report.projectContext?.summary.join("\n")).toContain(
+        "Project context loaded"
+      );
+      expect(report.projectContext?.relatedFiles.map((file) => file.path)).toContain(
+        "FeedShell.swift"
+      );
+      expect(report.repairPrompt).toContain("Related files to inspect");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("emits a learning signal when static SwiftUI validation needs runtime evidence", () => {

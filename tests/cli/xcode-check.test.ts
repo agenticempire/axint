@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { buildFixPacket } from "../../src/repair/fix-packet.js";
 import { emitCheckSummaryArtifacts } from "../../src/repair/check-summary.js";
+import { runXcodeCheck } from "../../src/cli/xcode-check.js";
 
 const CLI = resolve(__dirname, "../../dist/cli/index.js");
 
@@ -187,5 +188,61 @@ describe("axint xcode check", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("no validate Axint Check found");
     expect(result.stderr).toContain("DerivedData");
+  });
+
+  it("can check a live Swift file directly and refresh project context", async () => {
+    const stdout: string[] = [];
+    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+      stdout.push(String(chunk));
+      return true;
+    });
+
+    try {
+      const projectRoot = join(tempRoot, "Swarm");
+      mkdirSync(join(projectRoot, "Swarm.xcodeproj"), { recursive: true });
+      writeFileSync(
+        join(projectRoot, "HomeComposer.swift"),
+        [
+          "import SwiftUI",
+          "",
+          "struct HomeComposer: View {",
+          '    @State private var draft = ""',
+          "    var body: some View {",
+          "        TextEditor(text: $draft)",
+          "    }",
+          "}",
+          "",
+        ].join("\n")
+      );
+      writeFileSync(
+        join(projectRoot, "FeedShell.swift"),
+        [
+          "import SwiftUI",
+          "",
+          "struct FeedShell: View {",
+          "    @State private var isPosting = false",
+          "    var body: some View {",
+          "        HomeComposer()",
+          "            .disabled(isPosting)",
+          "    }",
+          "}",
+          "",
+        ].join("\n")
+      );
+
+      await runXcodeCheck({
+        sourcePath: join(projectRoot, "HomeComposer.swift"),
+        project: projectRoot,
+        changedFiles: ["FeedShell.swift"],
+        kind: "any",
+        format: "markdown",
+      });
+
+      expect(stdout.join("")).toContain("# Axint Cloud Check");
+      expect(stdout.join("")).toContain("## Project Context");
+      expect(stdout.join("")).toContain("FeedShell.swift");
+    } finally {
+      writeSpy.mockRestore();
+    }
   });
 });
