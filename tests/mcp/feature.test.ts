@@ -1009,6 +1009,26 @@ describe("axint.suggest", () => {
     );
   });
 
+  it("refuses existing-app UI generation when the requested token namespace is not in context", () => {
+    const result = generateFeature({
+      name: "ShareComposerView",
+      surfaces: ["view"],
+      platform: "macOS",
+      tokenNamespace: "Swarm",
+      description:
+        "Build an existing-product ShareComposer surface that reuses the real SWARM design system.",
+      context: [
+        "enum SwarmDesignTokens { enum Colors { static let accent = Color.orange } }",
+        "struct SharePayload { let title: String }",
+      ].join("\n"),
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.files).toHaveLength(0);
+    expect(result.diagnostics.join("\n")).toContain("AX855");
+    expect(result.summary).toContain("Generation quality gate stopped output");
+  });
+
   it("includes description cues in suggestion rationales", () => {
     const suggestions = suggestFeatures({
       appDescription:

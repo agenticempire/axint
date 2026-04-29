@@ -232,6 +232,42 @@ describe("axint.workflow.check", () => {
     expect(report.recommended.join("\n")).toContain("small patch edit");
   });
 
+  it("allows axint.repair to satisfy planning for existing SwiftUI repair", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      agent: "codex",
+      stage: "planning",
+      surfaces: ["view"],
+      ranSuggest: false,
+      ranRepair: true,
+      modifiedFiles: ["HomeComposerView.swift"],
+      notes: "Existing SwiftUI compose-box repair from failing UI evidence.",
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.required).toEqual([]);
+    expect(report.checked.join("\n")).toContain("axint.repair");
+    expect(report.nextTool).toBe("apply_patch, then axint.swift.validate");
+  });
+
+  it("bypasses Apple compiler gates for document-only artifacts", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      agent: "codex",
+      stage: "pre-build",
+      modifiedFiles: ["sprint-2026-04-20.html"],
+      ranSuggest: false,
+      ranCloudCheck: false,
+      notes: "Document-only HTML sprint artifact.",
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.required).toEqual([]);
+    expect(report.checked.join("\n")).toContain("Document/web artifact mode");
+    expect(report.recommended.join("\n")).toContain("rendered HTML/Markdown");
+    expect(report.nextTool).toContain("rendered artifact verification");
+  });
+
   it("does not send Codex to Xcode finish guard after tests pass", () => {
     const report = runWorkflowCheck({
       ...sessionArgs(),
@@ -280,5 +316,20 @@ describe("axint.workflow.check", () => {
     expect(report.nextTool).not.toBe("axint.feature");
     expect(report.nextTool).toContain("axint.suggest");
     expect(report.recommended.join("\n")).toContain("axint.feature is not available");
+  });
+
+  it("uses CLI suggest or repair fallback when MCP suggest is unavailable", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      stage: "planning",
+      surfaces: ["view"],
+      ranSuggest: false,
+      availableTools: ["axint.workflow.check", "axint.swift.validate"],
+    });
+
+    expect(report.status).toBe("needs_action");
+    expect(report.nextTool).toContain("axint suggest <app-description>");
+    expect(report.nextTool).toContain("axint.repair");
+    expect(report.recommended.join("\n")).toContain("axint.suggest is not available");
   });
 });

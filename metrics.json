@@ -1,6 +1,6 @@
 {
-  "version": "0.4.13",
-  "mcpTools": 29,
+  "version": "0.4.14",
+  "mcpTools": 33,
   "mcpToolNames": [
     "axint.status",
     "axint.upgrade",
@@ -22,6 +22,10 @@
     "axint.cloud.check",
     "axint.repair",
     "axint.feedback.create",
+    "axint.agent.install",
+    "axint.agent.advice",
+    "axint.agent.claim",
+    "axint.agent.release",
     "axint.run",
     "axint.run.status",
     "axint.run.cancel",
@@ -41,7 +45,7 @@
     "axint.create-intent"
   ],
   "bundledTemplates": 26,
-  "diagnostics": 184,
+  "diagnostics": 188,
   "xcodeFixRules": 33,
   "xcodeFixRuleCodes": [
     "AX701",
@@ -79,7 +83,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 1058,
+    "typescript": 1080,
     "python": 114
   },
   "registryPackages": 14,

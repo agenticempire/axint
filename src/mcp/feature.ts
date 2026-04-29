@@ -351,7 +351,7 @@ export function generateFeature(input: FeatureInput): FeatureResult {
   diagnostics.push(...auditGeneratedFeature(input, files));
 
   const success = !diagnostics.some((d) => /^\[AX[^\]]+\]\s+error\b/.test(d));
-  const qualityGateBlocked = diagnostics.some((d) => /^\[AX85[023]\]\s+error\b/.test(d));
+  const qualityGateBlocked = diagnostics.some((d) => /^\[AX85[0235]\]\s+error\b/.test(d));
   const emittedFiles = qualityGateBlocked ? [] : files;
   const surfaceList = surfaces.join(", ");
   const fileCount = emittedFiles.filter((f) => f.type === "swift").length;

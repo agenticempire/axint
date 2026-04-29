@@ -795,6 +795,11 @@ export const TOOL_MANIFEST = [
           type: "boolean",
           description: "Whether axint.feature was used for a new surface scaffold.",
         },
+        ranRepair: {
+          type: "boolean",
+          description:
+            "Whether axint.repair was used for an existing-code repair plan. This satisfies planning for patch-first SwiftUI/store repairs when axint.suggest is unavailable or generation is not useful.",
+        },
         featureBypassReason: {
           type: "string",
           description:
@@ -1328,6 +1333,188 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.agent.install",
+    description:
+      "Install the local Axint multi-agent project brain. Writes .axint/agent.json, " +
+      ".axint/context/latest.*, and .axint/coordination files so Codex, Claude, Cursor, " +
+      "Xcode, OpenClaw, and humans coordinate through the same local truth layer.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory. Defaults to the MCP process cwd.",
+        },
+        projectName: {
+          type: "string",
+          description: "Optional project name override.",
+        },
+        agent: {
+          type: "string",
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
+          description: "Active host/tool lane. Defaults to all.",
+        },
+        privacyMode: {
+          type: "string",
+          enum: ["local_only", "redacted_cloud", "source_opt_in"],
+          description:
+            "Privacy posture for this project. Defaults to local_only; source sharing is never enabled by default.",
+        },
+        providerMode: {
+          type: "string",
+          enum: ["none", "bring_your_own_key", "axint_cloud"],
+          description:
+            "Optional model-provider posture for future AI-enhanced advice. Defaults to none.",
+        },
+        force: {
+          type: "boolean",
+          description: "Rewrite the existing local agent config if present.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json", "prompt"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.agent.advice",
+    description:
+      "Ask the local Axint project brain what this agent should do next. Reads project " +
+      "context, latest run proof, latest repair plan, and active file claims, then returns " +
+      "host-specific guidance for Codex, Claude, Cursor, Xcode, or another agent lane.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory. Defaults to the MCP process cwd.",
+        },
+        issue: {
+          type: "string",
+          description:
+            "Optional bug, feature, or repair goal to turn into project-aware next moves.",
+        },
+        agent: {
+          type: "string",
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
+          description:
+            "Active host/tool lane. Axint adapts advice to the tools this agent can actually use.",
+        },
+        changedFiles: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Files in scope. Axint uses these to detect claim conflicts and recommend proof.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json", "prompt"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.agent.claim",
+    description:
+      "Claim files before an agent edits them so other agents do not patch the same " +
+      "SwiftUI/App files concurrently. Claims are local, short-lived, and stored in " +
+      ".axint/coordination/claims.json.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      required: ["files"],
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory. Defaults to the MCP process cwd.",
+        },
+        agent: {
+          type: "string",
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
+          description: "Agent lane creating the claim.",
+        },
+        task: {
+          type: "string",
+          description: "Task, bug, or repair pass this claim covers.",
+        },
+        files: {
+          type: "array",
+          items: { type: "string" },
+          description: "Files to claim before editing.",
+        },
+        ttlMinutes: {
+          type: "number",
+          description: "Claim TTL in minutes. Defaults to 30.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json", "prompt"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.agent.release",
+    description:
+      "Release active local Axint file claims for this agent after finishing or abandoning " +
+      "a task. This keeps Codex, Claude, Cursor, and Xcode from blocking each other on stale claims.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory. Defaults to the MCP process cwd.",
+        },
+        agent: {
+          type: "string",
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
+          description: "Agent lane releasing claims.",
+        },
+        files: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional files to release. Omit to release this agent's claims.",
+        },
+        all: {
+          type: "boolean",
+          description: "Release all matching active claims.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json", "prompt"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.run",
     description:
       "Run the enforced Axint Apple build loop outside the Xcode UI. Starts or refreshes " +
@@ -1361,6 +1548,12 @@ export const TOOL_MANIFEST = [
           enum: ["macOS", "iOS", "watchOS", "visionOS", "all"],
           description:
             "Target Apple platform. Defaults to macOS unless inferred from destination.",
+        },
+        agent: {
+          type: "string",
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
+          description:
+            "Current agent host lane. Axint uses this to start the right session profile and return host-safe repair guidance.",
         },
         scheme: {
           type: "string",

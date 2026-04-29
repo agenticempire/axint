@@ -169,8 +169,22 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
   let outputPath: string | undefined;
   let diagnostics: Diagnostic[];
   let generated = false;
+  const nonAppleArtifact = language === "unknown" && isNonAppleArtifact(fileName, source);
 
-  if (language === "swift") {
+  if (nonAppleArtifact) {
+    surface = inferNonAppleArtifactSurface(fileName, source);
+    diagnostics = [
+      {
+        code: "AXCLOUD-NON-APPLE-ARTIFACT",
+        severity: "info",
+        file: fileName,
+        message:
+          "Cloud Check received a document or web artifact instead of Swift, Axint TypeScript, or Apple-native source.",
+        suggestion:
+          "Use browser/render/link verification for this artifact, then run Cloud Check on the Swift or Axint source that implements the Apple-facing behavior.",
+      },
+    ];
+  } else if (language === "swift") {
     diagnostics = validateSwiftSource(source, fileName).diagnostics;
     swiftCode = source;
   } else {
@@ -223,63 +237,86 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
   const infos = diagnostics.filter((d) => d.severity === "info").length;
   const runtimeCoverageRequired = requiresRuntimeCoverage(language, surface, swiftCode);
   const runtimeEvidenceProvided = hasRuntimeEvidence(evidence);
-  const status: CloudCheckStatus =
-    errors > 0
+  const status: CloudCheckStatus = nonAppleArtifact
+    ? "needs_review"
+    : errors > 0
       ? "fail"
       : warnings > 0 || (runtimeCoverageRequired && !runtimeEvidenceProvided)
         ? "needs_review"
         : "pass";
   const outputLines = swiftCode ? swiftCode.split("\n").length : 0;
 
-  const checks = [
-    {
-      label: language === "swift" ? "Swift source loaded" : "Source parse",
-      state: diagnostics.some((d) => d.code === "AX001") ? "fail" : "pass",
-      detail:
-        language === "swift"
-          ? "Axint loaded Swift source directly for Apple-specific validation."
-          : generated
-            ? "The source parsed into Axint IR and generated Swift."
-            : "Axint could not produce Swift from this source.",
-    },
-    {
-      label: language === "swift" ? "Swift validation" : "Swift generation",
-      state: swiftCode ? "pass" : "fail",
-      detail: swiftCode
-        ? `${generated ? "Generated" : "Checked"} ${outputLines} line${outputLines === 1 ? "" : "s"} of Swift.`
-        : "No Swift output was available for validation.",
-    },
-    {
-      label: "Apple-specific findings",
-      state: errors > 0 ? "fail" : warnings > 0 ? "warn" : "pass",
-      detail:
-        errors > 0
-          ? `${errors} error${errors === 1 ? "" : "s"} must be fixed before this is safe to ship.`
-          : warnings > 0
-            ? `${warnings} warning${warnings === 1 ? "" : "s"} need review.`
-            : "No blocking static Apple-facing issues were found.",
-    },
-    ...(runtimeCoverageRequired
+  const checks = (
+    nonAppleArtifact
       ? [
           {
-            label: "Runtime and UI coverage",
-            state: runtimeEvidenceProvided ? ("pass" as const) : ("warn" as const),
-            detail: runtimeEvidenceProvided
-              ? "Cloud Check inspected supplied Xcode/test/runtime evidence in addition to static source checks."
-              : "Static Cloud Check does not execute Xcode builds, UI tests, accessibility flows, route transitions, or runtime state. Do not treat this as proof that the app flow works.",
+            label: "Document/web artifact detected",
+            state: "warn" as const,
+            detail:
+              "This input is not Swift or Axint source, so Apple compiler diagnostics are not the right proof surface.",
           },
-        ]
-      : []),
-    ...(projectContext
-      ? [
           {
-            label: "Project context pack",
+            label: "Apple-specific findings",
             state: "pass" as const,
-            detail: projectContext.summary.join(" "),
+            detail:
+              "No Apple-native compiler rules were applied. Verify this artifact through browser/render/link evidence instead.",
           },
         ]
-      : []),
-  ] satisfies CloudCheckReport["checks"];
+      : [
+          {
+            label: language === "swift" ? "Swift source loaded" : "Source parse",
+            state: diagnostics.some((d) => d.code === "AX001")
+              ? ("fail" as const)
+              : ("pass" as const),
+            detail:
+              language === "swift"
+                ? "Axint loaded Swift source directly for Apple-specific validation."
+                : generated
+                  ? "The source parsed into Axint IR and generated Swift."
+                  : "Axint could not produce Swift from this source.",
+          },
+          {
+            label: language === "swift" ? "Swift validation" : "Swift generation",
+            state: swiftCode ? ("pass" as const) : ("fail" as const),
+            detail: swiftCode
+              ? `${generated ? "Generated" : "Checked"} ${outputLines} line${outputLines === 1 ? "" : "s"} of Swift.`
+              : "No Swift output was available for validation.",
+          },
+          {
+            label: "Apple-specific findings",
+            state:
+              errors > 0
+                ? ("fail" as const)
+                : warnings > 0
+                  ? ("warn" as const)
+                  : ("pass" as const),
+            detail:
+              errors > 0
+                ? `${errors} error${errors === 1 ? "" : "s"} must be fixed before this is safe to ship.`
+                : warnings > 0
+                  ? `${warnings} warning${warnings === 1 ? "" : "s"} need review.`
+                  : "No blocking static Apple-facing issues were found.",
+          },
+          ...(runtimeCoverageRequired
+            ? [
+                {
+                  label: "Runtime and UI coverage",
+                  state: runtimeEvidenceProvided ? ("pass" as const) : ("warn" as const),
+                  detail: runtimeEvidenceProvided
+                    ? "Cloud Check inspected supplied Xcode/test/runtime evidence in addition to static source checks."
+                    : "Static Cloud Check does not execute Xcode builds, UI tests, accessibility flows, route transitions, or runtime state. Do not treat this as proof that the app flow works.",
+                },
+              ]
+            : []),
+        ]
+  ) satisfies CloudCheckReport["checks"];
+  if (projectContext) {
+    checks.push({
+      label: "Project context pack",
+      state: "pass",
+      detail: projectContext.summary.join(" "),
+    });
+  }
   const coverage = buildCloudCoverage({
     language,
     surface,
@@ -289,6 +326,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     evidenceProvided: evidence.provided.length > 0,
     runtimeEvidenceProvided,
     projectContextLoaded: Boolean(projectContext),
+    nonAppleArtifact,
   });
   const confidence = buildCloudConfidence({
     status,
@@ -297,6 +335,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     runtimeCoverageRequired,
     evidenceProvided: evidence.provided.length > 0,
     runtimeEvidenceProvided,
+    nonAppleArtifact,
   });
   const gate = buildCloudGate({
     status,
@@ -305,6 +344,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     runtimeCoverageRequired,
     runtimeEvidenceProvided,
     evidenceProvided: evidence.provided.length > 0,
+    nonAppleArtifact,
   });
 
   const nextSteps = diagnostics
@@ -317,6 +357,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     runtimeEvidenceProvided,
     fileName,
     projectContext,
+    nonAppleArtifact,
     repairIntelligence:
       repairIntelligence.isExistingProductRepair ||
       diagnostics.some((d) => d.severity !== "info")
@@ -325,7 +366,14 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
   });
 
   if (nextSteps.length === 0) {
-    if (runtimeCoverageRequired) {
+    if (nonAppleArtifact) {
+      nextSteps.push(
+        "Verify this document or web artifact with a browser/render smoke test instead of treating Cloud Check as an Apple compiler verdict."
+      );
+      nextSteps.push(
+        "Run Cloud Check on the Swift or Axint source files that implement the Apple-facing behavior referenced by the artifact."
+      );
+    } else if (runtimeCoverageRequired) {
       nextSteps.push(
         "Treat this as a static source check only. Run the Xcode build plus the relevant unit/UI tests before claiming the bug is gone."
       );
@@ -603,6 +651,27 @@ function inferLanguage(fileName: string, source: string): CloudCheckLanguage {
   return "unknown";
 }
 
+function isNonAppleArtifact(fileName: string, source: string): boolean {
+  if (/\.(html?|md|mdx|txt|pdf)$/i.test(fileName)) return true;
+  if (/\b<!doctype\s+html\b|\b<html[\s>]/i.test(source)) return true;
+  if (
+    /^\s*#\s+\S+/m.test(source) &&
+    !/\bdefine(Intent|View|Widget|App)\s*\(/.test(source)
+  ) {
+    return true;
+  }
+  return /\b(sprint|audit|roadmap|north star|north-star|appendix)\b/i.test(fileName);
+}
+
+function inferNonAppleArtifactSurface(fileName: string, source: string): string {
+  if (/\.(html?|mdx?)$/i.test(fileName) || /\b<html[\s>]/i.test(source)) {
+    return "document";
+  }
+  if (/\b(sprint|roadmap)\b/i.test(fileName)) return "sprint-artifact";
+  if (/\b(audit|north star|north-star)\b/i.test(fileName)) return "audit-artifact";
+  return "document-artifact";
+}
+
 function inferSwiftSurface(source: string): string {
   if (/\bAppIntent\b/.test(source)) return "intent";
   if (/\bWidget\b/.test(source) || /\bTimelineProvider\b/.test(source)) return "widget";
@@ -648,13 +717,7 @@ function collectCloudEvidence(input: CloudCheckInput): CloudCheckReport["evidenc
 
 function hasRuntimeEvidence(evidence: CloudCheckReport["evidence"]): boolean {
   return evidence.provided.some((label) =>
-    [
-      "xcodeBuildLog",
-      "testFailure",
-      "runtimeFailure",
-      "expectedBehavior",
-      "actualBehavior",
-    ].includes(label)
+    ["xcodeBuildLog", "testFailure", "runtimeFailure"].includes(label)
   );
 }
 
@@ -729,6 +792,9 @@ function inferEvidenceDiagnostics(input: {
       source,
       file
     )
+  );
+  diagnostics.push(
+    ...diagnosticsFromStateTransitionHangEvidence(evidenceText, source, file)
   );
 
   if (
@@ -831,6 +897,7 @@ function buildCloudRepairPlan(input: {
   fileName: string;
   projectContext?: ProjectContextHint;
   repairIntelligence?: AppleRepairIntelligence;
+  nonAppleArtifact?: boolean;
 }): CloudCheckReport["repairPlan"] {
   const actionable = input.diagnostics.filter((d) => d.severity !== "info");
   const intelligenceSteps: CloudCheckReport["repairPlan"] = input.repairIntelligence
@@ -849,6 +916,21 @@ function buildCloudRepairPlan(input: {
           : []),
       ]
     : [];
+
+  if (input.nonAppleArtifact) {
+    return [
+      {
+        title: "Use the right proof surface",
+        detail:
+          "This is a document or web artifact, so browser rendering, link checks, screenshots, and console output are the useful proof instead of Swift compiler diagnostics.",
+      },
+      {
+        title: "Check related Apple source only if needed",
+        detail:
+          "If the artifact describes Swift, App Intents, Xcode, or runtime behavior changes, run Cloud Check against the related Swift or Axint source file, not the HTML/Markdown report.",
+      },
+    ];
+  }
 
   if (actionable.length === 0) {
     return [
@@ -893,6 +975,14 @@ function buildCloudRepairPlan(input: {
           "Open the sample output, find Thread 0, and look for the first frame from your app module. Rerun Cloud Check with that source file and the sample excerpt.",
       }
     );
+  }
+
+  if (input.diagnostics.some((d) => d.code === "AXCLOUD-RUNTIME-STATE-TRANSITION-HANG")) {
+    steps.unshift({
+      title: "Trim SwiftUI transition work first",
+      detail:
+        "Remove broad `withAnimation` or `.animation` around filter, sort, and list updates before chasing unrelated fixes. Keep pinned headers stable, move expensive filtering/sorting out of View.body, and prove the repair with the focused UI test that scrolls and switches state.",
+    });
   }
 
   if (input.projectContext?.relatedFiles.length) {
@@ -944,15 +1034,22 @@ function diagnosticsFromBuildLog(buildLog: string, file: string): Diagnostic[] {
     });
   }
 
-  if (/\b(?:type|value)\s+'[^']+'\s+has no member\s+'[^']+'/.test(text)) {
+  const missingMember = text.match(
+    /\b(?:(?:value\s+of\s+type)|type|value)\s+'([^']+)'\s+has\s+no\s+member\s+'([^']+)'/
+  );
+  if (missingMember) {
+    const resolvedType = missingMember[1] ?? "the resolved type";
+    const member = missingMember[2] ?? "member";
+    const isTypeErasedSwiftUI =
+      resolvedType === "some view" || resolvedType === "some swiftui.view";
     diagnostics.push({
       code: "AXCLOUD-BUILD-MISSING-MEMBER",
       severity: "error",
       file,
-      message:
-        "Xcode build evidence reports a member reference that does not exist on the resolved type.",
-      suggestion:
-        "Rename the generated enum case, static token, or type member to match the project symbol. If Axint generated it, feed the declaring type or design-token file as context before regenerating.",
+      message: `Xcode build evidence reports .${member} on ${resolvedType}, but that member does not exist on the resolved type.`,
+      suggestion: isTypeErasedSwiftUI
+        ? "A SwiftUI modifier earlier in the chain likely erased the concrete type. Move the project-specific modifier before `.labelStyle`, `.buttonStyle`, `.background`, `.overlay`, or rewrite the modifier as a generic View extension."
+        : "Rename the generated enum case, static token, or type member to match the project symbol. If Axint generated it, feed the declaring type or design-token file as context before regenerating.",
     });
   }
 
@@ -1018,7 +1115,23 @@ function diagnosticsFromTestFailure(
   const diagnostics: Diagnostic[] = [];
 
   if (
-    /\b(no matches|no matching|not found|failed to get matching|element.*not.*exist|wait.*timed out)\b/.test(
+    /\bxct(?:assert|fail|waiter)[a-z]*\s+failed\b|\btest case\b.*\bfailed\b|\bfailing test\b|\bis not equal to\b|\bfailed assertion\b/.test(
+      text
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-XCTEST-FAILURE",
+      severity: "error",
+      file,
+      message:
+        "Supplied XCTest evidence contains an explicit failing assertion, so Cloud Check cannot return a pass.",
+      suggestion:
+        "Patch the behavior that the failing assertion names, rerun the focused XCTest, and include the passing test log before claiming the repair is fixed.",
+    });
+  }
+
+  if (
+    /\b(no matches|no matching|not found|failed to get matching|element.*not.*exist|should exist|wait.*timed out)\b/.test(
       text
     )
   ) {
@@ -1051,7 +1164,7 @@ function diagnosticsFromTestFailure(
   }
 
   if (
-    /\b(should be hittable after scrolling|not hittable|not tappable|not foreground|does not allow background interaction|background interaction|failed to synthesize event|hit point|scroll.*hittable)\b/.test(
+    /\b(should be hittable|should be tappable|not hittable|not tappable|not foreground|does not allow background interaction|background interaction|failed to synthesize event|hit point|scroll.*hittable)\b/.test(
       text
     )
   ) {
@@ -1189,6 +1302,98 @@ function diagnosticsFromInputInteractivityEvidence(
   }
 
   return dedupeDiagnostics(diagnostics);
+}
+
+function diagnosticsFromStateTransitionHangEvidence(
+  evidenceText: string,
+  source: string,
+  file: string
+): Diagnostic[] {
+  const text = normalizeTextForEvidence(evidenceText);
+  if (!looksLikeStateTransitionMainThreadHang(text, source)) {
+    return [];
+  }
+
+  return [
+    {
+      code: "AXCLOUD-RUNTIME-STATE-TRANSITION-HANG",
+      severity: "error",
+      file,
+      line: findLikelyStateTransitionHangLine(source),
+      message:
+        "Runtime or UI-test evidence says the app main thread became busy after a UI state transition, which often comes from heavy SwiftUI list animations, pinned-header updates, or expensive body recomputation.",
+      suggestion:
+        "Treat this as a SwiftUI state-transition hang. Remove broad or per-card spring animations from filter/sort/list changes, keep pinned headers outside animated collection updates, move expensive filtering/sorting into a cached model or store, and rerun the focused UI test that scrolls and switches state.",
+    },
+  ];
+}
+
+function looksLikeStateTransitionMainThreadHang(
+  evidenceText: string,
+  source: string
+): boolean {
+  if (!evidenceText) return false;
+
+  const mainThreadBusy =
+    /\b(?:app|application)?\s*main thread\b.{0,90}\b(?:busy|blocked|stuck|unresponsive|not responding)\b/.test(
+      evidenceText
+    ) ||
+    /\bmain thread was busy\b/.test(evidenceText) ||
+    /\bbusy for \d+\s*(?:second|seconds|sec|secs)\b/.test(evidenceText) ||
+    /\btimed out waiting for (?:the )?(?:app|application) to idle\b/.test(evidenceText);
+  if (!mainThreadBusy) return false;
+
+  const transitionEvidence =
+    /\b(?:after|while|when|during)\b.{0,90}\b(?:filter|filters|sort|sorting|switch|switching|select|selection|selected|segment|tab|scroll|scrolling|pinned|header|list|feed|collection|animation|spring|transition|state change|state transition)\b/.test(
+      evidenceText
+    ) ||
+    /\b(?:filter|filters|sort|sorting|switching|selected|selection|pinned header|list update|feed update|collection update|animation|spring|transition)\b.{0,90}\b(?:busy|blocked|hang|hung|freeze|frozen|unresponsive|not responding)\b/.test(
+      evidenceText
+    );
+
+  return transitionEvidence || sourceHasStateTransitionHangShape(source);
+}
+
+function sourceHasStateTransitionHangShape(source: string): boolean {
+  const text = normalizeTextForEvidence(source);
+  if (!text) return false;
+
+  const hasCollection = /\b(?:list|lazyvstack|lazyhstack|foreach|scrollview|grid)\b/.test(
+    text
+  );
+  const hasStateMutation =
+    /\b(?:@state|@observable|@published|withanimation|\.onchange|selected|selection|filter|sort|sorted)\b/.test(
+      text
+    );
+  const hasHeavyTransition =
+    /\b(?:withanimation|\.animation|\.transition|spring|bouncy|matchedgeometryeffect|pinnedviews|pinnedviews:|section\s*\(|\.filter\s*\(|\.sorted\s*\()\b/.test(
+      text
+    );
+
+  return hasCollection && hasStateMutation && hasHeavyTransition;
+}
+
+function findLikelyStateTransitionHangLine(source: string): number | undefined {
+  const needles = [
+    "withAnimation",
+    ".animation",
+    ".transition",
+    ".matchedGeometryEffect",
+    "pinnedViews",
+    ".onChange",
+    ".filter",
+    ".sorted",
+    "LazyVStack",
+    "List",
+    "ForEach",
+  ];
+
+  for (const needle of needles) {
+    const line = findLine(source, needle);
+    if (line) return line;
+  }
+
+  return undefined;
 }
 
 function looksLikeInputInteractivityFailure(text: string): boolean {
@@ -1693,20 +1898,32 @@ function buildCloudCoverage(input: {
   evidenceProvided: boolean;
   runtimeEvidenceProvided: boolean;
   projectContextLoaded: boolean;
+  nonAppleArtifact: boolean;
 }): CloudCheckReport["coverage"] {
   const coverage: CloudCheckReport["coverage"] = [];
 
   coverage.push({
-    label:
-      input.language === "typescript" ? "Axint parse and lowering" : "Source loading",
+    label: input.nonAppleArtifact
+      ? "Document/web artifact routing"
+      : input.language === "typescript"
+        ? "Axint parse and lowering"
+        : "Source loading",
     state: "checked",
-    detail:
-      input.language === "typescript"
+    detail: input.nonAppleArtifact
+      ? "Detected that this input is not Swift or Axint source, so Cloud Check skipped Apple-native compilation instead of emitting a fake intent diagnostic."
+      : input.language === "typescript"
         ? "Parsed the Axint source and attempted to lower it into Swift before validation."
         : "Loaded the Swift source directly and ran static Apple-facing validation.",
   });
 
-  if (input.hasSwiftCode) {
+  if (input.nonAppleArtifact) {
+    coverage.push({
+      label: "Swift validator rule engine",
+      state: "not_applicable",
+      detail:
+        "This artifact needs browser/render/link proof, not Swift validator diagnostics.",
+    });
+  } else if (input.hasSwiftCode) {
     coverage.push({
       label: "Swift validator rule engine",
       state: "checked",
@@ -1760,7 +1977,21 @@ function buildCloudConfidence(input: {
   runtimeCoverageRequired: boolean;
   evidenceProvided: boolean;
   runtimeEvidenceProvided: boolean;
+  nonAppleArtifact: boolean;
 }): CloudCheckReport["confidence"] {
+  if (input.nonAppleArtifact) {
+    return {
+      level: "medium",
+      detail:
+        "Cloud Check correctly identified this as a document/web artifact, not an Apple-native compiler target.",
+      missingEvidence: [
+        "Browser/render smoke test",
+        "Link or route verification",
+        "Cloud Check on the related Swift or Axint source if Apple behavior changed",
+      ],
+    };
+  }
+
   if (input.errors > 0) {
     return {
       level: "high",
@@ -1820,7 +2051,22 @@ function buildCloudGate(input: {
   runtimeCoverageRequired: boolean;
   runtimeEvidenceProvided: boolean;
   evidenceProvided: boolean;
+  nonAppleArtifact: boolean;
 }): CloudCheckReport["gate"] {
+  if (input.nonAppleArtifact) {
+    return {
+      decision: "evidence_required",
+      canClaimFixed: false,
+      reason:
+        "Cloud Check is not applicable as the final proof for a document or web artifact.",
+      requiredEvidence: [
+        "Rendered browser verification",
+        "Relevant route/link checks",
+        "Apple-source Cloud Check only if Swift or Axint source changed",
+      ],
+    };
+  }
+
   if (input.errors > 0 || input.warnings > 0 || input.status === "fail") {
     return {
       decision: "fix_required",
@@ -1871,6 +2117,22 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
   const actionable = report.diagnostics.filter((d) => d.severity !== "info").slice(0, 4);
 
   if (actionable.length === 0) {
+    if (report.diagnostics.some((d) => d.code === "AXCLOUD-NON-APPLE-ARTIFACT")) {
+      return [
+        `Review ${report.fileName}.`,
+        "Axint Cloud Check identified this as a document or web artifact, not an Apple-native source file.",
+        `Ship gate: ${report.gate.decision}. ${report.gate.reason}`,
+        `Checked: ${checkedCoverageSummary(report)}.`,
+        "Use browser/render/link proof for this artifact.",
+        "Run Cloud Check on the related Swift or Axint source only if Apple-facing behavior changed.",
+        "",
+        "Repair plan:",
+        ...report.repairPlan.map(
+          (step, index) => `${index + 1}. ${step.title}: ${step.detail}`
+        ),
+      ].join("\n");
+    }
+
     if (hasRuntimeCoverageWarning(report)) {
       return [
         `Review ${report.fileName}.`,
@@ -2063,8 +2325,11 @@ function inferLearningSignals(report: CloudCheckReport): string[] {
   if (/\bAXCLOUD-RUNTIME-FREEZE\b/i.test(body)) {
     signals.push("runtime-freeze-evidence");
   }
+  if (/\bAXCLOUD-RUNTIME-STATE-TRANSITION-HANG\b/i.test(body)) {
+    signals.push("swiftui-state-transition-hang");
+  }
   if (
-    /\bAXCLOUD-RUNTIME-(MAIN-BLOCKER|MAIN-SYNC|BLOCKING-WAIT|SLEEP|INFINITE-LOOP|SYNC-IO|LIFECYCLE-BLOCKER)\b/i.test(
+    /\bAXCLOUD-RUNTIME-(MAIN-BLOCKER|MAIN-SYNC|BLOCKING-WAIT|SLEEP|INFINITE-LOOP|SYNC-IO|LIFECYCLE-BLOCKER|STATE-TRANSITION-HANG)\b/i.test(
       body
     )
   ) {
@@ -2120,6 +2385,7 @@ function inferLearningKind(
   signals: string[]
 ): CloudLearningKind {
   if (signals.includes("platform-availability-gap")) return "platform_gap";
+  if (signals.includes("swiftui-state-transition-hang")) return "validator_gap";
   if (signals.includes("runtime-freeze-evidence")) return "validator_gap";
   if (signals.includes("runtime-evidence-missing")) return "validator_gap";
   if (report.language === "swift") return "validator_gap";
@@ -2137,6 +2403,7 @@ function inferLearningOwner(
   signals: string[]
 ): CloudLearningOwner {
   if (signals.includes("platform-availability-gap")) return "swift-validator";
+  if (signals.includes("swiftui-state-transition-hang")) return "cloud";
   if (signals.includes("runtime-freeze-evidence")) return "cloud";
   if (signals.includes("runtime-evidence-missing")) return "cloud";
   if (signals.includes("ui-interaction-evidence")) return "cloud";
@@ -2171,6 +2438,9 @@ function titleForLearningSignal(
   if (diagnosticCodes.includes("AXCLOUD-RUNTIME-FREEZE")) {
     return "Runtime freeze evidence needs Cloud triage";
   }
+  if (diagnosticCodes.includes("AXCLOUD-RUNTIME-STATE-TRANSITION-HANG")) {
+    return "SwiftUI state-transition hang needs Cloud triage";
+  }
   if (diagnosticCodes.some((code) => code.startsWith("AXCLOUD-UI-"))) {
     return `UI interaction evidence needs Cloud triage (${codeList})`;
   }
@@ -2189,6 +2459,11 @@ function suggestedActionForLearningSignal(
 ): string {
   if (report.diagnostics.some((d) => d.code === "AXCLOUD-RUNTIME-FREEZE")) {
     return "Capture a freeze sample fixture, classify the first app-owned main-thread frame, and promote repeated freeze signatures into Cloud runtime diagnostics.";
+  }
+  if (
+    report.diagnostics.some((d) => d.code === "AXCLOUD-RUNTIME-STATE-TRANSITION-HANG")
+  ) {
+    return "Capture a focused UI-test fixture for scroll-plus-state transitions, then teach Cloud Check to map main-thread busy failures to SwiftUI animation, pinned-header, and collection recomputation repairs.";
   }
   if (report.diagnostics.some((d) => d.code.startsWith("AXCLOUD-UI-"))) {
     return "Turn repeated tap/focus/input regressions into UI-interaction fixtures so Cloud Check can classify overlay, disabled-state, and gesture-capture bugs immediately.";

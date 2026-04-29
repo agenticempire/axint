@@ -9,9 +9,19 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { runCloudCheck, type CloudCheckReport } from "../cloud/check.js";
+import { writeCloudFeedbackSignal } from "../cloud/feedback-store.js";
+import {
+  buildAgentToolProfile,
+  type AxintAgentProfileName,
+  type AxintAgentToolProfile,
+} from "../project/agent-profile.js";
 import { writeProjectContextIndex } from "../project/context-index.js";
+import {
+  buildAxintAgentAdvice,
+  type AxintAgentAdviceReport,
+} from "../project/local-agent.js";
 import { startAxintSession } from "../project/session.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
@@ -44,6 +54,7 @@ export interface AxintRunInput {
   projectName?: string;
   expectedVersion?: string;
   platform?: AxintRunPlatform;
+  agent?: AxintAgentProfileName;
   scheme?: string;
   workspace?: string;
   project?: string;
@@ -81,6 +92,19 @@ export interface AxintRunCommandResult {
   cancelled?: boolean;
 }
 
+export interface AxintRunXcodeTestFailure {
+  testName?: string;
+  suiteName?: string;
+  file?: string;
+  line?: number;
+  message: string;
+  identifier?: string;
+  likelyArea?: string;
+  likelyCause?: string;
+  repairHint?: string;
+  source: "xcodebuild-output" | "xcresult";
+}
+
 export interface AxintRunStep {
   name: string;
   state: AxintRunStepState;
@@ -100,6 +124,7 @@ export interface AxintRunReport {
   cwd: string;
   projectName: string;
   platform: AxintRunPlatform;
+  agent: AxintAgentToolProfile;
   scheme?: string;
   destination: string;
   createdAt: string;
@@ -114,6 +139,7 @@ export interface AxintRunReport {
     cancelCommand: string;
   };
   workflow: WorkflowCheckReport;
+  agentAdvice?: AxintAgentAdviceReport;
   swiftValidation: {
     filesChecked: number;
     diagnostics: Diagnostic[];
@@ -125,12 +151,14 @@ export interface AxintRunReport {
     runtime?: AxintRunCommandResult;
     buildSettings?: AxintRunCommandResult;
   };
+  xcodeTestFailures: AxintRunXcodeTestFailure[];
   steps: AxintRunStep[];
   artifacts: {
     json?: string;
     markdown?: string;
     projectContextJson?: string;
     projectContextMarkdown?: string;
+    feedbackSignals?: string[];
   };
   nextSteps: string[];
   repairPrompt: string;
@@ -155,6 +183,7 @@ export async function runAxintProject(
   const cwd = resolve(input.cwd ?? process.cwd());
   const platform = input.platform ?? inferPlatform(input.destination);
   const projectName = input.projectName ?? inferProjectName(cwd);
+  const agentProfile = buildAgentToolProfile(input.agent);
   const job = createRunJobRecord({
     id: runId,
     cwd,
@@ -166,7 +195,7 @@ export async function runAxintProject(
     projectName,
     expectedVersion: input.expectedVersion ?? "unknown",
     platform,
-    agent: "all",
+    agent: agentProfile.agent,
   });
   const projectContext = writeProjectContextIndex({
     targetDir: cwd,
@@ -313,8 +342,14 @@ export async function runAxintProject(
     });
   }
 
-  const xcodeEvidence = buildXcodeEvidence(commands, plan);
-  const focusedBehavior = buildFocusedTestBehavior(plan, commands.test);
+  const xcodeTestFailures = collectXcodeTestFailures(commands.test);
+  const xcodeFailureEvidence = formatXcodeTestFailuresForEvidence(xcodeTestFailures);
+  const xcodeEvidence = buildXcodeEvidence(commands, plan, xcodeTestFailures);
+  const focusedBehavior = buildFocusedTestBehavior(
+    plan,
+    commands.test,
+    xcodeTestFailures
+  );
   if (xcodeEvidence && cloudTargets.length > 0) {
     cloudChecks.splice(
       0,
@@ -324,6 +359,7 @@ export async function runAxintProject(
           sourcePath: file,
           platform,
           xcodeBuildLog: xcodeEvidence,
+          testFailure: xcodeFailureEvidence,
           runtimeFailure:
             input.runtimeFailure ?? runtimeFailureFromCommand(commands.runtime),
           expectedBehavior: input.expectedBehavior ?? focusedBehavior?.expectedBehavior,
@@ -340,6 +376,7 @@ export async function runAxintProject(
   const workflow = runWorkflowCheck({
     cwd,
     stage: "pre-build",
+    agent: agentProfile.agent,
     sessionStarted: true,
     sessionToken: session.session.token,
     readAgentInstructions: true,
@@ -354,7 +391,8 @@ export async function runAxintProject(
   });
 
   const status = summarizeStatus(steps, workflow, validationDiagnostics, cloudChecks);
-  const report: AxintRunReport = {
+  const feedbackSignals = writeRunFeedbackSignals(cwd, cloudChecks);
+  let report: AxintRunReport = {
     id: runId,
     kind: input.kind ?? "local",
     status,
@@ -362,6 +400,7 @@ export async function runAxintProject(
     cwd,
     projectName,
     platform,
+    agent: agentProfile,
     scheme: plan?.scheme,
     destination: plan?.destination ?? defaultDestination(platform),
     createdAt: new Date().toISOString(),
@@ -381,6 +420,7 @@ export async function runAxintProject(
       diagnostics: validationDiagnostics,
     },
     cloudChecks,
+    xcodeTestFailures,
     commands,
     steps: steps.map((step) =>
       step.durationMs === undefined && step.name === "Axint session"
@@ -390,14 +430,17 @@ export async function runAxintProject(
     artifacts: {
       projectContextJson: projectContext.jsonPath,
       projectContextMarkdown: projectContext.markdownPath,
+      feedbackSignals,
     },
-    nextSteps: buildNextSteps(status, steps, workflow, cloudChecks),
+    nextSteps: buildNextSteps(status, steps, workflow, cloudChecks, xcodeTestFailures),
     repairPrompt: buildRunRepairPrompt({
       status,
       workflow,
       validationDiagnostics,
       cloudChecks,
       commands,
+      xcodeTestFailures,
+      agent: agentProfile,
     }),
   };
 
@@ -405,6 +448,47 @@ export async function runAxintProject(
     const artifacts = writeRunArtifacts(report);
     report.artifacts = artifacts;
   }
+
+  const agentAdvice = buildAxintAgentAdvice({
+    cwd,
+    agent: agentProfile.agent,
+    changedFiles:
+      input.modifiedFiles ??
+      swiftFiles.map((file) => relativeOrAbsolute(cwd, file)).slice(0, 20),
+    issue:
+      input.runtimeFailure ??
+      input.actualBehavior ??
+      input.expectedBehavior ??
+      "Axint run proof loop",
+  });
+  report = {
+    ...report,
+    agentAdvice,
+    nextSteps: buildNextSteps(
+      status,
+      steps,
+      workflow,
+      cloudChecks,
+      xcodeTestFailures,
+      agentAdvice
+    ),
+  };
+  report.repairPrompt = buildRunRepairPrompt({
+    status,
+    workflow,
+    validationDiagnostics,
+    cloudChecks,
+    commands,
+    xcodeTestFailures,
+    agent: agentProfile,
+    agentAdvice,
+  });
+
+  if (input.writeReport !== false) {
+    const artifacts = writeRunArtifacts(report);
+    report.artifacts = artifacts;
+  }
+
   finishRunJobRecord(job, {
     status,
     artifacts: {
@@ -431,6 +515,7 @@ export function renderAxintRunReport(
     "",
     `- Project: ${report.projectName}`,
     `- Platform: ${report.platform}`,
+    `- Agent lane: ${report.agent.label}`,
     `- Scheme: ${report.scheme ?? "not detected"}`,
     `- Destination: ${report.destination}`,
     `- Gate: ${report.gate.decision}`,
@@ -452,6 +537,27 @@ export function renderAxintRunReport(
     "",
     renderWorkflowCheckReport(report.workflow),
     "",
+    "## Agent Lane",
+    "",
+    `- Host: ${report.agent.label}`,
+    `- Editing lane: ${report.agent.editingMode}`,
+    `- Default write action: ${report.agent.defaultWriteAction}`,
+    `- Proof action: ${report.agent.proofAction}`,
+    ...(report.agentAdvice
+      ? [
+          `- Local brain: ${report.agentAdvice.status}`,
+          ...report.agentAdvice.warnings.map((warning) => `- Warning: ${warning}`),
+          ...report.agentAdvice.moves
+            .slice(0, 4)
+            .map(
+              (move) =>
+                `- ${move.priority.toUpperCase()} ${move.title}: ${move.detail}${
+                  move.command ? ` Command: \`${move.command}\`` : ""
+                }`
+            ),
+        ]
+      : ["- Local brain: not requested."]),
+    "",
     "## Swift Diagnostics",
     ...(report.swiftValidation.diagnostics.length > 0
       ? report.swiftValidation.diagnostics
@@ -460,6 +566,11 @@ export function renderAxintRunReport(
             (diagnostic) =>
               `- ${diagnostic.severity.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}`
           )
+      : ["- None."]),
+    "",
+    "## Xcode Test Failures",
+    ...(report.xcodeTestFailures.length > 0
+      ? report.xcodeTestFailures.slice(0, 8).map(renderXcodeTestFailureLine)
       : ["- None."]),
     "",
     "## Cloud Checks",
@@ -495,9 +606,30 @@ export function renderAxintRunReport(
         `- Project context Markdown: ${report.artifacts.projectContextMarkdown}`
       );
     }
+    if (report.artifacts.feedbackSignals?.length) {
+      lines.push(
+        ...report.artifacts.feedbackSignals.map((path) => `- Feedback signal: ${path}`)
+      );
+    }
   }
 
   return lines.join("\n");
+}
+
+function writeRunFeedbackSignals(cwd: string, cloudChecks: CloudCheckReport[]): string[] {
+  const written: string[] = [];
+  const seen = new Set<string>();
+  for (const check of cloudChecks) {
+    const signal = check.learningSignal;
+    if (!signal || seen.has(signal.fingerprint)) continue;
+    seen.add(signal.fingerprint);
+    try {
+      written.push(writeCloudFeedbackSignal(signal, { cwd }).path);
+    } catch {
+      // Privacy-safe feedback should never make the proof loop itself fail.
+    }
+  }
+  return written;
 }
 
 function createXcodePlan(
@@ -980,11 +1112,13 @@ function updateCloudCheckStep(
 
 function buildXcodeEvidence(
   commands: AxintRunReport["commands"],
-  plan?: XcodePlan
+  plan?: XcodePlan,
+  failures: AxintRunXcodeTestFailure[] = []
 ): string | undefined {
   const chunks = [
     commandEvidence("Xcode build", commands.build),
     focusedTestEvidence(commands.test, plan),
+    xcodeFailureEvidence(failures),
     commandEvidence("Xcode test", commands.test),
     commandEvidence("Runtime launch", commands.runtime),
   ].filter(Boolean);
@@ -1015,7 +1149,8 @@ function focusedTestEvidence(
 
 function buildFocusedTestBehavior(
   plan?: XcodePlan,
-  result?: AxintRunCommandResult
+  result?: AxintRunCommandResult,
+  failures: AxintRunXcodeTestFailure[] = []
 ):
   | {
       expectedBehavior: string;
@@ -1027,15 +1162,498 @@ function buildFocusedTestBehavior(
   }
   const selectors = plan.onlyTesting.join(", ");
   if (result.exitCode !== 0 || result.timedOut) {
+    const firstFailure = failures[0];
     return {
       expectedBehavior: `Focused test selector(s) should pass: ${selectors}.`,
-      actualBehavior: `Focused test selector(s) did not pass through axint run --only-testing: ${selectors}.`,
+      actualBehavior: firstFailure
+        ? `Focused test selector(s) did not pass through axint run --only-testing: ${selectors}. First failure: ${formatXcodeFailureOneLine(firstFailure)}.`
+        : `Focused test selector(s) did not pass through axint run --only-testing: ${selectors}.`,
     };
   }
   return {
     expectedBehavior: `Focused test selector(s) should pass: ${selectors}.`,
     actualBehavior: `Focused test selector(s) passed through axint run --only-testing: ${selectors}.`,
   };
+}
+
+function collectXcodeTestFailures(
+  result?: AxintRunCommandResult
+): AxintRunXcodeTestFailure[] {
+  if (!result || result.dryRun || (result.exitCode === 0 && !result.timedOut)) {
+    return [];
+  }
+  const outputText = [result.stdout, result.stderr, readCommandLogTail(result.logPath)]
+    .filter(Boolean)
+    .join("\n");
+  const failures = [
+    ...extractXcodeTestFailuresFromXcresult(result.resultBundlePath, result.cwd),
+    ...extractXcodeTestFailuresFromText(outputText),
+  ];
+  return dedupeXcodeTestFailures(failures).slice(0, 12);
+}
+
+function extractXcodeTestFailuresFromText(text: string): AxintRunXcodeTestFailure[] {
+  if (!text.trim()) return [];
+
+  const failures: AxintRunXcodeTestFailure[] = [];
+  const lines = text.split(/\r?\n/);
+  let currentSuite: string | undefined;
+  let currentTest: string | undefined;
+  const pendingMessages: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = stripAnsi(rawLine).trim();
+    if (!line) continue;
+
+    const suiteMatch = line.match(/Test Suite '([^']+)' (?:started|failed|passed)/i);
+    if (suiteMatch) currentSuite = suiteMatch[1];
+
+    const testCaseMatch = line.match(
+      /Test Case '-\[(?<suite>[^\s\]]+)\s+(?<test>[^\]]+)\]' (?<state>failed|started|passed)/i
+    );
+    if (testCaseMatch?.groups) {
+      currentSuite = testCaseMatch.groups.suite;
+      currentTest = testCaseMatch.groups.test;
+      if (testCaseMatch.groups.state.toLowerCase() === "failed") {
+        const message = pendingMessages.pop() ?? "Xcode reported this test case failed.";
+        const alreadyCaptured = failures.some(
+          (failure) => failure.testName === currentTest && failure.message === message
+        );
+        if (!alreadyCaptured) {
+          failures.push(
+            enrichXcodeTestFailure({
+              suiteName: currentSuite,
+              testName: currentTest,
+              message,
+              source: "xcodebuild-output",
+            })
+          );
+        }
+      }
+      continue;
+    }
+
+    const swiftFailure = parseSwiftFailureLine(line, currentSuite, currentTest);
+    if (swiftFailure) {
+      failures.push(swiftFailure);
+      pendingMessages.push(swiftFailure.message);
+      continue;
+    }
+
+    if (
+      /^\*\*\s*TEST\s+FAILED\s*\*\*$/i.test(line) ||
+      /^Executed\s+\d+\s+tests?,?\s+with\s+\d+\s+failures?/i.test(line)
+    ) {
+      continue;
+    }
+
+    if (looksLikeAssertionFailure(line)) {
+      const failure = enrichXcodeTestFailure({
+        suiteName: currentSuite,
+        testName: currentTest,
+        message: cleanXcodeFailureMessage(line),
+        source: "xcodebuild-output",
+      });
+      failures.push(failure);
+      pendingMessages.push(failure.message);
+    }
+  }
+
+  return failures;
+}
+
+function parseSwiftFailureLine(
+  line: string,
+  fallbackSuite?: string,
+  fallbackTest?: string
+): AxintRunXcodeTestFailure | undefined {
+  const match = line.match(
+    /(?<file>(?:[A-Za-z]:)?[^:\n]+\.swift):(?<line>\d+):\s*(?:error:\s*)?(?:(?:-\[(?<suite>[^\s\]]+)\s+(?<test>[^\]]+)\]\s*:)\s*)?(?<message>.+)$/i
+  );
+  if (!match?.groups) return undefined;
+  const message = cleanXcodeFailureMessage(match.groups.message);
+  if (!message || !looksLikeAssertionFailure(message)) return undefined;
+  return enrichXcodeTestFailure({
+    suiteName: match.groups.suite ?? fallbackSuite,
+    testName: match.groups.test ?? fallbackTest,
+    file: match.groups.file.trim(),
+    line: Number(match.groups.line),
+    message,
+    source: "xcodebuild-output",
+  });
+}
+
+function extractXcodeTestFailuresFromXcresult(
+  resultBundlePath?: string,
+  cwd?: string
+): AxintRunXcodeTestFailure[] {
+  if (!resultBundlePath || !existsSync(resultBundlePath)) return [];
+
+  const commandVariants = [
+    [
+      "xcresulttool",
+      "get",
+      "test-results",
+      "summary",
+      "--path",
+      resultBundlePath,
+      "--format",
+      "json",
+    ],
+    [
+      "xcresulttool",
+      "get",
+      "object",
+      "--legacy",
+      "--path",
+      resultBundlePath,
+      "--format",
+      "json",
+    ],
+  ];
+
+  for (const args of commandVariants) {
+    const result = spawnSync("xcrun", args, {
+      cwd,
+      encoding: "utf-8",
+      timeout: 4000,
+      maxBuffer: 8 * 1024 * 1024,
+    });
+    if (result.status !== 0 || !result.stdout.trim()) continue;
+    try {
+      const parsed = JSON.parse(result.stdout) as unknown;
+      const failures = extractFailuresFromXcresultJson(parsed);
+      if (failures.length > 0) return failures;
+    } catch {
+      continue;
+    }
+  }
+
+  return [];
+}
+
+function extractFailuresFromXcresultJson(value: unknown): AxintRunXcodeTestFailure[] {
+  const failures: AxintRunXcodeTestFailure[] = [];
+
+  function visit(node: unknown, inheritedTest?: string, inheritedSuite?: string): void {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, inheritedTest, inheritedSuite);
+      return;
+    }
+
+    const record = node as Record<string, unknown>;
+    const suite =
+      xcresultString(record.suiteName) ??
+      xcresultString(record.className) ??
+      xcresultString(record.testSuiteName) ??
+      inheritedSuite;
+    const test =
+      xcresultString(record.testName) ??
+      xcresultString(record.testCaseName) ??
+      xcresultString(record.identifier) ??
+      inheritedTest;
+
+    const summaryNodes = [
+      record.testFailureSummaries,
+      record.failureSummaries,
+      record.failures,
+    ];
+    for (const summaryNode of summaryNodes) {
+      if (Array.isArray(summaryNode)) {
+        for (const item of summaryNode) {
+          const failure = failureFromXcresultSummary(item, test, suite);
+          if (failure) failures.push(failure);
+        }
+      }
+    }
+
+    if (record.issueType || record.message || record.failureMessage) {
+      const failure = failureFromXcresultSummary(record, test, suite);
+      if (failure) failures.push(failure);
+    }
+
+    for (const child of Object.values(record)) {
+      visit(child, test, suite);
+    }
+  }
+
+  visit(value);
+  return dedupeXcodeTestFailures(failures);
+}
+
+function failureFromXcresultSummary(
+  value: unknown,
+  fallbackTest?: string,
+  fallbackSuite?: string
+): AxintRunXcodeTestFailure | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const message =
+    xcresultString(record.message) ??
+    xcresultString(record.failureMessage) ??
+    xcresultString(record.summary) ??
+    xcresultString(record.issueType);
+  if (!message || !looksLikeAssertionFailure(message)) return undefined;
+  const documentLocation = parseXcresultDocumentLocation(
+    record.documentLocationInCreatingWorkspace
+  );
+  return enrichXcodeTestFailure({
+    suiteName:
+      xcresultString(record.suiteName) ??
+      xcresultString(record.className) ??
+      fallbackSuite,
+    testName:
+      xcresultString(record.testName) ??
+      xcresultString(record.testCaseName) ??
+      fallbackTest,
+    file: xcresultString(record.fileName) ?? documentLocation.file,
+    line: xcresultNumber(record.lineNumber) ?? documentLocation.line,
+    message: cleanXcodeFailureMessage(message),
+    source: "xcresult",
+  });
+}
+
+function xcresultString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (typeof record._value === "string") return record._value;
+    if (typeof record.value === "string") return record.value;
+    if (typeof record.name === "string") return record.name;
+    if (record.url) return xcresultString(record.url);
+  }
+  return undefined;
+}
+
+function parseXcresultDocumentLocation(value: unknown): {
+  file?: string;
+  line?: number;
+} {
+  const location = xcresultString(value);
+  if (!location) return {};
+  const [rawPath, fragment = ""] = location.split("#");
+  let file = rawPath;
+  if (rawPath.startsWith("file://")) {
+    try {
+      file = decodeURIComponent(new URL(rawPath).pathname);
+    } catch {
+      file = rawPath.replace(/^file:\/\//, "");
+    }
+  }
+  const lineMatch = fragment.match(/(?:Starting|Ending)LineNumber=(\d+)/);
+  const line = lineMatch ? Number(lineMatch[1]) : undefined;
+  return {
+    file: file || undefined,
+    line: line && Number.isFinite(line) ? line : undefined,
+  };
+}
+
+function xcresultNumber(value: unknown): number | undefined {
+  if (typeof value === "number") return value;
+  const stringValue = xcresultString(value);
+  if (!stringValue) return undefined;
+  const parsed = Number(stringValue);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function enrichXcodeTestFailure(
+  failure: Omit<
+    AxintRunXcodeTestFailure,
+    "identifier" | "likelyArea" | "likelyCause" | "repairHint"
+  >
+): AxintRunXcodeTestFailure {
+  const message = cleanXcodeFailureMessage(failure.message);
+  const identifier = extractXcodeFailureIdentifier(message);
+  const repair = inferXcodeFailureRepair({
+    ...failure,
+    message,
+    identifier,
+  });
+  return {
+    ...failure,
+    message,
+    identifier,
+    likelyArea: inferXcodeFailureArea({
+      ...failure,
+      message,
+      identifier,
+    }),
+    likelyCause: repair.likelyCause,
+    repairHint: repair.repairHint,
+  };
+}
+
+function dedupeXcodeTestFailures(
+  failures: AxintRunXcodeTestFailure[]
+): AxintRunXcodeTestFailure[] {
+  const seen = new Set<string>();
+  const uniqueFailures: AxintRunXcodeTestFailure[] = [];
+  for (const failure of failures) {
+    const key = [
+      failure.testName ?? "",
+      failure.file ?? "",
+      failure.line ?? "",
+      failure.message,
+    ].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueFailures.push(failure);
+  }
+  return uniqueFailures;
+}
+
+function readCommandLogTail(path?: string): string | undefined {
+  if (!path || !existsSync(path)) return undefined;
+  try {
+    return tailText(readFileSync(path, "utf-8"), 24000);
+  } catch {
+    return undefined;
+  }
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(new RegExp(String.raw`\x1B\[[0-9;]*m`, "g"), "");
+}
+
+function looksLikeAssertionFailure(value: string): boolean {
+  return /\b(xct(?:assert|fail|waiter)[a-z]*\s+failed|failed assertion|failure|failed to get matching|no matches|not hittable|not tappable|does not exist|should exist|should be hittable|should be tappable|wait.*timed out|is not equal to|test case\b.*\bfailed)\b/i.test(
+    value
+  );
+}
+
+function cleanXcodeFailureMessage(value: string): string {
+  return stripAnsi(value)
+    .replace(/^error:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractXcodeFailureIdentifier(message: string): string | undefined {
+  const quoted =
+    message.match(/\[\s*"([^"]+)"\s*\]/)?.[1] ??
+    message.match(/identifier ["']([^"']+)["']/i)?.[1] ??
+    message.match(/["']([A-Za-z0-9_.:-]+)["']\s+(?:should|does|is|was)\b/i)?.[1];
+  if (quoted) return quoted;
+  const shouldExist = message.match(
+    /\b([A-Za-z][A-Za-z0-9_.:-]{2,})\s+should\s+exist\b/i
+  );
+  if (shouldExist) return shouldExist[1];
+  const shouldInteract = message.match(
+    /\b([A-Za-z][A-Za-z0-9_.:-]{2,})\s+should\s+be\s+(?:hittable|tappable)\b/i
+  );
+  return shouldInteract?.[1];
+}
+
+function inferXcodeFailureArea(
+  failure: Omit<AxintRunXcodeTestFailure, "likelyArea" | "likelyCause" | "repairHint">
+): string | undefined {
+  const haystack = [failure.testName, failure.file, failure.message, failure.identifier]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const areaMap: Array<[RegExp, string]> = [
+    [/\bbuilder|creator|profile\b/, "Builder or creator profile interaction surface"],
+    [/\bdiscover|feed|card\b/, "Discover/feed interaction surface"],
+    [/\bchat|composer|message|comment|post\b/, "Chat, composer, or posting surface"],
+    [/\bhome|tab-home|tab bar|tabbar\b/, "Home tab routing surface"],
+    [/\bproject|command center|room\b/, "Project command center surface"],
+    [/\bvault|memory\b/, "Vault or memory surface"],
+    [/\bbreakaway|messenger\b/, "Breakaway messenger surface"],
+    [/\bsettings|account|billing\b/, "Settings/account surface"],
+  ];
+  for (const [pattern, area] of areaMap) {
+    if (pattern.test(haystack)) return area;
+  }
+  if (failure.file) return `${basename(failure.file, ".swift")} surface`;
+  return undefined;
+}
+
+function inferXcodeFailureRepair(
+  failure: Omit<AxintRunXcodeTestFailure, "likelyArea" | "likelyCause" | "repairHint">
+): {
+  likelyCause?: string;
+  repairHint?: string;
+} {
+  const haystack = [failure.testName, failure.file, failure.message, failure.identifier]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    /\bnot hittable|should be hittable|not tappable|should be tappable\b/.test(haystack)
+  ) {
+    return {
+      likelyCause:
+        "The control exists, but another layer, disabled state, hit-testing override, transition, or offscreen layout is preventing interaction.",
+      repairHint:
+        "Inspect nearby ZStack/overlay/contentShape/allowsHitTesting/zIndex/disabled/scroll layout code before changing the UI test.",
+    };
+  }
+
+  if (
+    /\bdoes not exist|should exist|no matches|failed to get matching\b/.test(haystack)
+  ) {
+    return {
+      likelyCause:
+        "The UI element is missing from the accessibility tree or has a stale identifier/query.",
+      repairHint:
+        "Verify the accessibilityIdentifier, conditional rendering path, navigation state, and test launch setup.",
+    };
+  }
+
+  if (/\bwait.*timed out|timeout|timed out\b/.test(haystack)) {
+    return {
+      likelyCause:
+        "The UI state did not settle before the test deadline, often from async loading, animation, navigation, or blocked state transition.",
+      repairHint:
+        "Check loading state, animation completion, route transition, mocked data availability, and focused wait predicates.",
+    };
+  }
+
+  if (/\bis not equal to|expected .* got|mismatch\b/.test(haystack)) {
+    return {
+      likelyCause: "The UI rendered a value that disagrees with the test expectation.",
+      repairHint:
+        "Trace the source of truth, formatter, localization, default state, and any async store update behind the displayed value.",
+    };
+  }
+
+  return {};
+}
+
+function xcodeFailureEvidence(failures: AxintRunXcodeTestFailure[]): string | undefined {
+  const formatted = formatXcodeTestFailuresForEvidence(failures);
+  return formatted ? `Extracted Xcode test failure evidence:\n${formatted}` : undefined;
+}
+
+function formatXcodeTestFailuresForEvidence(
+  failures: AxintRunXcodeTestFailure[]
+): string | undefined {
+  if (failures.length === 0) return undefined;
+  return failures.slice(0, 8).map(formatXcodeFailureOneLine).join("\n");
+}
+
+function renderXcodeTestFailureLine(failure: AxintRunXcodeTestFailure): string {
+  const detail = [
+    failure.file ? `${failure.file}${failure.line ? `:${failure.line}` : ""}` : undefined,
+    failure.likelyArea ? `likely area: ${failure.likelyArea}` : undefined,
+    failure.likelyCause ? `likely cause: ${failure.likelyCause}` : undefined,
+    failure.repairHint ? `repair hint: ${failure.repairHint}` : undefined,
+    failure.identifier ? `identifier: ${failure.identifier}` : undefined,
+    `source: ${failure.source}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `- ${formatXcodeFailureOneLine(failure)}${detail ? `\n  - ${detail}` : ""}`;
+}
+
+function formatXcodeFailureOneLine(failure: AxintRunXcodeTestFailure): string {
+  const name = failure.testName ?? failure.suiteName ?? "Unknown Xcode test";
+  const location = failure.file
+    ? ` (${failure.file}${failure.line ? `:${failure.line}` : ""})`
+    : "";
+  return `${name}${location}: ${failure.message}`;
 }
 
 function commandEvidence(
@@ -1212,12 +1830,42 @@ function buildNextSteps(
   status: AxintRunReport["status"],
   steps: AxintRunStep[],
   workflow: WorkflowCheckReport,
-  cloudChecks: CloudCheckReport[]
+  cloudChecks: CloudCheckReport[],
+  xcodeTestFailures: AxintRunXcodeTestFailure[] = [],
+  agentAdvice?: AxintAgentAdviceReport
 ): string[] {
   if (status === "pass") {
-    return ["Commit the generated Axint Run artifacts with the related code change."];
+    const passingNext = [
+      "Commit the generated Axint Run artifacts with the related code change.",
+    ];
+    if (agentAdvice?.status === "needs_setup") {
+      passingNext.push(
+        "Install the shared local project brain so future agents inherit this proof: axint agent install."
+      );
+    }
+    return passingNext;
   }
   const next = new Set<string>();
+  if (agentAdvice?.status === "needs_setup") {
+    const installMove = agentAdvice.moves.find((move) => /install/i.test(move.title));
+    next.add(
+      installMove?.command
+        ? `Install the shared Axint project brain: ${installMove.command}`
+        : "Install the shared Axint project brain with axint agent install."
+    );
+  }
+  if (agentAdvice?.status === "blocked") {
+    next.add(
+      "Resolve the active Axint file claim before editing, or wait for the claim to expire."
+    );
+  }
+  for (const failure of xcodeTestFailures.slice(0, 3)) {
+    next.add(
+      `Fix failing Xcode test ${failure.testName ?? "unknown"}${
+        failure.file ? ` at ${failure.file}${failure.line ? `:${failure.line}` : ""}` : ""
+      }: ${failure.message}${failure.repairHint ? ` ${failure.repairHint}` : ""}`
+    );
+  }
   for (const item of workflow.required) next.add(item);
   for (const check of cloudChecks) {
     for (const item of check.nextSteps) next.add(item);
@@ -1239,6 +1887,9 @@ function buildRunRepairPrompt(input: {
   validationDiagnostics: Diagnostic[];
   cloudChecks: CloudCheckReport[];
   commands: AxintRunReport["commands"];
+  xcodeTestFailures?: AxintRunXcodeTestFailure[];
+  agent?: AxintAgentToolProfile;
+  agentAdvice?: AxintAgentAdviceReport;
 }) {
   if (input.status === "pass") {
     const passedCommands = Object.entries(input.commands)
@@ -1247,6 +1898,9 @@ function buildRunRepairPrompt(input: {
     return [
       "Axint Run passed for this Apple-native project.",
       "Overall status: pass.",
+      input.agent
+        ? `Host/tool lane: ${input.agent.label}. ${input.agent.finishAction}`
+        : undefined,
       "",
       "Continue with the next proof, commit, or sprint item. Do not rerun Axint unless new code changes or new evidence appears.",
       "",
@@ -1263,14 +1917,23 @@ function buildRunRepairPrompt(input: {
       passedCommands.length > 0
         ? `- Passed command evidence: ${passedCommands.join(", ")}.`
         : "- No executed Xcode command evidence was required for this pass.",
+      input.agentAdvice
+        ? `- Local project brain: ${input.agentAdvice.status}.`
+        : undefined,
     ].join("\n");
   }
 
   const lines = [
     "You are repairing an Apple-native project under Axint Run.",
     `Overall status: ${input.status}.`,
+    input.agent
+      ? `Host/tool lane: ${input.agent.label}. Use this lane: ${input.agent.defaultWriteAction}`
+      : undefined,
     "",
     "Do not continue ordinary coding until the Axint Run failures are addressed.",
+    input.agent
+      ? `Proof expectation for this host: ${input.agent.proofAction}`
+      : undefined,
     "",
     "Workflow gate:",
     ...input.workflow.required.map((item) => `- REQUIRED: ${item}`),
@@ -1300,7 +1963,38 @@ function buildRunRepairPrompt(input: {
               ),
           ])
       : ["- None."]),
+    "",
+    "Xcode test failures:",
+    ...(input.xcodeTestFailures && input.xcodeTestFailures.length > 0
+      ? input.xcodeTestFailures
+          .slice(0, 8)
+          .map(
+            (failure) =>
+              `- ${formatXcodeFailureOneLine(failure)}${
+                failure.repairHint ? ` Repair hint: ${failure.repairHint}` : ""
+              }`
+          )
+      : [
+          "- None extracted. If Xcode failed, inspect the command log or .xcresult artifact.",
+        ]),
   ];
+
+  if (input.agentAdvice) {
+    lines.push(
+      "",
+      "Agent brain:",
+      `- Status: ${input.agentAdvice.status}`,
+      ...input.agentAdvice.warnings.map((warning) => `- Warning: ${warning}`),
+      ...input.agentAdvice.moves
+        .slice(0, 6)
+        .map(
+          (move) =>
+            `- ${move.priority.toUpperCase()} ${move.title}: ${move.detail}${
+              move.command ? ` Command: ${move.command}` : ""
+            }`
+        )
+    );
+  }
 
   for (const [label, result] of Object.entries(input.commands)) {
     if (!result || result.exitCode === 0) continue;
@@ -1333,6 +2027,7 @@ function writeRunArtifacts(report: AxintRunReport) {
       markdown: markdownPath,
       projectContextJson: report.artifacts.projectContextJson,
       projectContextMarkdown: report.artifacts.projectContextMarkdown,
+      feedbackSignals: report.artifacts.feedbackSignals,
     },
   };
   writeFileSync(jsonPath, `${JSON.stringify(serializable, null, 2)}\n`, "utf-8");
@@ -1342,6 +2037,7 @@ function writeRunArtifacts(report: AxintRunReport) {
     markdown: markdownPath,
     projectContextJson: report.artifacts.projectContextJson,
     projectContextMarkdown: report.artifacts.projectContextMarkdown,
+    feedbackSignals: report.artifacts.feedbackSignals,
   };
 }
 

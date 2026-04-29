@@ -76,6 +76,7 @@ export function registerWorkflow(program: Command) {
     )
     .option("--read-docs-context", "Mark that .axint/AXINT_DOCS_CONTEXT.md was read")
     .option("--ran-feature", "Mark that axint.feature was used")
+    .option("--ran-repair", "Mark that axint.repair was used")
     .option(
       "--feature-bypass-reason <reason>",
       "Why generation was intentionally bypassed"
@@ -114,6 +115,7 @@ export function registerWorkflow(program: Command) {
         readAgentInstructions?: boolean;
         readDocsContext?: boolean;
         ranFeature?: boolean;
+        ranRepair?: boolean;
         featureBypassReason?: string;
         ranSwiftValidate?: boolean;
         ranCloudCheck?: boolean;
@@ -139,6 +141,7 @@ export function registerWorkflow(program: Command) {
           readAgentInstructions: options.readAgentInstructions,
           readDocsContext: options.readDocsContext,
           ranFeature: options.ranFeature,
+          ranRepair: options.ranRepair,
           featureBypassReason: options.featureBypassReason,
           ranSwiftValidate: options.ranSwiftValidate,
           ranCloudCheck: options.ranCloudCheck,

@@ -18,6 +18,9 @@
  *   axint suggest <description>   Suggest Apple-native features when MCP is unavailable
  *   axint feature <description>   Generate a multi-file feature package
  *   axint repair <issue>          Plan a project-aware Apple repair loop
+ *   axint agent install           Install the local multi-agent project brain
+ *   axint agent advice            Ask the local brain for host-specific next moves
+ *   axint memory index            Build local project memory from context, proofs, repairs, and feedback
  *   axint feedback create         Create privacy-safe repair feedback packets
  *   axint publish                 Publish an intent to the Registry
  *   axint add <package>           Install a template from the Registry
@@ -69,6 +72,8 @@ import { registerSchema } from "./schema.js";
 import { registerSuggest } from "./suggest.js";
 import { registerFeature } from "./feature.js";
 import { registerRepair } from "./repair.js";
+import { registerAgent } from "./agent.js";
+import { registerMemory } from "./memory.js";
 import { registerFeedback } from "./feedback.js";
 import { registerPublish } from "./publish.js";
 import { registerAdd } from "./add.js";
@@ -82,6 +87,16 @@ import { registerSession } from "./session.js";
 import { registerWorkflow } from "./workflow.js";
 import { registerRun } from "./run.js";
 import { registerXcodeGuard } from "./xcode-guard.js";
+import {
+  renderProjectStartPack,
+  writeProjectStartPack,
+  type ProjectAgent,
+  type ProjectMcpMode,
+} from "../project/start-pack.js";
+import {
+  installAxintLocalAgent,
+  renderAxintAgentInstallReport,
+} from "../project/local-agent.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
@@ -91,6 +106,15 @@ const program = new Command();
 const XCODE_PACKET_KINDS = ["any", "compile", "validate"] as const;
 const XCODE_CHECK_FORMATS = ["markdown", "json", "prompt", "path"] as const;
 const XCODE_PACKET_FORMATS = ["markdown", "prompt", "json", "path"] as const;
+const INIT_AGENT_CHOICES = [
+  "all",
+  "claude",
+  "codex",
+  "cowork",
+  "cursor",
+  "xcode",
+] as const;
+const INIT_MCP_MODE_CHOICES = ["local", "remote"] as const;
 
 function parseChoice<T extends string>(
   label: string,
@@ -118,7 +142,9 @@ program
 
 program
   .command("init")
-  .description("Scaffold a new Axint project (zero-config, ready to compile)")
+  .description(
+    "Scaffold a new Axint project, or initialize Axint inside an existing Apple/Xcode project"
+  )
   .argument("[dir]", "Project directory (defaults to current dir)", ".")
   .option(
     "-t, --template <name>",
@@ -127,15 +153,77 @@ program
   )
   .option("--no-install", "Skip running `npm install`")
   .option("--name <name>", "Project name (defaults to the directory name)")
+  .option(
+    "--apple-project",
+    "Initialize Axint in an existing Apple/Xcode project instead of scaffolding a new compiler package"
+  )
+  .option(
+    "--agent <agent>",
+    "Agent host lane for existing Apple projects: all, claude, codex, cowork, cursor, or xcode",
+    (value) => parseChoice("agent", value, INIT_AGENT_CHOICES),
+    "all" as ProjectAgent
+  )
+  .option(
+    "--mode <mode>",
+    "MCP mode for existing Apple projects: local or remote",
+    (value) => parseChoice("mode", value, INIT_MCP_MODE_CHOICES),
+    "local" as ProjectMcpMode
+  )
+  .option(
+    "--force",
+    "Overwrite existing Axint project-start files when using --apple-project"
+  )
   .action(
     async (
       dir: string,
-      options: { template: string; install: boolean; name?: string }
+      options: {
+        template: string;
+        install: boolean;
+        name?: string;
+        appleProject?: boolean;
+        agent: ProjectAgent;
+        mode: ProjectMcpMode;
+        force?: boolean;
+      }
     ) => {
       const targetDir = resolve(dir);
       const projectName = options.name ?? basename(targetDir);
 
       try {
+        if (options.appleProject) {
+          const pack = writeProjectStartPack({
+            targetDir,
+            projectName,
+            agent: options.agent,
+            mode: options.mode,
+            version: VERSION,
+            force: options.force ?? false,
+          });
+          const localAgent = installAxintLocalAgent({
+            cwd: targetDir,
+            projectName,
+            agent: options.agent,
+            force: options.force ?? false,
+          });
+
+          console.log(renderProjectStartPack(pack));
+          console.log();
+          console.log(renderAxintAgentInstallReport(localAgent));
+          console.log(
+            `  \x1b[38;5;208m◆\x1b[0m \x1b[1mAxint\x1b[0m · existing Apple project ready`
+          );
+          console.log();
+          console.log(`  \x1b[1mNext:\x1b[0m`);
+          console.log(
+            `    axint agent advice --dir ${targetDir} --agent ${options.agent}`
+          );
+          console.log(
+            `    axint run --dir ${targetDir} --agent ${options.agent} --dry-run`
+          );
+          console.log();
+          return;
+        }
+
         const result = await scaffoldProject({
           targetDir,
           projectName,
@@ -189,6 +277,8 @@ registerSchema(program);
 registerSuggest(program);
 registerFeature(program);
 registerRepair(program);
+registerAgent(program);
+registerMemory(program);
 registerFeedback(program);
 registerPublish(program, VERSION);
 registerAdd(program, VERSION);

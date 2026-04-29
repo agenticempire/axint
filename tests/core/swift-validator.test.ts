@@ -153,6 +153,67 @@ describe("swift validator — robustness", () => {
   });
 });
 
+describe("swift validator — SwiftUI compiler parity", () => {
+  it("flags some View helpers with local declarations but no explicit return", () => {
+    const source = `
+      import SwiftUI
+
+      struct DiscoverView: View {
+          var body: some View { projectLoadMoreFooter() }
+
+          private func projectLoadMoreFooter() -> some View {
+              let label = "Load more"
+              Button(label) { }
+          }
+      }
+    `;
+
+    const { diagnostics } = validate(source);
+    expect(diagnostics.map((d) => d.code)).toContain("AX767");
+  });
+
+  it("accepts some View helpers that explicitly return the final expression", () => {
+    const source = `
+      import SwiftUI
+
+      struct DiscoverView: View {
+          var body: some View { projectLoadMoreFooter() }
+
+          private func projectLoadMoreFooter() -> some View {
+              let label = "Load more"
+              return Button(label) { }
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.map((d) => d.code)).not.toContain("AX767");
+  });
+
+  it("flags nested SwiftUI views that reference parent-only helpers", () => {
+    const source = `
+      import SwiftUI
+
+      struct ProjectRoomContentView: View {
+          private var isAxintProject: Bool { true }
+          var body: some View { ProjectIntelligenceView() }
+      }
+
+      struct ProjectIntelligenceView: View {
+          var body: some View {
+              if isAxintProject {
+                  Text("Axint")
+              } else {
+                  Text("Project")
+              }
+          }
+      }
+    `;
+
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX739");
+    expect(diagnostic?.message).toContain("isAxintProject");
+  });
+});
+
 // ─── New rules: AX704 AppIntent title ─────────────────────────────
 
 describe("swift validator — AX704 AppIntent.title", () => {
@@ -999,6 +1060,64 @@ describe("swift validator — AX765 SwiftUI frame overload parity", () => {
     `;
 
     expect(validate(source).diagnostics.filter((d) => d.code === "AX765")).toHaveLength(
+      0
+    );
+  });
+});
+
+describe("swift validator — AX766 type-erased SwiftUI modifier chains", () => {
+  it("warns when a project-specific modifier follows Label labelStyle", () => {
+    const source = `
+      import SwiftUI
+
+      struct NewChatButton: View {
+          var body: some View {
+              Label("New Chat", systemImage: "plus")
+                  .labelStyle(.iconOnly)
+                  .swarmIcon(size: 18)
+          }
+      }
+    `;
+
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX766");
+    expect(diagnostic?.message).toContain("swarmIcon");
+    expect(diagnostic?.message).toContain("labelStyle");
+    expect(diagnostic?.suggestion).toContain("Move the project-specific modifier");
+  });
+
+  it("accepts the project-specific modifier before the type-erasing modifier", () => {
+    const source = `
+      import SwiftUI
+
+      struct NewChatButton: View {
+          var body: some View {
+              Label("New Chat", systemImage: "plus")
+                  .swarmIcon(size: 18)
+                  .labelStyle(.iconOnly)
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX766")).toHaveLength(
+      0
+    );
+  });
+
+  it("accepts known SwiftUI modifiers after labelStyle", () => {
+    const source = `
+      import SwiftUI
+
+      struct NewChatButton: View {
+          var body: some View {
+              Label("New Chat", systemImage: "plus")
+                  .labelStyle(.iconOnly)
+                  .font(.headline)
+                  .accessibilityIdentifier("new-chat")
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX766")).toHaveLength(
       0
     );
   });

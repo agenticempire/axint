@@ -32,11 +32,15 @@ describe("runAxintProject", () => {
     const report = await runAxintProject({
       cwd: dir,
       expectedVersion: "0.0.0-test",
+      agent: "codex",
       dryRun: true,
       writeReport: true,
     });
 
     expect(report.session.token).toMatch(/^axsess_/);
+    expect(report.agent.agent).toBe("codex");
+    expect(report.agentAdvice?.status).toBe("needs_setup");
+    expect(report.repairPrompt).toContain("Host/tool lane: Codex");
     expect(report.workflow.status).toBe("ready");
     expect(report.swiftValidation.filesChecked).toBe(1);
     expect(report.cloudChecks).toHaveLength(1);
@@ -67,6 +71,7 @@ describe("runAxintProject", () => {
     const dir = makeFakeXcodeProject();
     const report = await runAxintProject({
       cwd: dir,
+      agent: "cursor",
       dryRun: true,
       runtime: true,
       writeReport: false,
@@ -74,6 +79,8 @@ describe("runAxintProject", () => {
 
     const prompt = renderAxintRunReport(report, "prompt");
     expect(prompt).toContain("You are repairing an Apple-native project");
+    expect(prompt).toContain("Host/tool lane: Cursor");
+    expect(prompt).toContain("Agent brain:");
     expect(prompt).toContain("After repairing, rerun `axint run`");
   });
 
@@ -284,6 +291,158 @@ describe("runAxintProject", () => {
         );
         expect(evidenceSummary).toContain("TEST SUCCEEDED");
       }
+    } finally {
+      process.env.PATH = previousPath;
+    }
+  });
+
+  it("extracts failing Xcode test details into the run report and Cloud Check", async () => {
+    const dir = makeFakeXcodeProject();
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      [
+        "#!/bin/sh",
+        'original="$*"',
+        'bundle=""',
+        'while [ "$#" -gt 0 ]; do',
+        '  if [ "$1" = "-resultBundlePath" ]; then',
+        "    shift",
+        '    bundle="$1"',
+        "  fi",
+        "  shift",
+        "done",
+        '[ -n "$bundle" ] && mkdir -p "$bundle"',
+        'if echo " $original " | grep -q " test "; then',
+        "  echo \"Test Suite 'SwarmUITests' started.\"",
+        "  echo \"Test Case '-[SwarmUITests testBuilderProfileOpensWithStableActionControls]' started.\"",
+        '  echo "$PWD/SwarmUITests/SwarmUITests.swift:793: error: -[SwarmUITests testBuilderProfileOpensWithStableActionControls] : XCTAssertTrue failed - builder-profile-scroll should exist"',
+        "  echo \"Test Case '-[SwarmUITests testBuilderProfileOpensWithStableActionControls]' failed (3.31 seconds).\"",
+        '  echo "** TEST FAILED **"',
+        '  echo "Executed 1 test, with 1 failure"',
+        "  exit 65",
+        "else",
+        '  echo "** BUILD SUCCEEDED **"',
+        "  exit 0",
+        "fi",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+    const xcrun = join(binDir, "xcrun");
+    writeFileSync(
+      xcrun,
+      [
+        "#!/bin/sh",
+        "cat <<JSON",
+        '{"testFailureSummaries":[{"message":{"_value":"XCTAssertTrue failed - builder-profile-scroll should exist"},"documentLocationInCreatingWorkspace":{"url":{"_value":"file://$PWD/SwarmUITests/SwarmUITests.swift#StartingLineNumber=793&EndingLineNumber=793"}},"testName":{"_value":"testBuilderProfileOpensWithStableActionControls"},"suiteName":{"_value":"SwarmUITests"}}]}',
+        "JSON",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcrun, 0o755);
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    try {
+      const report = await runAxintProject({
+        cwd: dir,
+        writeReport: false,
+        onlyTesting: [
+          "SwarmUITests/SwarmUITests/testBuilderProfileOpensWithStableActionControls",
+        ],
+        expectedBehavior: "Builder profile action controls should exist and be hittable.",
+        actualBehavior: "Axint should extract the exact failing XCTest assertion.",
+      });
+      const rendered = renderAxintRunReport(report);
+      const cloudCodes = report.cloudChecks.flatMap((check) =>
+        check.diagnostics.map((diagnostic) => diagnostic.code)
+      );
+
+      expect(report.status).toBe("fail");
+      expect(report.xcodeTestFailures).toHaveLength(1);
+      expect(report.xcodeTestFailures[0]).toMatchObject({
+        testName: "testBuilderProfileOpensWithStableActionControls",
+        line: 793,
+        identifier: "builder-profile-scroll",
+        likelyArea: "Builder or creator profile interaction surface",
+        likelyCause:
+          "The UI element is missing from the accessibility tree or has a stale identifier/query.",
+        repairHint:
+          "Verify the accessibilityIdentifier, conditional rendering path, navigation state, and test launch setup.",
+        source: "xcresult",
+      });
+      expect(report.xcodeTestFailures[0]?.file).toMatch(
+        /SwarmUITests\/SwarmUITests\.swift$/
+      );
+      expect(report.xcodeTestFailures[0]?.message).toContain(
+        "builder-profile-scroll should exist"
+      );
+      expect(report.nextSteps.join("\n")).toContain(
+        "testBuilderProfileOpensWithStableActionControls"
+      );
+      expect(report.repairPrompt).toContain("Xcode test failures");
+      expect(report.repairPrompt).toContain("builder-profile-scroll should exist");
+      expect(report.repairPrompt).toContain("Verify the accessibilityIdentifier");
+      expect(rendered).toContain("## Xcode Test Failures");
+      expect(rendered).toContain("SwarmUITests.swift:793");
+      expect(rendered).toContain("builder-profile-scroll should exist");
+      expect(cloudCodes).toContain("AXCLOUD-XCTEST-FAILURE");
+      expect(cloudCodes).toContain("AXCLOUD-UI-TEST-ELEMENT");
+    } finally {
+      process.env.PATH = previousPath;
+    }
+  });
+
+  it("classifies not-hittable UI failures as interaction-blocking repairs", async () => {
+    const dir = makeFakeXcodeProject();
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      [
+        "#!/bin/sh",
+        'if echo " $* " | grep -q " test "; then',
+        "  echo \"Test Suite 'ComposerBlockerUITests' started.\"",
+        "  echo \"Test Case '-[ComposerBlockerUITests testComposerTextFieldAcceptsInput]' started.\"",
+        '  echo "$PWD/ComposerBlockerUITests.swift:9: error: -[ComposerBlockerUITests testComposerTextFieldAcceptsInput] : XCTAssertTrue failed - composer-input should be hittable"',
+        "  echo \"Test Case '-[ComposerBlockerUITests testComposerTextFieldAcceptsInput]' failed (2.41 seconds).\"",
+        '  echo "** TEST FAILED **"',
+        "  exit 65",
+        "else",
+        '  echo "** BUILD SUCCEEDED **"',
+        "  exit 0",
+        "fi",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    try {
+      const report = await runAxintProject({
+        cwd: dir,
+        agent: "codex",
+        writeReport: false,
+        onlyTesting: [
+          "ComposerBlockerUITests/ComposerBlockerUITests/testComposerTextFieldAcceptsInput",
+        ],
+      });
+
+      expect(report.xcodeTestFailures[0]).toMatchObject({
+        testName: "testComposerTextFieldAcceptsInput",
+        identifier: "composer-input",
+        likelyCause:
+          "The control exists, but another layer, disabled state, hit-testing override, transition, or offscreen layout is preventing interaction.",
+      });
+      expect(report.xcodeTestFailures[0]?.repairHint).toContain(
+        "ZStack/overlay/contentShape"
+      );
+      expect(report.repairPrompt).toContain("ZStack/overlay/contentShape");
     } finally {
       process.env.PATH = previousPath;
     }

@@ -242,6 +242,21 @@ export function auditGeneratedFeature(
 
   if (
     (surfaces.includes("view") || surfaces.includes("component")) &&
+    input.context?.trim() &&
+    input.tokenNamespace &&
+    swiftFiles.length > 0 &&
+    looksLikeStrictExistingDesignSystemRequest(description) &&
+    !new RegExp(
+      `\\b(?:enum|struct|class|actor)\\s+${escapeRegExp(input.tokenNamespace)}\\b`
+    ).test(input.context)
+  ) {
+    diagnostics.push(
+      `[AX855] error: Generated UI references token namespace ${input.tokenNamespace}, but that symbol was not visible in the supplied project context\n  help: Existing-app generation must not invent project APIs. Pass the real token/component source as context, use the correct token namespace, or switch to axint.repair/project index for a patch-first plan.`
+    );
+  }
+
+  if (
+    (surfaces.includes("view") || surfaces.includes("component")) &&
     hasGenericPlaceholder(swiftText)
   ) {
     diagnostics.push(
@@ -265,6 +280,12 @@ export function auditGeneratedFeature(
   }
 
   return diagnostics;
+}
+
+function looksLikeStrictExistingDesignSystemRequest(description: string): boolean {
+  return /\b(reuse|reuses|using|use|match|matches|preserve|preserves)\b.{0,80}\b(real|actual|existing|project-specific)\b.{0,80}\b(design system|tokens|theme|styling|api|component api)\b/i.test(
+    description
+  );
 }
 
 function extractComponentNames(description: string): string[] {

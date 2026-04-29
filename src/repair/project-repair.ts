@@ -323,7 +323,7 @@ export function renderAxintRepairReport(
     `- Project: ${report.projectContext.swiftFiles} Swift files, ${report.projectContext.swiftUIFiles} SwiftUI files, ${report.projectContext.inputCapableFiles} input-capable files`,
     "",
     "## Senior Repair Read",
-    ...formatAppleRepairRead(report.repairIntelligence).map((item) => `- ${item}`),
+    ...formatAppleRepairOverview(report.repairIntelligence).map((item) => `- ${item}`),
     "- Inspect:",
     ...report.repairIntelligence.inspectionChecklist
       .slice(0, 6)
@@ -879,7 +879,7 @@ function buildRepairPrompt(report: AxintRepairReport): string {
     "Host/tool lane:",
     renderAgentToolProfile(report.agent),
     "",
-    ...formatAppleRepairRead(report.repairIntelligence),
+    ...formatAppleRepairOverview(report.repairIntelligence),
     "",
     "Likely root causes:",
     ...report.hypotheses.map(
@@ -895,6 +895,12 @@ function buildRepairPrompt(report: AxintRepairReport): string {
     "",
     "Do not claim the bug is fixed until focused build/UI/runtime proof passes.",
   ].join("\n");
+}
+
+function formatAppleRepairOverview(analysis: AppleRepairIntelligence): string[] {
+  const formatted = formatAppleRepairRead(analysis);
+  const rootCauseIndex = formatted.indexOf("Likely root causes:");
+  return rootCauseIndex >= 0 ? formatted.slice(0, rootCauseIndex) : formatted;
 }
 
 function writeRepairArtifacts(report: AxintRepairReport): void {

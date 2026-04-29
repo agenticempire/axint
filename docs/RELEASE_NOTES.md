@@ -1,5 +1,47 @@
 # Release Notes
 
+## 2026-04-29 — Agent-aware run loop and first-use wow fixture
+
+This release wave makes Axint feel more like a project brain for Apple-native agents instead of a set of separate commands.
+
+### Added
+
+- `axint init --apple-project`
+  - Initializes Axint inside an existing Apple/Xcode project.
+  - Writes the project start pack and installs the local multi-agent brain in one command.
+- `axint run --agent <agent>`
+  - Starts the run with the active host lane: `codex`, `claude`, `cursor`, `cowork`, `xcode`, or `all`.
+  - Returns host-safe repair guidance instead of generic “try this” instructions.
+- `axint.agent.*`
+  - Installs `.axint/agent.json`, project context, local file claims, and a coordination ledger.
+  - Gives Codex, Claude, Cursor, Xcode, and humans one shared local truth layer.
+- `axint memory index`
+  - Writes `.axint/memory/latest.json` and `.axint/memory/latest.md` from project context, latest run proof, latest repair packet, and source-free learning packets.
+  - Gives agents a compact project memory after context compaction or when multiple tools are working in the same project.
+- `examples/wow/composer-blocker`
+  - A small SwiftUI interaction-repair fixture where an invisible overlay blocks a composer text field.
+  - Includes a focused UI-test failure log so Axint can demonstrate project-aware diagnosis without private dogfooding notes.
+
+### Improved
+
+- `axint.run` now embeds the active agent profile in markdown, JSON, and repair-prompt output.
+- `axint.run` now accepts MCP-style CLI aliases such as `--cwd`, `--modified`, `--modified-files`, and `--project-name` so fallback commands work when MCP transport is closed.
+- `axint.run` now writes privacy-safe Cloud learning packets from Cloud Check signals to `.axint/feedback`.
+- Compact JSON keeps the important verdict, diagnostics, artifact paths, agent lane, and next moves visible while still omitting source by default.
+- The repair prompt now includes the host lane, local brain status, file-claim guidance, and the smallest proof loop to rerun next.
+- Direct Cloud Check no longer treats prose-only SwiftUI behavior notes as runtime proof. View/app checks stay at `evidence_required` until build, UI-test, runtime, or `axint run` evidence is supplied.
+- Swift validation adds `AX767` for non-`@ViewBuilder` `some View` helpers that declare locals but forget an explicit `return`.
+- Generation self-audit adds `AX855` so existing-app UI generation refuses to invent a requested project token namespace that is not present in the supplied context.
+
+### Why it matters
+
+The first-use story is now clearer:
+
+1. Point Axint at an existing Apple project.
+2. Let Axint index the app and install the local project brain.
+3. Ask Codex, Claude, Cursor, Xcode, or terminal for the same repair loop.
+4. Run focused proof and keep the result in `.axint/run/latest.*`.
+
 ## 2026-04-20 — Xcode repair loop and Apple coverage expansion
 
 This release wave sharpens the Xcode workflow and expands Apple-native Swift coverage in places where generic coding assistants usually feel soft.

@@ -101,6 +101,7 @@ describe("project repair", () => {
     expect(report.filesToInspect.map((file) => file.path)).toContain("FeedScreen.swift");
     expect(report.agent.agent).toBe("codex");
     expect(report.repairPrompt).toContain("Senior Apple repair read");
+    expect(report.repairPrompt.match(/Likely root causes:/g)).toHaveLength(1);
     expect(report.repairPrompt).toContain("Do not claim the bug is fixed");
     expect(report.feedbackPacket.privacy.redaction).toBe("source_not_included");
     expect(JSON.stringify(report.feedbackPacket)).not.toContain("TextEditor(text");
