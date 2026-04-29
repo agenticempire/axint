@@ -9,7 +9,7 @@ type StatusFormat = "markdown" | "json" | "prompt";
 export function registerStatus(program: Command, version: string) {
   program
     .command("status")
-    .description("Show local Axint version, runtime paths, and Xcode MCP restart steps")
+    .description("Show local Axint version, runtime paths, and MCP reload steps")
     .option("--format <format>", "Output format: markdown, json, or prompt", "markdown")
     .action((options: { format?: string }) => {
       console.log(renderCliStatus(version, parseFormat(options.format)));
@@ -32,13 +32,14 @@ export function renderCliStatus(
     cwd: process.cwd(),
     mcpCommand: `${which("npx") ?? "npx"} -y @axint/compiler axint-mcp`,
     updateCommand: `${which("npm") ?? "npm"} install -g @axint/compiler@latest`,
+    upgradeCommand: "axint upgrade --apply",
     xcodeSetupCommand: "axint xcode install --project .",
     doctorCommand: "axint doctor",
     projectInitCommand: "axint project init",
     verificationPrompt:
       "Call axint.status and tell me the running Axint MCP version before editing code.",
     restartInstruction:
-      "Restart the Xcode Claude Agent chat after updating. MCP clients keep the old Node process alive until restarted.",
+      "After updating, reload or reconnect the Axint MCP server/tool process. Keep the current Codex or Claude thread when your client supports MCP reload; if it does not, use the generated same-thread resume prompt instead of starting blind.",
   };
 
   if (format === "json") return JSON.stringify(status, null, 2);
@@ -47,9 +48,9 @@ export function renderCliStatus(
     return [
       "Use Axint before editing Apple-native code.",
       status.verificationPrompt,
-      "Call axint.xcode.guard with stage=context-recovery so this Xcode chat writes durable guard proof.",
+      "Use the active agent lane: Codex/Claude/Cursor/Cowork should patch natively, while Xcode can use axint.xcode.guard for durable guard proof.",
       `Expected local package version: ${status.version}.`,
-      "If axint.status reports an older version, stop and ask me to update/restart the Xcode agent chat.",
+      "If axint.status reports an older version, run axint.upgrade or axint upgrade --apply, then reload only the MCP server/tool process.",
       "After each generated Swift surface, run axint.cloud.check or axint cloud check --source <file> with build/test evidence when available.",
     ].join("\n");
   }
@@ -64,24 +65,24 @@ export function renderCliStatus(
     `- npm: ${status.npmPath ?? "not found on PATH"}`,
     `- npx: ${status.npxPath ?? "not found on PATH"}`,
     "",
-    "## Xcode Agent Setup",
+    "## Agent Setup",
     "",
-    "Use this when starting a new Claude-in-Xcode chat:",
+    "Use this at the start of any Codex, Claude, Cowork, Cursor, or Xcode agent session:",
     "",
     "```text",
     status.verificationPrompt,
-    "Call axint.xcode.guard with stage=context-recovery before any long task.",
-    "If Axint is not available, inspect the project .mcp.json, make sure npx uses a durable full path, then restart this Xcode agent chat.",
+    "Use axint workflow check as the portable guard. In Xcode-hosted sessions, axint.xcode.guard can also write .axint/guard/latest.* proof.",
+    "If MCP tools are visible but calls fail after a reload or transport close, run the CLI fallback: axint workflow check --dir . --stage context-recovery --agent <host> --session-token <token>.",
+    "If Axint is not available, inspect the project .mcp.json or client MCP settings, make sure npx uses a durable full path, then reload the Axint MCP server/tool process.",
     "```",
     "",
-    "If the running MCP version is stale:",
+    "If the running MCP version is stale, use the same-thread upgrade flow:",
     "",
     "```sh",
-    status.updateCommand,
-    status.xcodeSetupCommand,
+    status.upgradeCommand,
     "```",
     "",
-    "For a new project, install the full Axint agent pack:",
+    "For a new Apple project, install the full optional Xcode proof bridge:",
     "",
     "```sh",
     status.xcodeSetupCommand,

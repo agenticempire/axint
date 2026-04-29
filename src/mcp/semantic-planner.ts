@@ -40,9 +40,13 @@ const STOP_WORDS = new Set([
   "cards",
   "component",
   "components",
+  "compact",
   "create",
+  "current",
   "design",
   "distinct",
+  "existing",
+  "focused",
   "for",
   "from",
   "has",
@@ -54,12 +58,17 @@ const STOP_WORDS = new Set([
   "kind",
   "make",
   "native",
+  "new",
   "of",
   "on",
   "one",
+  "only",
   "or",
+  "page",
+  "preserve",
   "surface",
   "surfaces",
+  "screen",
   "swift",
   "swiftui",
   "that",
@@ -191,16 +200,18 @@ export function auditGeneratedFeature(
   files: FeatureFile[]
 ): string[] {
   const diagnostics: string[] = [];
-  const description = `${input.description} ${input.context ?? ""}`;
+  const description = input.description;
   const surfaces = input.surfaces ?? (["intent"] as Surface[]);
   const swiftFiles = files.filter((file) => file.type === "swift");
   const swiftText = swiftFiles.map((file) => file.content).join("\n\n");
-  const normalizedSwift = normalizeForCoverage(swiftText);
+  const normalizedSwift = normalizeForCoverage(visibleSwiftBodyText(swiftText));
   const tokens = meaningfulTokens(description).filter(
     (token) => token.length > 3 && !UI_SIGNAL_WORDS.includes(token)
   );
   const uniqueTokens = unique(tokens).slice(0, 18);
-  const covered = uniqueTokens.filter((token) => normalizedSwift.includes(token));
+  const covered = uniqueTokens.filter((token) =>
+    semanticTokenCovered(normalizedSwift, token)
+  );
   const coverage = uniqueTokens.length === 0 ? 1 : covered.length / uniqueTokens.length;
 
   const requestedComponents = inferSemanticComponentArchetypes(
@@ -245,9 +256,9 @@ export function auditGeneratedFeature(
   ) {
     const missing = uniqueTokens.filter((token) => !covered.includes(token)).slice(0, 6);
     diagnostics.push(
-      `[AX853] warning: Generated UI has low semantic coverage of the prompt (${Math.round(
+      `[AX853] error: Generated UI has low semantic coverage of the prompt (${Math.round(
         coverage * 100
-      )}%)\n  help: Incorporate the requested concepts into the generated names, labels, or component structure: ${missing.join(
+      )}%)\n  help: Do not emit a generic scaffold. Incorporate the requested concepts into visible labels, controls, or component structure before returning Swift: ${missing.join(
         ", "
       )}.`
     );
@@ -366,6 +377,12 @@ function inferKindFromText(text: string): string | undefined {
   const normalized = text.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
   const compact = normalized.replace(/[\s_-]+/g, "").toLowerCase();
   const lower = normalized.toLowerCase();
+  if (
+    /\b(settings|preferences|visibility|invite policy|invite limit|permissions|privacy posture|integration readiness|operating model)\b/.test(
+      lower
+    )
+  )
+    return "settingsView";
   if (/\bfeed|post|reaction|comment|share\b/.test(lower)) return "feedCard";
   if (/\bmedia|image|photo|asset|cover|gallery|preview|nsimage\b/.test(lower))
     return "mediaCard";
@@ -405,6 +422,9 @@ function normalizeSemanticKind(kind: string | undefined): string | undefined {
     semantictoolbar: "semanticBar",
     semanticlist: "semanticList",
     semanticgrid: "semanticList",
+    settingsview: "settingsView",
+    settings: "settingsView",
+    preferences: "settingsView",
   };
   return map[compact];
 }
@@ -426,11 +446,50 @@ function normalizeForCoverage(text: string): string {
     .replace(/[^a-z0-9\s-]/g, " ");
 }
 
+function visibleSwiftBodyText(swiftText: string): string {
+  return swiftText
+    .split(/\r?\n/)
+    .filter((line) => {
+      const trimmed = line.trim();
+      return (
+        trimmed.length > 0 &&
+        !trimmed.startsWith("//") &&
+        !trimmed.startsWith("import ") &&
+        !trimmed.startsWith("struct ") &&
+        !trimmed.startsWith("class ") &&
+        !trimmed.startsWith("enum ") &&
+        !trimmed.startsWith("@State") &&
+        !trimmed.startsWith("@Binding") &&
+        !/^(private\s+)?(?:let|var)\s+[A-Za-z_][A-Za-z0-9_]*\b/.test(trimmed)
+      );
+    })
+    .join("\n");
+}
+
+function semanticTokenCovered(normalizedText: string, token: string): boolean {
+  const forms = new Set<string>([
+    token,
+    token.replace(/[-_]+/g, " "),
+    token.replace(/[-_]+/g, ""),
+  ]);
+  if (token.endsWith("s") && token.length > 4) {
+    const singular = token.slice(0, -1);
+    forms.add(singular);
+    forms.add(singular.replace(/[-_]+/g, " "));
+    forms.add(singular.replace(/[-_]+/g, ""));
+  }
+  return Array.from(forms).some((form) => {
+    const normalized = normalizeForCoverage(form).trim();
+    return normalized.length > 0 && normalizedText.includes(normalized);
+  });
+}
+
 function hasGenericPlaceholder(swiftText: string): boolean {
   return [
     /Text\("Hello"\)/,
     /Text\("Input:\s*\\\(input\)"\)/,
     /VStack\s*\{\s*Text\("[^"]+"\)\s*\}/s,
+    /Generated from the requested product vocabulary, not a generic starter\./,
   ].some((pattern) => pattern.test(swiftText));
 }
 

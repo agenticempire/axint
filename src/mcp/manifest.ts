@@ -10,8 +10,8 @@ export const TOOL_MANIFEST = [
     name: "axint.status",
     description:
       "Report the exact running Axint MCP server version, package path, uptime, " +
-      "registered tool count, and Xcode restart/update instructions. Use this " +
-      "as the first tool in a new Xcode agent chat to prove which Axint process " +
+      "registered tool count, and same-thread MCP reload/update instructions. Use this " +
+      "as the first tool in a new Codex, Claude, or Xcode agent chat to prove which Axint process " +
       "the agent is actually connected to. This answers the running MCP server, " +
       "not a guessed npm, PyPI, or docs version.",
     annotations: {
@@ -29,6 +29,62 @@ export const TOOL_MANIFEST = [
           description:
             "Output format. markdown is human-readable, json is structured, " +
             "and prompt is a short instruction an agent can repeat back before editing.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.upgrade",
+    description:
+      "Check the latest Axint package and optionally apply the upgrade while preserving " +
+      "the current agent thread. Returns exact install commands, optional Xcode MCP " +
+      "wiring refresh, .axint/upgrade/latest.* artifacts, and a same-thread resume " +
+      "prompt so Codex, Claude, or Xcode can reload the MCP process without starting " +
+      "from scratch.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description:
+            "Project directory where .axint/upgrade/latest.* should be written. Defaults to the MCP process cwd.",
+        },
+        targetVersion: {
+          type: "string",
+          description:
+            "Specific Axint version to install. Defaults to the latest published npm version.",
+        },
+        latestVersion: {
+          type: "string",
+          description:
+            "Known latest version to compare against. Useful for deterministic agent tests or offline planning.",
+        },
+        apply: {
+          type: "boolean",
+          description:
+            "Whether to install the target package. Defaults to false, which only returns the plan.",
+        },
+        reinstallXcode: {
+          type: "boolean",
+          description:
+            "Whether apply mode should also refresh optional Xcode MCP wiring. Defaults to false.",
+        },
+        writeReport: {
+          type: "boolean",
+          description:
+            "Whether to write .axint/upgrade/latest.json and latest.md. Defaults to true when apply is true.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json", "prompt"],
+          description:
+            "Output format. markdown is human-readable, json is structured, and prompt is the continuation block.",
         },
       },
     },
@@ -237,10 +293,10 @@ export const TOOL_MANIFEST = [
     name: "axint.session.start",
     description:
       "Start an enforced Axint agent session. Writes " +
-      ".axint/session/current.json, refreshes .axint/AXINT_REHYDRATE.md, " +
+      ".axint/session/current.json plus token-scoped session history, refreshes .axint/AXINT_REHYDRATE.md, " +
       "returns compact operating memory, docs context, a session token, and " +
       "the exact axint.workflow.check args. Use " +
-      "this as the first Axint tool in Xcode after a new chat, MCP restart, or " +
+      "this as the first Axint tool in Codex, Claude, or Xcode after a new chat, MCP reload, or " +
       "context compaction so the agent cannot silently drift away from Axint.",
     annotations: {
       readOnlyHint: false,
@@ -254,7 +310,7 @@ export const TOOL_MANIFEST = [
         targetDir: {
           type: "string",
           description:
-            "Project directory where .axint/session/current.json should be written. Defaults to the MCP process cwd.",
+            "Project directory where .axint/session/current.json and token-scoped session history should be written. Defaults to the MCP process cwd.",
         },
         projectName: {
           type: "string",
@@ -271,7 +327,7 @@ export const TOOL_MANIFEST = [
         },
         agent: {
           type: "string",
-          enum: ["claude", "codex", "cursor", "xcode", "all"],
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
           description: "Agent target for the session. Defaults to all.",
         },
         ttlMinutes: {
@@ -427,7 +483,7 @@ export const TOOL_MANIFEST = [
         },
         agent: {
           type: "string",
-          enum: ["claude", "codex", "all"],
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
           description: "Agent target. Defaults to all.",
         },
         mode: {
@@ -649,7 +705,7 @@ export const TOOL_MANIFEST = [
       "For existing dirty SwiftUI files or Codex-style patch edits, it points " +
       "agents toward surgical patching plus validation instead of full-file writes. " +
       "A ready result is not a completion stamp: the response includes the next " +
-      "Axint action the agent should call before returning to ordinary Xcode work.",
+      "Axint action the agent should call before returning to broad Apple-native work.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -668,6 +724,12 @@ export const TOOL_MANIFEST = [
           type: "boolean",
           description:
             "Whether axint.session.start was called in this chat/recovery pass.",
+        },
+        agent: {
+          type: "string",
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
+          description:
+            "Agent host/tool lane for this gate. Codex/Claude/Cowork/Cursor use patch-first lanes; Xcode may use Xcode guard/write.",
         },
         sessionToken: {
           type: "string",
@@ -1056,6 +1118,195 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.repair",
+    description:
+      "Plan a project-aware Apple repair for existing apps. Indexes the local project, " +
+      "classifies build/UI/runtime evidence, runs Cloud Check when source is provided, " +
+      "ranks likely SwiftUI/App files, returns a host-aware patch/proof plan, and writes " +
+      ".axint/repair plus a privacy-safe .axint/feedback packet. Use this when the user " +
+      "reports a real app bug such as a visible composer that cannot be tapped, a failed " +
+      "macOS UI test, a runtime freeze, or a Swift build error.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory. Defaults to the MCP process cwd.",
+        },
+        issue: {
+          type: "string",
+          description:
+            "The broken behavior or repair goal, e.g. 'comment box is visible but cannot be tapped'.",
+        },
+        source: {
+          type: "string",
+          description:
+            "Optional inline Swift source for the suspected file. Source is not included in the feedback packet.",
+        },
+        sourcePath: {
+          type: "string",
+          description:
+            "Optional suspected Swift file path. Axint reads it locally for Cloud Check and project anchoring.",
+        },
+        fileName: {
+          type: "string",
+          description: "Display file name when passing inline source.",
+        },
+        platform: {
+          type: "string",
+          enum: ["iOS", "macOS", "watchOS", "visionOS", "all"],
+          description: "Target Apple platform hint.",
+        },
+        agent: {
+          type: "string",
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
+          description:
+            "Active host/tool lane. Axint adapts the repair plan so Codex/Claude/Cursor avoid Xcode-only write tools.",
+        },
+        expectedBehavior: {
+          type: "string",
+          description: "Optional expected behavior for the failing feature.",
+        },
+        actualBehavior: {
+          type: "string",
+          description: "Optional observed behavior from the failing run.",
+        },
+        xcodeBuildLog: {
+          type: "string",
+          description: "Optional Xcode build/test log evidence.",
+        },
+        testFailure: {
+          type: "string",
+          description: "Optional focused unit/UI-test failure text.",
+        },
+        runtimeFailure: {
+          type: "string",
+          description: "Optional crash, freeze, hang, or runtime failure text.",
+        },
+        changedFiles: {
+          type: "array",
+          items: { type: "string" },
+          description: "Changed files to pin into the project context pack.",
+        },
+        projectContextPath: {
+          type: "string",
+          description: "Optional .axint/context/latest.json path.",
+        },
+        writeReport: {
+          type: "boolean",
+          description:
+            "Whether to write .axint/repair/latest.json and latest.md. Defaults to true.",
+        },
+        writeFeedback: {
+          type: "boolean",
+          description:
+            "Whether to write a privacy-safe .axint/feedback packet. Defaults to true.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json", "prompt"],
+          description:
+            "Output format. markdown returns the report, json returns structured data, and prompt returns the agent repair prompt.",
+        },
+      },
+      required: ["issue"],
+    },
+  },
+  {
+    name: "axint.feedback.create",
+    description:
+      "Create or read a privacy-safe learning packet for Axint repair intelligence. " +
+      "Packets include project shape, diagnostic codes, issue class, redacted evidence, " +
+      "and likely product owner, but never include source code. Users can inspect the JSON " +
+      "before sending it to Axint Cloud.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory. Defaults to the MCP process cwd.",
+        },
+        latest: {
+          type: "boolean",
+          description:
+            "When true, return the latest local feedback packet instead of creating a new one.",
+        },
+        issue: {
+          type: "string",
+          description: "Bug, weak Axint output, or failed repair behavior.",
+        },
+        source: {
+          type: "string",
+          description: "Optional inline Swift source used locally only.",
+        },
+        sourcePath: {
+          type: "string",
+          description: "Optional suspected Swift file path used locally only.",
+        },
+        fileName: {
+          type: "string",
+          description: "Display file name when passing inline source.",
+        },
+        platform: {
+          type: "string",
+          enum: ["iOS", "macOS", "watchOS", "visionOS", "all"],
+          description: "Target Apple platform hint.",
+        },
+        agent: {
+          type: "string",
+          enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
+          description: "Active host/tool lane.",
+        },
+        expectedBehavior: {
+          type: "string",
+          description: "Optional expected behavior.",
+        },
+        actualBehavior: {
+          type: "string",
+          description: "Optional actual behavior.",
+        },
+        xcodeBuildLog: {
+          type: "string",
+          description: "Optional Xcode build/test log evidence.",
+        },
+        testFailure: {
+          type: "string",
+          description: "Optional focused unit/UI-test failure text.",
+        },
+        runtimeFailure: {
+          type: "string",
+          description: "Optional crash, freeze, hang, or runtime failure text.",
+        },
+        changedFiles: {
+          type: "array",
+          items: { type: "string" },
+          description: "Changed files to pin into the context pack.",
+        },
+        projectContextPath: {
+          type: "string",
+          description: "Optional .axint/context/latest.json path.",
+        },
+        format: {
+          type: "string",
+          enum: ["json", "markdown"],
+          description: "Output format. Defaults to json.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.run",
     description:
       "Run the enforced Axint Apple build loop outside the Xcode UI. Starts or refreshes " +
@@ -1173,11 +1424,81 @@ export const TOOL_MANIFEST = [
           description:
             "Whether to write .axint/run/latest.json and latest.md. Defaults to true.",
         },
+        background: {
+          type: "boolean",
+          description:
+            "Start the run and immediately return a resumable job id instead of waiting for long Xcode build, test, or runtime proof. Use this from MCP clients when xcodebuild might outlive the tool transport timeout.",
+        },
+        includeSource: {
+          type: "boolean",
+          description:
+            "Include full Swift source and full command output in json output. Defaults to false so long agent threads receive compact verdict/evidence JSON.",
+        },
         format: {
           type: "string",
           enum: ["markdown", "json", "prompt"],
           description:
             "Output format. markdown returns the run report, json returns structured data, prompt returns only the repair prompt.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.run.status",
+    description:
+      "Read the latest or selected Axint run job record, including active child process IDs. " +
+      "Use this when a long xcodebuild run may still be active after an MCP timeout or client disconnect.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory. Defaults to the MCP process cwd.",
+        },
+        id: {
+          type: "string",
+          description: "Optional Axint run id. Defaults to latest active run.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
+    name: "axint.run.cancel",
+    description:
+      "Cancel the latest or selected Axint run by killing active child process groups. " +
+      "Use this when xcodebuild or a UI-test runner survived an MCP timeout or transport close.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: {
+          type: "string",
+          description: "Project directory. Defaults to the MCP process cwd.",
+        },
+        id: {
+          type: "string",
+          description: "Optional Axint run id. Defaults to latest active run.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
         },
       },
     },

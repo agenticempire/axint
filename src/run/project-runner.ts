@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, extname, join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { runCloudCheck, type CloudCheckReport } from "../cloud/check.js";
 import { writeProjectContextIndex } from "../project/context-index.js";
 import { startAxintSession } from "../project/session.js";
@@ -19,13 +19,25 @@ import {
   runWorkflowCheck,
   type WorkflowCheckReport,
 } from "../mcp/workflow-check.js";
+import {
+  createRunJobRecord,
+  finishRunJobRecord,
+  markRunJobCommandFinished,
+  markRunJobCommandStarted,
+  type AxintRunJobRecord,
+} from "./job-store.js";
 
 export type AxintRunFormat = "markdown" | "json" | "prompt";
 export type AxintRunPlatform = "macOS" | "iOS" | "watchOS" | "visionOS" | "all";
 export type AxintRunStepState = "pass" | "warn" | "fail" | "skipped";
 export type AxintRunKind = "local" | "byo-runner";
 
+export interface AxintRunRenderOptions {
+  includeSource?: boolean;
+}
+
 export interface AxintRunInput {
+  id?: string;
   cwd?: string;
   kind?: AxintRunKind;
   projectName?: string;
@@ -63,6 +75,7 @@ export interface AxintRunCommandResult {
   stderr: string;
   durationMs: number;
   dryRun?: boolean;
+  cancelled?: boolean;
 }
 
 export interface AxintRunStep {
@@ -90,6 +103,12 @@ export interface AxintRunReport {
   session: {
     token: string;
     path: string;
+  };
+  job: {
+    id: string;
+    path: string;
+    statusCommand: string;
+    cancelCommand: string;
   };
   workflow: WorkflowCheckReport;
   swiftValidation: {
@@ -129,9 +148,16 @@ export async function runAxintProject(
   input: AxintRunInput = {}
 ): Promise<AxintRunReport> {
   const startedAt = Date.now();
+  const runId = input.id ?? `axrun_${randomUUID()}`;
   const cwd = resolve(input.cwd ?? process.cwd());
   const platform = input.platform ?? inferPlatform(input.destination);
   const projectName = input.projectName ?? inferProjectName(cwd);
+  const job = createRunJobRecord({
+    id: runId,
+    cwd,
+    kind: input.kind ?? "local",
+    projectName,
+  });
   const session = startAxintSession({
     targetDir: cwd,
     projectName,
@@ -210,21 +236,6 @@ export async function runAxintProject(
         : `Ran ${cloudChecks.length} Cloud Check report${cloudChecks.length === 1 ? "" : "s"}.`,
   });
 
-  const workflow = runWorkflowCheck({
-    cwd,
-    stage: "pre-build",
-    sessionStarted: true,
-    sessionToken: session.session.token,
-    readAgentInstructions: true,
-    readDocsContext: true,
-    readRehydrationContext: true,
-    ranStatus: true,
-    ranSuggest: true,
-    ranSwiftValidate: swiftFiles.length > 0,
-    ranCloudCheck: cloudChecks.length > 0,
-    modifiedFiles: swiftFiles.map((file) => relativeOrAbsolute(cwd, file)),
-  });
-
   const commands: AxintRunReport["commands"] = {};
   let plan: XcodePlan | undefined;
   try {
@@ -239,10 +250,11 @@ export async function runAxintProject(
 
   if (plan && !input.skipBuild) {
     const buildArgs = buildXcodeArgs(plan, "build");
-    commands.build = runCommand("xcodebuild", buildArgs, {
+    commands.build = await runCommand("Xcode build", "xcodebuild", buildArgs, {
       cwd,
       timeoutSeconds: input.timeoutSeconds ?? 600,
       dryRun: input.dryRun,
+      job,
     });
     steps.push(stepFromCommand("Xcode build", commands.build));
   } else if (input.skipBuild) {
@@ -255,10 +267,11 @@ export async function runAxintProject(
 
   if (plan && !input.skipTests && !input.skipBuild) {
     const testArgs = buildXcodeArgs(plan, "test");
-    commands.test = runCommand("xcodebuild", testArgs, {
+    commands.test = await runCommand("Xcode test", "xcodebuild", testArgs, {
       cwd,
       timeoutSeconds: input.timeoutSeconds ?? 900,
       dryRun: input.dryRun,
+      job,
     });
     steps.push(stepFromCommand("Xcode test", commands.test));
   } else if (input.skipTests) {
@@ -270,7 +283,7 @@ export async function runAxintProject(
   }
 
   if (plan && input.runtime && platform === "macOS" && !input.dryRun) {
-    const runtime = runMacRuntimeProbe(cwd, plan, input);
+    const runtime = await runMacRuntimeProbe(cwd, plan, input, job);
     commands.buildSettings = runtime.buildSettings;
     commands.runtime = runtime.launch;
     steps.push(
@@ -296,7 +309,8 @@ export async function runAxintProject(
     });
   }
 
-  const xcodeEvidence = buildXcodeEvidence(commands);
+  const xcodeEvidence = buildXcodeEvidence(commands, plan);
+  const focusedBehavior = buildFocusedTestBehavior(plan, commands.test);
   if (xcodeEvidence && cloudTargets.length > 0) {
     cloudChecks.splice(
       0,
@@ -308,8 +322,8 @@ export async function runAxintProject(
           xcodeBuildLog: xcodeEvidence,
           runtimeFailure:
             input.runtimeFailure ?? runtimeFailureFromCommand(commands.runtime),
-          expectedBehavior: input.expectedBehavior,
-          actualBehavior: input.actualBehavior,
+          expectedBehavior: input.expectedBehavior ?? focusedBehavior?.expectedBehavior,
+          actualBehavior: input.actualBehavior ?? focusedBehavior?.actualBehavior,
           projectContext: projectContext.index,
         })
       )
@@ -319,9 +333,25 @@ export async function runAxintProject(
     });
   }
 
+  const workflow = runWorkflowCheck({
+    cwd,
+    stage: "pre-build",
+    sessionStarted: true,
+    sessionToken: session.session.token,
+    readAgentInstructions: true,
+    readDocsContext: true,
+    readRehydrationContext: true,
+    ranStatus: true,
+    ranSwiftValidate: swiftFiles.length > 0,
+    ranCloudCheck: cloudChecks.length > 0,
+    xcodeBuildPassed: commandPassed(commands.build),
+    xcodeTestsPassed: commandPassed(commands.test),
+    modifiedFiles: swiftFiles.map((file) => relativeOrAbsolute(cwd, file)),
+  });
+
   const status = summarizeStatus(steps, workflow, validationDiagnostics, cloudChecks);
   const report: AxintRunReport = {
-    id: `axrun_${randomUUID()}`,
+    id: runId,
     kind: input.kind ?? "local",
     status,
     gate: gateForStatus(status, steps),
@@ -334,6 +364,12 @@ export async function runAxintProject(
     session: {
       token: session.session.token,
       path: session.sessionPath,
+    },
+    job: {
+      id: runId,
+      path: resolve(cwd, ".axint/run/jobs", `${runId}.json`),
+      statusCommand: `axint run status --dir ${shellQuote(cwd)} --id ${runId}`,
+      cancelCommand: `axint run cancel --dir ${shellQuote(cwd)} --id ${runId}`,
     },
     workflow,
     swiftValidation: {
@@ -365,15 +401,25 @@ export async function runAxintProject(
     const artifacts = writeRunArtifacts(report);
     report.artifacts = artifacts;
   }
+  finishRunJobRecord(job, {
+    status,
+    artifacts: {
+      json: report.artifacts.json,
+      markdown: report.artifacts.markdown,
+    },
+  });
 
   return report;
 }
 
 export function renderAxintRunReport(
   report: AxintRunReport,
-  format: AxintRunFormat = "markdown"
+  format: AxintRunFormat = "markdown",
+  options: AxintRunRenderOptions = {}
 ): string {
-  if (format === "json") return JSON.stringify(report, null, 2);
+  if (format === "json") {
+    return JSON.stringify(compactRunReport(report, options), null, 2);
+  }
   if (format === "prompt") return report.repairPrompt;
 
   const lines = [
@@ -386,6 +432,9 @@ export function renderAxintRunReport(
     `- Gate: ${report.gate.decision}`,
     `- Reason: ${report.gate.reason}`,
     `- Session: ${report.session.token}`,
+    `- Job: ${report.job.id}`,
+    `- Status command: \`${report.job.statusCommand}\``,
+    `- Cancel command: \`${report.job.cancelCommand}\``,
     "",
     "## Steps",
     ...report.steps.map(
@@ -511,17 +560,32 @@ function formatOnlyTestingArg(selector: string): string {
   return selector.startsWith("-only-testing:") ? selector : `-only-testing:${selector}`;
 }
 
-function runCommand(
+async function runCommand(
+  label: string,
   command: string,
   args: string[],
   options: {
     cwd: string;
     timeoutSeconds: number;
     dryRun?: boolean;
+    job?: AxintRunJobRecord;
   }
-): AxintRunCommandResult {
+): Promise<AxintRunCommandResult> {
   const started = Date.now();
+  const commandId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   if (options.dryRun) {
+    markRunJobCommandStarted(options.job, {
+      id: commandId,
+      label,
+      command,
+      args,
+      cwd: options.cwd,
+    });
+    markRunJobCommandFinished(options.job, commandId, {
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+    });
     return {
       command,
       args,
@@ -535,42 +599,96 @@ function runCommand(
       dryRun: true,
     };
   }
-  const result = spawnSync(command, args, {
-    cwd: options.cwd,
-    encoding: "utf-8",
-    timeout: options.timeoutSeconds * 1000,
-    maxBuffer: 8 * 1024 * 1024,
+
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let settled = false;
+    let spawnError: Error | undefined;
+
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    markRunJobCommandStarted(options.job, {
+      id: commandId,
+      label,
+      command,
+      args,
+      cwd: options.cwd,
+      pid: child.pid,
+    });
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout = appendCommandOutput(stdout, chunk.toString("utf-8"));
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = appendCommandOutput(stderr, chunk.toString("utf-8"));
+    });
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      if (child.pid) killProcessGroup(child.pid, "SIGTERM");
+    }, options.timeoutSeconds * 1000);
+
+    child.once("error", (error) => {
+      spawnError = error;
+      finish(null, null);
+    });
+    child.once("close", (code, signal) => {
+      finish(code, signal);
+    });
+
+    function finish(code: number | null, signal: NodeJS.Signals | null) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      const cancelled = signal === "SIGTERM" && !timedOut;
+      markRunJobCommandFinished(options.job, commandId, {
+        exitCode: code,
+        signal,
+        timedOut,
+        cancelled,
+      });
+      resolve({
+        command,
+        args,
+        cwd: options.cwd,
+        exitCode: code,
+        signal,
+        timedOut,
+        stdout,
+        stderr: spawnError
+          ? `${stderr}\n${spawnError.name}: ${spawnError.message}`.trim()
+          : stderr,
+        durationMs: Date.now() - started,
+        cancelled,
+      });
+    }
   });
-  return {
-    command,
-    args,
-    cwd: options.cwd,
-    exitCode: result.status,
-    signal: result.signal,
-    timedOut: Boolean(result.error && result.error.message.includes("ETIMEDOUT")),
-    stdout: result.stdout ?? "",
-    stderr:
-      result.stderr ??
-      (result.error ? `${result.error.name}: ${result.error.message}` : ""),
-    durationMs: Date.now() - started,
-  };
 }
 
-function runMacRuntimeProbe(
+async function runMacRuntimeProbe(
   cwd: string,
   plan: XcodePlan,
-  input: AxintRunInput
-): {
+  input: AxintRunInput,
+  job?: AxintRunJobRecord
+): Promise<{
   buildSettings?: AxintRunCommandResult;
   launch?: AxintRunCommandResult;
   detail: string;
-} {
-  const settings = runCommand(
+}> {
+  const settings = await runCommand(
+    "Xcode build settings",
     "xcodebuild",
     [...buildXcodeArgs(plan, "build").slice(0, -1), "-showBuildSettings", "-json"],
     {
       cwd,
       timeoutSeconds: 90,
+      job,
     }
   );
   if (settings.exitCode !== 0) {
@@ -586,7 +704,12 @@ function runMacRuntimeProbe(
       detail: "Build settings did not resolve to a built .app bundle.",
     };
   }
-  const launch = runRuntimeLaunchProbe(cwd, appPath, input.runtimeTimeoutSeconds ?? 8);
+  const launch = await runRuntimeLaunchProbe(
+    cwd,
+    appPath,
+    input.runtimeTimeoutSeconds ?? 8,
+    job
+  );
   return {
     buildSettings: settings,
     launch,
@@ -594,29 +717,33 @@ function runMacRuntimeProbe(
   };
 }
 
-function runRuntimeLaunchProbe(
+async function runRuntimeLaunchProbe(
   cwd: string,
   appPath: string,
-  waitSeconds: number
-): AxintRunCommandResult {
+  waitSeconds: number,
+  job?: AxintRunJobRecord
+): Promise<AxintRunCommandResult> {
   const started = Date.now();
   const appName = basename(appPath, ".app");
-  const openResult = runCommand("open", ["-n", appPath], {
+  const openResult = await runCommand("Runtime open", "open", ["-n", appPath], {
     cwd,
     timeoutSeconds: 15,
+    job,
   });
   if (openResult.exitCode !== 0) return openResult;
 
   const boundedWait = String(Math.min(Math.max(Math.round(waitSeconds), 1), 60));
-  spawnSync("sleep", [boundedWait], {
-    cwd,
-    encoding: "utf-8",
-    timeout: (Number(boundedWait) + 2) * 1000,
-  });
-  const processCheck = runCommand("pgrep", ["-x", appName], {
-    cwd,
-    timeoutSeconds: 5,
-  });
+  await delay(Number(boundedWait) * 1000);
+  const processCheck = await runCommand(
+    "Runtime process check",
+    "pgrep",
+    ["-x", appName],
+    {
+      cwd,
+      timeoutSeconds: 5,
+      job,
+    }
+  );
   return {
     command: "axint-runtime-probe",
     args: [appPath, "--process", appName, "--wait", boundedWait],
@@ -757,17 +884,30 @@ function stepFromCommand(name: string, result: AxintRunCommandResult): AxintRunS
   const printable = [result.command, ...result.args].map(shellQuote).join(" ");
   return {
     name,
-    state: result.exitCode === 0 && !result.timedOut ? "pass" : "fail",
+    state:
+      result.exitCode === 0 && !result.timedOut && !result.cancelled ? "pass" : "fail",
     detail: result.dryRun
       ? "Dry run planned the command without executing it."
-      : result.timedOut
-        ? `Command timed out after ${Math.round(result.durationMs / 1000)}s.`
-        : result.exitCode === 0
-          ? "Command completed successfully."
-          : `Command exited with ${result.exitCode ?? result.signal ?? "unknown"}.`,
+      : result.cancelled
+        ? "Command was cancelled through Axint run cancellation."
+        : result.timedOut
+          ? `Command timed out after ${Math.round(result.durationMs / 1000)}s.`
+          : result.exitCode === 0
+            ? "Command completed successfully."
+            : `Command exited with ${result.exitCode ?? result.signal ?? "unknown"}.`,
     command: printable,
     durationMs: result.durationMs,
   };
+}
+
+function commandPassed(result?: AxintRunCommandResult): boolean {
+  return Boolean(
+    result &&
+    !result.dryRun &&
+    result.exitCode === 0 &&
+    !result.timedOut &&
+    !result.cancelled
+  );
 }
 
 function updateCloudCheckStep(
@@ -793,13 +933,64 @@ function updateCloudCheckStep(
         : `Ran ${cloudChecks.length} Cloud Check report${cloudChecks.length === 1 ? "" : "s"}.`;
 }
 
-function buildXcodeEvidence(commands: AxintRunReport["commands"]): string | undefined {
+function buildXcodeEvidence(
+  commands: AxintRunReport["commands"],
+  plan?: XcodePlan
+): string | undefined {
   const chunks = [
     commandEvidence("Xcode build", commands.build),
+    focusedTestEvidence(commands.test, plan),
     commandEvidence("Xcode test", commands.test),
     commandEvidence("Runtime launch", commands.runtime),
   ].filter(Boolean);
   return chunks.length > 0 ? chunks.join("\n\n") : undefined;
+}
+
+function focusedTestEvidence(
+  result?: AxintRunCommandResult,
+  plan?: XcodePlan
+): string | undefined {
+  const selectors = plan?.onlyTesting ?? [];
+  if (!result || result.dryRun || selectors.length === 0) return undefined;
+  const state = result.exitCode === 0 && !result.timedOut ? "passed" : "failed";
+  const command = plan
+    ? ["xcodebuild", ...buildXcodeArgs(plan, "test")].map(shellQuote).join(" ")
+    : undefined;
+  const relevantOutput = focusedTestOutput(result, selectors);
+  return [
+    `Focused Xcode test proof ${state}.`,
+    command ? `Command: ${command}` : undefined,
+    `Selectors: ${selectors.map(formatOnlyTestingArg).join(", ")}`,
+    state === "passed" ? "** TEST SUCCEEDED **" : "** TEST FAILED **",
+    relevantOutput ? `Relevant test output:\n${relevantOutput}` : undefined,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildFocusedTestBehavior(
+  plan?: XcodePlan,
+  result?: AxintRunCommandResult
+):
+  | {
+      expectedBehavior: string;
+      actualBehavior: string;
+    }
+  | undefined {
+  if (!plan || plan.onlyTesting.length === 0 || !result || result.dryRun) {
+    return undefined;
+  }
+  const selectors = plan.onlyTesting.join(", ");
+  if (result.exitCode !== 0 || result.timedOut) {
+    return {
+      expectedBehavior: `Focused test selector(s) should pass: ${selectors}.`,
+      actualBehavior: `Focused test selector(s) did not pass through axint run --only-testing: ${selectors}.`,
+    };
+  }
+  return {
+    expectedBehavior: `Focused test selector(s) should pass: ${selectors}.`,
+    actualBehavior: `Focused test selector(s) passed through axint run --only-testing: ${selectors}.`,
+  };
 }
 
 function commandEvidence(
@@ -814,6 +1005,32 @@ function commandEvidence(
   }.`;
   const output = trimCommandEvidence([result.stdout, result.stderr].join("\n"));
   return output ? `${header}\n${output}` : header;
+}
+
+function focusedTestOutput(
+  result: AxintRunCommandResult,
+  selectors: string[]
+): string | undefined {
+  const output = [result.stdout, result.stderr].join("\n");
+  if (!output.trim()) return undefined;
+  const selectorTerms = selectors.flatMap((selector) => {
+    const normalized = selector.replace(/^-only-testing:/, "");
+    const parts = normalized.split("/");
+    return [normalized, parts.at(-1) ?? normalized].filter(Boolean);
+  });
+  const lines = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const selectedLines = lines.filter((line) => {
+    const lower = line.toLowerCase();
+    return (
+      /\*\*\s*test\s+(?:succeeded|failed)\s*\*\*/i.test(line) ||
+      /\bexecuted\s+\d+\s+tests?,?\s+with\s+\d+\s+failures?\b/i.test(line) ||
+      selectorTerms.some((term) => lower.includes(term.toLowerCase()))
+    );
+  });
+  return trimCommandEvidence(unique(selectedLines).join("\n") || output, 4000);
 }
 
 function runtimeFailureFromCommand(result?: AxintRunCommandResult): string | undefined {
@@ -835,6 +1052,29 @@ function trimCommandEvidence(value: string, maxChars = 12000): string {
   const head = text.slice(0, 1600).trimEnd();
   const tail = text.slice(-(maxChars - head.length - 80)).trimStart();
   return `${head}\n\n[... axint trimmed long command evidence ...]\n\n${tail}`;
+}
+
+function appendCommandOutput(current: string, next: string, maxChars = 8 * 1024 * 1024) {
+  const combined = `${current}${next}`;
+  if (combined.length <= maxChars) return combined;
+  const tail = combined.slice(-(maxChars - 80));
+  return `[... axint trimmed live command output ...]\n${tail}`;
+}
+
+function killProcessGroup(pid: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(-pid, signal);
+  } catch {
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // The process may have exited between timeout and signal delivery.
+    }
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function summarizeStatus(
@@ -915,6 +1155,32 @@ function buildRunRepairPrompt(input: {
   cloudChecks: CloudCheckReport[];
   commands: AxintRunReport["commands"];
 }) {
+  if (input.status === "pass") {
+    const passedCommands = Object.entries(input.commands)
+      .filter(([, result]) => result && result.exitCode === 0 && !result.timedOut)
+      .map(([label]) => label);
+    return [
+      "Axint Run passed for this Apple-native project.",
+      "Overall status: pass.",
+      "",
+      "Continue with the next proof, commit, or sprint item. Do not rerun Axint unless new code changes or new evidence appears.",
+      "",
+      "Evidence accepted:",
+      input.workflow.status === "ready"
+        ? "- Workflow gate is ready."
+        : "- Workflow gate has residual notes; inspect the run report before committing.",
+      input.validationDiagnostics.length === 0
+        ? "- Swift validation is clean."
+        : `- Swift validation has ${input.validationDiagnostics.length} non-blocking diagnostic(s).`,
+      input.cloudChecks.length > 0
+        ? `- Cloud Check reviewed ${input.cloudChecks.length} file${input.cloudChecks.length === 1 ? "" : "s"}.`
+        : "- Cloud Check had no source files to review.",
+      passedCommands.length > 0
+        ? `- Passed command evidence: ${passedCommands.join(", ")}.`
+        : "- No executed Xcode command evidence was required for this pass.",
+    ].join("\n");
+  }
+
   const lines = [
     "You are repairing an Apple-native project under Axint Run.",
     `Overall status: ${input.status}.`,
@@ -992,6 +1258,125 @@ function writeRunArtifacts(report: AxintRunReport) {
     projectContextJson: report.artifacts.projectContextJson,
     projectContextMarkdown: report.artifacts.projectContextMarkdown,
   };
+}
+
+function compactRunReport(
+  report: AxintRunReport,
+  options: AxintRunRenderOptions
+):
+  | AxintRunReport
+  | (Omit<AxintRunReport, "cloudChecks" | "commands"> & {
+      cloudChecks: Array<
+        Omit<CloudCheckReport, "swiftCode"> & {
+          sourceRedaction?: {
+            swiftCode: "omitted_from_axint_run_json";
+            reason: string;
+            sourceLines: number;
+            outputLines: number;
+          };
+        }
+      >;
+      commands: {
+        build?: CompactRunCommandResult;
+        test?: CompactRunCommandResult;
+        runtime?: CompactRunCommandResult;
+        buildSettings?: CompactRunCommandResult;
+      };
+      outputRedaction: {
+        mode: "compact";
+        reason: string;
+        includeSourceFlag: "--include-source";
+      };
+    }) {
+  if (options.includeSource) return report;
+
+  return {
+    ...report,
+    cloudChecks: report.cloudChecks.map(compactCloudCheckForRun),
+    commands: compactRunCommands(report.commands),
+    outputRedaction: {
+      mode: "compact" as const,
+      reason:
+        "Rendered axint.run JSON omits full Swift source and long command output by default so agents see verdict, evidence, diagnostics, artifact paths, and next steps first.",
+      includeSourceFlag: "--include-source" as const,
+    },
+  };
+}
+
+type CompactRunCommandResult = Omit<AxintRunCommandResult, "stdout" | "stderr"> & {
+  stdoutTail?: string;
+  stderrTail?: string;
+  outputRedaction?: {
+    stdout?: "trimmed_from_axint_run_json";
+    stderr?: "trimmed_from_axint_run_json";
+    reason: string;
+  };
+};
+
+function compactRunCommands(commands: AxintRunReport["commands"]): {
+  build?: CompactRunCommandResult;
+  test?: CompactRunCommandResult;
+  runtime?: CompactRunCommandResult;
+  buildSettings?: CompactRunCommandResult;
+} {
+  return {
+    build: compactRunCommand(commands.build),
+    test: compactRunCommand(commands.test),
+    runtime: compactRunCommand(commands.runtime),
+    buildSettings: compactRunCommand(commands.buildSettings),
+  };
+}
+
+function compactRunCommand(
+  result?: AxintRunCommandResult
+): CompactRunCommandResult | undefined {
+  if (!result) return undefined;
+  const { stdout, stderr, ...rest } = result;
+  const compact: CompactRunCommandResult = { ...rest };
+  if (stdout) compact.stdoutTail = tailText(stdout, 1200);
+  if (stderr) compact.stderrTail = tailText(stderr, 1200);
+  if (stdout || stderr) {
+    compact.outputRedaction = {
+      ...(stdout ? { stdout: "trimmed_from_axint_run_json" as const } : {}),
+      ...(stderr ? { stderr: "trimmed_from_axint_run_json" as const } : {}),
+      reason:
+        "Full command output is available in Axint artifacts or the terminal. Compact JSON keeps long agent conversations readable.",
+    };
+  }
+  return compact;
+}
+
+function compactCloudCheckForRun(report: CloudCheckReport): Omit<
+  CloudCheckReport,
+  "swiftCode"
+> & {
+  sourceRedaction?: {
+    swiftCode: "omitted_from_axint_run_json";
+    reason: string;
+    sourceLines: number;
+    outputLines: number;
+  };
+} {
+  const { swiftCode, ...rest } = report;
+  return {
+    ...rest,
+    ...(swiftCode
+      ? {
+          sourceRedaction: {
+            swiftCode: "omitted_from_axint_run_json" as const,
+            reason:
+              "Full Swift source is omitted from axint.run JSON by default. Use --include-source only when an agent explicitly needs inline source.",
+            sourceLines: report.sourceLines,
+            outputLines: report.outputLines,
+          },
+        }
+      : {}),
+  };
+}
+
+function tailText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  return `[... ${value.length - maxChars} chars trimmed ...]\n${value.slice(-maxChars)}`;
 }
 
 function relativeOrAbsolute(cwd: string, path: string) {

@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { normalizeAxintAgent } from "../project/agent-profile.js";
 import {
   renderProjectStartPack,
   writeProjectStartPack,
@@ -24,7 +25,7 @@ export function registerProject(program: Command, version: string) {
     .option("--name <name>", "Project name")
     .option(
       "--agent <agent>",
-      "Agent target: claude, codex, all",
+      "Agent target: claude, codex, cowork, cursor, xcode, all",
       parseAgent,
       "all" as ProjectAgent
     )
@@ -103,7 +104,8 @@ export function registerProject(program: Command, version: string) {
 }
 
 function parseAgent(value: string): ProjectAgent {
-  if (value === "claude" || value === "codex" || value === "all") return value;
+  const agent = normalizeAxintAgent(value);
+  if (agent === value) return agent;
   throw new Error(`invalid agent: ${value}`);
 }
 

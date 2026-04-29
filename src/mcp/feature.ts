@@ -40,8 +40,10 @@ import {
   buildSmartViewBody,
   reservedViewPropertyName,
   usesSettingsBlueprint,
+  usesOperatingModelSettings,
   usesProfileCardBlueprint,
   usesInboxBlueprint,
+  usesTrustPostureBlueprint,
 } from "./view-blueprints.js";
 import {
   auditGeneratedFeature,
@@ -49,6 +51,7 @@ import {
   inferSemanticComponentKind,
   usesSemanticLayout,
 } from "./semantic-planner.js";
+import { analyzeAppleRepairTask, formatAppleRepairRead } from "../repair/intelligence.js";
 
 export type Surface = "intent" | "view" | "widget" | "component" | "app" | "store";
 
@@ -106,6 +109,34 @@ export function generateFeature(input: FeatureInput): FeatureResult {
   const shouldEmitArtifacts = shouldEmitDomainArtifacts(domain, planningDescription);
   const diagnostics: string[] = [];
   const files: FeatureFile[] = [];
+
+  const repairRead = analyzeAppleRepairTask({
+    text: input.description,
+    source: input.context,
+    fileName: input.name,
+    platform: input.platform,
+  });
+  if (
+    repairRead.isExistingProductRepair &&
+    surfaces.some((surface) => ["view", "component", "store", "app"].includes(surface))
+  ) {
+    return {
+      success: false,
+      name,
+      files: [],
+      summary: [
+        `Generation quality gate stopped output for "${name}"`,
+        "Reason: Axint detected an existing-product Apple repair request, not a new scaffold request.",
+        ...formatAppleRepairRead(repairRead),
+        "Next: run `axint repair` with the failing source/evidence, or ask `axint.suggest` for a proof-first repair loop.",
+        "Files:",
+        "  none emitted because replacing an existing product screen would be unsafe",
+      ].join("\n"),
+      diagnostics: [
+        `[AX854] error: Existing-product repair prompt should use axint.repair instead of axint.feature\n  help: ${repairRead.summary}`,
+      ],
+    };
+  }
 
   // --- Intent surface ---
   if (surfaces.includes("intent")) {
@@ -194,7 +225,7 @@ export function generateFeature(input: FeatureInput): FeatureResult {
   if (surfaces.includes("component")) {
     const componentName = withoutSuffix(withoutSuffix(name, "View"), "Component");
     const archetypes = inferComponentArchetypes(
-      planningDescription,
+      input.description,
       componentName,
       input.componentKind
     );
@@ -226,7 +257,7 @@ export function generateFeature(input: FeatureInput): FeatureResult {
     } else {
       const componentKind =
         input.componentKind ??
-        inferComponentKindForFeature(planningDescription, componentName);
+        inferComponentKindForFeature(input.description, componentName);
       const componentResult = buildView(
         componentName,
         planningDescription,
@@ -320,26 +351,34 @@ export function generateFeature(input: FeatureInput): FeatureResult {
   diagnostics.push(...auditGeneratedFeature(input, files));
 
   const success = !diagnostics.some((d) => /^\[AX[^\]]+\]\s+error\b/.test(d));
+  const qualityGateBlocked = diagnostics.some((d) => /^\[AX85[023]\]\s+error\b/.test(d));
+  const emittedFiles = qualityGateBlocked ? [] : files;
   const surfaceList = surfaces.join(", ");
-  const fileCount = files.filter((f) => f.type === "swift").length;
-  const testCount = files.filter((f) => f.type === "test").length;
+  const fileCount = emittedFiles.filter((f) => f.type === "swift").length;
+  const testCount = emittedFiles.filter((f) => f.type === "test").length;
 
   const summary = [
-    `Generated scaffold: ${fileCount} Swift file${fileCount !== 1 ? "s" : ""} + ${testCount} test${testCount !== 1 ? "s" : ""} for "${name}"`,
+    qualityGateBlocked
+      ? `Generation quality gate stopped output for "${name}"`
+      : `Generated scaffold: ${fileCount} Swift file${fileCount !== 1 ? "s" : ""} + ${testCount} test${testCount !== 1 ? "s" : ""} for "${name}"`,
     `Surfaces: ${surfaceList}`,
     input.platform ? `Platform: ${input.platform}` : null,
     domain ? `Domain: ${domain}` : null,
-    `Note: generated files are editable first drafts; connect real persistence, app state, and product behavior before shipping.`,
+    qualityGateBlocked
+      ? `Note: Axint refused to emit generic Swift because the generated UI did not preserve enough of the prompt. Use the diagnostics below as the repair brief, add context or a more specific component kind, then rerun axint.feature.`
+      : `Note: generated files are editable first drafts; connect real persistence, app state, and product behavior before shipping.`,
     input.context
       ? `Context: nearby project/design context was used as a weak structural hint.`
       : null,
     `Files:`,
-    ...files.map((f) => `  ${f.path} (${f.type})`),
+    ...(emittedFiles.length > 0
+      ? emittedFiles.map((f) => `  ${f.path} (${f.type})`)
+      : ["  none emitted because the generation quality gate failed"]),
   ]
     .filter(Boolean)
     .join("\n");
 
-  return { success, name, files, summary, diagnostics };
+  return { success, name, files: emittedFiles, summary, diagnostics };
 }
 
 function withContext(description: string, context?: string): string {
@@ -539,6 +578,27 @@ function buildView(
     ensureState(state, "appearanceMode", "string", "System");
     ensureState(state, "accentColor", "string", "Blue");
     ensureState(state, "transcriptionEngine", "string", "Apple Speech");
+    ensureState(state, "reduceMotion", "boolean", false);
+    if (usesOperatingModelSettings(description)) {
+      ensureState(state, "visibility", "string", "Invite only");
+      ensureState(state, "invitePolicy", "string", "Owner approval");
+      ensureState(state, "inviteLimit", "int", 25);
+      ensureState(state, "publicModulesEnabled", "boolean", true);
+      ensureState(state, "membersCanInvite", "boolean", false);
+      ensureState(state, "agentsCanPublish", "boolean", false);
+      ensureState(state, "requireReview", "boolean", true);
+      ensureState(state, "privacyPosture", "string", "Strict");
+      ensureState(state, "integrationReadiness", "string", "Ready");
+    }
+  }
+
+  if (usesTrustPostureBlueprint(`${name} ${description}`)) {
+    ensureState(state, "visibility", "string", "Invite only");
+    ensureState(state, "invitePolicy", "string", "Owner approval");
+    ensureState(state, "publicModulesEnabled", "boolean", true);
+    ensureState(state, "membersCanInvite", "boolean", false);
+    ensureState(state, "agentsCanPublish", "boolean", false);
+    ensureState(state, "privacyPosture", "string", "Strict");
     ensureState(state, "reduceMotion", "boolean", false);
   }
 
@@ -801,6 +861,24 @@ function ensureBlueprintState(
     ensureState(state, "name", "string", "Research Agent");
     ensureState(state, "role", "string", "Tracks the frontier");
     ensureState(state, "status", "string", "awake");
+  }
+
+  if (matchesKind("settingsview", "settings", "preferences")) {
+    ensureState(state, "appearanceMode", "string", "System");
+    ensureState(state, "accentColor", "string", "Blue");
+    ensureState(state, "transcriptionEngine", "string", "Apple Speech");
+    ensureState(state, "reduceMotion", "boolean", false);
+    if (usesOperatingModelSettings(description)) {
+      ensureState(state, "visibility", "string", "Invite only");
+      ensureState(state, "invitePolicy", "string", "Owner approval");
+      ensureState(state, "inviteLimit", "int", 25);
+      ensureState(state, "publicModulesEnabled", "boolean", true);
+      ensureState(state, "membersCanInvite", "boolean", false);
+      ensureState(state, "agentsCanPublish", "boolean", false);
+      ensureState(state, "requireReview", "boolean", true);
+      ensureState(state, "privacyPosture", "string", "Strict");
+      ensureState(state, "integrationReadiness", "string", "Ready");
+    }
   }
 }
 
@@ -1280,6 +1358,12 @@ function inferComponentKindForFeature(
   if (semanticKind) return semanticKind;
 
   const lower = `${name} ${description}`.toLowerCase();
+  if (
+    /\b(settings|preferences|visibility|invite policy|invite limit|permissions|privacy posture|integration readiness|operating model)\b/.test(
+      lower
+    )
+  )
+    return "settingsView";
   if (
     /\b(feed post|feedpost|post card|author avatar|reaction|comment|action row)\b/.test(
       lower

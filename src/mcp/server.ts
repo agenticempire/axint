@@ -19,6 +19,8 @@
  *   - axint.compile:          Compile TypeScript intent → Swift App Intent
  *   - axint.fix-packet: Read the latest emitted Fix Packet / AI repair prompt
  *   - axint.cloud.check:     Run an agent-callable Cloud Check report
+ *   - axint.repair:          Plan a project-aware Apple repair loop
+ *   - axint.feedback.create: Create source-free learning packets for repair gaps
  *   - axint.run:             Run enforced build/test/runtime loop outside Xcode UI
  *   - axint.tokens.ingest:    Convert design tokens into SwiftUI token enums
  *   - axint.validate:         Validate an intent definition without codegen
@@ -28,6 +30,7 @@
  *   - axint.templates.list:   List bundled reference templates
  *   - axint.templates.get:    Return the source of a specific template
  *   - axint.status:           Report the running MCP server version + restart help
+ *   - axint.upgrade:          Check/apply Axint upgrades with same-thread recovery
  *   - axint.project.pack:     Generate first-try project-start files
  *   - axint.project.index:    Index the local Apple project into .axint/context
  */
@@ -40,6 +43,7 @@ import {
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -80,6 +84,11 @@ import {
   type DoctorFormat,
 } from "./doctor.js";
 import {
+  renderAxintUpgradeReport,
+  runAxintUpgrade,
+  type AxintUpgradeFormat,
+} from "../project/upgrade.js";
+import {
   renderXcodeGuardReport,
   renderXcodeWriteReport,
   runXcodeGuard,
@@ -113,6 +122,20 @@ import {
   type AxintRunFormat,
   type AxintRunPlatform,
 } from "../run/project-runner.js";
+import {
+  readLatestRepairFeedback,
+  renderAxintRepairReport,
+  renderRepairFeedbackPacket,
+  runAxintRepair,
+  type AxintRepairFormat,
+} from "../repair/project-repair.js";
+import {
+  cancelRunJob,
+  getRunJobStatus,
+  renderRunCancelResult,
+  renderRunJobStatus,
+  type AxintRunJobOutputFormat,
+} from "../run/job-store.js";
 
 type PackageInfo = {
   name?: string;
@@ -122,6 +145,15 @@ type PackageInfo = {
 
 type StatusArgs = {
   format?: "markdown" | "json" | "prompt";
+};
+type UpgradeArgs = {
+  cwd?: string;
+  targetVersion?: string;
+  latestVersion?: string;
+  apply?: boolean;
+  reinstallXcode?: boolean;
+  writeReport?: boolean;
+  format?: AxintUpgradeFormat;
 };
 type DoctorArgs = {
   cwd?: string;
@@ -224,6 +256,29 @@ type CloudCheckArgs = {
   projectContextPath?: string;
   format?: CloudCheckFormat;
 };
+type RepairArgs = {
+  cwd?: string;
+  issue: string;
+  source?: string;
+  sourcePath?: string;
+  fileName?: string;
+  platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "all";
+  agent?: AxintSessionAgent;
+  expectedBehavior?: string;
+  actualBehavior?: string;
+  xcodeBuildLog?: string;
+  testFailure?: string;
+  runtimeFailure?: string;
+  changedFiles?: string[];
+  projectContextPath?: string;
+  writeReport?: boolean;
+  writeFeedback?: boolean;
+  format?: AxintRepairFormat;
+};
+type FeedbackArgs = Omit<RepairArgs, "format"> & {
+  format?: "json" | "markdown";
+  latest?: boolean;
+};
 type AxintRunArgs = {
   cwd?: string;
   projectName?: string;
@@ -248,7 +303,14 @@ type AxintRunArgs = {
   runtimeFailure?: string;
   dryRun?: boolean;
   writeReport?: boolean;
+  background?: boolean;
+  includeSource?: boolean;
   format?: AxintRunFormat;
+};
+type AxintRunJobArgs = {
+  cwd?: string;
+  id?: string;
+  format?: AxintRunJobOutputFormat;
 };
 type TokensIngestArgs = TokenIngestArgs & {
   format?: TokenOutputFormat;
@@ -286,6 +348,50 @@ function errorText(text: string): ToolResult {
   };
 }
 
+function renderAxintRunBackgroundStart(input: {
+  id: string;
+  cwd: string;
+  format: AxintRunFormat;
+}): string {
+  const payload = {
+    id: input.id,
+    status: "running",
+    cwd: input.cwd,
+    jobPath: resolve(input.cwd, ".axint/run/jobs", `${input.id}.json`),
+    latestActivePath: resolve(input.cwd, ".axint/run/latest-active.json"),
+    statusCommand: `axint run status --dir ${quoteForShell(input.cwd)} --id ${input.id}`,
+    cancelCommand: `axint run cancel --dir ${quoteForShell(input.cwd)} --id ${input.id}`,
+    note: "Axint Run is continuing in the background so long Xcode proof does not time out the MCP transport.",
+  };
+
+  if (input.format === "json") return JSON.stringify(payload, null, 2);
+  if (input.format === "prompt") {
+    return [
+      `Axint Run ${input.id} is running in the background.`,
+      `Check it with: ${payload.statusCommand}`,
+      `Cancel it with: ${payload.cancelCommand}`,
+    ].join("\n");
+  }
+
+  return [
+    "# Axint Run: running",
+    "",
+    `- Job: ${payload.id}`,
+    `- Cwd: ${payload.cwd}`,
+    `- Job record: ${payload.jobPath}`,
+    `- Latest active: ${payload.latestActivePath}`,
+    `- Status command: \`${payload.statusCommand}\``,
+    `- Cancel command: \`${payload.cancelCommand}\``,
+    "",
+    payload.note,
+  ].join("\n");
+}
+
+function quoteForShell(value: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 function renderStatus(format: StatusArgs["format"] = "markdown"): string {
   const uptimeSeconds = Math.max(
     0,
@@ -306,11 +412,12 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     promptsRegistered: PROMPT_MANIFEST.length,
     restartRequiredAfterUpdate: true,
     updateCommand: "npm install -g @axint/compiler@latest",
+    upgradeCommand: "axint upgrade --apply",
     xcodeSetupCommand: "axint xcode install --project .",
     doctorCommand: "axint doctor",
     projectInitCommand: "axint project init",
     xcodeRestartInstruction:
-      "Restart the Xcode Claude Agent chat or MCP server after updating. MCP clients keep the old Node process alive until it is restarted.",
+      "Reload or reconnect the Axint MCP server/tool process after updating. Keep the current Codex or Claude thread when your client supports MCP reload; if not, use the same-thread resume prompt from axint.upgrade.",
   };
 
   if (format === "json") return JSON.stringify(status, null, 2);
@@ -319,7 +426,7 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     return [
       `The running Axint MCP server is v${status.version}.`,
       "If this is older than the version the user expects, stop before editing code.",
-      "Tell the user to update Axint, rerun `axint xcode install --project .`, and restart the Xcode Claude Agent chat.",
+      "Call axint.upgrade first. If apply is needed, update Axint, reload only the MCP server/tool process, then call axint.status again in the same thread.",
     ].join("\n");
   }
 
@@ -337,27 +444,27 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     `- Tools registered: ${status.toolsRegistered}`,
     `- Prompts registered: ${status.promptsRegistered}`,
     "",
-    "## Updating Axint for Xcode",
+    "## Updating Axint Without Losing The Thread",
     "",
-    "MCP servers are long-running processes. Installing a newer package does not update the already-running server inside Xcode.",
+    "MCP servers are long-running processes. Installing a newer package does not update the already-running server until the client reloads or reconnects that tool process.",
     "",
-    "1. Update Axint:",
-    "",
-    "```sh",
-    status.updateCommand,
-    "```",
-    "",
-    "2. Rewrite the Xcode Claude Agent MCP config with durable paths and guarded project proof:",
+    "1. Ask Axint for the upgrade plan:",
     "",
     "```sh",
-    status.xcodeSetupCommand,
+    "axint upgrade",
     "```",
     "",
-    "3. Restart the Xcode Claude Agent chat or MCP server.",
+    "2. Apply it when ready:",
     "",
-    "4. In the new chat, ask: `Call axint.status and tell me the running version.`",
+    "```sh",
+    status.upgradeCommand,
+    "```",
     "",
-    "For a brand-new project, run `axint xcode install --project .`, then `axint doctor` to confirm the machine is wired.",
+    "3. Reload or reconnect the Axint MCP server/tool process. Keep the same Codex or Claude thread when the client supports MCP reload.",
+    "",
+    "4. Ask: `Call axint.status and tell me the running version.`",
+    "",
+    "For Xcode, `axint upgrade --apply` can also refresh the optional Xcode MCP wiring. For a brand-new Apple project, run `axint xcode install --project .`, then `axint doctor` to confirm the machine is wired.",
   ].join("\n");
 }
 
@@ -374,6 +481,28 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
   if (name === "axint.status") {
     const a = args as StatusArgs | undefined;
     return diagnosticsText(renderStatus(a?.format ?? "markdown"));
+  }
+
+  if (name === "axint.upgrade") {
+    const a = args as UpgradeArgs | undefined;
+    const report = runAxintUpgrade({
+      cwd: a?.cwd,
+      currentVersion: pkg.version,
+      targetVersion: a?.targetVersion,
+      latestVersion: a?.latestVersion,
+      apply: a?.apply,
+      reinstallXcode: a?.reinstallXcode,
+      writeReport: a?.writeReport,
+    });
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderAxintUpgradeReport(report, a?.format ?? "markdown"),
+        },
+      ],
+      isError: report.status === "fail",
+    };
   }
 
   if (name === "axint.doctor") {
@@ -696,9 +825,80 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
     };
   }
 
+  if (name === "axint.repair") {
+    const a = args as RepairArgs;
+    if (!a.issue?.trim()) {
+      return errorText("Error: 'issue' is required for axint.repair");
+    }
+    const report = runAxintRepair({
+      cwd: a.cwd,
+      issue: a.issue,
+      source: a.source,
+      sourcePath: a.sourcePath,
+      fileName: a.fileName,
+      platform: a.platform,
+      agent: a.agent,
+      expectedBehavior: a.expectedBehavior,
+      actualBehavior: a.actualBehavior,
+      xcodeBuildLog: a.xcodeBuildLog,
+      testFailure: a.testFailure,
+      runtimeFailure: a.runtimeFailure,
+      changedFiles: a.changedFiles,
+      projectContextPath: a.projectContextPath,
+      writeReport: a.writeReport,
+      writeFeedback: a.writeFeedback,
+    });
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderAxintRepairReport(report, a.format ?? "markdown"),
+        },
+      ],
+      isError: report.status === "fix_required",
+    };
+  }
+
+  if (name === "axint.feedback.create") {
+    const a = args as FeedbackArgs;
+    if (a.latest) {
+      const packet = readLatestRepairFeedback({ cwd: a.cwd });
+      if (!packet) {
+        return errorText(
+          "No Axint feedback packet found. Run axint.repair or axint.feedback.create with an issue first."
+        );
+      }
+      return diagnosticsText(renderRepairFeedbackPacket(packet, a.format ?? "json"));
+    }
+    if (!a.issue?.trim()) {
+      return errorText("Error: 'issue' is required for axint.feedback.create");
+    }
+    const report = runAxintRepair({
+      cwd: a.cwd,
+      issue: a.issue,
+      source: a.source,
+      sourcePath: a.sourcePath,
+      fileName: a.fileName,
+      platform: a.platform,
+      agent: a.agent,
+      expectedBehavior: a.expectedBehavior,
+      actualBehavior: a.actualBehavior,
+      xcodeBuildLog: a.xcodeBuildLog,
+      testFailure: a.testFailure,
+      runtimeFailure: a.runtimeFailure,
+      changedFiles: a.changedFiles,
+      projectContextPath: a.projectContextPath,
+      writeReport: false,
+      writeFeedback: true,
+    });
+    return diagnosticsText(
+      renderRepairFeedbackPacket(report.feedbackPacket, a.format ?? "json")
+    );
+  }
+
   if (name === "axint.run") {
     const a = args as AxintRunArgs;
-    const report = await runAxintProject({
+    const runInput = {
       cwd: a.cwd,
       kind: "local",
       projectName: a.projectName,
@@ -723,15 +923,65 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       runtimeFailure: a.runtimeFailure,
       dryRun: a.dryRun,
       writeReport: a.writeReport,
+    } as const;
+
+    if (a.background) {
+      const cwd = resolve(a.cwd ?? process.cwd());
+      const id = `axrun_${randomUUID()}`;
+      void runAxintProject({
+        ...runInput,
+        id,
+        cwd,
+      }).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[axint.run] background run ${id} failed: ${message}`);
+      });
+      return diagnosticsText(
+        renderAxintRunBackgroundStart({
+          id,
+          cwd,
+          format: a.format ?? "markdown",
+        })
+      );
+    }
+
+    const report = await runAxintProject(runInput);
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderAxintRunReport(report, a.format ?? "markdown", {
+            includeSource: a.includeSource,
+          }),
+        },
+      ],
+      isError: report.status === "fail",
+    };
+  }
+
+  if (name === "axint.run.status") {
+    const a = args as AxintRunJobArgs | undefined;
+    const result = getRunJobStatus({
+      cwd: a?.cwd,
+      id: a?.id,
+    });
+    return diagnosticsText(renderRunJobStatus(result, a?.format ?? "markdown"));
+  }
+
+  if (name === "axint.run.cancel") {
+    const a = args as AxintRunJobArgs | undefined;
+    const result = cancelRunJob({
+      cwd: a?.cwd,
+      id: a?.id,
     });
     return {
       content: [
         {
           type: "text" as const,
-          text: renderAxintRunReport(report, a.format ?? "markdown"),
+          text: renderRunCancelResult(result, a?.format ?? "markdown"),
         },
       ],
-      isError: report.status === "fail",
+      isError: result.status === "error" || result.status === "not_found",
     };
   }
 

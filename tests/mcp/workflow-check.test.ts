@@ -75,6 +75,40 @@ describe("axint.workflow.check", () => {
     expect(report.required.join("\n")).toMatch(/axint\.suggest/);
   });
 
+  it("accepts an older token-scoped session after another agent starts a session", () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-workflow-multi-agent-"));
+    tempDirs.push(dir);
+    const parent = startAxintSession({
+      targetDir: dir,
+      projectName: "Swarm",
+      expectedVersion: "9.9.9",
+      platform: "macOS",
+      agent: "codex",
+    });
+    startAxintSession({
+      targetDir: dir,
+      projectName: "Swarm",
+      expectedVersion: "9.9.9",
+      platform: "macOS",
+      agent: "claude-code",
+    });
+
+    const report = runWorkflowCheck({
+      cwd: dir,
+      sessionStarted: true,
+      sessionToken: parent.session.token,
+      stage: "context-recovery",
+      readRehydrationContext: true,
+      readAgentInstructions: true,
+      readDocsContext: true,
+      ranStatus: true,
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.required).toEqual([]);
+    expect(report.checked.join("\n")).toContain("token-scoped session history");
+  });
+
   it("requires validation and Cloud Check before a SwiftUI build gate", () => {
     const report = runWorkflowCheck({
       ...sessionArgs(),
@@ -95,6 +129,7 @@ describe("axint.workflow.check", () => {
   it("detects drift language and forces rehydration before continuing", () => {
     const report = runWorkflowCheck({
       ...sessionArgs(),
+      agent: "codex",
       stage: "before-write",
       surfaces: ["view"],
       ranSuggest: true,
@@ -111,6 +146,7 @@ describe("axint.workflow.check", () => {
   it("allows explicit feature bypasses while keeping validation gates", () => {
     const report = runWorkflowCheck({
       ...sessionArgs(),
+      agent: "codex",
       stage: "before-write",
       surfaces: ["view"],
       ranSuggest: true,
@@ -165,6 +201,7 @@ describe("axint.workflow.check", () => {
   it("sends a ready pre-commit gate to finish guard after tests pass", () => {
     const report = runWorkflowCheck({
       ...sessionArgs(),
+      agent: "xcode",
       stage: "pre-commit",
       modifiedFiles: ["HomeFeedView.swift"],
       ranSwiftValidate: true,
@@ -175,6 +212,40 @@ describe("axint.workflow.check", () => {
 
     expect(report.status).toBe("ready");
     expect(report.nextTool).toBe("axint.xcode.guard(stage=finish)");
+  });
+
+  it("keeps Codex in the patch-first lane instead of Xcode write", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      agent: "codex",
+      stage: "before-write",
+      surfaces: ["view"],
+      ranSuggest: true,
+      featureBypassReason: "Repairing an existing SwiftUI screen with a small patch.",
+      modifiedFiles: ["HomeFeedView.swift"],
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.nextTool).toBe("apply_patch, then axint.swift.validate");
+    expect(report.checked.join("\n")).toContain("Codex");
+    expect(report.recommended.join("\n")).toContain("small patch edit");
+  });
+
+  it("does not send Codex to Xcode finish guard after tests pass", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      agent: "codex",
+      stage: "pre-commit",
+      modifiedFiles: ["HomeFeedView.swift"],
+      ranSwiftValidate: true,
+      ranCloudCheck: true,
+      xcodeBuildPassed: true,
+      xcodeTestsPassed: true,
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.nextTool).toContain("Summarize Axint validation");
+    expect(report.nextTool).not.toBe("axint.xcode.guard(stage=finish)");
   });
 
   it("returns the next Axint action even when context recovery is satisfied", () => {

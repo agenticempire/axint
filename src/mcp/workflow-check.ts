@@ -1,4 +1,9 @@
 import type { Surface } from "./feature.js";
+import {
+  buildAgentToolProfile,
+  normalizeAxintAgent,
+  type AxintAgentProfileName,
+} from "../project/agent-profile.js";
 import { validateAxintSessionToken } from "../project/session.js";
 
 export type WorkflowStage =
@@ -11,6 +16,7 @@ export type WorkflowStage =
 
 export interface WorkflowCheckInput {
   cwd?: string;
+  agent?: AxintAgentProfileName;
   sessionStarted?: boolean;
   sessionToken?: string;
   requireSession?: boolean;
@@ -51,7 +57,13 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   const recommended: string[] = [];
   const checked: string[] = [];
   const requireSession = input.requireSession !== false;
+  const agent = normalizeAxintAgent(input.agent);
+  const profile = buildAgentToolProfile(agent);
   const patchFirstRepair = looksLikePatchFirstRepair(input);
+
+  checked.push(
+    `Agent tool profile: ${profile.label} (${profile.editingMode}). Default write action: ${profile.defaultWriteAction}.`
+  );
 
   if (requireSession) {
     const session = validateAxintSessionToken({
@@ -158,6 +170,10 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
       recommended.push(
         "Use a small patch edit for the existing dirty SwiftUI file, then run axint.swift.validate and axint.cloud.check on the changed files. Avoid full-file axint.xcode.write unless this is a new file or a clean full-file replacement."
       );
+    } else if (profile.editingMode === "patch-first") {
+      recommended.push(
+        `This is ${profile.label}; use its native patch/edit tool for existing files, then run axint.swift.validate and axint.cloud.check. Do not route normal Codex/Claude/Cowork edits through axint.xcode.write.`
+      );
     }
   }
 
@@ -204,6 +220,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
           modifiedFiles,
           xcodeBuildPassed: Boolean(input.xcodeBuildPassed),
           xcodeTestsPassed: Boolean(input.xcodeTestsPassed),
+          agent,
           patchFirstRepair,
         });
   const score = Math.max(
@@ -217,7 +234,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
     summary:
       status === "ready"
         ? nextTool
-          ? `Axint workflow gate is satisfied for this stage. This is not a completion stamp; continue with ${nextTool} before ordinary Xcode work.`
+          ? `Axint workflow gate is satisfied for this stage. This is not a completion stamp; continue with ${nextTool} before broad Apple-native work.`
           : "Axint workflow gate is satisfied for this stage."
         : "Axint workflow gate needs one or more agent actions before moving on.",
     score,
@@ -303,6 +320,7 @@ function nextToolForSatisfiedStage(input: {
   modifiedFiles: string[];
   xcodeBuildPassed: boolean;
   xcodeTestsPassed: boolean;
+  agent: AxintAgentProfileName;
   patchFirstRepair: boolean;
 }): string | undefined {
   const {
@@ -311,8 +329,10 @@ function nextToolForSatisfiedStage(input: {
     modifiedFiles,
     xcodeBuildPassed,
     xcodeTestsPassed,
+    agent,
     patchFirstRepair,
   } = input;
+  const profile = buildAgentToolProfile(agent);
   if (stage === "session-start" || stage === "context-recovery") {
     return "axint.suggest";
   }
@@ -321,13 +341,15 @@ function nextToolForSatisfiedStage(input: {
       ["view", "component", "intent", "widget", "app", "store"].includes(surface)
     )
       ? "axint.feature"
-      : "axint.xcode.guard";
+      : profile.xcodeToolsAllowed
+        ? "axint.xcode.guard"
+        : "axint.workflow.check(stage=before-write)";
   }
   if (stage === "before-write") {
-    if (patchFirstRepair) {
-      return "apply_patch, then axint.swift.validate";
+    if (patchFirstRepair || profile.editingMode === "patch-first") {
+      return profile.defaultWriteAction;
     }
-    return "axint.xcode.write";
+    return profile.xcodeToolsAllowed ? "axint.xcode.write" : profile.defaultWriteAction;
   }
   if (stage === "pre-build") {
     return xcodeBuildPassed ? "axint.workflow.check(stage=pre-commit)" : "axint.run";
@@ -335,7 +357,9 @@ function nextToolForSatisfiedStage(input: {
   if (stage === "pre-commit") {
     if (!xcodeTestsPassed) return "axint.run";
     if (modifiedFiles.some((file) => file.endsWith(".swift"))) {
-      return "axint.xcode.guard(stage=finish)";
+      return profile.xcodeToolsAllowed
+        ? "axint.xcode.guard(stage=finish)"
+        : profile.finishAction;
     }
   }
   return undefined;

@@ -959,7 +959,7 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
   },
   AX853: {
     code: "AX853",
-    severity: "warning",
+    severity: "error",
     message: "Generated UI has low semantic coverage of the prompt",
     category: "generation-quality",
   },

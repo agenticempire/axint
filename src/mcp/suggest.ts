@@ -9,6 +9,7 @@
 
 import { requestProSuggestions } from "./pro-intelligence.js";
 import { semanticLabels } from "./semantic-planner.js";
+import { analyzeAppleRepairTask } from "../repair/intelligence.js";
 
 export interface SuggestInput {
   appDescription: string;
@@ -1288,24 +1289,37 @@ function existingProductRepairSuggestions(
   normalizedAppDescription: string,
   limit: number
 ): FeatureSuggestion[] {
+  const repairRead = analyzeAppleRepairTask({
+    text: [
+      input.appDescription,
+      ...(input.goals ?? []),
+      ...(input.constraints ?? []),
+    ].join("\n"),
+    platform: input.platform,
+  });
   const focus = repairProblemFocus(normalizedAppDescription);
   const concept = repairScreenConcept(normalizedAppDescription);
+  const interactionFocus = focus.includes("interaction")
+    ? titleCase(focus)
+    : `${titleCase(focus)} Interaction`;
   const promptCues = repairPromptCues(normalizedAppDescription);
+  const needsInteractionMap = repairNeedsInteractionMap(normalizedAppDescription);
+  const leadCause = repairRead.rootCauses[0];
+  const checklist = repairRead.inspectionChecklist.slice(0, 3).join(" ");
   const cueSentence =
     promptCues.length > 0
       ? ` Keep these prompt-specific cues in scope: ${promptCues.join(", ")}.`
       : "";
   const platform = input.platform ? `${input.platform} ` : "";
-  const rationale =
-    "Detected an existing-product repair request, so Axint is returning a proof-first repair loop instead of new feature ideas.";
+  const rationale = `Detected an existing-product repair request (${repairRead.issueClass}), so Axint is returning a proof-first repair loop instead of new feature ideas. ${repairRead.summary}`;
 
   const suggestions: FeatureSuggestion[] = [
     {
       name: `Repair Existing ${titleCase(concept)} Flow`,
-      description: `Patch the current ${concept} in place, preserve the surrounding product, and avoid replacing working screens with a fresh scaffold.`,
+      description: `Patch the current ${concept} in place, preserve the surrounding product, and avoid replacing working screens with a fresh scaffold. ${leadCause ? `Likely first read: ${leadCause.title}.` : ""}`,
       surfaces: ["view", "component"],
       complexity: "medium",
-      featurePrompt: `Repair the existing ${platform}${concept} SwiftUI flow without replacing the surrounding app. Preserve store state, existing tab routing, first-viewport hierarchy, primary buttons, accessibility identifiers, and the user's current product vocabulary.${cueSentence} Identify the touched files, reproduce the behavior, patch the smallest view/state/hit-testing/routing change, and keep existing components intact.`,
+      featurePrompt: `Repair the existing ${platform}${concept} SwiftUI flow without replacing the surrounding app. ${repairRead.summary} Preserve store state, existing tab routing, first-viewport hierarchy, primary buttons, accessibility identifiers, and the user's current product vocabulary.${cueSentence} Inspect first: ${checklist || "related SwiftUI parent shell, shared stores, and focused proof evidence."} Identify the touched files, reproduce the behavior, patch the smallest view/state/hit-testing/routing change, and keep existing components intact.`,
       domain: "repair",
       rationale,
       confidence: "high",
@@ -1316,6 +1330,32 @@ function existingProductRepairSuggestions(
       nextStep:
         "Run Cloud Check with expectedBehavior, actualBehavior, and the focused Xcode build or UI-test log.",
     },
+    ...(needsInteractionMap
+      ? [
+          {
+            name: `Trace ${interactionFocus} Blockers`,
+            description:
+              "Map the parent wrappers, overlays, disabled state, gestures, focus bindings, and hit-testing layers that can make visible controls stop accepting input.",
+            surfaces: ["view", "store"],
+            complexity: "medium",
+            featurePrompt: `Build an interaction map for the existing ${platform}${concept} before patching. ${repairRead.rootCauses
+              .slice(0, 3)
+              .map((cause) => `${cause.title}: ${cause.inspect.join(", ")}`)
+              .join(
+                " "
+              )}${cueSentence} Patch the smallest parent or child modifier that restores interaction, then prove it with a focused UI test.`,
+            domain: "repair",
+            rationale,
+            confidence: "high",
+            source: "local",
+            impact:
+              "Targets the class of bugs where a visible SwiftUI control stops accepting taps or typing because a parent layer or state gate is blocking it.",
+            loop: "Interaction map -> blocker patch -> focused input proof -> Cloud Check evidence",
+            nextStep:
+              "Run `axint project index --changed <files>` and inspect the highest interaction-risk related files before editing.",
+          } satisfies FeatureSuggestion,
+        ]
+      : []),
     {
       name: `Add Focused ${titleCase(focus)} Proof`,
       description:
@@ -1355,7 +1395,7 @@ function existingProductRepairSuggestions(
         "Look beyond the current file for the overlay, disabled state, gesture, z-index, route, or shared state that may be blocking the behavior.",
       surfaces: ["view", "store"],
       complexity: "medium",
-      featurePrompt: `Index the project context for the existing ${focus} bug, then inspect related SwiftUI views, stores, modifiers, overlays, disabled states, gestures, accessibility identifiers, route containers, and recently changed files before patching.${cueSentence}`,
+      featurePrompt: `Index the project context for the existing ${focus} bug, then inspect related SwiftUI views, stores, modifiers, overlays, disabled states, gestures, accessibility identifiers, route containers, and recently changed files before patching.${cueSentence} Axint senior read: ${repairRead.summary}`,
       domain: "repair",
       rationale,
       confidence: "medium",
@@ -1369,6 +1409,12 @@ function existingProductRepairSuggestions(
   ];
 
   return suggestions.slice(0, limit);
+}
+
+function repairNeedsInteractionMap(normalizedAppDescription: string): boolean {
+  return /\b(input|composer|comment|reply|textfield|text field|texteditor|text editor|tap|click|hittable|focus|keyboard|overlay|zindex|z-index|disabled|allowshittesting|hit testing|gesture)\b/.test(
+    normalizedAppDescription
+  );
 }
 
 function repairProblemFocus(normalizedAppDescription: string): string {

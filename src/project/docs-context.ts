@@ -1,21 +1,45 @@
+import {
+  buildAgentToolProfile,
+  renderAgentToolProfile,
+  type AxintAgentProfileName,
+} from "./agent-profile.js";
+
 export interface AxintDocsContextInput {
   projectName?: string;
   expectedVersion?: string;
   platform?: string;
+  agent?: AxintAgentProfileName;
 }
 
 export function buildAxintDocsContext(input: AxintDocsContextInput = {}): string {
   const projectName = input.projectName ?? "this Apple project";
   const expectedVersion = input.expectedVersion ?? "the project-pinned version";
   const platform = input.platform ?? "the target Apple platform";
+  const profile = buildAgentToolProfile(input.agent);
+  const xcodeGuardStep = profile.xcodeToolsAllowed
+    ? "`axint.xcode.guard`: writes `.axint/guard/latest.*` so the user can audit whether Axint was used after a long Xcode task."
+    : "`axint.workflow.check`: use the active agent profile as the guard. Patch-first clients should not call Xcode-only guard/write tools unless they are actually inside Xcode.";
+  const guardLoopStep = profile.xcodeToolsAllowed
+    ? "`axint.xcode.guard` proves the Xcode agent is still inside the Axint loop."
+    : "`axint.workflow.check` keeps patch-first agents inside the Axint loop without pretending Xcode-only guard proof exists.";
+  const writeStep = profile.xcodeToolsAllowed
+    ? "`axint.xcode.write` writes Swift files through the guard path and runs validation/Cloud Check immediately."
+    : `${profile.defaultWriteAction}; then validate with \`axint.swift.validate\` and \`axint.cloud.check\`.`;
 
   return `# Axint Docs Context
 
 Project: ${projectName}
 Platform: ${platform}
 Expected Axint version: ${expectedVersion}
+Agent profile: ${profile.label}
 
 This is the project-local docs memory. It exists because agents forget web docs after context compaction. Reload this file at the start of a new chat, after compaction, and before any long Apple-native coding pass.
+
+## Agent Tool Lane
+
+\`\`\`text
+${renderAgentToolProfile(profile)}
+\`\`\`
 
 ## Read Order After Context Loss
 
@@ -27,9 +51,10 @@ When a chat is new, compacted, summarized, or confused, reload context in this o
 4. \`.axint/project.json\`: machine-readable gates and pinned version.
 5. \`AGENTS.md\` and \`CLAUDE.md\`: local instructions for the active agent.
 6. \`axint.session.start\`: writes \`.axint/session/current.json\` and returns the session token.
-7. \`axint.xcode.guard\`: writes \`.axint/guard/latest.*\` so the user can audit whether Axint was used after a long Xcode task.
-8. \`axint.status\`: current MCP version and restart/setup guidance.
-9. \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
+7. ${xcodeGuardStep}
+8. \`axint.status\`: current MCP version and same-thread reload/setup guidance.
+9. \`axint.upgrade\`: use this if the running MCP version is stale so the agent can keep the current thread and reload only the MCP process.
+10. \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
 
 If any local context file is missing, call \`axint.context.memory\` and \`axint.context.docs\`, then continue from those returned documents.
 
@@ -49,7 +74,7 @@ Examples:
 
 If the agent cannot name the current checkpoint, it must stop and run \`axint.workflow.check\`.
 
-For Xcode work, prefer \`axint.xcode.guard\` as the checkpoint because it creates durable proof under \`.axint/guard/latest.*\`.
+${profile.xcodeToolsAllowed ? "For Xcode work, prefer `axint.xcode.guard` as the checkpoint because it creates durable proof under `.axint/guard/latest.*`." : "For patch-first work, the durable proof is the workflow-check report, validator/Cloud Check output, build/test evidence, and the host-native diff. Do not manufacture Xcode guard proof outside Xcode."}
 
 ## What Axint Is
 
@@ -71,23 +96,24 @@ Use Axint for:
 Use this loop before ordinary hand-written Swift:
 
 1. \`axint.status\` confirms the running MCP version.
-2. \`axint.session.start\` creates a durable token for the current agent pass.
-3. \`axint.xcode.guard\` proves the Xcode agent is still inside the Axint loop.
-4. \`axint.context.memory\` reloads compact operating memory when local files are missing.
-5. \`axint.context.docs\` reloads this docs context when local files are missing.
-6. \`axint.workflow.check\` verifies the agent is at the right gate and has the active token.
-7. \`axint.suggest\` proposes relevant Apple-native surfaces from the app description.
-8. \`axint.feature\` generates a package of surfaces: intent, view, widget, component, app, store, tests, plist, and entitlements.
-9. \`axint.xcode.write\` writes Swift files through the guard path and runs validation/Cloud Check immediately.
-10. \`axint.scaffold\` creates TypeScript \`defineIntent(...)\` source for an App Intent.
-11. \`axint.compile\` compiles TypeScript intent source to Swift + Info.plist + entitlements.
-12. \`axint.schema.compile\` compiles low-token JSON directly to Swift.
-13. \`axint.tokens.ingest\` converts design tokens into SwiftUI token enums.
-14. \`axint.swift.validate\` checks changed Swift before Xcode build.
-15. \`axint.swift.fix\` applies mechanical Swift repairs when safe.
-16. \`axint.cloud.check\` runs coverage-aware Cloud Check with source plus build/test/runtime evidence.
-17. \`axint.fix-packet\` reads the latest AI-ready repair packet.
-18. Xcode build and tests provide runtime proof.
+2. \`axint.upgrade\` checks for a newer package when the running MCP version is stale and returns same-thread reload instructions.
+3. \`axint.session.start\` creates a durable token for the current agent pass.
+4. ${guardLoopStep}
+5. \`axint.context.memory\` reloads compact operating memory when local files are missing.
+6. \`axint.context.docs\` reloads this docs context when local files are missing.
+7. \`axint.workflow.check\` verifies the agent is at the right gate and has the active token.
+8. \`axint.suggest\` proposes relevant Apple-native surfaces from the app description.
+9. \`axint.feature\` generates a package of surfaces: intent, view, widget, component, app, store, tests, plist, and entitlements.
+10. ${writeStep}
+11. \`axint.scaffold\` creates TypeScript \`defineIntent(...)\` source for an App Intent.
+12. \`axint.compile\` compiles TypeScript intent source to Swift + Info.plist + entitlements.
+13. \`axint.schema.compile\` compiles low-token JSON directly to Swift.
+14. \`axint.tokens.ingest\` converts design tokens into SwiftUI token enums.
+15. \`axint.swift.validate\` checks changed Swift before Xcode build.
+16. \`axint.swift.fix\` applies mechanical Swift repairs when safe.
+17. \`axint.cloud.check\` runs coverage-aware Cloud Check with source plus build/test/runtime evidence.
+18. \`axint.fix-packet\` reads the latest AI-ready repair packet.
+19. Xcode build and tests provide runtime proof.
 
 ## Axint Language And Input Surfaces
 
@@ -147,11 +173,12 @@ axint.tokens.ingest -> axint.suggest -> axint.feature with context -> axint.swif
 
 ## MCP Tool Map
 
-- \`axint.status\`: running version, uptime, package path, restart/update help.
+- \`axint.status\`: running version, uptime, package path, same-thread reload/update help.
+- \`axint.upgrade\`: checks or applies a package upgrade, writes \`.axint/upgrade/latest.*\`, and returns a same-thread continuation prompt.
 - \`axint.doctor\`: checks version truth, Node/npm/npx paths, MCP config, Xcode Claude config, and project memory files.
 - \`axint.session.start\`: starts the enforced session, writes \`.axint/session/current.json\`, and returns the token required by workflow gates.
-- \`axint.xcode.guard\`: checks for Xcode drift, enforces fresh Axint evidence, and writes \`.axint/guard/latest.json\` plus \`.axint/guard/latest.md\`.
-- \`axint.xcode.write\`: writes files inside the project through Axint, then runs Swift validation, Cloud Check, and guard proof for Swift files.
+- \`axint.xcode.guard\`: Xcode-only drift guard that enforces fresh Axint evidence and writes \`.axint/guard/latest.json\` plus \`.axint/guard/latest.md\`.
+- \`axint.xcode.write\`: Xcode-only guarded write lane for files inside the project; Codex/Claude/Cursor/Cowork should use their native patch/edit lane unless they are actually running inside Xcode.
 - \`axint.project.pack\`: returns first-try project setup files without writing.
 - \`axint.context.memory\`: returns compact operating memory for context recovery.
 - \`axint.context.docs\`: returns this docs context for context recovery.
@@ -180,7 +207,7 @@ Use \`axint.workflow.check\` at these stages:
 - \`pre-build\`: requires Swift validation and Cloud Check.
 - \`pre-commit\`: requires validation, Cloud Check, build evidence, and focused tests when relevant.
 
-A \`ready\` workflow check is not the last Axint step. The report includes \`Next Axint Action\`; call that tool before returning to raw Xcode tools or hand-written Swift.
+A \`ready\` workflow check is not the last Axint step. The report includes \`Next Axint Action\`; call that action before returning to broad Apple-native edits.
 
 ## Cloud Check Rules
 
@@ -200,9 +227,9 @@ When the app freezes, hangs, beachballs, launch-tests time out, or UI is unrespo
 Inside Xcode Claude or another Xcode agent:
 
 1. Confirm both \`xcode-tools\` and \`axint\` MCP servers are available.
-2. If Axint is missing, run the setup command in a normal terminal, then restart the Xcode agent chat.
+2. If Axint is missing, run the setup command in a normal terminal, then reload or reconnect the Axint MCP server/tool process.
 3. If npm/npx is missing in Xcode's restricted PATH, use the durable Homebrew path in \`.mcp.json\`.
-4. Always call \`axint.status\` after restart to verify the active version.
+4. Always call \`axint.status\` after reload to verify the active version.
 5. Xcode build/test failures are Axint feedback if Axint passed the same code.
 
 ## Setup Commands

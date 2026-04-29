@@ -17,10 +17,20 @@ export interface ProjectContextFileSummary {
   lines: number;
   imports: string[];
   symbols: string[];
+  testCases: string[];
+  accessibilityIdentifiers: string[];
   swiftUI: boolean;
   appIntent: boolean;
+  xctest: boolean;
   hasInputControls: boolean;
+  hasActionControls: boolean;
+  hasNavigationControls: boolean;
+  hasAccessibilityQueries: boolean;
   hasOverlay: boolean;
+  hasHitTestingOverride: boolean;
+  hasContentShape: boolean;
+  hasZIndex: boolean;
+  hasLayeringStack: boolean;
   hasDisabledState: boolean;
   hasGestureCapture: boolean;
   hasFocusState: boolean;
@@ -229,14 +239,30 @@ export function renderProjectContextIndex(
         const flags = [
           file.swiftUI ? "SwiftUI" : undefined,
           file.appIntent ? "AppIntent" : undefined,
+          file.xctest ? "XCTest" : undefined,
           file.hasInputControls ? "inputs" : undefined,
+          file.hasActionControls ? "actions" : undefined,
+          file.hasNavigationControls ? "navigation" : undefined,
+          file.hasAccessibilityQueries ? "UI-test queries" : undefined,
           file.hasOverlay ? "overlay" : undefined,
+          file.hasHitTestingOverride ? "hit-testing" : undefined,
+          file.hasContentShape ? "contentShape" : undefined,
+          file.hasZIndex ? "zIndex" : undefined,
+          file.hasLayeringStack ? "layering" : undefined,
           file.hasDisabledState ? "disabled" : undefined,
           file.hasGestureCapture ? "gesture" : undefined,
           file.hasFocusState ? "focus" : undefined,
           file.hasModalPresentation ? "modal" : undefined,
         ].filter(Boolean);
-        return `- ${file.path}: ${file.lines} lines${flags.length > 0 ? ` — ${flags.join(", ")}` : ""}`;
+        const ids =
+          file.accessibilityIdentifiers.length > 0
+            ? ` IDs: ${file.accessibilityIdentifiers.slice(0, 5).join(", ")}`
+            : "";
+        const tests =
+          file.testCases.length > 0
+            ? ` Tests: ${file.testCases.slice(0, 4).join(", ")}`
+            : "";
+        return `- ${file.path}: ${file.lines} lines${flags.length > 0 ? ` — ${flags.join(", ")}` : ""}${ids}${tests}`;
       })
     );
   }
@@ -312,6 +338,21 @@ export function buildProjectContextHint(input: {
     );
   }
 
+  if (
+    input.focus === "interactive-input" &&
+    projectContext.topInteractionRiskFiles.length > 0
+  ) {
+    summary.push(
+      `Interaction map: ${projectContext.topInteractionRiskFiles
+        .slice(0, 5)
+        .map(
+          (file) =>
+            `${file.path}${file.reasons.length > 0 ? ` (${file.reasons.slice(0, 3).join(", ")})` : ""}`
+        )
+        .join(", ")}.`
+    );
+  }
+
   return {
     path: contextPath,
     summary,
@@ -361,13 +402,38 @@ function summarizeSwiftFile(
       .map((match) => match[1])
       .slice(0, 12)
   );
+  const testCases = uniqueStrings(
+    Array.from(source.matchAll(/\bfunc\s+(test[A-Za-z0-9_]*)\s*\(/g)).map(
+      (match) => match[1]
+    )
+  ).slice(0, 12);
+  const accessibilityIdentifiers = uniqueStrings(
+    Array.from(
+      source.matchAll(
+        /\.accessibilityIdentifier\s*\(\s*"([^"]+)"\s*\)|app\.(?:buttons|staticTexts|textFields|textViews|otherElements|scrollViews|tables|collectionViews)\s*\[\s*"([^"]+)"\s*\]/g
+      )
+    ).map((match) => match[1] ?? match[2])
+  ).slice(0, 20);
   const swiftUI =
     imports.includes("SwiftUI") ||
     /\b:\s*View\b/.test(source) ||
     /\bWindowGroup\s*\{/.test(source);
   const appIntent = imports.includes("AppIntents") || /\bAppIntent\b/.test(source);
+  const xctest = imports.includes("XCTest") || /\bXCTestCase\b/.test(source);
   const hasInputControls = /\b(TextField|TextEditor|SecureField)\s*\(/.test(source);
+  const hasActionControls =
+    /\b(Button|Toggle|Picker|Stepper|Slider|Menu|NavigationLink)\s*\(/.test(source);
+  const hasNavigationControls =
+    /\b(NavigationStack|NavigationSplitView|NavigationLink|TabView)\b/.test(source);
+  const hasAccessibilityQueries =
+    /\bXCUIApplication\b|app\.(?:buttons|staticTexts|textFields|textViews|otherElements|scrollViews|tables|collectionViews)/.test(
+      source
+    );
   const hasOverlay = /\.overlay\s*(?:\(|\{)/.test(source);
+  const hasHitTestingOverride = /\.allowsHitTesting\s*\(/.test(source);
+  const hasContentShape = /\.contentShape\s*\(/.test(source);
+  const hasZIndex = /\.zIndex\s*\(/.test(source);
+  const hasLayeringStack = /\bZStack\s*(?:\(|\{)/.test(source);
   const hasDisabledState = /\.disabled\s*\(/.test(source);
   const hasGestureCapture =
     /\.highPriorityGesture\s*\(/.test(source) ||
@@ -388,9 +454,37 @@ function summarizeSwiftFile(
     riskScore += 3;
     reasons.push("input controls");
   }
+  if (hasActionControls) {
+    riskScore += 1;
+    reasons.push("action controls");
+  }
+  if (hasNavigationControls) {
+    riskScore += 1;
+    reasons.push("navigation controls");
+  }
+  if (hasAccessibilityQueries) {
+    riskScore += 2;
+    reasons.push("UI-test accessibility queries");
+  }
   if (hasOverlay) {
     riskScore += 2;
     reasons.push("overlay");
+  }
+  if (hasHitTestingOverride) {
+    riskScore += 3;
+    reasons.push("hit-testing override");
+  }
+  if (hasContentShape) {
+    riskScore += 1;
+    reasons.push("content shape");
+  }
+  if (hasZIndex) {
+    riskScore += 2;
+    reasons.push("z-index layering");
+  }
+  if (hasLayeringStack) {
+    riskScore += 1;
+    reasons.push("layering stack");
   }
   if (hasDisabledState) {
     riskScore += 2;
@@ -422,10 +516,20 @@ function summarizeSwiftFile(
     lines: lines.length,
     imports,
     symbols,
+    testCases,
+    accessibilityIdentifiers,
     swiftUI,
     appIntent,
+    xctest,
     hasInputControls,
+    hasActionControls,
+    hasNavigationControls,
+    hasAccessibilityQueries,
     hasOverlay,
+    hasHitTestingOverride,
+    hasContentShape,
+    hasZIndex,
+    hasLayeringStack,
     hasDisabledState,
     hasGestureCapture,
     hasFocusState,
@@ -570,10 +674,15 @@ function relatedFileScore(
   if (input.focus === "interactive-input") {
     if (file.hasInputControls) score += 5;
     if (file.hasOverlay) score += 4;
+    if (file.hasHitTestingOverride) score += 4;
+    if (file.hasZIndex) score += 3;
+    if (file.hasLayeringStack) score += 2;
+    if (file.hasContentShape) score += 1;
     if (file.hasDisabledState) score += 4;
     if (file.hasGestureCapture) score += 3;
     if (file.hasFocusState) score += 3;
     if (file.hasModalPresentation) score += 2;
+    if (file.hasAccessibilityQueries) score += 3;
   }
 
   if (input.focus === "runtime") {

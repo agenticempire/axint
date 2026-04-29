@@ -1,26 +1,50 @@
+import {
+  buildAgentToolProfile,
+  renderAgentToolProfile,
+  type AxintAgentProfileName,
+} from "./agent-profile.js";
+
 export interface AxintRehydrationInput {
   projectName?: string;
   expectedVersion?: string;
   platform?: string;
   sessionToken?: string;
+  agent?: AxintAgentProfileName;
 }
 
 export function buildAxintRehydrationGuide(input: AxintRehydrationInput = {}): string {
   const projectName = input.projectName ?? "this Apple project";
   const expectedVersion = input.expectedVersion ?? "the project-pinned version";
   const platform = input.platform ?? "the target Apple platform";
+  const profile = buildAgentToolProfile(input.agent);
   const tokenLine = input.sessionToken
     ? `Active session token: ${input.sessionToken}`
     : "Active session token: call axint.session.start to create one";
+  const contextGuard = profile.xcodeToolsAllowed
+    ? 'Call `axint.xcode.guard` with `stage: "context-recovery"` so this chat writes `.axint/guard/latest.*` proof.'
+    : "Use `axint.workflow.check` with this agent profile for context recovery. Do not call Xcode-only guard/write tools unless the active host is Xcode.";
+  const longTaskGuard = profile.xcodeToolsAllowed
+    ? "`axint.xcode.guard` with the current `stage` before starting and again before claiming done."
+    : "`axint.workflow.check` plus validator, Cloud Check, and build/test evidence before broad edits and before claiming done.";
+  const writeLane = profile.xcodeToolsAllowed
+    ? "New Swift file: prefer `axint.xcode.write` so the write runs validation, Cloud Check, and guard proof immediately."
+    : `Write lane: ${profile.defaultWriteAction}. Only use \`axint.xcode.write\` inside Xcode.`;
 
   return `# Axint Rehydration Contract
 
 Project: ${projectName}
 Platform: ${platform}
 Expected Axint version: ${expectedVersion}
+Agent profile: ${profile.label}
 ${tokenLine}
 
-This file is the shortest durable recovery contract for an AI agent working on this project. Read it after every new chat, context compaction, MCP restart, long coding drift, or failed build/test where Axint was not clearly involved.
+This file is the shortest durable recovery contract for an AI agent working on this project. Read it after every new chat, context compaction, MCP reload, long coding drift, or failed build/test where Axint was not clearly involved.
+
+## Agent Tool Lane
+
+\`\`\`text
+${renderAgentToolProfile(profile)}
+\`\`\`
 
 ## Non-Negotiable Rule
 
@@ -29,15 +53,16 @@ The model's memory is not the source of truth. These project files are. If the a
 ## Rehydrate In This Exact Order
 
 1. Call \`axint.session.start\` for this project and keep the returned \`sessionToken\`.
-2. Call \`axint.xcode.guard\` with \`stage: "context-recovery"\` so this chat writes \`.axint/guard/latest.*\` proof.
+2. ${contextGuard}
 3. Read \`.axint/AXINT_REHYDRATE.md\`, \`.axint/AXINT_MEMORY.md\`, and \`.axint/AXINT_DOCS_CONTEXT.md\`.
 4. Read \`AGENTS.md\`, \`CLAUDE.md\`, or \`.axint/project.json\` if present.
-5. Call \`axint.status\` and report the running MCP version.
+5. Call \`axint.status\` and report the running MCP version. If it is stale, call \`axint.upgrade\` or ask the user to run \`axint upgrade --apply\`, then reload only the Axint MCP server/tool process.
 6. Call \`axint.workflow.check\` with:
 
 \`\`\`json
 {
   "stage": "context-recovery",
+  "agent": "${profile.agent}",
   "sessionStarted": true,
   "sessionToken": "<token>",
   "readRehydrationContext": true,
@@ -53,11 +78,11 @@ The model's memory is not the source of truth. These project files are. If the a
 
 - Planning: \`axint.workflow.check\` with \`stage: "planning"\` and \`ranSuggest: true\`.
 - New surface: \`axint.workflow.check\` with \`stage: "before-write"\`, \`ranSuggest: true\`, and either \`ranFeature: true\` or a real \`featureBypassReason\`.
-- Long Xcode task: \`axint.xcode.guard\` with the current \`stage\` before starting and again before claiming done.
-- New Swift file: prefer \`axint.xcode.write\` so the write runs validation, Cloud Check, and guard proof immediately.
+- Long task: ${longTaskGuard}
+- ${writeLane}
 - Before build: prefer \`axint.run\` for the full enforced loop. If doing it manually, call \`axint.workflow.check\` with \`stage: "pre-build"\`, \`ranSwiftValidate: true\`, and \`ranCloudCheck: true\`.
 - Before done: \`axint.workflow.check\` with \`stage: "pre-commit"\`, validation, Cloud Check, build evidence, and relevant tests.
-- If \`axint.workflow.check\` returns \`ready\`, it is not permission to stop using Axint. Read the \`Next Axint Action\` line and call that tool before ordinary Xcode work.
+- If \`axint.workflow.check\` returns \`ready\`, it is not permission to stop using Axint. Read the \`Next Axint Action\` line and call that action before broad Apple-native work.
 
 ## Drift Triggers
 
@@ -77,6 +102,6 @@ Every long response should keep this visible:
 Axint checkpoint: <stage> · <last Axint tool> · <result> · next <proof step>
 \`\`\`
 
-If the agent cannot fill that line honestly, it must run \`axint.xcode.guard\` or \`axint.workflow.check\` before continuing.
+If the agent cannot fill that line honestly, it must run \`axint.workflow.check\` before continuing. Xcode-hosted sessions may also run \`axint.xcode.guard\` for durable Xcode guard proof.
 `;
 }

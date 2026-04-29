@@ -15,6 +15,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { writeProjectStartPack } from "../../src/project/start-pack.js";
+import { startAxintSession } from "../../src/project/session.js";
 
 describe("axint.status tool", () => {
   it("reports the running MCP server version and restart instructions", async () => {
@@ -38,7 +39,28 @@ describe("axint.status tool", () => {
 
     expect(result.content[0].text).toContain("# Axint MCP Status");
     expect(result.content[0].text).toContain("Call axint.status");
-    expect(result.content[0].text).toContain("Restart the Xcode Claude Agent");
+    expect(result.content[0].text).toContain("axint upgrade");
+    expect(result.content[0].text).toContain("same Codex or Claude thread");
+  });
+
+  it("plans a same-thread upgrade through MCP", async () => {
+    const result = await handleToolCall("axint.upgrade", {
+      targetVersion: "9.9.10",
+      latestVersion: "9.9.10",
+      format: "json",
+    });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      status: string;
+      targetVersion: string;
+      commands: Array<{ display: string }>;
+      sameThreadPrompt: string;
+    };
+    expect(payload.status).toBe("ready");
+    expect(payload.targetVersion).toBe("9.9.10");
+    expect(payload.commands[0].display).toBe("npm install -g @axint/compiler@9.9.10");
+    expect(payload.sameThreadPrompt).toContain("Keep this chat/thread");
   });
 });
 
@@ -61,6 +83,8 @@ describe("axint.run tool", () => {
 
     expect(result.isError).not.toBe(true);
     const payload = JSON.parse(result.content[0].text) as {
+      id: string;
+      status: string;
       session: { token: string };
       commands: { build: { dryRun: boolean } };
       cloudChecks: unknown[];
@@ -68,6 +92,112 @@ describe("axint.run tool", () => {
     expect(payload.session.token).toMatch(/^axsess_/);
     expect(payload.commands.build.dryRun).toBe(true);
     expect(payload.cloudChecks.length).toBe(1);
+
+    const statusResult = await handleToolCall("axint.run.status", {
+      cwd: dir,
+      id: payload.id,
+      format: "json",
+    });
+    const statusPayload = JSON.parse(statusResult.content[0].text) as {
+      status: string;
+      activePids: number[];
+    };
+    expect(statusPayload.status).toBe(payload.status);
+    expect(statusPayload.activePids).toEqual([]);
+  });
+
+  it("can start axint.run in the background with a resumable job id", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-run-bg-"));
+    const schemeDir = join(dir, "Demo.xcodeproj", "xcshareddata", "xcschemes");
+    mkdirSync(schemeDir, { recursive: true });
+    writeFileSync(join(schemeDir, "Demo.xcscheme"), "<Scheme></Scheme>\n");
+    writeFileSync(
+      join(dir, "ContentView.swift"),
+      'import SwiftUI\nstruct ContentView: View { var body: some View { Text("Hi") } }\n'
+    );
+
+    const result = await handleToolCall("axint.run", {
+      cwd: dir,
+      dryRun: true,
+      background: true,
+      format: "json",
+    });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      id: string;
+      status: string;
+      statusCommand: string;
+      cancelCommand: string;
+      jobPath: string;
+    };
+    expect(payload.id).toMatch(/^axrun_/);
+    expect(payload.status).toBe("running");
+    expect(payload.statusCommand).toContain(`--id ${payload.id}`);
+    expect(payload.cancelCommand).toContain(`--id ${payload.id}`);
+    expect(payload.jobPath).toContain(`${payload.id}.json`);
+
+    const statusResult = await handleToolCall("axint.run.status", {
+      cwd: dir,
+      id: payload.id,
+      format: "json",
+    });
+    const statusPayload = JSON.parse(statusResult.content[0].text) as {
+      status: string;
+    };
+    expect(["running", "pass", "needs_review", "fail"]).toContain(statusPayload.status);
+  });
+});
+
+describe("axint.repair tool", () => {
+  it("returns a host-aware repair plan and feedback packet", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-repair-"));
+    writeFileSync(
+      join(dir, "HomeComposer.swift"),
+      [
+        "import SwiftUI",
+        "",
+        "struct HomeComposer: View {",
+        '    @State private var draft = ""',
+        "    var body: some View {",
+        "        TextEditor(text: $draft)",
+        '            .overlay { Text("Write a comment") }',
+        "    }",
+        "}",
+        "",
+      ].join("\n")
+    );
+
+    const result = await handleToolCall("axint.repair", {
+      cwd: dir,
+      issue: "The comment box is visible but cannot be tapped or typed into.",
+      sourcePath: "HomeComposer.swift",
+      agent: "codex",
+      runtimeFailure: "Visible comment box cannot be tapped or typed into.",
+      format: "json",
+    });
+
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      issueClass: string;
+      agent: { agent: string };
+      feedbackPacket: { privacy: { redaction: string } };
+      filesToInspect: Array<{ path: string }>;
+    };
+    expect(payload.issueClass).toBe("swiftui-input-interaction");
+    expect(payload.agent.agent).toBe("codex");
+    expect(payload.feedbackPacket.privacy.redaction).toBe("source_not_included");
+    expect(payload.filesToInspect.map((file) => file.path)).toContain(
+      "HomeComposer.swift"
+    );
+
+    const latest = await handleToolCall("axint.feedback.create", {
+      cwd: dir,
+      latest: true,
+      format: "json",
+    });
+    expect(latest.isError).not.toBe(true);
+    expect(latest.content[0].text).toContain("swiftui-input-interaction");
   });
 });
 
@@ -101,6 +231,214 @@ describe("axint.xcode.guard tool", () => {
     expect(payload.latestEvidence.kind).toBe("session");
     expect(existsSync(payload.proofFiles.json)).toBe(true);
     expect(existsSync(payload.proofFiles.markdown)).toBe(true);
+  });
+
+  it("does not force context recovery when drift notes already have fresh recovery state", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-guard-drift-"));
+    writeProjectStartPack({
+      targetDir: dir,
+      projectName: "DriftDemo",
+      version: "0.4.9",
+      force: true,
+    });
+
+    const result = await handleToolCall("axint.xcode.guard", {
+      cwd: dir,
+      projectName: "DriftDemo",
+      stage: "planning",
+      notes: "This chat was compacted, so check for Axint drift before planning.",
+      lastAxintTool: "axint.status",
+      lastAxintResult: "Axint MCP Status: running version 0.4.12.",
+      format: "json",
+    });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      status: string;
+      required: string[];
+      checked: string[];
+    };
+    expect(payload.status).toBe("ready");
+    expect(payload.required.join("\n")).not.toContain("Run context recovery");
+    expect(payload.checked.join("\n")).toContain(
+      "active session, project memory, and fresh Axint evidence are present"
+    );
+  });
+
+  it("accepts workflow pre-commit proof instead of forcing redundant axint.run at finish", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-guard-finish-"));
+    writeProjectStartPack({
+      targetDir: dir,
+      projectName: "FinishDemo",
+      version: "0.4.9",
+      force: true,
+    });
+
+    const workflowProof = [
+      "# Axint Workflow Check: ready",
+      "",
+      "- Stage: pre-commit",
+      "- Score: 100/100",
+      "",
+      "## Checked",
+      "- axint.swift.validate was run.",
+      "- axint.cloud.check was run.",
+      "- Xcode build evidence passed.",
+      "- Xcode test evidence passed.",
+    ].join("\n");
+
+    const result = await handleToolCall("axint.xcode.guard", {
+      cwd: dir,
+      projectName: "FinishDemo",
+      stage: "finish",
+      modifiedFiles: ["Sources/ContentView.swift"],
+      lastAxintTool: "axint.workflow.check",
+      lastAxintResult: workflowProof,
+      format: "json",
+    });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      status: string;
+      required: string[];
+      checked: string[];
+    };
+    expect(payload.status).toBe("ready");
+    expect(payload.required.join("\n")).not.toContain("Call axint.run");
+    expect(payload.checked.join("\n")).toContain(
+      "accepted fresh axint.workflow.check pre-commit proof"
+    );
+  });
+
+  it("accepts a token-scoped session when another agent overwrote current.json", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-guard-token-history-"));
+    writeProjectStartPack({
+      targetDir: dir,
+      projectName: "TokenHistoryDemo",
+      version: "0.4.9",
+      force: true,
+    });
+    const parent = startAxintSession({
+      targetDir: dir,
+      projectName: "TokenHistoryDemo",
+      expectedVersion: "0.4.9",
+      platform: "macOS",
+      agent: "codex",
+    });
+    startAxintSession({
+      targetDir: dir,
+      projectName: "TokenHistoryDemo",
+      expectedVersion: "0.4.9",
+      platform: "macOS",
+      agent: "claude-code",
+    });
+
+    const result = await handleToolCall("axint.xcode.guard", {
+      cwd: dir,
+      projectName: "TokenHistoryDemo",
+      stage: "planning",
+      sessionToken: parent.session.token,
+      lastAxintTool: "axint.workflow.check",
+      lastAxintResult: "Workflow check: ready.",
+      format: "json",
+    });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      status: string;
+      session?: { token: string; path: string };
+      checked: string[];
+    };
+    expect(payload.status).toBe("ready");
+    expect(payload.session?.token).toBe(parent.session.token);
+    expect(payload.session?.path).toContain(".axint/session/sessions/");
+    expect(payload.checked.join("\n")).toContain("token-scoped session history");
+  });
+
+  it("accepts fresh ready_to_ship CLI axint.run proof at finish", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-guard-run-ready-"));
+    writeProjectStartPack({
+      targetDir: dir,
+      projectName: "RunReadyDemo",
+      version: "0.4.9",
+      force: true,
+    });
+    mkdirSync(join(dir, ".axint", "run"), { recursive: true });
+    writeFileSync(
+      join(dir, ".axint", "run", "latest.json"),
+      `${JSON.stringify(
+        {
+          createdAt: new Date().toISOString(),
+          status: "pass",
+          gate: { decision: "ready_to_ship" },
+        },
+        null,
+        2
+      )}\n`
+    );
+
+    const result = await handleToolCall("axint.xcode.guard", {
+      cwd: dir,
+      projectName: "RunReadyDemo",
+      stage: "finish",
+      modifiedFiles: ["Sources/ContentView.swift"],
+      format: "json",
+    });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      status: string;
+      required: string[];
+      checked: string[];
+    };
+    expect(payload.status).toBe("ready");
+    expect(payload.required.join("\n")).not.toContain("Call axint.run");
+    expect(payload.checked.join("\n")).toContain(
+      "accepted fresh ready_to_ship axint.run proof"
+    );
+  });
+
+  it("blocks finish when the freshest axint.run proof failed", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-guard-run-failed-"));
+    writeProjectStartPack({
+      targetDir: dir,
+      projectName: "RunFailedDemo",
+      version: "0.4.9",
+      force: true,
+    });
+    mkdirSync(join(dir, ".axint", "run"), { recursive: true });
+    writeFileSync(
+      join(dir, ".axint", "run", "latest.json"),
+      `${JSON.stringify(
+        {
+          createdAt: new Date().toISOString(),
+          status: "fail",
+          gate: { decision: "fix_required" },
+        },
+        null,
+        2
+      )}\n`
+    );
+
+    const result = await handleToolCall("axint.xcode.guard", {
+      cwd: dir,
+      projectName: "RunFailedDemo",
+      stage: "finish",
+      modifiedFiles: ["Sources/ContentView.swift"],
+      format: "json",
+    });
+
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      status: string;
+      required: string[];
+      checked: string[];
+    };
+    expect(payload.status).toBe("needs_action");
+    expect(payload.required.join("\n")).toContain(
+      "Latest axint.run proof is fail · fix_required"
+    );
+    expect(payload.checked.join("\n")).not.toContain("ready_to_ship axint.run proof");
   });
 
   it("writes Swift through the guarded Xcode path", async () => {

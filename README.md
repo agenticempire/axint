@@ -47,6 +47,7 @@ feature definition
   → Axint IR
   → Swift + plist + entitlements
   → local or Cloud Check verdict
+  → project-aware repair plan
   → Fix Packet
   → agent repair
   → rerun
@@ -56,9 +57,10 @@ The compiler is useful on its own. Registry and Cloud extend the same workflow:
 
 - **Compiler** — open-source TypeScript/Python/preview `.axint` to Apple-native Swift.
 - **Fix Packet** — `latest.check.*` for the quick verdict, `latest.*` for the full repair contract.
+- **Repair** — `axint repair` indexes the existing Apple project, ranks likely files, classifies build/UI/runtime evidence, and returns the smallest patch/proof loop.
 - **MCP** — agents call compile, validate, fix, schema compile, templates, and packet tools directly.
 - **Registry** — install reusable Apple capabilities with source, compiler metadata, and package details attached.
-- **Cloud Check** — free hosted validation for quick results; signed-in Pro checks add the AI-ready repair prompt, history, and a shareable report.
+- **Cloud Check + feedback** — free hosted validation for quick results; signed-in Pro checks add the AI-ready repair prompt, history, and a shareable report. Privacy-safe feedback packets help Axint learn repeated Apple failure modes without shipping source code.
 
 [Read the thesis](https://axint.ai/thesis) · [Open proof](https://axint.ai/proof) · [View Fix Packet](https://axint.ai/fix-packet)
 
@@ -210,11 +212,39 @@ axint compile my-widget.ts --out ios/Widgets/
 axint compile my-app.ts --out ios/App/
 ```
 
+### Repair an existing Apple app
+
+When the Swift already exists and something subtle breaks, use the project-aware
+repair loop instead of asking an agent to guess from one file:
+
+```bash
+axint project index --changed Sources/HomeComposer.swift Sources/FeedScreen.swift
+
+axint repair "comment box is visible but cannot be tapped" \
+  --source Sources/HomeComposer.swift \
+  --platform ios \
+  --actual "visible composer no longer accepts focus or typing" \
+  --agent codex
+
+axint feedback latest --format markdown
+```
+
+`axint repair` writes `.axint/repair/latest.*` and a privacy-safe
+`.axint/feedback/latest.json` packet. The feedback packet includes project shape,
+diagnostic codes, issue class, redacted evidence, and likely Axint product owner,
+but not source code.
+
+The same senior repair read is shared by `axint.suggest`, `axint.feature`,
+`axint.cloud.check`, and `axint.repair`. If a prompt describes a broken existing
+SwiftUI flow, Axint routes toward the smallest repair/proof loop instead of
+generating a replacement screen. New-component prompts can still reference
+existing app types as context without being blocked.
+
 ---
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.11 · 24 MCP tools + 5 prompts · 183 diagnostic codes · 1131 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.12 · 29 MCP tools + 5 prompts · 183 diagnostic codes · 1165 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -238,11 +268,18 @@ axint watch my-intent.ts --out ios/Intents/ --format --swift-build
 `axint run` is the local/BYO-Mac build loop for Apple projects. It exists so agents do not have to remember separate Axint steps after a long chat or context compaction.
 
 ```bash
+axint session start --dir /path/to/MyApp --name MyApp --agent codex
+axint workflow check --dir /path/to/MyApp --agent codex --stage context-recovery --session-token <token> --read-rehydration-context --read-agent-instructions --read-docs-context --ran-status
 axint xcode setup --agent claude --guarded --project /path/to/MyApp --name MyApp
 axint xcode setup --agent claude --guarded --local-build --project /path/to/MyApp --name MyApp
 axint xcode guard --dir /path/to/MyApp --stage context-recovery
 axint run --dir /path/to/MyApp --scheme MyApp --destination "platform=macOS"
+axint run --dir /path/to/MyApp --scheme MyApp --only-testing MyAppUITests/MyAppUITests/testComposerStillAcceptsInput
 axint run --dir /path/to/MyApp --scheme MyApp --runtime
+axint run status --dir /path/to/MyApp
+axint run cancel --dir /path/to/MyApp --id axrun_...
+axint run --dir /path/to/MyApp --scheme MyApp --format json
+axint run --dir /path/to/MyApp --scheme MyApp --format json --include-source
 axint runner once --dir /path/to/MyApp --scheme MyApp
 ```
 
@@ -250,13 +287,40 @@ axint runner once --dir /path/to/MyApp --scheme MyApp
 
 Use `--local-build` only while dogfooding this checkout before publishing; it points Xcode at the built local MCP server instead of the npm package.
 
-When an MCP agent is creating a new Swift file, use `axint.xcode.write` instead of a raw file write. The tool writes inside the project root, validates Swift, runs Cloud Check, and updates the guard proof in one call.
+Agent lanes are explicit now. Codex, Claude Code, Cursor, and Cowork should use their native patch/edit tools for existing files, then run `axint workflow check`, `axint validate-swift`, `axint cloud check`, and `axint run`. Xcode-hosted agents can use `axint.xcode.guard` and `axint.xcode.write` because those tools create real Xcode guard proof.
 
-The run starts an Axint session, refreshes the project recovery context, validates changed Swift, runs Cloud Check, executes `xcodebuild build` and `xcodebuild test`, optionally launches a macOS app for runtime proof, and writes `.axint/run/latest.json` plus `.axint/run/latest.md`.
+When an Xcode MCP agent is creating a new Swift file, use `axint.xcode.write` instead of a raw file write. The tool writes inside the project root, validates Swift, runs Cloud Check, and updates the guard proof in one call. Outside Xcode, do not route routine edits through `axint.xcode.write`; patch surgically in the active client and let Axint validate the result.
+
+The run starts an Axint session, refreshes the project recovery context, validates changed Swift, runs Cloud Check, executes `xcodebuild build` and `xcodebuild test`, optionally launches a macOS app for runtime proof, and writes `.axint/run/latest.json` plus `.axint/run/latest.md`. Passing focused `--only-testing` selectors are also fed back into Cloud Check so stale UI/accessibility warnings do not override real focused test proof.
+
+Long runs also write `.axint/run/jobs/<id>.json` and `.axint/run/latest-active.json`. If a client disconnects, an MCP transport times out, or an agent needs to rejoin a build in the same thread, use `axint run status` to see active process IDs and `axint run cancel` to stop the child process group without restarting the whole chat.
+
+Rendered `axint run --format json` is compact by default: it keeps verdict, evidence, diagnostics, artifact paths, and next actions visible while omitting full Swift source and trimming long command output. Use `--include-source` only when the active agent explicitly needs inline Swift/code output in the response.
 
 Use `--dry-run` to prove the harness and planned `xcodebuild` commands before letting a local or BYO Mac runner execute the job.
 
+If an MCP client still lists Axint tools after the transport has closed, use the CLI fallback instead of restarting the whole thread:
+
+```bash
+axint workflow check --dir /path/to/MyApp --agent codex --stage pre-build --session-token <token> --ran-swift-validate --ran-cloud-check --modified Sources/HomeComposer.swift
+```
+
 This open-source repository does not include the proprietary hosted Axint Cloud control plane: job queues, Mac fleet orchestration, billing, signed-in Pro entitlements, stored report history, or learning pipelines live outside the compiler package.
+
+---
+
+## Same-thread upgrades
+
+Agent sessions should not have to restart from scratch just because Axint shipped a new version. Use the upgrade flow inside Codex, Claude, Xcode, or any MCP client to check the latest package, install it when ready, refresh optional Xcode wiring, and write a continuation packet under `.axint/upgrade/latest.*`.
+
+```bash
+axint upgrade
+axint upgrade --apply
+axint upgrade --apply --xcode-install
+axint upgrade --target 0.4.12 --apply
+```
+
+From MCP, call `axint.upgrade`. The tool returns the exact command plan plus a same-thread prompt that tells the agent to keep the current conversation, reload or reconnect only the Axint MCP server/tool process, then call `axint.status` to prove the running version before editing code.
 
 ---
 
@@ -265,26 +329,29 @@ This open-source repository does not include the proprietary hosted Axint Cloud 
 <!-- truth:readme-mcp-support:start -->Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Codex, VS Code, Windsurf, Xcode, and any MCP client.<!-- truth:readme-mcp-support:end -->
 
 <!-- truth:readme-mcp-json:start -->```json
+
 {
-  "mcpServers": {
-    "axint": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "-p",
-        "@axint/compiler",
-        "axint-mcp"
-      ]
-    }
-  }
+"mcpServers": {
+"axint": {
+"command": "npx",
+"args": [
+"-y",
+"-p",
+"@axint/compiler",
+"axint-mcp"
+]
 }
-```<!-- truth:readme-mcp-json:end -->
+}
+}
+
+````<!-- truth:readme-mcp-json:end -->
 
 MCP tools and built-in prompts:
 
 | Tool | What it does |
 | --- | --- |
-| `axint.status` | Report the running MCP server version, package path, uptime, and Xcode restart/update instructions |
+| `axint.status` | Report the running MCP server version, package path, uptime, and same-thread reload/update instructions |
+| `axint.upgrade` | Check or apply an Axint upgrade, refresh optional Xcode wiring, and return a same-thread continuation prompt |
 | `axint.doctor` | Audit version truth, Node/npm/npx paths, project MCP wiring, and agent start-pack files |
 | `axint.xcode.guard` | Guard Xcode agent sessions against context compaction and Axint drift, then write `.axint/guard/latest.*` proof artifacts |
 | `axint.xcode.write` | Write a project file through Axint, then validate Swift, run Cloud Check, and update guard proof for Swift files |
@@ -299,12 +366,17 @@ MCP tools and built-in prompts:
 | `axint.context.docs` | Return the project-local Axint docs context so agents can reload docs after compaction |
 | `axint.suggest` | Suggest app-specific Apple-native features, reusable components, and shared stores from a product description |
 | `axint.workflow.check` | Check whether an agent rehydrated Axint after compaction, has an active session token, and used suggest, feature, swift.validate, cloud.check, and Xcode proof before moving on |
+| `axint workflow check` | CLI fallback for the same workflow gate when MCP is stale, closed, or unavailable |
 | `axint.scaffold` | Generate a starter TypeScript intent from a description |
 | `axint.swift.validate` | Validate existing Swift against build-time rules |
 | `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
 | `axint.fix-packet` | Read the latest AI-ready repair packet from a local compile or watch run |
 | `axint.cloud.check` | Run an agent-callable Cloud Check report against Swift or TypeScript source |
+| `axint.repair` | Plan a project-aware Apple repair loop for existing app bugs, with likely files, root causes, host-aware patch guidance, proof commands, and feedback packet |
+| `axint.feedback.create` | Create or read a privacy-safe, source-free feedback packet users can inspect before sending to Axint Cloud |
 | `axint.run` | Run the enforced Apple build loop: session, workflow gate, Swift validation, Cloud Check, xcodebuild build/test, optional runtime launch, and `.axint/run` artifacts |
+| `axint.run.status` | Read the latest or selected Axint run job, including active child process IDs, after client disconnects or long-running builds |
+| `axint.run.cancel` | Cancel the latest or selected active Axint run by stopping child process groups |
 | `axint.tokens.ingest` | Convert design tokens into SwiftUI token enums for generated views |
 | `axint.templates.list` | List bundled reference templates |
 | `axint.templates.get` | Return the source of a specific template |
