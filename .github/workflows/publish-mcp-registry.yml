@@ -28,7 +28,7 @@ jobs:
       - name: Validate server.json
         run: ./mcp-publisher validate
 
-      - name: Wait for npm package visibility
+      - name: Wait for package visibility
         run: |
           set -euo pipefail
           node <<'NODE'
@@ -39,36 +39,44 @@ jobs:
             const server = JSON.parse(fs.readFileSync("server.json", "utf8"));
             const packages = server.packages || [];
 
-            const npmPackages = packages
-              .filter((pkg) => pkg.registryType === "npm")
-              .map((pkg) => ({ name: pkg.identifier, version: pkg.version }));
+            const registryPackages = packages
+              .filter((pkg) => pkg.registryType === "npm" || pkg.registryType === "pypi")
+              .map((pkg) => ({
+                name: pkg.identifier,
+                version: pkg.version,
+                registryType: pkg.registryType,
+              }));
 
-            if (npmPackages.length === 0) {
-              console.log("server.json does not declare npm packages; skipping npm visibility wait.");
+            if (registryPackages.length === 0) {
+              console.log("server.json does not declare npm or PyPI packages; skipping visibility wait.");
               return;
             }
 
-            for (const pkg of npmPackages) {
-              const encoded = encodeURIComponent(pkg.name).replace(/^%40/, "@");
-              const url = `https://registry.npmjs.org/${encoded}/${pkg.version}`;
+            for (const pkg of registryPackages) {
+              const url =
+                pkg.registryType === "npm"
+                  ? `https://registry.npmjs.org/${encodeURIComponent(pkg.name).replace(/^%40/, "@")}/${pkg.version}`
+                  : `https://pypi.org/pypi/${encodeURIComponent(pkg.name)}/${pkg.version}/json`;
               let ok = false;
 
-              for (let attempt = 1; attempt <= 12; attempt += 1) {
+              for (let attempt = 1; attempt <= 18; attempt += 1) {
                 const res = await fetch(url);
                 if (res.ok) {
-                  console.log(`${pkg.name}@${pkg.version} is visible on npm.`);
+                  console.log(`${pkg.name}@${pkg.version} is visible on ${pkg.registryType}.`);
                   ok = true;
                   break;
                 }
 
                 console.log(
-                  `${pkg.name}@${pkg.version} not visible on npm yet (${res.status}); retry ${attempt}/12.`
+                  `${pkg.name}@${pkg.version} not visible on ${pkg.registryType} yet (${res.status}); retry ${attempt}/18.`
                 );
                 await sleep(10_000);
               }
 
               if (!ok) {
-                console.error(`${pkg.name}@${pkg.version} was not visible on npm before MCP publish.`);
+                console.error(
+                  `${pkg.name}@${pkg.version} was not visible on ${pkg.registryType} before MCP publish.`
+                );
                 process.exit(1);
               }
             }
