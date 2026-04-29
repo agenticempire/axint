@@ -1,11 +1,18 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
+import {
+  buildAgentToolProfile,
+  normalizeAxintAgent,
+  renderAgentToolProfile,
+  type AxintAgentProfileName,
+  type AxintAgentToolProfile,
+} from "./agent-profile.js";
 import { buildAxintDocsContext } from "./docs-context.js";
 import { buildAxintOperatingMemory } from "./operating-memory.js";
 import { buildAxintRehydrationGuide } from "./rehydration.js";
 
-export type AxintSessionAgent = "claude" | "codex" | "cursor" | "xcode" | "all";
+export type AxintSessionAgent = AxintAgentProfileName;
 export type AxintSessionFormat = "markdown" | "json";
 
 export interface AxintSessionStartInput {
@@ -33,6 +40,7 @@ export interface AxintSessionRecord {
   expectedVersion: string;
   platform: string;
   agent: AxintSessionAgent;
+  toolProfile: AxintAgentToolProfile;
   startedAt: string;
   expiresAt: string;
   memoryHash: string;
@@ -63,7 +71,8 @@ export function startAxintSession(
   const projectName = input.projectName ?? basename(targetDir) ?? "AppleApp";
   const expectedVersion = input.expectedVersion ?? "unknown";
   const platform = input.platform ?? "the target Apple platform";
-  const agent = input.agent ?? "all";
+  const agent = normalizeAxintAgent(input.agent);
+  const toolProfile = buildAgentToolProfile(agent);
   const ttlMinutes = input.ttlMinutes ?? 720;
   const startedAt = new Date();
   const expiresAt = new Date(startedAt.getTime() + ttlMinutes * 60_000);
@@ -71,11 +80,13 @@ export function startAxintSession(
     projectName,
     expectedVersion,
     platform,
+    agent,
   });
   const docsContext = buildAxintDocsContext({
     projectName,
     expectedVersion,
     platform,
+    agent,
   });
   const token = `axsess_${randomUUID()}`;
   const rehydrationContext = buildAxintRehydrationGuide({
@@ -83,6 +94,7 @@ export function startAxintSession(
     expectedVersion,
     platform,
     sessionToken: token,
+    agent,
   });
   const session: AxintSessionRecord = {
     schema: "https://axint.ai/schemas/session.v1.json",
@@ -92,6 +104,7 @@ export function startAxintSession(
     expectedVersion,
     platform,
     agent,
+    toolProfile,
     startedAt: startedAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
     memoryHash: hashText(memory),
@@ -132,8 +145,11 @@ export function startAxintSession(
     ],
   };
   const sessionPath = sessionFilePath(targetDir);
+  const tokenSessionPath = sessionTokenFilePath(targetDir, token);
   mkdirSync(dirname(sessionPath), { recursive: true });
   writeFileSync(sessionPath, `${JSON.stringify(session, null, 2)}\n`, "utf-8");
+  mkdirSync(dirname(tokenSessionPath), { recursive: true });
+  writeFileSync(tokenSessionPath, `${JSON.stringify(session, null, 2)}\n`, "utf-8");
   const contextFiles =
     input.writeContextFiles === false
       ? []
@@ -155,6 +171,7 @@ export function startAxintSession(
     workflowCheckArgs: {
       cwd: targetDir,
       stage: "context-recovery",
+      agent,
       sessionStarted: true,
       sessionToken: token,
       readRehydrationContext: true,
@@ -169,6 +186,28 @@ export function readCurrentAxintSession(
   targetDir: string = process.cwd()
 ): AxintSessionRecord | undefined {
   const path = sessionFilePath(resolve(targetDir));
+  return readAxintSessionFile(path);
+}
+
+export function readAxintSessionByToken(
+  targetDir: string = process.cwd(),
+  token?: string
+): AxintSessionRecord | undefined {
+  if (!token) return undefined;
+  const path = sessionTokenFilePath(resolve(targetDir), token);
+  const session = readAxintSessionFile(path);
+  return session?.token === token ? session : undefined;
+}
+
+export function axintSessionPath(
+  targetDir: string = process.cwd(),
+  token?: string
+): string {
+  const dir = resolve(targetDir);
+  return token ? sessionTokenFilePath(dir, token) : sessionFilePath(dir);
+}
+
+function readAxintSessionFile(path: string): AxintSessionRecord | undefined {
   if (!existsSync(path)) return undefined;
   try {
     const parsed = JSON.parse(readFileSync(path, "utf-8")) as AxintSessionRecord;
@@ -190,7 +229,13 @@ export function validateAxintSessionToken(
     sessionStarted?: boolean;
   } = {}
 ): { ok: boolean; detail: string; session?: AxintSessionRecord } {
-  const session = readCurrentAxintSession(input.cwd);
+  const targetDir = resolve(input.cwd ?? process.cwd());
+  const currentSession = readCurrentAxintSession(targetDir);
+  const tokenSession =
+    input.sessionToken && currentSession?.token !== input.sessionToken
+      ? readAxintSessionByToken(targetDir, input.sessionToken)
+      : undefined;
+  const session = tokenSession ?? currentSession;
   if (!session) {
     return {
       ok: false,
@@ -216,11 +261,18 @@ export function validateAxintSessionToken(
   if (input.sessionToken && input.sessionToken !== session.token) {
     return {
       ok: false,
-      detail: "supplied sessionToken does not match .axint/session/current.json.",
+      detail:
+        "supplied sessionToken does not match any active Axint session for this project.",
       session,
     };
   }
-  return { ok: true, detail: "Axint session token is valid.", session };
+  return {
+    ok: true,
+    detail: tokenSession
+      ? "Axint session token is valid from token-scoped session history."
+      : "Axint session token is valid.",
+    session,
+  };
 }
 
 export function renderAxintSessionStart(
@@ -235,6 +287,7 @@ export function renderAxintSessionStart(
     `- Project: ${result.session.projectName}`,
     `- Target: ${result.session.targetDir}`,
     `- Agent: ${result.session.agent}`,
+    `- Tool lane: ${result.session.toolProfile.label} (${result.session.toolProfile.editingMode})`,
     `- Platform: ${result.session.platform}`,
     `- Expected Axint: ${result.session.expectedVersion}`,
     `- Token: ${result.session.token}`,
@@ -252,6 +305,12 @@ export function renderAxintSessionStart(
     "",
     "```json",
     JSON.stringify(result.workflowCheckArgs, null, 2),
+    "```",
+    "",
+    "## Agent Tool Profile",
+    "",
+    "```text",
+    renderAgentToolProfile(result.session.toolProfile),
     "```",
     "",
     "## Recovery Prompt",
@@ -276,6 +335,11 @@ export function renderAxintSessionStart(
 
 function sessionFilePath(targetDir: string): string {
   return resolve(targetDir, ".axint/session/current.json");
+}
+
+function sessionTokenFilePath(targetDir: string, token: string): string {
+  const safeToken = token.replace(/[^A-Za-z0-9_-]/g, "_");
+  return resolve(targetDir, ".axint/session/sessions", `${safeToken}.json`);
 }
 
 function hashText(value: string): string {
@@ -312,6 +376,7 @@ function writeSessionContextFiles(
           projectName: input.session.projectName,
           axintVersion: input.session.expectedVersion,
           platform: input.session.platform,
+          agentProfile: input.session.toolProfile,
           session: {
             required: true,
             file: ".axint/session/current.json",
@@ -325,6 +390,7 @@ function writeSessionContextFiles(
           contextRecovery: {
             requiredWorkflowCheckArgs: {
               stage: "context-recovery",
+              agent: input.session.agent,
               sessionStarted: true,
               sessionToken: "<token>",
               readRehydrationContext: true,
@@ -361,10 +427,14 @@ function buildSessionRecoveryPrompt(session: AxintSessionRecord): string {
   return [
     `Axint session is active for ${session.projectName}.`,
     `Session token: ${session.token}`,
+    `Agent lane: ${session.toolProfile.label}.`,
+    "",
+    "Agent tool profile:",
+    renderAgentToolProfile(session.toolProfile),
     "",
     "Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json.",
     "If either Axint context file is missing, call axint.context.memory and axint.context.docs.",
-    "Then call axint.status and axint.workflow.check with stage context-recovery, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, ranStatus=true, and this sessionToken.",
+    `Then call axint.status and axint.workflow.check with agent=${session.agent}, stage context-recovery, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, ranStatus=true, and this sessionToken.`,
     "Do not edit Apple-native code until that workflow check is ready.",
   ].join("\n");
 }

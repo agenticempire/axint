@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { renderCliStatus } from "../../src/cli/status.js";
 
 describe("axint status", () => {
-  it("prints local version and Xcode restart guidance", () => {
+  it("prints local version and same-thread reload guidance", () => {
     const output = renderCliStatus("9.9.9", "markdown");
 
     expect(output).toContain("@axint/compiler@9.9.9");
     expect(output).toContain("Call axint.status");
-    expect(output).toContain("Restart the Xcode Claude Agent chat");
+    expect(output).toContain("axint upgrade --apply");
+    expect(output).toContain("Keep the current Codex or Claude thread");
   });
 
   it("can emit the startup prompt for Claude in Xcode", () => {
@@ -15,6 +16,7 @@ describe("axint status", () => {
 
     expect(output).toContain("Call axint.status");
     expect(output).toContain("Expected local package version: 9.9.9");
+    expect(output).toContain("axint.upgrade");
     expect(output).toContain("axint.cloud.check");
   });
 });

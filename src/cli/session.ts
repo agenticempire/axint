@@ -21,7 +21,7 @@ export function registerSession(program: Command, version: string) {
     .option("--platform <platform>", "Target Apple platform", "the target Apple platform")
     .option(
       "--agent <agent>",
-      "Agent target: claude, codex, cursor, xcode, all",
+      "Agent target: claude, codex, cowork, cursor, xcode, all",
       parseAgent,
       "all" as AxintSessionAgent
     )
@@ -64,6 +64,7 @@ function parseAgent(value: string): AxintSessionAgent {
   if (
     value === "claude" ||
     value === "codex" ||
+    value === "cowork" ||
     value === "cursor" ||
     value === "xcode" ||
     value === "all"

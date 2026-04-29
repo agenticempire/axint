@@ -6,6 +6,8 @@ import {
   type SwiftValidationResult,
 } from "../core/swift-validator.js";
 import {
+  axintSessionPath,
+  readAxintSessionByToken,
   readCurrentAxintSession,
   startAxintSession,
   type AxintSessionRecord,
@@ -122,6 +124,14 @@ interface PreviousRunReport {
   };
 }
 
+interface LatestRunProof {
+  path: string;
+  createdAt: string;
+  status: string;
+  decision: string;
+  ageMinutes: number;
+}
+
 const REQUIRED_PROJECT_FILES = [
   ".axint/AXINT_REHYDRATE.md",
   ".axint/AXINT_MEMORY.md",
@@ -140,7 +150,12 @@ export function runXcodeGuard(input: XcodeGuardInput = {}): XcodeGuardReport {
   const required: string[] = [];
   const recommended: string[] = [];
   const checked: string[] = [];
-  let session = readCurrentAxintSession(cwd);
+  const currentSession = readCurrentAxintSession(cwd);
+  const tokenScopedSession =
+    input.sessionToken && currentSession?.token !== input.sessionToken
+      ? readAxintSessionByToken(cwd, input.sessionToken)
+      : undefined;
+  let session = tokenScopedSession ?? currentSession;
   let autoStarted = false;
 
   if (!session && input.autoStartSession !== false) {
@@ -162,10 +177,14 @@ export function runXcodeGuard(input: XcodeGuardInput = {}): XcodeGuardReport {
     );
   } else if (input.sessionToken && input.sessionToken !== session.token) {
     required.push(
-      "The supplied sessionToken does not match .axint/session/current.json. Re-run axint.session.start and use the current token."
+      "The supplied sessionToken does not match any active Axint session for this project. Re-run axint.session.start if the token expired."
     );
   } else {
-    checked.push("Active Axint session is present for this Xcode project.");
+    checked.push(
+      tokenScopedSession
+        ? "Active Axint session is present in token-scoped session history for this Xcode project."
+        : "Active Axint session is present for this Xcode project."
+    );
   }
 
   const missingFiles = REQUIRED_PROJECT_FILES.filter(
@@ -191,6 +210,23 @@ export function runXcodeGuard(input: XcodeGuardInput = {}): XcodeGuardReport {
         ageMinutes: minutesBetween(new Date(latestEvidence.at), createdAt),
       }
     : undefined;
+  const hasFreshEvidence = Boolean(
+    latestEvidenceWithAge && latestEvidenceWithAge.ageMinutes <= maxMinutesSinceAxint
+  );
+  const latestRunProof = readLatestRunProof(cwd, createdAt);
+  const hasFreshReadyRunProof = Boolean(
+    latestRunProof &&
+    latestRunProof.ageMinutes <= maxMinutesSinceAxint &&
+    latestRunProof.status === "pass" &&
+    latestRunProof.decision === "ready_to_ship"
+  );
+  const hasRecoveredContextState = Boolean(
+    session && missingFiles.length === 0 && hasFreshEvidence
+  );
+  const hasPrecommitWorkflowProof = hasPassingWorkflowPrecommitProof(
+    input.lastAxintTool,
+    input.lastAxintResult
+  );
 
   if (!latestEvidenceWithAge) {
     required.push(
@@ -207,9 +243,15 @@ export function runXcodeGuard(input: XcodeGuardInput = {}): XcodeGuardReport {
   }
 
   if (looksLikeDrift(input.notes)) {
-    required.push(
-      "The notes mention drift, compaction, or Axint being forgotten. Run context recovery before continuing."
-    );
+    if (hasRecoveredContextState) {
+      checked.push(
+        "Notes mention drift or compaction, but active session, project memory, and fresh Axint evidence are present."
+      );
+    } else {
+      required.push(
+        "The notes mention drift, compaction, or Axint being forgotten. Run context recovery before continuing."
+      );
+    }
   }
 
   const modifiedSwift = (input.modifiedFiles ?? []).filter((file) =>
@@ -247,7 +289,29 @@ export function runXcodeGuard(input: XcodeGuardInput = {}): XcodeGuardReport {
   }
 
   if (stage === "pre-build" || stage === "runtime" || stage === "finish") {
-    if (latestEvidenceWithAge?.kind !== "run") {
+    if (hasFreshReadyRunProof && latestRunProof) {
+      checked.push(
+        `Build/test/runtime stage accepted fresh ready_to_ship axint.run proof from ${latestRunProof.path}.`
+      );
+    } else if (latestRunProof && latestRunProof.ageMinutes <= maxMinutesSinceAxint) {
+      const detail = `${latestRunProof.status} · ${latestRunProof.decision}`;
+      if (
+        latestRunProof.status === "fail" ||
+        latestRunProof.decision === "fix_required"
+      ) {
+        required.push(
+          `Latest axint.run proof is ${detail}. Repair the failing gate and rerun axint.run before finishing.`
+        );
+      } else {
+        required.push(
+          `Latest axint.run proof is ${detail}. Add the missing build/test/runtime evidence or rerun axint.run before finishing.`
+        );
+      }
+    } else if (stage === "finish" && hasFreshEvidence && hasPrecommitWorkflowProof) {
+      checked.push(
+        "Finish stage accepted fresh axint.workflow.check pre-commit proof with Swift validation, Cloud Check, Xcode build, and Xcode test evidence."
+      );
+    } else {
       required.push(
         "This stage needs build/test/runtime proof. Call axint.run instead of relying on a remembered checklist."
       );
@@ -267,7 +331,7 @@ export function runXcodeGuard(input: XcodeGuardInput = {}): XcodeGuardReport {
     session: session
       ? {
           token: session.token,
-          path: resolve(cwd, ".axint/session/current.json"),
+          path: axintSessionPath(cwd, tokenScopedSession ? session.token : undefined),
           startedAt: session.startedAt,
           autoStarted,
         }
@@ -324,7 +388,7 @@ export function renderXcodeGuardReport(
       : ["- No Axint guard evidence was supplied."]),
     "",
     "## Next Tool",
-    `- ${report.nextTool}`,
+    `- ${formatNextTool(report.nextTool)}`,
   ];
 
   if (report.proofFiles.json || report.proofFiles.markdown) {
@@ -579,6 +643,21 @@ function latestAxintEvidence(input: {
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())[0];
 }
 
+function readLatestRunProof(cwd: string, now: Date): LatestRunProof | undefined {
+  const path = resolve(cwd, ".axint/run/latest.json");
+  const run = readJson<PreviousRunReport>(path);
+  if (!run?.createdAt) return undefined;
+  const createdAt = new Date(run.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return undefined;
+  return {
+    path,
+    createdAt: run.createdAt,
+    status: run.status ?? "unknown",
+    decision: run.gate?.decision ?? "unknown_gate",
+    ageMinutes: minutesBetween(createdAt, now),
+  };
+}
+
 function writeGuardReport(cwd: string, report: XcodeGuardReport): void {
   const dir = resolve(cwd, ".axint/guard");
   mkdirSync(dir, { recursive: true });
@@ -614,6 +693,20 @@ function chooseNextTool(stage: XcodeGuardStage, required: string[]): string {
   return "axint.workflow.check";
 }
 
+function formatNextTool(nextTool: string): string {
+  const cliFallbacks: Record<string, string> = {
+    "axint.workflow.check": "axint workflow check",
+    "axint.session.start": "axint session start",
+    "axint.run": "axint run",
+    "axint.suggest": "axint.suggest (MCP) or axint feature with a concrete bypass reason",
+    "axint.feature": "axint feature",
+  };
+  const cli = cliFallbacks[nextTool];
+  if (!cli) return nextTool;
+  if (cli === nextTool) return nextTool;
+  return `${nextTool} · CLI fallback: ${cli}`;
+}
+
 function buildWriteRepairPrompt(input: {
   path: string;
   status: XcodeWriteReport["status"];
@@ -647,6 +740,31 @@ function looksLikeDrift(notes: string | undefined): boolean {
   if (!notes) return false;
   return /\b(compact|compaction|summarized|new chat|forgot|forget|drift|stale|not using axint|axint unavailable|long task|long block|default xcode|ordinary xcode)\b/i.test(
     notes
+  );
+}
+
+function hasPassingWorkflowPrecommitProof(
+  lastAxintTool: string | undefined,
+  lastAxintResult: string | undefined
+): boolean {
+  if (lastAxintTool !== "axint.workflow.check" || !lastAxintResult) return false;
+  const lower = lastAxintResult.toLowerCase();
+  const stagePassed =
+    lower.includes("stage: pre-commit") ||
+    lower.includes('"stage": "pre-commit"') ||
+    lower.includes("stage=pre-commit") ||
+    lower.includes("stage pre-commit");
+  const statusReady =
+    lower.includes("workflow check: ready") ||
+    lower.includes('"status": "ready"') ||
+    lower.includes("status: ready");
+  return (
+    stagePassed &&
+    statusReady &&
+    lower.includes("axint.swift.validate was run") &&
+    lower.includes("axint.cloud.check was run") &&
+    lower.includes("xcode build evidence passed") &&
+    lower.includes("xcode test evidence passed")
   );
 }
 

@@ -33,10 +33,10 @@ export function usesThreePaneBlueprint(description: string): boolean {
 export function usesSettingsBlueprint(description: string): boolean {
   const lower = description.toLowerCase();
   return (
-    /\b(settings|preferences|app settings|appearance|accent color|reduce motion|keyboard shortcut|transcription engine)\b/.test(
+    /\b(settings|preferences|app settings|appearance|accent color|reduce motion|keyboard shortcut|transcription engine|visibility|invite policy|invite limit|public modules?|member permissions?|agent permissions?|privacy posture|integration readiness|operating model)\b/.test(
       lower
     ) &&
-    /\b(toggle|picker|swatch|mode|preference|setting|appearance|keyboard|transcription|motion)\b/.test(
+    /\b(toggle|picker|swatch|mode|preference|setting|appearance|keyboard|transcription|motion|visibility|invite|permission|privacy|integration|module|public)\b/.test(
       lower
     )
   );
@@ -54,9 +54,39 @@ export function usesInboxBlueprint(description: string): boolean {
   );
 }
 
+export function usesTrustPostureBlueprint(description: string): boolean {
+  const lower = description.toLowerCase();
+  const compact = lower.replace(/[\s_-]+/g, "");
+  return (
+    (/\b(trust posture|command trust|security posture)\b/.test(lower) ||
+      compact.includes("trustposture") ||
+      compact.includes("commandtrust")) &&
+    /\b(trust|posture|visibility|invite|permissions?|privacy|public|agent|member|settings|reduced motion)\b/.test(
+      lower
+    )
+  );
+}
+
+export function usesEmptyStateBlueprint(description: string): boolean {
+  const lower = description.toLowerCase();
+  return (
+    /\b(empty[-\s]?state|sparse state|blank state|zero state|no results|nothing here|purpose-aware sparse|sparse)\b/.test(
+      lower
+    ) &&
+    /\b(purpose|state|surface|screen|view|command|project|action|cta|pattern)\b/.test(
+      lower
+    )
+  );
+}
+
 export function buildSmartViewBody(input: ViewBlueprintInput): string | null {
   const description = input.description ?? "";
+  const semanticHaystack = `${input.name} ${description}`;
   const explicitKind = normalizeKind(input.componentKind);
+  if (explicitKind === "settingsView") return buildComponentBody(explicitKind, input);
+  if (usesTrustPostureBlueprint(semanticHaystack)) return buildTrustPostureBody(input);
+  if (usesEmptyStateBlueprint(semanticHaystack))
+    return buildPurposeAwareSparseStateBody(input);
   if (explicitKind) return buildComponentBody(explicitKind, input);
   if (usesThreePaneBlueprint(description)) return buildThreePaneBody(input);
   if (usesSettingsBlueprint(description)) return buildSettingsBody(input);
@@ -111,13 +141,21 @@ function inferComponentKind(name: string, description: string): string | undefin
     return "approvalCard";
   if (haystack.includes("agent row") || haystack.includes("agentrow")) return "agentRow";
   if (haystack.includes("role card") || haystack.includes("rolecard")) return "roleCard";
+  if (usesTrustPostureBlueprint(haystack)) return "trustPosture";
+  if (usesEmptyStateBlueprint(haystack)) return "purposeAwareSparseState";
   if (haystack.includes("signal card") || haystack.includes("signalcard"))
     return "signalCard";
   if (haystack.includes("channel row") || haystack.includes("channelrow"))
     return "channelRow";
   if (haystack.includes("sidebar rail") || haystack.includes("sidebarrail"))
     return "sidebarRail";
-  if (haystack.includes("settings") || haystack.includes("preferences"))
+  if (
+    haystack.includes("settings") ||
+    haystack.includes("preferences") ||
+    /\b(visibility|invite policy|invite limit|permissions|privacy posture|integration readiness|operating model)\b/.test(
+      haystack
+    )
+  )
     return "settingsView";
   if (haystack.includes("profile card") || haystack.includes("profilecard"))
     return "profileCard";
@@ -143,6 +181,14 @@ function normalizeKind(kind: string | undefined): string | undefined {
   if (lower === "approvalcard" || lower === "approval") return "approvalCard";
   if (lower === "agentrow") return "agentRow";
   if (lower === "rolecard") return "roleCard";
+  if (lower === "trustposture" || lower === "commandtrustposture") return "trustPosture";
+  if (
+    lower === "purposeawaresparsestate" ||
+    lower === "sparsestate" ||
+    lower === "emptystate" ||
+    lower === "zerostate"
+  )
+    return "purposeAwareSparseState";
   if (lower === "signalcard") return "signalCard";
   if (lower === "channelrow") return "channelRow";
   if (lower === "sidebarrail") return "sidebarRail";
@@ -614,6 +660,12 @@ function buildComponentBody(kind: string, input: ViewBlueprintInput): string {
         .padding(14)
         .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.12)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "12")}, style: .continuous))`;
 
+    case "trustPosture":
+      return buildTrustPostureBody(input);
+
+    case "purposeAwareSparseState":
+      return buildPurposeAwareSparseStateBody(input);
+
     case "signalCard":
       return `VStack(alignment: .leading, spacing: 12) {
             Text(${textExpr(input, "sourceTitle", "Apple expands App Intents at WWDC")})
@@ -712,15 +764,166 @@ function buildSemanticSurfaceBody(input: ViewBlueprintInput): string {
   return buildSemanticDashboardBody(input);
 }
 
+function buildTrustPostureBody(input: ViewBlueprintInput): string {
+  return `VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Trust posture")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                    Text("Visibility, permissions, privacy, and agent behavior stay visible before a command runs.")
+                        .font(.caption)
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+
+                Spacer()
+
+                Label("Governed", systemImage: "checkmark.shield.fill")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(${colorRef(input.tokenNamespace, "successSoft", "Color.green.opacity(0.14)")}, in: Capsule())
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "success", ".green")})
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 10)], spacing: 10) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Label("Visibility", systemImage: "eye")
+                        .font(.caption.weight(.semibold))
+                    Text(visibility)
+                        .font(.headline.weight(.semibold))
+                }
+                .padding(10)
+                .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Label("Invite policy", systemImage: "person.badge.plus")
+                        .font(.caption.weight(.semibold))
+                    Text(invitePolicy)
+                        .font(.headline.weight(.semibold))
+                }
+                .padding(10)
+                .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Label("Privacy posture", systemImage: "lock.shield")
+                        .font(.caption.weight(.semibold))
+                    Text(privacyPosture)
+                        .font(.headline.weight(.semibold))
+                }
+                .padding(10)
+                .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Label("Reduced motion", systemImage: "figure.walk.motion")
+                        .font(.caption.weight(.semibold))
+                    Text(reduceMotion ? "On" : "Off")
+                        .font(.headline.weight(.semibold))
+                }
+                .padding(10)
+                .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))
+            }
+
+            VStack(spacing: 8) {
+                Label(publicModulesEnabled ? "Public modules enabled" : "Public modules private", systemImage: "square.grid.2x2")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Label(membersCanInvite ? "Members can invite" : "Member invites need owner approval", systemImage: "person.2")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Label(agentsCanPublish ? "Agents can publish drafts" : "Agent output requires review", systemImage: "cpu")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .font(.caption.weight(.medium))
+            .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+
+            HStack(spacing: 8) {
+                Button("Project Settings") { }
+                    .buttonStyle(.borderedProminent)
+                Button("Review policy") { }
+                    .buttonStyle(.bordered)
+                Spacer()
+            }
+            .controlSize(.small)
+        }
+        .padding(16)
+        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous)
+                .strokeBorder(${colorRef(input.tokenNamespace, "border", "Color.secondary.opacity(0.16)")}, lineWidth: 1)
+        }`;
+}
+
+function buildPurposeAwareSparseStateBody(input: ViewBlueprintInput): string {
+  const labels = swiftStringArray(semanticLabels(input.description ?? input.name, 4));
+  return `VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Purpose-aware sparse state")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                    Text("Empty command surfaces still explain purpose, next action, and why the space is quiet.")
+                        .font(.caption)
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+
+                Spacer()
+
+                Label("Sparse", systemImage: "circle.dotted")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(${colorRef(input.tokenNamespace, "accentSoft", "Color.accentColor.opacity(0.16)")}, in: Capsule())
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(${labels}, id: \\.self) { purpose in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "sparkle.magnifyingglass")
+                            .frame(width: 28, height: 28)
+                            .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "9")}, style: .continuous))
+                            .foregroundStyle(${colorRef(input.tokenNamespace, "accent", "Color.accentColor")})
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(purpose)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                            Text("No content yet. Start with a command, connect project context, or keep the state intentionally quiet.")
+                                .font(.caption)
+                                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                        }
+                    }
+                    .padding(10)
+                    .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button("Create command") { }
+                    .buttonStyle(.borderedProminent)
+                Button("Attach context") { }
+                    .buttonStyle(.bordered)
+                Spacer()
+            }
+            .controlSize(.small)
+        }
+        .padding(16)
+        .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "16")}, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "16")}, style: .continuous)
+                .strokeBorder(${colorRef(input.tokenNamespace, "border", "Color.secondary.opacity(0.16)")}, lineWidth: 1)
+        }`;
+}
+
 function buildSemanticDashboardBody(input: ViewBlueprintInput): string {
   const labels = swiftStringArray(semanticLabels(input.description ?? input.name, 4));
+  const subtitle = semanticLabels(input.description ?? input.name, 3).join(", ");
   return `VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("${escapeSwiftString(humanizeLocal(input.name))}")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
-                    Text("Generated from the requested product vocabulary, not a generic starter.")
+                    Text("${escapeSwiftString(subtitle || "Focused surface with clear status and next action.")}")
                         .font(.caption)
                         .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
                 }
@@ -888,13 +1091,26 @@ function usesCommandLayerPanel(input: ViewBlueprintInput): boolean {
 }
 
 function buildCommandLayerPanelBody(input: ViewBlueprintInput): string {
+  const haystack = `${input.name} ${input.description ?? ""}`.toLowerCase();
+  const title = /\bcommand[-\s]?layer\b/.test(haystack)
+    ? "Command layer"
+    : humanizeLocal(input.name);
+  const terms = semanticLabels(`${input.name} ${input.description ?? ""}`, 5);
+  const summary =
+    terms.length > 0
+      ? `${terms.slice(0, 4).join(", ")} stay visible before action.`
+      : "The current surface stays intact while the next action stays visible.";
+  const chips = swiftStringArray(
+    Array.from(new Set(["Command Summary", ...terms])).slice(0, 4)
+  );
+
   return `VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Command layer")
+                    Text("${escapeSwiftString(title)}")
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
-                    Text("Feed stays primary. Agent actions stay one move away.")
+                    Text("${escapeSwiftString(summary)}")
                         .font(.caption)
                         .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
                 }
@@ -910,7 +1126,7 @@ function buildCommandLayerPanelBody(input: ViewBlueprintInput): string {
             }
 
             HStack(spacing: 8) {
-                ForEach(["Command Summary", "Ambient Activity", "Composer"], id: \\.self) { item in
+                ForEach(${chips}, id: \\.self) { item in
                     Text(item)
                         .font(.caption2.weight(.semibold))
                         .lineLimit(1)
@@ -1031,7 +1247,9 @@ function buildSemanticGridBody(input: ViewBlueprintInput): string {
 }
 
 function buildSemanticListRows(input: ViewBlueprintInput): string {
-  const labels = swiftStringArray(semanticLabels(input.description ?? input.name, 4));
+  const labels = swiftStringArray(
+    semanticLabels(`${input.name} ${input.description ?? ""}`, 4)
+  );
   return `VStack(spacing: 8) {
                 ForEach(${labels}, id: \\.self) { item in
                     HStack(spacing: 10) {
@@ -1062,6 +1280,10 @@ function buildSemanticListRows(input: ViewBlueprintInput): string {
 }
 
 function buildSettingsBody(input: ViewBlueprintInput): string {
+  if (usesOperatingModelSettings(input.description ?? input.name)) {
+    return buildOperatingModelSettingsBody(input);
+  }
+
   return `VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Settings")
@@ -1145,6 +1367,90 @@ function buildSettingsBody(input: ViewBlueprintInput): string {
         }
         .padding(20)
         .frame(maxWidth: 560, maxHeight: .infinity, alignment: .topLeading)`;
+}
+
+export function usesOperatingModelSettings(description: string): boolean {
+  const lower = description.toLowerCase();
+  return /\b(visibility|invite policy|invite limit|public modules?|member permissions?|agent permissions?|privacy posture|integration readiness|operating model)\b/.test(
+    lower
+  );
+}
+
+function buildOperatingModelSettingsBody(input: ViewBlueprintInput): string {
+  return `VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Operating model")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                Text("Control who can see, join, automate, and publish from this workspace.")
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Access")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                Picker("Visibility", selection: $visibility) {
+                    Text("Private").tag("Private")
+                    Text("Invite only").tag("Invite only")
+                    Text("Public profile").tag("Public profile")
+                }
+
+                Picker("Invite policy", selection: $invitePolicy) {
+                    Text("Owner approval").tag("Owner approval")
+                    Text("Trusted members").tag("Trusted members")
+                    Text("Open request").tag("Open request")
+                }
+
+                Stepper("Invite limit: \\(inviteLimit)", value: $inviteLimit, in: 1...250)
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Permissions")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                Toggle("Public modules enabled", isOn: $publicModulesEnabled)
+                Toggle("Members can invite", isOn: $membersCanInvite)
+                Toggle("Agents can publish drafts", isOn: $agentsCanPublish)
+                Toggle("Require human review", isOn: $requireReview)
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Trust")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                Picker("Privacy posture", selection: $privacyPosture) {
+                    Text("Strict").tag("Strict")
+                    Text("Balanced").tag("Balanced")
+                    Text("Open").tag("Open")
+                }
+
+                HStack {
+                    Text("Integration readiness")
+                    Spacer()
+                    Text(integrationReadiness)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "success", ".green")})
+                }
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            Spacer()
+        }
+        .padding(20)
+        .frame(maxWidth: 620, maxHeight: .infinity, alignment: .topLeading)`;
 }
 
 function buildThreePaneBody(input: ViewBlueprintInput): string {

@@ -16,19 +16,25 @@
  *   axint tokens ingest --source  Convert design tokens into SwiftUI token enums
  *   axint schema compile <file>   Compile compact JSON schemas into Swift
  *   axint feature <description>   Generate a multi-file feature package
+ *   axint repair <issue>          Plan a project-aware Apple repair loop
+ *   axint feedback create         Create privacy-safe repair feedback packets
  *   axint publish                 Publish an intent to the Registry
  *   axint add <package>           Install a template from the Registry
  *   axint search [query]          Search the Axint Registry for intent templates
  *   axint watch <file|dir>         Watch intent files and recompile on change
- *   axint status                  Show local package/runtime status and Xcode restart steps
+ *   axint status                  Show local package/runtime status and MCP reload steps
+ *   axint upgrade                 Check/apply Axint upgrades without losing agent context
  *   axint doctor                  Audit version truth, MCP wiring, and project start files
  *   axint project init            Write Axint project-start files for agent workflows
  *   axint project index           Index the local Apple project into .axint/context
  *   axint session start           Start an enforced Axint agent session and refresh context
+ *   axint workflow check          Run workflow gates from CLI when MCP is unavailable
  *   axint run                     Run Axint's enforced Apple build/test/runtime loop
+ *   axint run status              Show the latest or selected run job state
+ *   axint run cancel              Cancel the latest or selected active run job
  *   axint runner once             Execute one BYO-Mac runner Axint job
  *   axint mcp                     Start the MCP server (stdio)
- *   axint mcp status              Show local MCP launch command and Xcode restart steps
+ *   axint mcp status              Show local MCP launch command and reload steps
  *   axint xcode install           Install the full Axint Xcode workflow in one pass
  *   axint xcode setup             Configure Axint for Xcode agentic coding
  *   axint xcode guard             Check/write the Axint Xcode drift guard
@@ -60,14 +66,18 @@ import { registerCloud } from "./cloud.js";
 import { registerTokens } from "./tokens.js";
 import { registerSchema } from "./schema.js";
 import { registerFeature } from "./feature.js";
+import { registerRepair } from "./repair.js";
+import { registerFeedback } from "./feedback.js";
 import { registerPublish } from "./publish.js";
 import { registerAdd } from "./add.js";
 import { registerSearch } from "./search.js";
 import { registerWatch } from "./watch.js";
 import { registerStatus, renderCliStatus } from "./status.js";
+import { registerUpgrade } from "./upgrade.js";
 import { registerDoctor } from "./doctor.js";
 import { registerProject } from "./project.js";
 import { registerSession } from "./session.js";
+import { registerWorkflow } from "./workflow.js";
 import { registerRun } from "./run.js";
 import { registerXcodeGuard } from "./xcode-guard.js";
 
@@ -175,14 +185,18 @@ registerCloud(program);
 registerTokens(program);
 registerSchema(program);
 registerFeature(program);
+registerRepair(program);
+registerFeedback(program);
 registerPublish(program, VERSION);
 registerAdd(program, VERSION);
 registerSearch(program, VERSION);
 registerWatch(program);
 registerStatus(program, VERSION);
+registerUpgrade(program, VERSION);
 registerDoctor(program, VERSION);
 registerProject(program, VERSION);
 registerSession(program, VERSION);
+registerWorkflow(program);
 registerRun(program, VERSION);
 
 // ─── mcp ─────────────────────────────────────────────────────────────
@@ -199,7 +213,7 @@ const mcp = program
 
 mcp
   .command("status")
-  .description("Show local Axint MCP launch details and Xcode restart steps")
+  .description("Show local Axint MCP launch details and reload steps")
   .option("--format <format>", "Output format: markdown, json, or prompt", "markdown")
   .action((options: { format?: "markdown" | "json" | "prompt" }) => {
     console.log(renderCliStatus(VERSION, options.format ?? "markdown"));

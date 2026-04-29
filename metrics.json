@@ -1,8 +1,9 @@
 {
-  "version": "0.4.11",
-  "mcpTools": 24,
+  "version": "0.4.12",
+  "mcpTools": 29,
   "mcpToolNames": [
     "axint.status",
+    "axint.upgrade",
     "axint.doctor",
     "axint.xcode.guard",
     "axint.xcode.write",
@@ -19,7 +20,11 @@
     "axint.validate",
     "axint.fix-packet",
     "axint.cloud.check",
+    "axint.repair",
+    "axint.feedback.create",
     "axint.run",
+    "axint.run.status",
+    "axint.run.cancel",
     "axint.tokens.ingest",
     "axint.schema.compile",
     "axint.swift.validate",
@@ -74,7 +79,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 1017,
+    "typescript": 1051,
     "python": 114
   },
   "registryPackages": 14,

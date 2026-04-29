@@ -36,7 +36,7 @@ const START_PROMPT = [
   "Then list MCP servers and confirm both xcode-tools and axint are available.",
   "Call axint.xcode.guard with stage=context-recovery so the project writes .axint/guard/latest.* proof before any long task.",
   "Call axint.status and report the running MCP server version before editing code.",
-  "If the version is older than expected, stop and tell me to update Axint, rerun `axint xcode install --project .`, and restart the Xcode agent chat.",
+  "If the version is older than expected, stop and call `axint.upgrade` or tell me to run `axint upgrade --apply`, then reload only the Axint MCP server/tool process.",
   "Use Axint before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.",
   "Work in short checkpoints. Do not spend 20+ minutes on a task without running Axint and Xcode validation.",
   "For long build/debug work, prefer axint.run or axint.xcode.guard over raw Xcode actions so Axint proof survives context compaction.",
@@ -268,7 +268,7 @@ export async function verifyXcode(): Promise<void> {
     } else if (output.includes("axint.feature")) {
       console.log(`  ${RED}✗${RESET} MCP server is old: axint.status not found`);
       console.log(
-        `  ${DIM}  Update Axint, rerun: axint xcode install --project ., then restart the Xcode agent chat${RESET}`
+        `  ${DIM}  Run: axint upgrade --apply, then reload the Axint MCP server/tool process${RESET}`
       );
     } else {
       console.log(`  ${RED}✗${RESET} Server responded but axint.feature not found`);
@@ -283,9 +283,7 @@ export async function verifyXcode(): Promise<void> {
 }
 
 function printAgentStartPrompt(): void {
-  console.log(
-    `  ${ORANGE}◆${RESET} ${BOLD}Start a new Xcode agent chat with this${RESET}`
-  );
+  console.log(`  ${ORANGE}◆${RESET} ${BOLD}Use this in the Xcode agent chat${RESET}`);
   console.log();
   for (const line of START_PROMPT.split("\n")) {
     console.log(line.length > 0 ? `    ${DIM}${line}${RESET}` : "");

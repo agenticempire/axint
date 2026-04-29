@@ -384,6 +384,58 @@ describe("axint.feature", () => {
     );
   });
 
+  it("does not treat context-file symbols as requested output components", () => {
+    const result = generateFeature({
+      description:
+        "Create a focused composer safety strip for the existing Breakaway messenger home screen. Keep it compact, preserve the current screen, and only add the new strip.",
+      context: `
+struct BreakawayMessengerView: View {
+    var body: some View {
+        ZStack {
+            ThreadList()
+            ComposerBox()
+            ProjectLogoView()
+            BuilderAvatarView()
+            MessengerCornerPill()
+        }
+    }
+}
+
+struct ThreadList: View {}
+struct ComposerBox: View {}
+struct ProjectLogoView: View {}
+struct BuilderAvatarView: View {}
+struct MessengerCornerPill: View {}
+`,
+      surfaces: ["component"],
+      name: "ComposerSafetyStrip",
+      componentKind: "semanticPanel",
+      platform: "macOS",
+      tokenNamespace: "SwarmDesignTokens",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.join("\n")).not.toContain("AX850");
+
+    const paths = result.files.map((f) => f.path).join("\n");
+    expect(paths).toContain("Sources/Components/ComposerSafetyStrip.swift");
+    expect(paths).not.toContain("BreakawayMessengerView.swift");
+    expect(paths).not.toContain("ThreadList.swift");
+    expect(paths).not.toContain("ProjectLogoView.swift");
+    expect(paths).not.toContain("BuilderAvatarView.swift");
+    expect(paths).not.toContain("MessengerCornerPill.swift");
+
+    const component = result.files.find(
+      (f) => f.path === "Sources/Components/ComposerSafetyStrip.swift"
+    );
+    expect(component).toBeDefined();
+    expect(component!.content).toContain("struct ComposerSafetyStrip: View");
+    expect(component!.content).toContain("SwarmDesignTokens.");
+    expect(validateSwiftSource(component!.content, component!.path).diagnostics).toEqual(
+      []
+    );
+  });
+
   it("extracts named component kits instead of returning one generic scaffold", () => {
     const result = generateFeature({
       description:
@@ -496,6 +548,130 @@ describe("axint.feature", () => {
     expect(view!.content).toContain("@State private var appearanceMode");
     expect(view!.content).not.toContain("Device:");
     expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
+  });
+
+  it("keeps operating-model settings prompts out of generic feed-card output", () => {
+    const result = generateFeature({
+      description:
+        "Project operating model settings view with visibility, invite policy, public modules, invite limits, member permissions, agent permissions, privacy posture, and integration readiness controls.",
+      surfaces: ["component"],
+      name: "ProjectOperatingModelSettings",
+      componentKind: "settingsView",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    expect(result.success).toBe(true);
+    const component = result.files.find(
+      (f) => f.path === "Sources/Components/ProjectOperatingModelSettings.swift"
+    );
+    expect(component).toBeDefined();
+    expect(component!.content).toContain('Picker("Visibility"');
+    expect(component!.content).toContain('Picker("Invite policy"');
+    expect(component!.content).toContain('Stepper("Invite limit');
+    expect(component!.content).toContain('Toggle("Public modules enabled"');
+    expect(component!.content).toContain('Toggle("Agents can publish drafts"');
+    expect(component!.content).toContain('Picker("Privacy posture"');
+    expect(component!.content).not.toContain("authorName");
+    expect(component!.content).not.toContain("reactionCount");
+    expect(component!.content).not.toContain("commentCount");
+    expect(validateSwiftSource(component!.content, component!.path).diagnostics).toEqual(
+      []
+    );
+  });
+
+  it("lets trust-posture semantics outrank a generic context-panel hint", () => {
+    const result = generateFeature({
+      description:
+        "CommandTrustPosture macOS component with ProjectOperatingModel visibility, invite policy, public modules, member permissions, agent permissions, privacy posture, reduced motion, and a primary route to Project Settings.",
+      surfaces: ["component"],
+      name: "CommandTrustPosture",
+      componentKind: "contextPanel",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.join("\n")).not.toContain("AX853");
+    const component = result.files.find(
+      (f) => f.path === "Sources/Components/CommandTrustPosture.swift"
+    );
+    expect(component).toBeDefined();
+    expect(component!.content).toContain("Trust posture");
+    expect(component!.content).toContain("Text(visibility)");
+    expect(component!.content).toContain("Text(invitePolicy)");
+    expect(component!.content).toContain("publicModulesEnabled");
+    expect(component!.content).toContain("membersCanInvite");
+    expect(component!.content).toContain("agentsCanPublish");
+    expect(component!.content).toContain("Project Settings");
+    expect(component!.content).not.toContain("North Star");
+    expect(validateSwiftSource(component!.content, component!.path).diagnostics).toEqual(
+      []
+    );
+  });
+
+  it("generates purpose-aware sparse states instead of a generic context panel", () => {
+    const result = generateFeature({
+      description:
+        "Create a PurposeAwareSparseState macOS component that reuses Swarm empty-state patterns and produces purpose-aware sparse states for project command surfaces.",
+      surfaces: ["component"],
+      name: "PurposeAwareSparseState",
+      componentKind: "contextPanel",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.join("\n")).not.toContain("AX853");
+    const component = result.files.find(
+      (f) => f.path === "Sources/Components/PurposeAwareSparseState.swift"
+    );
+    expect(component).toBeDefined();
+    expect(component!.content).toContain("Purpose-aware sparse state");
+    expect(component!.content).toContain("Empty command surfaces");
+    expect(component!.content).toContain("Create command");
+    expect(component!.content).toContain("Attach context");
+    expect(component!.content).not.toContain("North Star");
+    expect(validateSwiftSource(component!.content, component!.path).diagnostics).toEqual(
+      []
+    );
+  });
+
+  it("fails closed instead of emitting semantically thin generic UI", () => {
+    const result = generateFeature({
+      description:
+        "Create an Apple signing reliability console with provisioning profile mismatch, certificate expiry, notarization backlog, privacy manifest coverage, entitlement drift, and release captain escalation.",
+      surfaces: ["component"],
+      name: "SigningReliabilityConsole",
+      componentKind: "custom",
+      platform: "macOS",
+      tokenNamespace: "SwarmTokens",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.files).toEqual([]);
+    expect(result.summary).toContain("Generation quality gate stopped output");
+    expect(result.summary).toContain("none emitted");
+    expect(result.diagnostics.join("\n")).toContain("[AX853] error");
+    expect(result.diagnostics.join("\n")).toContain("Do not emit a generic scaffold");
+  });
+
+  it("refuses existing-product repair prompts instead of replacing a working screen", () => {
+    const result = generateFeature({
+      description:
+        "Fix the existing SwiftUI home feed where the comment box is visible but cannot be tapped, focused, or typed into after the new feature landed.",
+      surfaces: ["component"],
+      name: "HomeComposerRepair",
+      componentKind: "custom",
+      platform: "iOS",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.files).toEqual([]);
+    expect(result.summary).toContain("existing-product Apple repair");
+    expect(result.summary).toContain("none emitted");
+    expect(result.diagnostics.join("\n")).toContain("[AX854] error");
+    expect(result.diagnostics.join("\n")).toContain("axint.repair");
   });
 
   it("generates a token-aware inbox view from search, filter, composer, and list cues", () => {
@@ -682,6 +858,26 @@ describe("axint.suggest", () => {
     expect(routing!.featurePrompt).toMatch(/capture|run agent|launch check|open vault/i);
     expect(routing!.featurePrompt).toMatch(/tab routing|hittable|route/i);
     expect(routing!.nextStep).toMatch(/--only-testing/);
+  });
+
+  it("returns interaction blocker repair guidance when a visible composer stops accepting input", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Existing Home feed comment composer box is visible, but after adding a feature it no longer accepts taps or typing; likely overlay or disabled state is blocking TextEditor focus.",
+      platform: "iOS",
+      limit: 4,
+    });
+
+    const blocker = suggestions.find((suggestion) =>
+      /Interaction Blockers/i.test(suggestion.name)
+    );
+
+    expect(suggestions[0].domain).toBe("repair");
+    expect(blocker).toBeDefined();
+    expect(blocker!.featurePrompt).toMatch(
+      /allowsHitTesting|disabled|zIndex|FocusState|overlay/i
+    );
+    expect(blocker!.nextStep).toContain("axint project index");
   });
 
   it("uses broader app context instead of falling back to collaboration for recipes", () => {

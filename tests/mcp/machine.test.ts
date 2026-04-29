@@ -67,6 +67,29 @@ describe("Axint project machine", () => {
     ).toContain("workflowCheckRequiresToken");
   });
 
+  it("generates Codex start packs without Xcode-only write requirements", () => {
+    const dir = tempDir();
+    const pack = buildProjectStartPack({
+      targetDir: dir,
+      projectName: "Swarm",
+      version: "9.9.9",
+      agent: "codex",
+    });
+
+    expect(pack.startPrompt).toContain("Active agent lane: Codex");
+    expect(pack.startPrompt).toContain("apply_patch, then axint.swift.validate");
+    expect(pack.startPrompt).toContain("Do not call axint.xcode.guard");
+
+    const projectJson = pack.files.find(
+      (file) => file.path === ".axint/project.json"
+    )?.content;
+    expect(projectJson).toContain('"agent": "codex"');
+    expect(projectJson).toContain("host-native patch/edit lane");
+    expect(projectJson).not.toContain(
+      "axint.xcode.write for guarded file writes when available"
+    );
+  });
+
   it("writes the project start pack conservatively", () => {
     const dir = tempDir();
     const result = writeProjectStartPack({
@@ -136,7 +159,7 @@ describe("Axint project machine", () => {
         status: "fail",
       })
     );
-    expect(report.nextSteps.join("\n")).toContain("restart the Xcode agent chat");
+    expect(report.nextSteps.join("\n")).toContain("reload or reconnect");
   });
 
   it("exposes project pack and doctor through MCP", async () => {

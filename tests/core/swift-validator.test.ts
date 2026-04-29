@@ -815,6 +815,33 @@ describe("swift validator — AX739 undeclared SwiftUI body references", () => {
     );
   });
 
+  it("ignores lowercase words that appear only inside string literals", () => {
+    const source = `
+      import SwiftUI
+
+      struct ProjectMembersView: View {
+          let role = "Admin"
+
+          var body: some View {
+              VStack {
+                  Button {
+                      let label = "\\(role) invite"
+                      print(label)
+                      print("invite")
+                  } label: {
+                      Text("Send invite")
+                  }
+                  .tag("invite")
+              }
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX739")).toHaveLength(
+      0
+    );
+  });
+
   it("accepts private helper methods declared on the view", () => {
     const source = `
       import SwiftUI

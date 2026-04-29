@@ -39,10 +39,16 @@ describe("project context index", () => {
         "struct HomeView: View {",
         '    @State private var draft = ""',
         "    var body: some View {",
-        "        TextEditor(text: $draft)",
-        "            .overlay {",
-        '                Text("Comment")',
+        "        ZStack {",
+        "            TextEditor(text: $draft)",
+        "                .overlay {",
+        '                    Text("Comment")',
+        "                        .allowsHitTesting(false)",
+        "                }",
+        "                .contentShape(Rectangle())",
+        "                .zIndex(1)",
         "            }",
+        "        }",
         "    }",
         "}",
         "",
@@ -76,10 +82,60 @@ describe("project context index", () => {
     expect(result.index.topInteractionRiskFiles.map((file) => file.path)).toContain(
       "HomeView.swift"
     );
-    expect(readFileSync(result.jsonPath, "utf-8")).toContain('"projectName": "Swarm"');
-    expect(readFileSync(result.markdownPath, "utf-8")).toContain(
-      "## Interaction Risk Files"
+    const home = result.index.files.catalog.find(
+      (file) => file.path === "HomeView.swift"
     );
+    expect(home?.hasHitTestingOverride).toBe(true);
+    expect(home?.hasContentShape).toBe(true);
+    expect(home?.hasZIndex).toBe(true);
+    expect(home?.hasLayeringStack).toBe(true);
+    expect(home?.accessibilityIdentifiers).toEqual([]);
+    expect(readFileSync(result.jsonPath, "utf-8")).toContain('"projectName": "Swarm"');
+    const markdown = readFileSync(result.markdownPath, "utf-8");
+    expect(markdown).toContain("## Interaction Risk Files");
+    expect(markdown).toContain("hit-testing");
+    expect(markdown).toContain("zIndex");
+  });
+
+  it("captures UI-test selectors and accessibility identifiers without storing source", () => {
+    const dir = tempProject();
+    writeFileSync(
+      join(dir, "ProjectRoomView.swift"),
+      [
+        "import SwiftUI",
+        "struct ProjectRoomView: View {",
+        "    var body: some View {",
+        '        Button("Manage") {}',
+        '            .accessibilityIdentifier("project-manage-button")',
+        "    }",
+        "}",
+        "",
+      ].join("\n")
+    );
+    writeFileSync(
+      join(dir, "SwarmUITests.swift"),
+      [
+        "import XCTest",
+        "final class SwarmUITests: XCTestCase {",
+        "    func testProjectManageButtonIsHittable() {",
+        "        let app = XCUIApplication()",
+        '        XCTAssertTrue(app.buttons["project-manage-button"].exists)',
+        "    }",
+        "}",
+        "",
+      ].join("\n")
+    );
+
+    const index = buildProjectContextIndex({ targetDir: dir });
+    const view = index.files.catalog.find(
+      (file) => file.path === "ProjectRoomView.swift"
+    );
+    const tests = index.files.catalog.find((file) => file.path === "SwarmUITests.swift");
+
+    expect(view?.accessibilityIdentifiers).toContain("project-manage-button");
+    expect(tests?.xctest).toBe(true);
+    expect(tests?.hasAccessibilityQueries).toBe(true);
+    expect(tests?.testCases).toContain("testProjectManageButtonIsHittable");
   });
 
   it("builds related-file hints for input interaction failures", () => {
@@ -106,8 +162,13 @@ describe("project context index", () => {
         "struct FeedScreen: View {",
         "    @State private var gate = false",
         "    var body: some View {",
-        "        HomeComposer()",
-        "            .disabled(gate)",
+        "        ZStack {",
+        "            HomeComposer()",
+        "                .disabled(gate)",
+        "            Color.clear",
+        "                .allowsHitTesting(gate)",
+        "                .zIndex(2)",
+        "        }",
         "    }",
         "}",
         "",
@@ -126,5 +187,7 @@ describe("project context index", () => {
 
     expect(hint?.relatedFiles.map((file) => file.path)).toContain("FeedScreen.swift");
     expect(hint?.summary.join("\n")).toContain("Changed files: FeedScreen.swift");
+    expect(hint?.summary.join("\n")).toContain("Interaction map:");
+    expect(hint?.summary.join("\n")).toMatch(/hit-testing override|z-index layering/);
   });
 });

@@ -9,6 +9,11 @@ import {
   type ProjectContextIndex,
   type ProjectContextHint,
 } from "../project/context-index.js";
+import {
+  analyzeAppleRepairTask,
+  formatAppleRepairRead,
+  type AppleRepairIntelligence,
+} from "../repair/intelligence.js";
 
 export type CloudCheckFormat = "markdown" | "json" | "prompt" | "feedback";
 export type CloudCheckLanguage = "swift" | "typescript" | "unknown";
@@ -103,6 +108,7 @@ export interface CloudCheckReport {
     changedFiles: string[];
     currentFile?: string;
   };
+  repairIntelligence?: AppleRepairIntelligence;
   repairPlan: Array<{
     title: string;
     detail: string;
@@ -171,6 +177,20 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
 
   const evidence = collectCloudEvidence(input);
   const projectContext = resolveCloudProjectContext({ input, fileName, surface });
+  const repairIntelligence = analyzeAppleRepairTask({
+    text: [
+      input.xcodeBuildLog,
+      input.testFailure,
+      input.runtimeFailure,
+      input.expectedBehavior,
+      input.actualBehavior,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    source: swiftCode ?? source,
+    fileName,
+    platform: input.platform,
+  });
   diagnostics = [
     ...diagnostics,
     ...inferEvidenceDiagnostics({
@@ -282,6 +302,11 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     runtimeEvidenceProvided,
     fileName,
     projectContext,
+    repairIntelligence:
+      repairIntelligence.isExistingProductRepair ||
+      diagnostics.some((d) => d.severity !== "info")
+        ? repairIntelligence
+        : undefined,
   });
 
   if (nextSteps.length === 0) {
@@ -343,6 +368,11 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
           currentFile: projectContext.currentFile?.path,
         }
       : undefined,
+    repairIntelligence:
+      repairIntelligence.isExistingProductRepair ||
+      diagnostics.some((d) => d.severity !== "info")
+        ? repairIntelligence
+        : undefined,
     repairPlan,
     nextSteps,
     repairPrompt: "",
@@ -408,6 +438,19 @@ export function renderCloudCheckReport(
                 ),
               ]
             : []),
+        ]
+      : []),
+    ...(report.repairIntelligence
+      ? [
+          "",
+          "## Senior Repair Read",
+          ...formatAppleRepairRead(report.repairIntelligence).map((item) => `- ${item}`),
+          "- Inspect:",
+          ...report.repairIntelligence.inspectionChecklist
+            .slice(0, 5)
+            .map((item) => `  - ${item}`),
+          "- Avoid:",
+          ...report.repairIntelligence.avoid.slice(0, 3).map((item) => `  - ${item}`),
         ]
       : []),
     "",
@@ -578,7 +621,7 @@ function collectCloudEvidence(input: CloudCheckInput): CloudCheckReport["evidenc
   const summary = provided.map((label) => {
     if (label === "platform") return `Platform hint: ${input.platform}`;
     const value = String((input as Record<string, unknown>)[label] ?? "");
-    return `${label}: ${normalizeDiagnosticText(value)}`;
+    return `${label}: ${summarizeEvidenceValue(label, value)}`;
   });
 
   return { provided, summary };
@@ -620,6 +663,13 @@ function inferEvidenceDiagnostics(input: {
   const sourceText = normalizeTextForEvidence(source);
   const file = input.fileName;
   const passingXcodeProof = hasPassingXcodeProof(input.input);
+  const intentionalAbsenceProof =
+    passingXcodeProof &&
+    hasIntentionalAbsenceProof(
+      input.input.expectedBehavior,
+      input.input.actualBehavior,
+      input.input.xcodeBuildLog
+    );
 
   if (input.input.platform === "macOS") {
     const iosOnly = findIosOnlySwiftUIUsage(source);
@@ -669,7 +719,11 @@ function inferEvidenceDiagnostics(input: {
       input.input.expectedBehavior,
       input.input.actualBehavior
     ) &&
-    !(passingXcodeProof && !hasNegativeBehaviorEvidence(input.input.actualBehavior))
+    !(
+      passingXcodeProof &&
+      (!hasNegativeBehaviorEvidence(input.input.actualBehavior) ||
+        intentionalAbsenceProof)
+    )
   ) {
     diagnostics.push({
       code: "AXCLOUD-BEHAVIOR-MISMATCH",
@@ -705,6 +759,7 @@ function inferEvidenceDiagnostics(input: {
     input.surface === "view" &&
     evidenceText.includes("accessibility") &&
     sourceText.includes("accessibilityidentifier") &&
+    hasNegativeAccessibilityEvidence(evidenceText) &&
     diagnostics.every((d) => d.code !== "AXCLOUD-UI-ACCESSIBILITY-ID")
   ) {
     diagnostics.push({
@@ -756,11 +811,29 @@ function buildCloudRepairPlan(input: {
   runtimeEvidenceProvided: boolean;
   fileName: string;
   projectContext?: ProjectContextHint;
+  repairIntelligence?: AppleRepairIntelligence;
 }): CloudCheckReport["repairPlan"] {
   const actionable = input.diagnostics.filter((d) => d.severity !== "info");
+  const intelligenceSteps: CloudCheckReport["repairPlan"] = input.repairIntelligence
+    ? [
+        {
+          title: "Senior Apple repair read",
+          detail: input.repairIntelligence.summary,
+        },
+        ...(input.repairIntelligence.rootCauses[0]
+          ? [
+              {
+                title: input.repairIntelligence.rootCauses[0].title,
+                detail: input.repairIntelligence.rootCauses[0].suggestedPatch,
+              },
+            ]
+          : []),
+      ]
+    : [];
 
   if (actionable.length === 0) {
     return [
+      ...intelligenceSteps,
       {
         title: "Keep source behavior stable",
         detail:
@@ -785,6 +858,7 @@ function buildCloudRepairPlan(input: {
       title: `${diagnostic.code} (${diagnostic.severity})`,
       detail: diagnostic.suggestion || diagnostic.message,
     }));
+  steps.unshift(...intelligenceSteps);
 
   if (input.diagnostics.some((d) => d.code === "AXCLOUD-RUNTIME-FREEZE")) {
     steps.unshift(
@@ -954,6 +1028,22 @@ function diagnosticsFromTestFailure(
         "UI-test evidence points to an accessibility identifier issue, often caused by putting one identifier on a broad SwiftUI container.",
       suggestion:
         "Remove container-level identifiers that mask children, attach identifiers to the exact queried controls, and rerun the UI smoke test.",
+    });
+  }
+
+  if (
+    /\b(should be hittable after scrolling|not hittable|not tappable|not foreground|does not allow background interaction|background interaction|failed to synthesize event|hit point|scroll.*hittable)\b/.test(
+      text
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-UI-HIT-TEST-BLOCKER",
+      severity: "error",
+      file,
+      message:
+        "UI-test evidence says a visible control is not actually hittable or in the foreground after scrolling.",
+      suggestion:
+        "Treat this as a SwiftUI hit-testing and focus-order bug. Check overlays, sheets, popovers, disabled ancestors, container identifiers, scroll anchors, zIndex, and app activation before claiming the UI is fixed.",
     });
   }
 
@@ -1419,9 +1509,16 @@ function hasPassingXcodeProof(input: CloudCheckInput): boolean {
   if (!input.xcodeBuildLog) return false;
   const text = normalizeTextForEvidence(input.xcodeBuildLog);
   if (!text) return false;
-  if (hasConcreteXcodeFailure(text)) return false;
+  const focusedProofPass =
+    /\bfocused xcode test proof passed\b/.test(text) &&
+    /\*\*\s*test\s+succeeded\s*\*\*/.test(text);
+  if (/\*\*\s*build\s+failed\s*\*\*|\bfatal error\b|\berror:/.test(text)) {
+    return false;
+  }
+  if (hasConcreteXcodeFailure(text) && !focusedProofPass) return false;
 
   return (
+    focusedProofPass ||
     /\*\*\s*(?:test|build)\s+succeeded\s*\*\*/.test(text) ||
     /\b(?:test|tests|test suite|test case|build)\s+(?:passed|succeeded)\b/.test(text) ||
     /\b\d+\s+tests?\s+passed\b/.test(text) ||
@@ -1450,6 +1547,50 @@ function hasNegativeBehaviorEvidence(actualBehavior: string): boolean {
     /\b(?:not|doesn't|does not|can't|cannot)\s+(?:work|working|implemented|show|render|match|pass|compile|build|load|open|respond|appear|exist|route|preserve)\b/.test(
       actual
     )
+  );
+}
+
+function hasIntentionalAbsenceProof(
+  expectedBehavior: string | undefined,
+  actualBehavior: string | undefined,
+  xcodeBuildLog: string | undefined
+): boolean {
+  const expected = normalizeTextForEvidence(expectedBehavior ?? "");
+  const actual = normalizeTextForEvidence(actualBehavior ?? "");
+  const xcode = normalizeTextForEvidence(xcodeBuildLog ?? "");
+  if (!expected || !actual) return false;
+
+  const expectedAbsence =
+    /\b(do not|does not|should not|must not|hide|hides|hidden|absent|absence|not show|not display|not render|not present|does not exist)\b/.test(
+      expected
+    );
+  const actualVerifiedAbsence =
+    /\b(asserted|assert|verified|confirmed|passed|proves|proof|expected)\b/.test(
+      actual
+    ) &&
+    /\b(did not exist|does not exist|not exist|not present|not visible|not shown|not rendered|absent|absence|hidden|do not show|not show|not display)\b/.test(
+      actual
+    );
+  const passingProof =
+    /\*\*\s*test\s+succeeded\s*\*\*/.test(xcode) ||
+    /\btest case\b.*\bpassed\b/.test(xcode) ||
+    /\b0\s+failures\b/.test(xcode);
+
+  return expectedAbsence && actualVerifiedAbsence && passingProof;
+}
+
+function hasNegativeAccessibilityEvidence(evidence: string): boolean {
+  const text = normalizeTextForEvidence(evidence);
+  if (!text) return false;
+
+  const mentionsAccessibility =
+    /\b(accessibility|accessibilityidentifier|accessibility identifier|identifier|hittable|tap target|button|textfield|text field|element)\b/.test(
+      text
+    );
+  if (!mentionsAccessibility) return false;
+
+  return /\b(fail|fails|failed|failing|failure|not found|no match|no matching|not hittable|does not exist|not exist|never appears|timed out|timeout|masked|masking|overwrote|blocked|can't tap|cannot tap|not tappable)\b/.test(
+    text
   );
 }
 
@@ -1724,6 +1865,9 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
               ...report.projectContext.summary.map((item) => `- ${item}`),
             ]
           : []),
+        ...(report.repairIntelligence
+          ? ["", ...formatAppleRepairRead(report.repairIntelligence)]
+          : []),
         "This is not a runtime pass. Run the Xcode build plus the relevant unit/UI tests before claiming there is no bug.",
         "",
         "Repair plan:",
@@ -1745,6 +1889,9 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
             "Project context:",
             ...report.projectContext.summary.map((item) => `- ${item}`),
           ]
+        : []),
+      ...(report.repairIntelligence
+        ? ["", ...formatAppleRepairRead(report.repairIntelligence)]
         : []),
       `Repair plan: ${report.repairPlan.map((step) => step.title).join(" -> ")}.`,
       "Preserve the feature behavior and rerun Cloud Check after the next agent edit.",
@@ -1774,6 +1921,9 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
               ]
             : []),
         ]
+      : []),
+    ...(report.repairIntelligence
+      ? ["", ...formatAppleRepairRead(report.repairIntelligence)]
       : []),
     "",
     "Address these findings:",
@@ -2054,6 +2204,28 @@ function hasRuntimeCoverageWarning(report: CloudCheckReport): boolean {
 
 function normalizeDiagnosticText(value: string): string {
   return value.replace(/\s+/g, " ").trim().slice(0, 180);
+}
+
+function summarizeEvidenceValue(label: string, value: string): string {
+  if (label !== "xcodeBuildLog") return normalizeDiagnosticText(value);
+
+  const lines = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const highSignal = unique([
+    ...lines.filter((line) => /\bfocused xcode test proof\b/i.test(line)),
+    ...lines.filter((line) => /\bselectors?:\b/i.test(line)),
+    ...lines.filter((line) => /\*\*\s*test\s+(?:succeeded|failed)\s*\*\*/i.test(line)),
+    ...lines.filter((line) => /\bexecuted\s+\d+\s+tests?\b/i.test(line)),
+    ...lines.filter((line) => /\btest case\b/i.test(line)),
+  ]);
+  return (highSignal.length > 0 ? highSignal : lines)
+    .slice(0, 12)
+    .join(" | ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1500);
 }
 
 function unique<T>(values: T[]): T[] {

@@ -144,7 +144,7 @@ function versionCheck(
     detail: `running ${runningVersion}, expected ${expectedVersion}`,
     fix: matches
       ? undefined
-      : "Install the expected Axint version, rerun axint xcode install --project ., then restart the Xcode agent chat.",
+      : "Run axint upgrade --apply, then reload or reconnect the Axint MCP server/tool process.",
   };
 }
 
@@ -260,7 +260,7 @@ function nextStepsFor(checks: MachineDoctorCheck[]): string[] {
   const fixes = checks.filter((check) => check.fix).map((check) => check.fix!);
   if (fixes.length > 0) return [...new Set(fixes)].slice(0, 5);
   return [
-    "Start the Xcode agent chat and ask it to call axint.status.",
+    "Start the agent session and ask it to call axint.status.",
     "Run axint.workflow.check before planning, before writing, before building, and before committing.",
   ];
 }

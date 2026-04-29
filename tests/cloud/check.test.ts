@@ -292,6 +292,111 @@ struct DiscoverTabView: View {
     expect(report.repairPrompt).not.toContain("This is not a runtime pass");
   });
 
+  it("does not keep stale accessibility warnings after focused UI proof passes", () => {
+    const report = runCloudCheck({
+      fileName: "BreakawayComposerView.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct BreakawayComposerView: View {
+    @State private var draft = ""
+
+    var body: some View {
+        VStack {
+            TextField("Message", text: $draft)
+                .accessibilityIdentifier("breakaway-composer-field")
+            Button("Send") {}
+                .accessibilityIdentifier("breakaway-send")
+        }
+    }
+}
+`,
+      expectedBehavior:
+        "The breakaway corner entry opens the messenger window and keeps the composer text field hittable.",
+      actualBehavior:
+        "Focused UI proof passed with the accessibility identifiers attached to the queried text field and send button.",
+      xcodeBuildLog: [
+        "Test Suite 'SwarmUITests' started.",
+        "Test Case '-[SwarmUITests testBreakawayCornerEntryOpensMessengerWindow]' passed (1.42 seconds).",
+        "only-testing:SwarmUITests/SwarmUITests/testBreakawayCornerEntryOpensMessengerWindow",
+        "** TEST SUCCEEDED **",
+        "Executed 1 test, with 0 failures",
+      ].join("\n"),
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).not.toContain(
+      "AXCLOUD-UI-ACCESSIBILITY-ID"
+    );
+    expect(report.status).toBe("pass");
+    expect(report.gate.decision).toBe("ready_to_ship");
+  });
+
+  it("classifies macOS UI proof where a scrolled control is visible but not hittable", () => {
+    const report = runCloudCheck({
+      fileName: "ProjectCommandCenter.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct ProjectCommandCenter: View {
+    var body: some View {
+        ScrollView {
+            Button("Manage Axint Core") {}
+                .accessibilityIdentifier("discover-project-manage-axint-core")
+        }
+    }
+}
+`,
+      testFailure:
+        "XCTAssertTrue failed: discover-project-manage-axint-core should be hittable after scrolling. Element is not foreground and does not allow background interaction.",
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-UI-HIT-TEST-BLOCKER"
+    );
+    expect(report.diagnostics.map((d) => d.code)).not.toContain(
+      "AXCLOUD-EVIDENCE-UNCLASSIFIED"
+    );
+    expect(report.repairPrompt).toContain("hit-testing");
+  });
+
+  it("treats intentional absence assertions as passing behavior proof", () => {
+    const report = runCloudCheck({
+      fileName: "ProjectCommandCenter.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct ProjectCommandCenter: View {
+    var body: some View {
+        VStack {
+            Button("Manage") {}
+            Button("Open") {}
+        }
+    }
+}
+`,
+      expectedBehavior:
+        "Owned projects should show Manage and Open actions and should not show Join or Follow.",
+      actualBehavior:
+        "Focused UI proof passed and asserted Join and Follow did not exist for owned projects while Manage and Open were hittable.",
+      xcodeBuildLog: [
+        "Test Suite 'SwarmUITests' started.",
+        "Test Case '-[SwarmUITests testOwnedProjectActionsHideJoinAndFollow]' passed (1.04 seconds).",
+        "** TEST SUCCEEDED **",
+        "Executed 1 test, with 0 failures",
+      ].join("\n"),
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).not.toContain(
+      "AXCLOUD-BEHAVIOR-MISMATCH"
+    );
+    expect(report.status).toBe("pass");
+    expect(report.gate.decision).toBe("ready_to_ship");
+  });
+
   it("flags behavior evidence only when the actual text describes a failure", () => {
     const report = runCloudCheck({
       fileName: "HomeCommandLayer.swift",
@@ -470,7 +575,13 @@ struct HomeComposer: View {
     expect(report.diagnostics.map((d) => d.code)).toContain(
       "AXCLOUD-UI-HIT-TEST-BLOCKER"
     );
+    expect(report.repairIntelligence?.issueClass).toBe("swiftui-input-interaction");
+    expect(report.repairIntelligence?.summary).toContain("existing iOS Apple repair");
+    expect(report.repairPlan.map((step) => step.title).join("\n")).toContain(
+      "Senior Apple repair read"
+    );
     expect(report.repairPrompt).toContain("allowsHitTesting(false)");
+    expect(report.repairPrompt).toContain("Senior Apple repair read");
     expect(report.learningSignal?.signals).toContain("ui-interaction-evidence");
   });
 
