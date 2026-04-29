@@ -20,6 +20,9 @@
  *   - axint.fix-packet: Read the latest emitted Fix Packet / AI repair prompt
  *   - axint.cloud.check:     Run an agent-callable Cloud Check report
  *   - axint.repair:          Plan a project-aware Apple repair loop
+ *   - axint.agent.install:   Install the local multi-agent project brain
+ *   - axint.agent.advice:    Return host-specific next moves from local proof
+ *   - axint.agent.claim:     Claim files before multi-agent edits
  *   - axint.feedback.create: Create source-free learning packets for repair gaps
  *   - axint.run:             Run enforced build/test/runtime loop outside Xcode UI
  *   - axint.tokens.ingest:    Convert design tokens into SwiftUI token enums
@@ -129,6 +132,19 @@ import {
   runAxintRepair,
   type AxintRepairFormat,
 } from "../repair/project-repair.js";
+import {
+  buildAxintAgentAdvice,
+  claimAxintAgentFiles,
+  installAxintLocalAgent,
+  releaseAxintAgentClaims,
+  renderAxintAgentAdviceReport,
+  renderAxintAgentClaimReport,
+  renderAxintAgentInstallReport,
+  renderAxintAgentReleaseReport,
+  type AxintLocalAgentFormat,
+  type AxintLocalAgentPrivacyMode,
+  type AxintLocalAgentProviderMode,
+} from "../project/local-agent.js";
 import {
   cancelRunJob,
   getRunJobStatus,
@@ -282,11 +298,43 @@ type FeedbackArgs = Omit<RepairArgs, "format"> & {
   format?: "json" | "markdown";
   latest?: boolean;
 };
+type AgentInstallArgs = {
+  cwd?: string;
+  projectName?: string;
+  agent?: AxintSessionAgent;
+  privacyMode?: AxintLocalAgentPrivacyMode;
+  providerMode?: AxintLocalAgentProviderMode;
+  force?: boolean;
+  format?: AxintLocalAgentFormat;
+};
+type AgentAdviceArgs = {
+  cwd?: string;
+  issue?: string;
+  agent?: AxintSessionAgent;
+  changedFiles?: string[];
+  format?: AxintLocalAgentFormat;
+};
+type AgentClaimArgs = {
+  cwd?: string;
+  agent?: AxintSessionAgent;
+  task?: string;
+  files?: string[];
+  ttlMinutes?: number;
+  format?: AxintLocalAgentFormat;
+};
+type AgentReleaseArgs = {
+  cwd?: string;
+  agent?: AxintSessionAgent;
+  files?: string[];
+  all?: boolean;
+  format?: AxintLocalAgentFormat;
+};
 type AxintRunArgs = {
   cwd?: string;
   projectName?: string;
   expectedVersion?: string;
   platform?: AxintRunPlatform;
+  agent?: AxintSessionAgent;
   scheme?: string;
   workspace?: string;
   project?: string;
@@ -883,6 +931,76 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
     };
   }
 
+  if (name === "axint.agent.install") {
+    const a = args as AgentInstallArgs | undefined;
+    const report = installAxintLocalAgent({
+      cwd: a?.cwd,
+      projectName: a?.projectName,
+      agent: a?.agent,
+      privacyMode: a?.privacyMode,
+      providerMode: a?.providerMode,
+      force: a?.force,
+    });
+    return diagnosticsText(
+      renderAxintAgentInstallReport(report, a?.format ?? "markdown")
+    );
+  }
+
+  if (name === "axint.agent.advice") {
+    const a = args as AgentAdviceArgs | undefined;
+    const report = buildAxintAgentAdvice({
+      cwd: a?.cwd,
+      issue: a?.issue,
+      agent: a?.agent,
+      changedFiles: a?.changedFiles,
+    });
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderAxintAgentAdviceReport(report, a?.format ?? "markdown"),
+        },
+      ],
+      isError: report.status === "blocked",
+    };
+  }
+
+  if (name === "axint.agent.claim") {
+    const a = args as AgentClaimArgs;
+    if (!a.files?.length) {
+      return errorText("Error: 'files' is required for axint.agent.claim");
+    }
+    const report = claimAxintAgentFiles({
+      cwd: a.cwd,
+      agent: a.agent,
+      task: a.task,
+      files: a.files,
+      ttlMinutes: a.ttlMinutes,
+    });
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderAxintAgentClaimReport(report, a.format ?? "markdown"),
+        },
+      ],
+      isError: report.status === "blocked",
+    };
+  }
+
+  if (name === "axint.agent.release") {
+    const a = args as AgentReleaseArgs | undefined;
+    const report = releaseAxintAgentClaims({
+      cwd: a?.cwd,
+      agent: a?.agent,
+      files: a?.files,
+      all: a?.all,
+    });
+    return diagnosticsText(
+      renderAxintAgentReleaseReport(report, a?.format ?? "markdown")
+    );
+  }
+
   if (name === "axint.feedback.create") {
     const a = args as FeedbackArgs;
     if (a.latest) {
@@ -928,6 +1046,7 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       projectName: a.projectName,
       expectedVersion: a.expectedVersion ?? pkg.version,
       platform: a.platform,
+      agent: a.agent,
       scheme: a.scheme,
       workspace: a.workspace,
       project: a.project,

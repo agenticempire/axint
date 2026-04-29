@@ -90,6 +90,7 @@ Use Axint for:
 - Design-token ingestion for generated SwiftUI.
 - Swift validation, Cloud Check, fix packets, and repair prompts.
 - Project startup, context recovery, and workflow gates.
+- Local multi-agent memory, file claims, latest proof, latest repair, and privacy-safe learning packets.
 
 ## The Axint Authoring Loop
 
@@ -113,7 +114,8 @@ Use this loop before ordinary hand-written Swift:
 16. \`axint.swift.fix\` applies mechanical Swift repairs when safe.
 17. \`axint.cloud.check\` runs coverage-aware Cloud Check with source plus build/test/runtime evidence.
 18. \`axint.fix-packet\` reads the latest AI-ready repair packet.
-19. Xcode build and tests provide runtime proof.
+19. \`axint.agent.advice\` and \`axint memory index\` reload the project-local brain after compaction or multi-agent handoff.
+20. Xcode build and tests provide runtime proof.
 
 ## Axint Language And Input Surfaces
 

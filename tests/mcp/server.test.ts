@@ -84,6 +84,7 @@ describe("axint.run tool", () => {
 
     const result = await handleToolCall("axint.run", {
       cwd: dir,
+      agent: "codex",
       dryRun: true,
       format: "json",
     });
@@ -93,10 +94,17 @@ describe("axint.run tool", () => {
       id: string;
       status: string;
       session: { token: string };
+      agent: { agent: string; label: string };
+      agentAdvice: { status: string; moves: Array<{ title: string }> };
       commands: { build: { dryRun: boolean } };
       cloudChecks: unknown[];
     };
     expect(payload.session.token).toMatch(/^axsess_/);
+    expect(payload.agent.agent).toBe("codex");
+    expect(payload.agent.label).toBe("Codex");
+    expect(payload.agentAdvice.moves.map((move) => move.title).join("\n")).toContain(
+      "Install the shared Axint project brain"
+    );
     expect(payload.commands.build.dryRun).toBe(true);
     expect(payload.cloudChecks.length).toBe(1);
 
@@ -264,6 +272,77 @@ describe("axint.repair tool", () => {
     });
     expect(latest.isError).not.toBe(true);
     expect(latest.content[0].text).toContain("swiftui-input-interaction");
+  });
+});
+
+describe("axint.agent tools", () => {
+  it("installs the local brain, returns advice, and blocks conflicting claims", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-agent-"));
+    writeFileSync(
+      join(dir, "HomeFeedView.swift"),
+      [
+        "import SwiftUI",
+        "",
+        "struct HomeFeedView: View {",
+        '    @State private var draft = ""',
+        "    var body: some View {",
+        "        TextEditor(text: $draft)",
+        '            .overlay { Text("Write a comment") }',
+        "    }",
+        "}",
+        "",
+      ].join("\n")
+    );
+
+    const install = await handleToolCall("axint.agent.install", {
+      cwd: dir,
+      projectName: "Demo",
+      agent: "codex",
+      format: "json",
+    });
+    expect(install.isError).not.toBe(true);
+    const installPayload = JSON.parse(install.content[0].text) as {
+      status: string;
+      config: { privacy: { sourceSharing: string } };
+    };
+    expect(installPayload.status).toBe("installed");
+    expect(installPayload.config.privacy.sourceSharing).toBe("never_by_default");
+
+    const claim = await handleToolCall("axint.agent.claim", {
+      cwd: dir,
+      agent: "claude",
+      task: "Repair composer focus",
+      files: ["HomeFeedView.swift"],
+      format: "json",
+    });
+    expect(claim.isError).not.toBe(true);
+
+    const advice = await handleToolCall("axint.agent.advice", {
+      cwd: dir,
+      agent: "codex",
+      changedFiles: ["HomeFeedView.swift"],
+      issue: "The composer is visible but cannot be typed into.",
+      format: "json",
+    });
+    expect(advice.isError).toBe(true);
+    const advicePayload = JSON.parse(advice.content[0].text) as {
+      status: string;
+      conflictingClaims: Array<{ agent: string }>;
+      moves: Array<{ title: string }>;
+    };
+    expect(advicePayload.status).toBe("blocked");
+    expect(advicePayload.conflictingClaims[0]?.agent).toBe("claude");
+    expect(advicePayload.moves[0]?.title).toBe(
+      "Resolve active file claim before editing"
+    );
+
+    const release = await handleToolCall("axint.agent.release", {
+      cwd: dir,
+      agent: "claude",
+      files: ["HomeFeedView.swift"],
+      format: "json",
+    });
+    expect(release.isError).not.toBe(true);
   });
 });
 

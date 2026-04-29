@@ -113,6 +113,9 @@ the same facts.
 ```bash
 npm install -g @axint/compiler
 
+# initialize Axint inside an existing Apple/Xcode project
+axint init --apple-project /path/to/MyApp --agent codex
+
 # compile a single file
 axint compile my-intent.ts --out ios/Intents/
 
@@ -247,7 +250,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.13 · 29 MCP tools + 5 prompts · 184 diagnostic codes · 1172 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.14 · 33 MCP tools + 5 prompts · 188 diagnostic codes · 1194 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -276,14 +279,17 @@ axint workflow check --dir /path/to/MyApp --agent codex --stage context-recovery
 axint xcode setup --agent claude --guarded --project /path/to/MyApp --name MyApp
 axint xcode setup --agent claude --guarded --local-build --project /path/to/MyApp --name MyApp
 axint xcode guard --dir /path/to/MyApp --stage context-recovery
-axint run --dir /path/to/MyApp --scheme MyApp --destination "platform=macOS"
-axint run --dir /path/to/MyApp --scheme MyApp --only-testing MyAppUITests/MyAppUITests/testComposerStillAcceptsInput
-axint run --dir /path/to/MyApp --scheme MyApp --runtime
+axint agent install --dir /path/to/MyApp --agent codex
+axint agent advice --dir /path/to/MyApp --agent codex --changed Sources/HomeComposer.swift Tests/HomeComposerUITests.swift
+axint memory index --dir /path/to/MyApp --changed Sources/HomeComposer.swift Tests/HomeComposerUITests.swift
+axint run --dir /path/to/MyApp --agent codex --scheme MyApp --destination "platform=macOS"
+axint run --dir /path/to/MyApp --agent codex --scheme MyApp --changed Sources/HomeComposer.swift --only-testing MyAppUITests/MyAppUITests/testComposerStillAcceptsInput
+axint run --dir /path/to/MyApp --agent codex --scheme MyApp --runtime
 axint run status --dir /path/to/MyApp
 axint run cancel --dir /path/to/MyApp --id axrun_...
-axint run --dir /path/to/MyApp --scheme MyApp --format json
-axint run --dir /path/to/MyApp --scheme MyApp --format json --include-source
-axint runner once --dir /path/to/MyApp --scheme MyApp
+axint run --dir /path/to/MyApp --agent codex --scheme MyApp --format json
+axint run --dir /path/to/MyApp --agent codex --scheme MyApp --format json --include-source
+axint runner once --dir /path/to/MyApp --agent codex --scheme MyApp
 ```
 
 `axint xcode setup --guarded` configures the Xcode Claude Agent with durable MCP paths, writes the project memory pack, starts a session, and creates `.axint/guard/latest.json` plus `.axint/guard/latest.md`. That guard report is the audit trail for the problem where an Xcode agent works for a long block, compacts context, and silently stops using Axint.
@@ -294,11 +300,15 @@ Agent lanes are explicit now. Codex, Claude Code, Cursor, and Cowork should use 
 
 When an Xcode MCP agent is creating a new Swift file, use `axint.xcode.write` instead of a raw file write. The tool writes inside the project root, validates Swift, runs Cloud Check, and updates the guard proof in one call. Outside Xcode, do not route routine edits through `axint.xcode.write`; patch surgically in the active client and let Axint validate the result.
 
-The run starts an Axint session, refreshes the project recovery context, validates changed Swift, runs Cloud Check, executes `xcodebuild build` and `xcodebuild test`, optionally launches a macOS app for runtime proof, and writes `.axint/run/latest.json` plus `.axint/run/latest.md`. Passing focused `--only-testing` selectors are also fed back into Cloud Check so stale UI/accessibility warnings do not override real focused test proof.
+The run starts an agent-specific Axint session, refreshes the project recovery context, validates changed Swift, runs Cloud Check, executes `xcodebuild build` and `xcodebuild test`, optionally launches a macOS app for runtime proof, writes `.axint/run/latest.json` plus `.axint/run/latest.md`, and stores source-free Cloud learning packets under `.axint/feedback` when repeated failure shapes appear. Passing focused `--only-testing` selectors are fed back into Cloud Check so stale UI/accessibility warnings do not override real focused test proof. Failing Xcode tests are extracted from command output and `.xcresult` when available, then printed under `## Xcode Test Failures` with test name, file/line, assertion, likely source area, and identifier so the next repair starts from the real failure.
+
+`axint memory index` turns the local proof trail into `.axint/memory/latest.json` and `.axint/memory/latest.md`. It summarizes risky SwiftUI files, changed files, latest run status, failing tests, latest repair packet, and privacy-safe learning packets so Codex, Claude, Cursor, Xcode, and humans can rehydrate the same project state.
+
+For a repeatable first-use demo, inspect `examples/wow/composer-blocker`. It models a real SwiftUI bug where an invisible overlay blocks a composer text field and includes a focused UI-test failure for Axint to diagnose.
 
 Long runs also write `.axint/run/jobs/<id>.json` and `.axint/run/latest-active.json`. If a client disconnects, an MCP transport times out, or an agent needs to rejoin a build in the same thread, use `axint run status` to see active process IDs and `axint run cancel` to stop the child process group without restarting the whole chat.
 
-Rendered `axint run --format json` is compact by default: it keeps verdict, evidence, diagnostics, artifact paths, and next actions visible while omitting full Swift source and trimming long command output. Use `--include-source` only when the active agent explicitly needs inline Swift/code output in the response.
+Rendered `axint run --format json` is compact by default: it keeps verdict, evidence, diagnostics, artifact paths, feedback packet paths, and next actions visible while omitting full Swift source and trimming long command output. Use `--include-source` only when the active agent explicitly needs inline Swift/code output in the response.
 
 Use `--dry-run` to prove the harness and planned `xcodebuild` commands before letting a local or BYO Mac runner execute the job.
 
@@ -376,6 +386,10 @@ MCP tools and built-in prompts:
 | `axint.cloud.check` | Run an agent-callable Cloud Check report against Swift or TypeScript source |
 | `axint.repair` | Plan a project-aware Apple repair loop for existing app bugs, with likely files, root causes, host-aware patch guidance, proof commands, and feedback packet |
 | `axint.feedback.create` | Create or read a privacy-safe, source-free feedback packet users can inspect before sending to Axint Cloud |
+| `axint.agent.install` | Install the local multi-agent project brain so Codex, Claude, Cursor, Xcode, and humans share one `.axint` truth layer |
+| `axint.agent.advice` | Return host-specific next moves from project context, active claims, latest proof, and latest repair artifacts |
+| `axint.agent.claim` | Claim files before an agent edits them so other agents avoid conflicting patches |
+| `axint.agent.release` | Release local file claims after an agent finishes or abandons a task |
 | `axint.run` | Run the enforced Apple build loop: session, workflow gate, Swift validation, Cloud Check, xcodebuild build/test, optional runtime launch, and `.axint/run` artifacts |
 | `axint.run.status` | Read the latest or selected Axint run job, including active child process IDs, after client disconnects or long-running builds |
 | `axint.run.cancel` | Cancel the latest or selected active Axint run by stopping child process groups |

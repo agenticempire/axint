@@ -687,6 +687,117 @@ Task { @MainActor in
 }
 ```
 
+### AX764 — SwiftUI input overlay may block hit testing
+
+**Trigger**
+
+```swift
+TextEditor(text: $draft)
+    .overlay {
+        Text("Write a comment")
+    }
+```
+
+**Fix**
+
+```swift
+TextEditor(text: $draft)
+    .overlay {
+        Text("Write a comment")
+            .allowsHitTesting(false)
+    }
+```
+
+### AX765 — Invalid SwiftUI `frame(maxWidth:height:)` overload
+
+**Trigger**
+
+```swift
+Text("Card")
+    .frame(maxWidth: .infinity, height: 320, alignment: .topLeading)
+```
+
+**Fix**
+
+```swift
+Text("Card")
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .frame(height: 320, alignment: .topLeading)
+```
+
+### AX766 — Project modifier after SwiftUI type erasure
+
+**Trigger**
+
+```swift
+Label("New Chat", systemImage: "plus")
+    .labelStyle(.iconOnly)
+    .swarmIcon(size: 18)
+```
+
+**Fix**
+
+```swift
+Label("New Chat", systemImage: "plus")
+    .swarmIcon(size: 18)
+    .labelStyle(.iconOnly)
+```
+
+If the custom modifier should work after `.labelStyle`, `.buttonStyle`,
+`.background`, or `.overlay`, rewrite it as a generic `View` modifier.
+
+### AX767 — `some View` helper needs explicit `return`
+
+**Trigger**
+
+```swift
+private func projectLoadMoreFooter() -> some View {
+    let label = "Load more"
+    Button(label) { }
+}
+```
+
+**Fix**
+
+```swift
+private func projectLoadMoreFooter() -> some View {
+    let label = "Load more"
+    return Button(label) { }
+}
+```
+
+Alternatively, add `@ViewBuilder` when the helper intentionally uses
+result-builder statements.
+
+### AX854 — Existing-product repair should not use `axint.feature`
+
+**Trigger**
+
+Asking `axint.feature` to rewrite or replace a mature SwiftUI screen, store, or
+app surface when the prompt describes a bug, an existing screen, or a repair.
+
+**Fix**
+
+Use `axint repair`, `axint suggest`, `axint project index`, and `axint run` so
+the agent patches the smallest existing surface and proves it with Xcode.
+
+### AX855 — Generated UI references missing project tokens
+
+**Trigger**
+
+```text
+Generate a SwiftUI surface using the real Swarm design system.
+```
+
+The request supplies a token namespace such as `Swarm`, but the project context
+does not contain the matching `enum`, `struct`, `class`, or `actor`.
+
+**Fix**
+
+Pass the real token/component source as context, use the correct token
+namespace, or switch to `axint repair` / `axint project index` for a patch-first
+plan.
+
 ## When To File A Bug
 
 Please open an issue if:

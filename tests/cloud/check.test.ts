@@ -272,6 +272,40 @@ struct HomeCommandLayer: View {
     expect(report.gate.decision).toBe("ready_to_ship");
   });
 
+  it("does not mark SwiftUI view changes ready to ship from prose-only behavior evidence", () => {
+    const report = runCloudCheck({
+      fileName: "ProjectRoomContentView.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct ProjectRoomContentView: View {
+    var body: some View {
+        VStack {
+            Text("Project room")
+            Button("Launch") { }
+        }
+    }
+}
+`,
+      expectedBehavior:
+        "Project room uses black and cream brand colors, no orange button fills, and uniform command-center card heights.",
+      actualBehavior:
+        "Source patch adds black/cream palette constants and updates the button styles. Focused UI proof will run next.",
+    });
+
+    expect(report.status).toBe("needs_review");
+    expect(report.gate.decision).toBe("evidence_required");
+    expect(report.gate.canClaimFixed).toBe(false);
+    expect(report.confidence.missingEvidence).toContain("Xcode build");
+    expect(report.coverage).toContainEqual(
+      expect.objectContaining({
+        label: "Xcode build, UI tests, and runtime behavior",
+        state: "needs_runtime",
+      })
+    );
+  });
+
   it("trusts passing focused Xcode proof when behavior prose uses different wording", () => {
     const report = runCloudCheck({
       fileName: "DiscoverTabView.swift",
@@ -500,6 +534,84 @@ struct ProjectImportProgressView: View {
     expect(report.learningSignal?.signals).toContain("runtime-evidence-supplied");
   });
 
+  it("classifies SwiftUI type-erased modifier build logs as blocking evidence", () => {
+    const report = runCloudCheck({
+      fileName: "NewChatButton.swift",
+      source: `
+import SwiftUI
+
+struct NewChatButton: View {
+    var body: some View {
+        Label("New Chat", systemImage: "plus")
+            .labelStyle(.iconOnly)
+            .swarmIcon(size: 18)
+    }
+}
+`,
+      xcodeBuildLog: "error: value of type 'some View' has no member 'swarmIcon'",
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AX766");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-BUILD-MISSING-MEMBER"
+    );
+    expect(report.nextSteps.join("\n")).toContain("type-erasing SwiftUI modifier");
+  });
+
+  it("treats explicit XCTest assertion failures as blocking evidence", () => {
+    const report = runCloudCheck({
+      fileName: "SprintP0TrustFixTests.swift",
+      source: `
+import SwiftUI
+
+struct InviteModel {
+    let visitorActionLabel = "Publish join call"
+}
+`,
+      testFailure:
+        'XCTAssertEqual failed: ("Publish join call") is not equal to ("Join the Swarm") - visitorActionLabel should be owner-aware.',
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.gate.decision).toBe("fix_required");
+    expect(report.gate.canClaimFixed).toBe(false);
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-XCTEST-FAILURE");
+    expect(report.repairPrompt).toContain("failing assertion");
+  });
+
+  it("routes document-only artifacts away from Apple compiler diagnostics", () => {
+    const report = runCloudCheck({
+      fileName: "sprint-2026-04-20.html",
+      source: `
+<!doctype html>
+<html>
+  <body>
+    <h1>North Star Sprint</h1>
+    <p>Phase one continuity checklist.</p>
+  </body>
+</html>
+`,
+    });
+
+    expect(report.status).toBe("needs_review");
+    expect(report.surface).toBe("document");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-NON-APPLE-ARTIFACT");
+    expect(report.diagnostics.map((d) => d.code)).not.toContain("AX001");
+    expect(report.gate.decision).toBe("evidence_required");
+    expect(report.nextSteps.join("\n")).toContain("browser/render");
+    expect(report.repairPrompt).toContain("document or web artifact");
+    expect(report.repairPlan.map((step) => step.title)).toContain(
+      "Use the right proof surface"
+    );
+    expect(report.coverage).toContainEqual(
+      expect.objectContaining({
+        label: "Swift validator rule engine",
+        state: "not_applicable",
+      })
+    );
+  });
+
   it("classifies app freeze runtime evidence and likely main-thread blockers", () => {
     const report = runCloudCheck({
       fileName: "SwarmApp.swift",
@@ -567,6 +679,70 @@ struct ProfileDataView: View {
     expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-RUNTIME-FREEZE");
     expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-RUNTIME-SYNC-IO");
     expect(report.repairPrompt).toContain("Synchronous I/O");
+  });
+
+  it("classifies SwiftUI state-transition hangs from main-thread busy UI-test evidence", () => {
+    const report = runCloudCheck({
+      fileName: "HomeFeedView.swift",
+      platform: "iOS",
+      source: `
+import SwiftUI
+
+struct HomeFeedView: View {
+    @State private var selectedFilter = "All"
+    let items: [FeedItem]
+
+    var filteredItems: [FeedItem] {
+        items
+            .filter { selectedFilter == "All" || $0.kind == selectedFilter }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(pinnedViews: [.sectionHeaders]) {
+                Section {
+                    ForEach(filteredItems) { item in
+                        FeedCard(item: item)
+                            .transition(.opacity.combined(with: .scale))
+                    }
+                } header: {
+                    HStack {
+                        ForEach(["All", "Following", "Popular"], id: \\.self) { filter in
+                            Button(filter) {
+                                withAnimation(.spring(response: 0.45, dampingFraction: 0.74)) {
+                                    selectedFilter = filter
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .animation(.spring(response: 0.45, dampingFraction: 0.74), value: selectedFilter)
+        }
+    }
+}
+`,
+      testFailure:
+        "XCTAssert failed: after scrolling the Home feed and switching filters, the app main thread was busy for 30 seconds and the UI test timed out waiting for the application to idle.",
+      expectedBehavior:
+        "The Home feed filter should switch after the user scrolls and taps another segment.",
+      actualBehavior:
+        "After scrolling and switching filters, the app main thread was busy for 30 seconds.",
+    });
+
+    const codes = report.diagnostics.map((d) => d.code);
+
+    expect(report.status).toBe("fail");
+    expect(codes).toContain("AXCLOUD-RUNTIME-STATE-TRANSITION-HANG");
+    expect(report.repairPrompt).toContain("state-transition hang");
+    expect(report.repairPrompt).toContain("pinned headers");
+    expect(report.repairPrompt).toContain("filter/sort/list changes");
+    expect(report.repairPlan.map((step) => step.title).join("\n")).toContain(
+      "Trim SwiftUI transition work first"
+    );
+    expect(report.learningSignal?.signals).toContain("swiftui-state-transition-hang");
+    expect(report.learningSignal?.suggestedOwner).toBe("cloud");
   });
 
   it("classifies overlay hit-testing blockers when a compose box stops accepting input", () => {

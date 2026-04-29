@@ -30,6 +30,7 @@ export interface WorkflowCheckInput {
   readDocsContext?: boolean;
   ranFeature?: boolean;
   featureBypassReason?: string;
+  ranRepair?: boolean;
   ranSwiftValidate?: boolean;
   ranCloudCheck?: boolean;
   xcodeBuildPassed?: boolean;
@@ -61,6 +62,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   const agent = normalizeAxintAgent(input.agent);
   const profile = buildAgentToolProfile(agent);
   const patchFirstRepair = looksLikePatchFirstRepair(input);
+  const documentOnlyArtifact = looksLikeDocumentOnlyArtifact(input);
   const availableTools = normalizeAvailableTools(input.availableTools);
 
   checked.push(
@@ -101,6 +103,9 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
     );
   }
   if (input.ranFeature) checked.push("axint.feature was used for scaffolding.");
+  if (input.ranRepair) {
+    checked.push("axint.repair was used for an existing-code repair plan.");
+  }
   if (input.featureBypassReason) {
     checked.push(
       `axint.feature was intentionally bypassed: ${input.featureBypassReason}`
@@ -110,6 +115,11 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   if (input.ranCloudCheck) checked.push("axint.cloud.check was run.");
   if (input.xcodeBuildPassed) checked.push("Xcode build evidence passed.");
   if (input.xcodeTestsPassed) checked.push("Xcode test evidence passed.");
+  if (documentOnlyArtifact) {
+    checked.push(
+      "Document/web artifact mode detected; Apple compiler gates are not the final proof surface."
+    );
+  }
 
   if (looksLikeContextDrift(input.notes)) {
     if (!input.readRehydrationContext || !input.ranStatus) {
@@ -148,7 +158,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
         "Read .axint/AXINT_REHYDRATE.md once at the start of the planning pass so the checkpoint survives compaction."
       );
     }
-    if (!input.ranSuggest) {
+    if (!input.ranSuggest && !input.ranRepair && !documentOnlyArtifact) {
       required.push(
         "Run axint.suggest with the current app description before choosing the feature plan. If MCP transport is closed, use the CLI fallback: axint suggest <app-description>."
       );
@@ -156,7 +166,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   }
 
   if (stage === "before-write") {
-    if (!input.ranSuggest) {
+    if (!input.ranSuggest && !input.ranRepair && !documentOnlyArtifact) {
       required.push(
         "Run axint.suggest before writing a new Apple-native surface so the plan is not ordinary hand-coded Swift by default. If MCP transport is closed, use the CLI fallback: axint suggest <app-description>."
       );
@@ -166,7 +176,12 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
         ["view", "component", "intent", "widget"].includes(surface)
       )
     ) {
-      if (!input.ranFeature && !input.featureBypassReason) {
+      if (
+        !input.ranFeature &&
+        !input.featureBypassReason &&
+        !input.ranRepair &&
+        !documentOnlyArtifact
+      ) {
         required.push(
           "Run axint.feature for the new surface, or pass featureBypassReason with a concrete reason this is an edit to existing code and generation is not useful."
         );
@@ -182,10 +197,19 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
         `This is ${profile.label}; use its native patch/edit tool for existing files, then run axint.swift.validate and axint.cloud.check. Do not route normal Codex/Claude/Cowork edits through axint.xcode.write.`
       );
     }
+    if (documentOnlyArtifact) {
+      recommended.push(
+        "For document or web artifacts, use browser/render/link proof instead of an Apple-native generation gate."
+      );
+    }
   }
 
   if (stage === "pre-build" || stage === "pre-commit") {
-    if (
+    if (documentOnlyArtifact) {
+      recommended.push(
+        "Document/web artifact mode: verify the rendered HTML/Markdown route, screenshots, links, or browser console instead of forcing axint.cloud.check."
+      );
+    } else if (
       modifiedFiles.some((file) => file.endsWith(".swift")) &&
       !input.ranSwiftValidate
     ) {
@@ -194,24 +218,24 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
       );
     }
 
-    if (!input.ranCloudCheck) {
+    if (!documentOnlyArtifact && !input.ranCloudCheck) {
       required.push(
         "Run axint.cloud.check with the modified source and any Xcode/test/runtime evidence."
       );
     }
 
-    if (!input.xcodeBuildPassed) {
+    if (!documentOnlyArtifact && !input.xcodeBuildPassed) {
       recommended.push(
         "Run the Xcode build after static validation; Cloud Check is not runtime proof by itself."
       );
     }
 
-    if (stage === "pre-commit" && !input.xcodeTestsPassed) {
+    if (stage === "pre-commit" && !documentOnlyArtifact && !input.xcodeTestsPassed) {
       recommended.push("Run focused unit/UI tests before calling the pass complete.");
     }
   }
 
-  if (surfaces.includes("view") && !input.ranCloudCheck) {
+  if (surfaces.includes("view") && !input.ranCloudCheck && !documentOnlyArtifact) {
     recommended.push(
       "For SwiftUI views, include Xcode build or UI-test evidence in Cloud Check so the report can mark runtime coverage honestly."
     );
@@ -229,6 +253,8 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
           xcodeTestsPassed: Boolean(input.xcodeTestsPassed),
           agent,
           patchFirstRepair,
+          repairMode: Boolean(input.ranRepair),
+          documentOnlyArtifact,
         });
   const reconciledNextTool = reconcileNextToolAvailability(nextTool, {
     availableTools,
@@ -350,6 +376,9 @@ function reconcileNextToolAvailability(
     if (input.availableTools.has("axint.xcode.write")) return "axint.xcode.write";
     return input.profile.defaultWriteAction;
   }
+  if (base === "axint.suggest") {
+    return "axint suggest <app-description> (CLI fallback), or axint.repair for existing-code repair";
+  }
   if (base === "axint.xcode.write") return input.profile.defaultWriteAction;
   if (base === "axint.xcode.guard") {
     if (input.availableTools.has("axint.workflow.check"))
@@ -387,6 +416,8 @@ function nextToolForSatisfiedStage(input: {
   xcodeTestsPassed: boolean;
   agent: AxintAgentProfileName;
   patchFirstRepair: boolean;
+  repairMode: boolean;
+  documentOnlyArtifact: boolean;
 }): string | undefined {
   const {
     stage,
@@ -396,12 +427,22 @@ function nextToolForSatisfiedStage(input: {
     xcodeTestsPassed,
     agent,
     patchFirstRepair,
+    repairMode,
+    documentOnlyArtifact,
   } = input;
   const profile = buildAgentToolProfile(agent);
   if (stage === "session-start" || stage === "context-recovery") {
     return "axint.suggest";
   }
+  if (documentOnlyArtifact) {
+    if (stage === "planning") return "browser/render proof for the document artifact";
+    if (stage === "before-write") return profile.defaultWriteAction;
+    if (stage === "pre-build" || stage === "pre-commit") {
+      return "Summarize rendered artifact verification and link/console proof";
+    }
+  }
   if (stage === "planning") {
+    if (repairMode) return profile.defaultWriteAction;
     return surfaces.some((surface) =>
       ["view", "component", "intent", "widget", "app", "store"].includes(surface)
     )
@@ -438,6 +479,8 @@ function looksLikeContextDrift(notes: string | undefined): boolean {
 }
 
 function looksLikePatchFirstRepair(input: WorkflowCheckInput): boolean {
+  if (input.ranRepair) return true;
+
   const text = [input.featureBypassReason, input.notes, ...(input.modifiedFiles ?? [])]
     .filter(Boolean)
     .join(" ")
@@ -453,4 +496,25 @@ function looksLikePatchFirstRepair(input: WorkflowCheckInput): boolean {
   const existingBypass = Boolean(input.featureBypassReason);
 
   return patchMode && (existingBypass || fullFileRisk || text.includes(".swift"));
+}
+
+function looksLikeDocumentOnlyArtifact(input: WorkflowCheckInput): boolean {
+  const files = input.modifiedFiles ?? [];
+  if (files.length > 0 && files.every(isDocumentArtifactPath)) return true;
+
+  const text = [input.featureBypassReason, input.notes, ...files]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (!text) return false;
+
+  return (
+    /\b(document-only|docs-only|audit|sprint|html report|markdown report|north star|north-star|browser proof|rendered artifact)\b/.test(
+      text
+    ) && !/\.(swift|intent\.ts|view\.ts|widget\.ts)\b/.test(text)
+  );
+}
+
+function isDocumentArtifactPath(file: string): boolean {
+  return /\.(html?|md|mdx|txt)$/i.test(file);
 }

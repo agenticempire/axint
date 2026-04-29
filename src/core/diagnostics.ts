@@ -719,6 +719,18 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "Invalid SwiftUI frame(maxWidth:height:) overload",
     category: "swiftui-api-parity",
   },
+  AX766: {
+    code: "AX766",
+    severity: "warning",
+    message: "Project-specific SwiftUI modifier appears after a type-erasing modifier",
+    category: "swiftui-api-parity",
+  },
+  AX767: {
+    code: "AX767",
+    severity: "error",
+    message: "some View helper has local declarations but no explicit return",
+    category: "swiftui-api-parity",
+  },
   AX714: {
     code: "AX714",
     severity: "error",
@@ -967,6 +979,18 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     code: "AX853",
     severity: "error",
     message: "Generated UI has low semantic coverage of the prompt",
+    category: "generation-quality",
+  },
+  AX854: {
+    code: "AX854",
+    severity: "error",
+    message: "Existing-product repair prompt should use axint.repair",
+    category: "generation-quality",
+  },
+  AX855: {
+    code: "AX855",
+    severity: "error",
+    message: "Generated UI references a project token namespace missing from context",
     category: "generation-quality",
   },
 };

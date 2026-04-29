@@ -1,0 +1,20 @@
+{
+  "schema": "https://axint.ai/schemas/wow-demo.v1.json",
+  "name": "composer-blocker",
+  "title": "Invisible overlay blocks a SwiftUI composer",
+  "issueClass": "swiftui_interaction_repair",
+  "expectedBehavior": "The home composer text field should accept focus and typed text.",
+  "actualBehavior": "The composer exists, but a transparent overlay steals taps and the UI test reports composer-input is not hittable.",
+  "likelyFiles": [
+    "App/HomeView.swift",
+    "UITests/ComposerBlockerUITests.swift"
+  ],
+  "focusedProof": {
+    "command": "axint run --dir examples/wow/composer-blocker --agent codex --project ComposerBlocker.xcodeproj --scheme ComposerBlocker --only-testing ComposerBlockerUITests/ComposerBlockerUITests/testComposerTextFieldAcceptsInput",
+    "failureLog": ".axint-demo/failure.log"
+  },
+  "privacy": {
+    "sourceSharing": "never_by_default",
+    "cloudLearning": "redacted_fingerprints_only"
+  }
+}

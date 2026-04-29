@@ -5,6 +5,7 @@ import {
   type AxintRunFormat,
   type AxintRunPlatform,
 } from "../run/project-runner.js";
+import { normalizeAxintAgent } from "../project/agent-profile.js";
 import {
   cancelRunJob,
   getRunJobStatus,
@@ -22,6 +23,8 @@ export function registerRun(program: Command, version: string) {
 
   run
     .option("--dir <dir>", "Project directory", ".")
+    .option("--cwd <dir>", "Alias for --dir when copying MCP-style fallback commands")
+    .option("--project-name <name>", "Project name label. Normally inferred from --dir.")
     .option("--scheme <scheme>", "Xcode scheme")
     .option("--workspace <path>", "Path to .xcworkspace")
     .option("--project <path>", "Path to .xcodeproj")
@@ -38,7 +41,14 @@ export function registerRun(program: Command, version: string) {
       "Target platform: macOS, iOS, watchOS, visionOS, all",
       parsePlatform
     )
+    .option(
+      "--agent <agent>",
+      "Agent host lane: all, codex, claude, cursor, cowork, or xcode",
+      "all"
+    )
     .option("--changed <file...>", "Changed Swift files to validate/check")
+    .option("--modified <file...>", "Alias for --changed")
+    .option("--modified-files <file...>", "Alias for --changed")
     .option("--skip-build", "Skip xcodebuild build")
     .option("--skip-tests", "Skip xcodebuild test")
     .option("--runtime", "Launch the built macOS app and capture runtime evidence")
@@ -64,6 +74,8 @@ export function registerRun(program: Command, version: string) {
     .action(
       async (options: {
         dir: string;
+        cwd?: string;
+        projectName?: string;
         scheme?: string;
         workspace?: string;
         project?: string;
@@ -73,7 +85,10 @@ export function registerRun(program: Command, version: string) {
         testPlan?: string;
         onlyTesting?: string[];
         platform?: AxintRunPlatform;
+        agent?: string;
         changed?: string[];
+        modified?: string[];
+        modifiedFiles?: string[];
         skipBuild?: boolean;
         skipTests?: boolean;
         runtime?: boolean;
@@ -89,11 +104,15 @@ export function registerRun(program: Command, version: string) {
         prompt?: boolean;
         format: AxintRunFormat;
       }) => {
+        const runDir = options.cwd ?? options.dir;
+        const changedFiles = options.modifiedFiles ?? options.modified ?? options.changed;
         const report = await runAxintProject({
-          cwd: options.dir,
+          cwd: runDir,
           kind: "local",
+          projectName: options.projectName,
           expectedVersion: version,
           platform: options.platform,
+          agent: normalizeAxintAgent(options.agent),
           scheme: options.scheme,
           workspace: options.workspace,
           project: options.project,
@@ -102,7 +121,7 @@ export function registerRun(program: Command, version: string) {
           derivedDataPath: options.derivedData,
           testPlan: options.testPlan,
           onlyTesting: options.onlyTesting,
-          modifiedFiles: options.changed,
+          modifiedFiles: changedFiles,
           skipBuild: options.skipBuild,
           skipTests: options.skipTests,
           runtime: options.runtime,
@@ -198,6 +217,11 @@ export function registerRun(program: Command, version: string) {
     .option("--scheme <scheme>", "Xcode scheme")
     .option("--destination <destination>", "xcodebuild destination")
     .option(
+      "--agent <agent>",
+      "Agent host lane: all, codex, claude, cursor, cowork, or xcode",
+      "all"
+    )
+    .option(
       "--only-testing <selector...>",
       "Focused xcodebuild -only-testing selector(s)"
     )
@@ -219,6 +243,7 @@ export function registerRun(program: Command, version: string) {
         dir: string;
         scheme?: string;
         destination?: string;
+        agent?: string;
         onlyTesting?: string[];
         skipTests?: boolean;
         runtime?: boolean;
@@ -230,6 +255,7 @@ export function registerRun(program: Command, version: string) {
           cwd: options.dir,
           kind: "byo-runner",
           expectedVersion: version,
+          agent: normalizeAxintAgent(options.agent),
           scheme: options.scheme,
           destination: options.destination,
           onlyTesting: options.onlyTesting,

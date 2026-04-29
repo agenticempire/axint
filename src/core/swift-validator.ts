@@ -77,6 +77,8 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkContainerAccessibilityIdentifierPropagation(source, stripped, file, diagnostics);
   checkInteractiveInputOverlayHitTesting(source, stripped, file, diagnostics);
   checkInvalidSwiftUIFrameOverloads(source, stripped, file, diagnostics);
+  checkTypeErasedSwiftUIModifierChains(source, stripped, file, diagnostics);
+  checkOpaqueViewReturnsNeedExplicitReturn(source, stripped, file, diagnostics);
 
   return { file, diagnostics };
 }
@@ -210,6 +212,187 @@ function checkInvalidSwiftUIFrameOverloads(
       })
     );
   }
+}
+
+const TYPE_ERASING_SWIFTUI_MODIFIERS = new Set([
+  "labelStyle",
+  "buttonStyle",
+  "controlSize",
+  "background",
+  "overlay",
+  "mask",
+  "clipShape",
+  "popover",
+  "sheet",
+  "toolbar",
+]);
+
+const KNOWN_SWIFTUI_VIEW_MODIFIERS = new Set([
+  "accessibilityIdentifier",
+  "accessibilityLabel",
+  "accessibilityHint",
+  "accessibilityValue",
+  "animation",
+  "bold",
+  "clipShape",
+  "controlSize",
+  "disabled",
+  "font",
+  "foregroundColor",
+  "foregroundStyle",
+  "frame",
+  "help",
+  "id",
+  "labelStyle",
+  "layoutPriority",
+  "opacity",
+  "padding",
+  "position",
+  "shadow",
+  "tint",
+]);
+
+function checkTypeErasedSwiftUIModifierChains(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const expressionStart = /\b(Label|Button|Image|TextField|TextEditor)\s*\(/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = expressionStart.exec(stripped)) !== null) {
+    const callOpen = stripped.indexOf("(", match.index);
+    const callClose = findMatchingParen(stripped, callOpen);
+    if (callOpen === -1 || callClose === -1) continue;
+
+    const chain = stripped.slice(callClose + 1, callClose + 900);
+    const modifiers = collectLeadingModifierChain(chain);
+    const firstTypeEraser = modifiers.findIndex((modifier) =>
+      TYPE_ERASING_SWIFTUI_MODIFIERS.has(modifier.name)
+    );
+    if (firstTypeEraser < 0) continue;
+
+    const risky = modifiers
+      .slice(firstTypeEraser + 1)
+      .find((modifier) => looksLikeProjectSpecificModifier(modifier.name));
+    if (!risky) continue;
+
+    diagnostics.push(
+      makeDiagnostic(
+        "AX766",
+        file,
+        1 + countNewlinesUpTo(source, callClose + 1 + risky.offset),
+        {
+          message: `.${risky.name}(...) appears after .${modifiers[firstTypeEraser]!.name}(...), which can erase the concrete SwiftUI type before a project-specific modifier runs`,
+          suggestion:
+            "Move the project-specific modifier before the type-erasing SwiftUI modifier, or rewrite it as a generic View modifier so Xcode does not report `value of type 'some View' has no member ...`.",
+        }
+      )
+    );
+  }
+}
+
+function checkOpaqueViewReturnsNeedExplicitReturn(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const declaration =
+    /\b(?:(func)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)|(var)\s+([A-Za-z_][A-Za-z0-9_]*))\s*(?:async\s+)?(?:throws\s+)?(?:->|:)\s*some\s+View\s*\{/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = declaration.exec(stripped)) !== null) {
+    const kind = match[1] ? "func" : "var";
+    const name = match[2] ?? match[4] ?? "unnamed";
+    if (kind === "var" && name === "body") continue;
+    if (hasViewBuilderAttribute(stripped, match.index)) continue;
+
+    const openBrace = stripped.indexOf("{", match.index);
+    const closeBrace = findMatchingBrace(stripped, openBrace);
+    if (openBrace === -1 || closeBrace === -1) continue;
+
+    const body = stripped.slice(openBrace + 1, closeBrace);
+    if (!/\b(?:let|var)\s+[A-Za-z_][A-Za-z0-9_]*\b/.test(body)) continue;
+    if (hasTopLevelReturn(body)) continue;
+    if (!endsWithLikelyViewExpression(body)) continue;
+
+    diagnostics.push(
+      makeDiagnostic("AX767", file, 1 + countNewlinesUpTo(source, match.index), {
+        message: `${kind} '${name}' returns some View after local declarations but has no explicit return`,
+        suggestion:
+          "Add `return` before the final view expression, or mark the helper with `@ViewBuilder` if it intentionally contains multiple result-builder statements.",
+      })
+    );
+  }
+}
+
+function hasViewBuilderAttribute(stripped: string, declarationIndex: number): boolean {
+  const prefix = stripped.slice(Math.max(0, declarationIndex - 180), declarationIndex);
+  return /@ViewBuilder\s*(?:\n|\s)*(?:private|fileprivate|internal|public|static|\s)*$/.test(
+    prefix
+  );
+}
+
+function hasTopLevelReturn(body: string): boolean {
+  let depth = 0;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "{" || ch === "(" || ch === "[") depth++;
+    if (ch === "}" || ch === ")" || ch === "]") depth = Math.max(0, depth - 1);
+    if (
+      depth === 0 &&
+      /\breturn\b/.test(body.slice(i, i + 12)) &&
+      !/[A-Za-z0-9_]/.test(body[i - 1] ?? "") &&
+      !/[A-Za-z0-9_]/.test(body[i + 6] ?? "")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function endsWithLikelyViewExpression(body: string): boolean {
+  const cleaned = body.trim().replace(/;+\s*$/, "");
+  return /(?:VStack|HStack|ZStack|Text|Button|ScrollView|List|LazyVStack|LazyHStack|Group|Section|ForEach|AnyView|Image|Label|Form|NavigationStack|NavigationSplitView|HSplitView|VSplitView)\s*(?:\(|\{)/.test(
+    cleaned
+  );
+}
+
+function collectLeadingModifierChain(
+  source: string
+): Array<{ name: string; offset: number }> {
+  const modifiers: Array<{ name: string; offset: number }> = [];
+  let index = 0;
+
+  while (index < source.length) {
+    const prefix = source.slice(index).match(/^\s*\.([A-Za-z_][A-Za-z0-9_]*)\s*/);
+    if (!prefix) break;
+    const name = prefix[1]!;
+    const nameOffset = index + prefix[0].lastIndexOf(name);
+    index += prefix[0].length;
+
+    if (source[index] === "(") {
+      const close = findMatchingParen(source, index);
+      if (close === -1) break;
+      index = close + 1;
+    } else if (source[index] === "{") {
+      const close = findMatchingBrace(source, index);
+      if (close === -1) break;
+      index = close + 1;
+    }
+
+    modifiers.push({ name, offset: nameOffset });
+  }
+
+  return modifiers;
+}
+
+function looksLikeProjectSpecificModifier(name: string): boolean {
+  if (KNOWN_SWIFTUI_VIEW_MODIFIERS.has(name)) return false;
+  if (!/^[a-z][A-Za-z0-9_]*$/.test(name)) return false;
+  return /(?:Icon|Pill|Card|Badge|Chip|Row|Tile|Avatar|Swarm|Agent|Project)/.test(name);
 }
 
 function findMatchingParen(source: string, openIndex: number): number {
