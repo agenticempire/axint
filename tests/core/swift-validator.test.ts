@@ -248,6 +248,45 @@ describe("swift validator — SwiftUI compiler parity", () => {
     expect(diagnostic?.message).toContain("profile.detail");
     expect(diagnostic?.message).toContain("ShareCardDesignProfile");
   });
+
+  it("does not bind untyped closure loop variables to stale nearby model names", () => {
+    const source = `
+      import SwiftUI
+
+      enum PublicPageModuleKind: CaseIterable, Identifiable {
+          case proof
+          var id: String { "proof" }
+          var symbol: String { "checkmark.seal" }
+          var label: String { "Proof" }
+      }
+
+      struct PublicPageModule {
+          let kind: PublicPageModuleKind
+      }
+
+      struct CreatorTemplate {
+          let recommendedModules: [PublicPageModuleKind]
+      }
+
+      struct ProjectShowcaseView: View {
+          let template: CreatorTemplate
+
+          var body: some View {
+              let module: PublicPageModule = PublicPageModule(kind: .proof)
+              _ = module.kind
+              ForEach(template.recommendedModules) { module in
+                  Label(module.label, systemImage: module.symbol)
+              }
+          }
+      }
+    `;
+
+    const diagnostics = validateSwiftSources([
+      { file: "PublicPageCustomization.swift", source },
+    ]).flatMap((result) => result.diagnostics);
+
+    expect(diagnostics.filter((d) => d.code === "AX768")).toEqual([]);
+  });
 });
 
 // ─── New rules: AX704 AppIntent title ─────────────────────────────

@@ -131,6 +131,7 @@ function renderSuggestReport(
       `- Surfaces: ${suggestion.surfaces.join(", ")}`,
       `- Complexity: ${suggestion.complexity}`,
       suggestion.confidence ? `- Confidence: ${suggestion.confidence}` : null,
+      suggestion.modeTrace ? `- Mode trace: ${suggestion.modeTrace}` : null,
       suggestion.rationale ? `- Rationale: ${suggestion.rationale}` : null,
       suggestion.impact ? `- Impact: ${suggestion.impact}` : null,
       suggestion.loop ? `- Loop: ${suggestion.loop}` : null,

@@ -17,6 +17,7 @@ import {
   formatAppleRepairRead,
   type AppleRepairIntelligence,
 } from "./intelligence.js";
+import { queueAutomaticFeedback } from "../feedback/auto.js";
 import {
   readProjectContextIndex,
   writeProjectContextIndex,
@@ -934,6 +935,10 @@ function writeRepairFeedback(report: AxintRepairReport): void {
     `${JSON.stringify(report.feedbackPacket, null, 2)}\n`,
     "utf-8"
   );
+  queueAutomaticFeedback(report.feedbackPacket, {
+    cwd: report.cwd,
+    packetType: "repair",
+  });
 }
 
 function compactRepairReport(report: AxintRepairReport): AxintRepairReport {

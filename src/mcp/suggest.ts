@@ -37,6 +37,7 @@ export interface FeatureSuggestion {
   impact?: string;
   loop?: string;
   nextStep?: string;
+  modeTrace?: string;
 }
 
 interface DomainFeatureSet {
@@ -909,6 +910,14 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   const text = normalizeText(input.appDescription);
   const excludedText = normalizeText((input.exclude ?? []).join(" "));
   const explicitDomain = normalizeDomain(input.domain);
+  const freshProductMode = detectFreshProductMode(input, text);
+
+  if (freshProductMode?.kind === "public-page") {
+    return publicLanderSuggestions(input, text, limit, freshProductMode.trace);
+  }
+  if (freshProductMode?.kind === "brand-polish") {
+    return brandPolishSuggestions(input, text, limit, freshProductMode.trace);
+  }
 
   if (looksLikeExistingProductRepair(input, text)) {
     return existingProductRepairSuggestions(input, text, limit);
@@ -995,6 +1004,287 @@ export async function suggestFeaturesSmart(
   const localSuggestions = suggestFeatures(input);
   const pro = await requestProSuggestions(input, localSuggestions);
   return pro.status === "used" ? pro.suggestions : localSuggestions;
+}
+
+type FreshProductMode =
+  | {
+      kind: "public-page";
+      trace: string;
+    }
+  | {
+      kind: "brand-polish";
+      trace: string;
+    }
+  | undefined;
+
+function detectFreshProductMode(
+  input: SuggestInput,
+  normalizedAppDescription: string
+): FreshProductMode {
+  const goalsText = normalizeText((input.goals ?? []).join(" "));
+  const constraintsText = normalizeText((input.constraints ?? []).join(" "));
+  const combined = [normalizedAppDescription, goalsText, constraintsText]
+    .filter(Boolean)
+    .join(" ");
+
+  const publicPageCues = [
+    ".axint",
+    "custom lander",
+    "custom startup landing page",
+    "landing page",
+    "startup landing",
+    "public lander",
+    "public page",
+    "public project page",
+    "profile page",
+    "project profile",
+    "project page",
+    "premium public project page",
+    "page manifest",
+    "module manifest",
+    "brand",
+    "brand asset",
+    "programmable module",
+    "programmable modules",
+    "shareable launch card",
+    "share card",
+    "share cards",
+    "custom share card",
+    "customize share card",
+    "customize share cards",
+    "install qr",
+    "qr block",
+    "qr blocks",
+    "email capture",
+    "safe customization",
+  ].filter((cue) => hasKeyword(combined, cue));
+
+  const buildIntent = [
+    "add",
+    "become",
+    "build",
+    "create",
+    "design",
+    "generate",
+    "make",
+    "ship",
+    "turn into",
+    "upgrade into",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  const staleContextHint = [
+    "older repair",
+    "previous repair",
+    "repair notes",
+    "stale",
+    "old context",
+    "previous context",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  if (publicPageCues.length >= 2 && (buildIntent || staleContextHint)) {
+    const cueList = publicPageCues.slice(0, 5).join(", ");
+    return {
+      kind: "public-page",
+      trace: `Current prompt won because it contains fresh public-page cues (${cueList}); repair words are treated as constraints unless the user asks to fix a broken existing screen.`,
+    };
+  }
+
+  const brandCues = [
+    "official mark",
+    "symbol mark",
+    "wordmark",
+    "brand accuracy",
+    "brand asset",
+    "wrong brand",
+    "wrong logo",
+    "wrong symbol",
+    "hand-drawn symbol",
+    "profile identity",
+    "brand kit",
+    "axint.ai",
+  ].filter((cue) => hasKeyword(combined, cue));
+
+  const brandIntent = [
+    "needs",
+    "replace",
+    "use",
+    "keep",
+    "remove",
+    "preserve",
+    "make premium",
+    "repair",
+    "polish",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  if (brandCues.length >= 2 && brandIntent) {
+    const cueList = brandCues.slice(0, 5).join(", ");
+    return {
+      kind: "brand-polish",
+      trace: `Current prompt won because it contains brand/provenance cues (${cueList}); Axint is treating this as existing-product brand polish, not fresh feature brainstorming.`,
+    };
+  }
+
+  return undefined;
+}
+
+function publicLanderSuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  limit: number,
+  modeTrace: string
+): FeatureSuggestion[] {
+  const labels = semanticLabels(normalizedAppDescription, 5);
+  const projectLabel =
+    labels.find((label) => /axint|project|profile|public|lander/i.test(label)) ??
+    "Project";
+  const platform = input.platform ? `${input.platform} ` : "";
+  const rationale = `Mode trace: ${modeTrace} Axint is planning a new customer-facing lander/module surface instead of re-entering stale SwiftUI repair mode.`;
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `${projectLabel} Public Lander Manifest`,
+      description:
+        "Define the public page as a safe .axint module contract so humans and agents can configure hero, proof, install, share, and capture blocks without editing raw SwiftUI first.",
+      surfaces: ["view", "component", "store"],
+      complexity: "medium",
+      featurePrompt: `Create a ${platform}.axint page manifest for a custom public lander with programmable modules, proof blocks, install QR blocks, email capture, safe customization, share card metadata, and preserved UI test identifiers. If the project has existing public-page files, inspect and patch ProjectShowcaseView, ShareComposerView, brand assets, and public-page customization before generating new surfaces.`,
+      domain: "public-page",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Turns a vague public profile request into a structured page contract agents can extend safely.",
+      loop: "Manifest -> validate modules -> render page -> prove identifiers",
+      nextStep:
+        "Generate or update the .axint page first, then compile/render the SwiftUI surface against that manifest.",
+      modeTrace,
+    },
+    {
+      name: "Share Card and Install Blocks",
+      description:
+        "Create reusable launch blocks for social preview cards, QR install flows, copyable install commands, and email capture moments.",
+      surfaces: ["component", "view"],
+      complexity: "medium",
+      featurePrompt: `Create reusable ${platform}public-page modules for share cards, install QR, copyable install command, email capture, creator/project metadata, and analytics-safe call-to-action events.`,
+      domain: "public-page",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact: "Makes each project page distributable instead of merely decorative.",
+      loop: "Preview -> share -> install -> capture",
+      nextStep:
+        "Keep each block addressable with stable accessibility identifiers and manifest keys.",
+      modeTrace,
+    },
+    {
+      name: "Safe Customization Rules",
+      description:
+        "Add guardrails that let users customize copy, layout modules, theme tokens, and share assets while blocking unsafe links or broken module combinations.",
+      surfaces: ["store", "component"],
+      complexity: "medium",
+      featurePrompt: `Create safe customization rules for a .axint public page: allowed modules, required fields, link validation, theme token bounds, share image metadata, and fallback copy for missing blocks.`,
+      domain: "public-page",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Lets agents personalize public pages without creating malformed or unsafe output.",
+      loop: "Customize -> validate -> preview -> publish",
+      nextStep:
+        "Run validation before rendering and return actionable diagnostics for missing modules.",
+      modeTrace,
+    },
+    {
+      name: "Public Page Proof Harness",
+      description:
+        "Add focused proof for the public page: required modules render, install/share actions are hittable, and preserved identifiers remain stable across customization.",
+      surfaces: ["view"],
+      complexity: "low",
+      featurePrompt: `Add focused ${platform}tests for the custom public lander: hero renders, share card metadata exists, install QR block is visible, email capture is reachable, and preserved UI test identifiers remain stable.`,
+      domain: "public-page",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact: "Keeps the new lander work from regressing into static mockup territory.",
+      loop: "Render -> interact -> verify identifiers -> Cloud Check",
+      nextStep:
+        "Run `axint run` with the changed manifest, rendering files, and focused page tests.",
+      modeTrace,
+    },
+  ];
+
+  return suggestions.slice(0, limit);
+}
+
+function brandPolishSuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  limit: number,
+  modeTrace: string
+): FeatureSuggestion[] {
+  const labels = semanticLabels(normalizedAppDescription, 4);
+  const brandLabel =
+    labels.find((label) => /axint|brand|mark|symbol|profile/i.test(label)) ?? "Brand";
+  const platform = input.platform ? `${input.platform} ` : "";
+  const rationale = `Mode trace: ${modeTrace} Axint is planning a surgical brand/provenance pass for existing product surfaces instead of generic feature ideas.`;
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `${brandLabel} Asset Provenance Map`,
+      description:
+        "Find the official mark, compare it against current local assets, and decide exactly which surfaces use the symbol, wordmark, or cover art.",
+      surfaces: ["component", "view"],
+      complexity: "low",
+      featurePrompt: `Audit asset provenance for the ${platform}project before editing UI: identify the official Axint symbol mark source, current local asset filenames, wrong or hand-drawn variants, wordmark-only surfaces, and the exact SwiftUI files that render each asset. Return file targets, replacement plan, and visual proof steps.`,
+      domain: "brand-polish",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Prevents agents from swapping logos by vibes and gives brand changes a proof trail.",
+      loop: "Source asset -> map usage -> patch smallest surfaces -> visual proof",
+      nextStep:
+        "Inspect assets and the existing brand kit before generating or replacing any image.",
+      modeTrace,
+    },
+    {
+      name: "Existing Surface Brand Wiring",
+      description:
+        "Patch the current SwiftUI surfaces and brand-kit tokens in place instead of creating a new marketing screen.",
+      surfaces: ["view", "store", "component"],
+      complexity: "medium",
+      featurePrompt: `Repair existing ${platform}brand wiring in place: inspect BrandKit, ProjectShowcaseView, profile/project surfaces, cover art, and any share-card composer before changing the official mark. Preserve working routes and accessibility identifiers, remove the wrong brand asset, and keep wordmark usage where appropriate.`,
+      domain: "brand-polish",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Keeps premium polish tied to the real app instead of drifting into a disconnected redesign.",
+      loop: "Inspect -> patch assets/tokens -> validate Swift -> focused UI proof",
+      nextStep:
+        "Use `axint validate-swift` on the touched SwiftUI files, then run a focused visual or UI proof.",
+      modeTrace,
+    },
+    {
+      name: "Brand Visual Proof Pass",
+      description:
+        "Add proof that the correct asset appears on the right surfaces and the old/wrong mark no longer appears.",
+      surfaces: ["view"],
+      complexity: "low",
+      featurePrompt: `Add visual proof for the ${platform}brand repair: verify the official Axint symbol appears on intended project surfaces, the wordmark cover remains where appropriate, the wrong hand-drawn symbol is absent, and share-card previews use the correct brand assets. Include screenshot or focused UI-test evidence in Cloud Check.`,
+      domain: "brand-polish",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact: "Turns subjective polish into verifiable product quality.",
+      loop: "Render -> compare -> screenshot/test -> Cloud Check evidence",
+      nextStep:
+        "Attach the screenshot path, UI-test log, or preview proof to Cloud Check after the patch.",
+      modeTrace,
+    },
+  ];
+
+  return suggestions.slice(0, limit);
 }
 
 function keywordScore(text: string, keywords: string[]): number {

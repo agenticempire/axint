@@ -639,6 +639,27 @@ struct OnboardingControlsView: View {
     expect(report.repairPrompt).toContain("XCTest infrastructure");
   });
 
+  it("classifies stale app termination as runner health instead of XCTest failure", () => {
+    const report = runCloudCheck({
+      fileName: "DiscoverView.swift",
+      source: `
+import SwiftUI
+
+struct DiscoverView: View {
+    var body: some View { Text("Discover") }
+}
+`,
+      testFailure:
+        "SwarmUITests.swift:62: error: Failed to terminate co.agenticempire.Swarm:9770",
+    });
+    const codes = report.diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(report.status).toBe("needs_review");
+    expect(codes).toContain("AXCLOUD-XCTEST-STALE-APP");
+    expect(codes).not.toContain("AXCLOUD-XCTEST-FAILURE");
+    expect(report.repairPrompt).toContain("stale app PID");
+  });
+
   it("classifies focused runner timeouts before assertions as runner health", () => {
     const report = runCloudCheck({
       fileName: "P3FrontendArchitectureTests.swift",

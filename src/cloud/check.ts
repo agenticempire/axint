@@ -1049,6 +1049,18 @@ function diagnosticsFromBuildLog(buildLog: string, file: string): Diagnostic[] {
     });
   }
 
+  if (/\bfailed to terminate\s+[a-z0-9_.-]+:\d+\b/.test(text)) {
+    diagnostics.push({
+      code: "AXCLOUD-XCTEST-STALE-APP",
+      severity: "warning",
+      file,
+      message:
+        "Xcode UI setup could not terminate a stale app process before the test reached the app behavior under review.",
+      suggestion:
+        "Kill the stale app PID named in the log, clean up stale debugserver/test-runner processes if needed, then rerun the same focused selector before changing product code.",
+    });
+  }
+
   if (
     /\btimed out while enabling automation mode\b/.test(text) ||
     /\btest runner failed to initialize for ui testing\b/.test(text) ||
@@ -1173,6 +1185,20 @@ function diagnosticsFromTestFailure(
 ): Diagnostic[] {
   const text = normalizeTextForEvidence(testFailure);
   const diagnostics: Diagnostic[] = [];
+
+  if (/\bfailed to terminate\s+[a-z0-9_.-]+:\d+\b/.test(text)) {
+    return [
+      {
+        code: "AXCLOUD-XCTEST-STALE-APP",
+        severity: "warning",
+        file,
+        message:
+          "XCTest setup could not terminate a stale app process, so this evidence is runner-health blocked rather than a product assertion failure.",
+        suggestion:
+          "Kill the stale app PID named in the log, clean up stale XCTest/debugserver processes if needed, and rerun the same focused selector before changing app code.",
+      },
+    ];
+  }
 
   if (
     /\bxct(?:assert|fail|waiter)[a-z]*\s+failed\b|\btest case\b.*\bfailed\b|\bfailing test\b|\bis not equal to\b|\bfailed assertion\b/.test(

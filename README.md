@@ -230,12 +230,21 @@ axint repair "comment box is visible but cannot be tapped" \
   --agent codex
 
 axint feedback latest --format markdown
+axint feedback status
 ```
 
 `axint repair` writes `.axint/repair/latest.*` and a privacy-safe
 `.axint/feedback/latest.json` packet. The feedback packet includes project shape,
 diagnostic codes, issue class, redacted evidence, and likely Axint product owner,
 but not source code.
+
+Axint also queues source-free feedback automatically when Cloud Check, Run, or
+Repair finds an Axint learning signal. The default endpoint is
+`https://registry.axint.ai/api/v1/feedback`; packets declare
+`source_not_included`, never include source by default, and can be turned off with
+`axint feedback opt-out`, `AXINT_FEEDBACK=off`, or `AXINT_DISABLE_FEEDBACK=1`.
+Use `axint feedback list` on a maintainer inbox to cluster imported edge cases
+into the next Axint fixes.
 
 The same senior repair read is shared by `axint.suggest`, `axint.feature`,
 `axint.cloud.check`, and `axint.repair`. If a prompt describes a broken existing
@@ -385,7 +394,8 @@ MCP tools and built-in prompts:
 | `axint.fix-packet` | Read the latest AI-ready repair packet from a local compile or watch run |
 | `axint.cloud.check` | Run an agent-callable Cloud Check report against Swift or TypeScript source |
 | `axint.repair` | Plan a project-aware Apple repair loop for existing app bugs, with likely files, root causes, host-aware patch guidance, proof commands, and feedback packet |
-| `axint.feedback.create` | Create or read a privacy-safe, source-free feedback packet users can inspect before sending to Axint Cloud |
+| `axint.feedback.create` | Create or read a privacy-safe, source-free feedback packet |
+| `axint feedback status / opt-out / opt-in / sync / list` | Manage automatic source-free feedback, opt out, retry queued packets, and cluster imported feedback into Axint fix queues |
 | `axint.agent.install` | Install the local multi-agent project brain so Codex, Claude, Cursor, Xcode, and humans share one `.axint` truth layer |
 | `axint.agent.advice` | Return host-specific next moves from project context, active claims, latest proof, and latest repair artifacts |
 | `axint.agent.claim` | Claim files before an agent edits them so other agents avoid conflicting patches |
