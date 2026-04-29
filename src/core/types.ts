@@ -252,6 +252,38 @@ export interface IRApp {
   sourceFile: string;
 }
 
+// ─── Public Page IR Types ────────────────────────────────────────────────
+
+export type IRPublicPageFieldValue = string | number | boolean;
+
+export interface IRPublicPageModule {
+  /** Stable module id inside the page manifest, e.g. `emailCapture`. */
+  id: string;
+  /** Human-facing title rendered by the host surface. */
+  title: string;
+  /** Safe host-rendered module kind, e.g. `emailCapture`, `qrInstall`, `mcpServer`. */
+  kind?: string;
+  /** Repeated `permission:` fields are lifted here for scanner/gate use. */
+  permissions: string[];
+  /** Remaining manifest fields for the host renderer. */
+  fields: Record<string, IRPublicPageFieldValue | IRPublicPageFieldValue[]>;
+}
+
+/**
+ * A safe custom public project/profile page. The compiler lowers `.axint`
+ * `page` declarations into this manifest IR so host apps can render modules
+ * without accepting arbitrary scripts, tracking pixels, or unsandboxed code.
+ */
+export interface IRPublicPage {
+  name: string;
+  title?: string;
+  tagline?: string;
+  theme?: string;
+  fields: Record<string, IRPublicPageFieldValue | IRPublicPageFieldValue[]>;
+  modules: IRPublicPageModule[];
+  sourceFile: string;
+}
+
 // ─── Live Activity IR Types ─────────────────────────────────────────────────
 
 /** A single field on a Live Activity's ContentState (the part that updates). */

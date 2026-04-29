@@ -39,6 +39,7 @@
  *   axint runner once             Execute one BYO-Mac runner Axint job
  *   axint mcp                     Start the MCP server (stdio)
  *   axint mcp status              Show local MCP launch command and reload steps
+ *   axint mcp recover             Print same-thread CLI fallback when MCP transport closes
  *   axint xcode install           Install the full Axint Xcode workflow in one pass
  *   axint xcode setup             Configure Axint for Xcode agentic coding
  *   axint xcode guard             Check/write the Axint Xcode drift guard
@@ -79,7 +80,7 @@ import { registerPublish } from "./publish.js";
 import { registerAdd } from "./add.js";
 import { registerSearch } from "./search.js";
 import { registerWatch } from "./watch.js";
-import { registerStatus, renderCliStatus } from "./status.js";
+import { registerStatus, renderCliStatus, renderMcpRecoveryPacket } from "./status.js";
 import { registerUpgrade } from "./upgrade.js";
 import { registerDoctor } from "./doctor.js";
 import { registerProject } from "./project.js";
@@ -310,6 +311,22 @@ mcp
   .option("--format <format>", "Output format: markdown, json, or prompt", "markdown")
   .action((options: { format?: "markdown" | "json" | "prompt" }) => {
     console.log(renderCliStatus(VERSION, options.format ?? "markdown"));
+  });
+
+mcp
+  .command("recover")
+  .description("Print a same-thread CLI recovery packet when MCP transport closes")
+  .option("--dir <dir>", "Project directory", ".")
+  .option("--agent <agent>", "Agent host lane, e.g. codex, claude, cursor, xcode", "all")
+  .option("--session-token <token>", "Existing Axint session token if one is known")
+  .action((options: { dir?: string; agent?: string; sessionToken?: string }) => {
+    console.log(
+      renderMcpRecoveryPacket(VERSION, {
+        dir: options.dir,
+        agent: options.agent,
+        sessionToken: options.sessionToken,
+      })
+    );
   });
 
 // ─── xcode ──────────────────────────────────────────────────────────

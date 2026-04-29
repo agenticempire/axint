@@ -731,6 +731,13 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "some View helper has local declarations but no explicit return",
     category: "swiftui-api-parity",
   },
+  AX768: {
+    code: "AX768",
+    severity: "warning",
+    message:
+      "Changed Swift files reference a member that is not declared on the known type",
+    category: "swift-member-resolution",
+  },
   AX714: {
     code: "AX714",
     severity: "error",

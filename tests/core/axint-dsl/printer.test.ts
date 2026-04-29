@@ -68,6 +68,7 @@ function canonicalize(value: unknown): unknown {
 interface LowerSnapshot {
   readonly intents: unknown;
   readonly entities: unknown;
+  readonly pages: unknown;
   readonly diagnostics: readonly DiagnosticSummary[];
 }
 
@@ -83,6 +84,7 @@ function loweredSnapshot(source: string): LowerSnapshot {
   return {
     intents: canonicalize(lowered.intents),
     entities: canonicalize(lowered.entities),
+    pages: canonicalize(lowered.pages),
     diagnostics: [...parsed.diagnostics, ...lowered.diagnostics].map(summarize),
   };
 }
@@ -576,6 +578,27 @@ intent A {
 intent B {
   title: "B"
   description: "b"
+}
+`,
+  },
+  {
+    name: "custom public page",
+    source: `page AxintLander {
+  title: "Axint"
+  tagline: "Compiler-native project pages"
+  theme: "black-cream"
+
+  module emailCapture "Join the build" {
+    kind: emailCapture
+    permission: collectEmail
+    privacy: "Used only for Axint updates."
+  }
+
+  module shareCard "Launch card" {
+    kind: shareCard
+    output: "1200x630 PNG"
+    source: uploadedArtwork
+  }
 }
 `,
   },

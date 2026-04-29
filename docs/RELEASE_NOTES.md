@@ -32,6 +32,11 @@ This release wave makes Axint feel more like a project brain for Apple-native ag
 - Direct Cloud Check no longer treats prose-only SwiftUI behavior notes as runtime proof. View/app checks stay at `evidence_required` until build, UI-test, runtime, or `axint run` evidence is supplied.
 - Swift validation adds `AX767` for non-`@ViewBuilder` `some View` helpers that declare locals but forget an explicit `return`.
 - Generation self-audit adds `AX855` so existing-app UI generation refuses to invent a requested project token namespace that is not present in the supplied context.
+- `axint mcp recover` gives agents a same-thread fallback packet when MCP transport closes, including version proof, context-recovery commands, and the next CLI run command.
+- `axint.run` now classifies Xcode runner-health failures separately from app failures, including UI automation startup failures and hosted macOS `--only-testing` timeouts before assertions.
+- Cloud Check downgrades pending UI/runtime proof instead of treating build-only evidence plus prose as ready to ship.
+- Swift validation adds `AX768` for same-target changed files that reference members not declared on the known type.
+- The `.axint` language now has safe public-page manifest plumbing for `page` and `module` declarations, so future registry/profile surfaces can be rendered by a host without accepting arbitrary web code.
 
 ### Why it matters
 

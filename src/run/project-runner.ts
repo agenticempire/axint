@@ -23,7 +23,7 @@ import {
   type AxintAgentAdviceReport,
 } from "../project/local-agent.js";
 import { startAxintSession } from "../project/session.js";
-import { validateSwiftSource } from "../core/swift-validator.js";
+import { validateSwiftSources } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
 import {
   renderWorkflowCheckReport,
@@ -105,6 +105,16 @@ export interface AxintRunXcodeTestFailure {
   source: "xcodebuild-output" | "xcresult";
 }
 
+export interface AxintRunRunnerIssue {
+  kind: "ui-automation-infrastructure" | "hosted-test-runner-timeout";
+  severity: "blocked";
+  message: string;
+  evidence: string;
+  likelyCause: string;
+  remediation: string;
+  command?: string;
+}
+
 export interface AxintRunStep {
   name: string;
   state: AxintRunStepState;
@@ -152,6 +162,7 @@ export interface AxintRunReport {
     buildSettings?: AxintRunCommandResult;
   };
   xcodeTestFailures: AxintRunXcodeTestFailure[];
+  runnerHealth: AxintRunRunnerIssue[];
   steps: AxintRunStep[];
   artifacts: {
     json?: string;
@@ -218,12 +229,14 @@ export async function runAxintProject(
     },
   ];
 
-  for (const file of swiftFiles) {
-    const source = readFileSync(file, "utf-8");
-    validationDiagnostics.push(
-      ...validateSwiftSource(source, relativeOrAbsolute(cwd, file)).diagnostics
-    );
-  }
+  validationDiagnostics.push(
+    ...validateSwiftSources(
+      swiftFiles.map((file) => ({
+        file: relativeOrAbsolute(cwd, file),
+        source: readFileSync(file, "utf-8"),
+      }))
+    ).flatMap((result) => result.diagnostics)
+  );
 
   steps.push({
     name: "Swift validation",
@@ -343,6 +356,8 @@ export async function runAxintProject(
   }
 
   const xcodeTestFailures = collectXcodeTestFailures(commands.test);
+  const runnerHealth = detectXcodeRunnerIssues(commands.test, plan, xcodeTestFailures);
+  reconcileXcodeTestStepWithRunnerHealth(steps, runnerHealth);
   const xcodeFailureEvidence = formatXcodeTestFailuresForEvidence(xcodeTestFailures);
   const xcodeEvidence = buildXcodeEvidence(commands, plan, xcodeTestFailures);
   const focusedBehavior = buildFocusedTestBehavior(
@@ -421,6 +436,7 @@ export async function runAxintProject(
     },
     cloudChecks,
     xcodeTestFailures,
+    runnerHealth,
     commands,
     steps: steps.map((step) =>
       step.durationMs === undefined && step.name === "Axint session"
@@ -432,7 +448,14 @@ export async function runAxintProject(
       projectContextMarkdown: projectContext.markdownPath,
       feedbackSignals,
     },
-    nextSteps: buildNextSteps(status, steps, workflow, cloudChecks, xcodeTestFailures),
+    nextSteps: buildNextSteps(
+      status,
+      steps,
+      workflow,
+      cloudChecks,
+      xcodeTestFailures,
+      runnerHealth
+    ),
     repairPrompt: buildRunRepairPrompt({
       status,
       workflow,
@@ -440,6 +463,7 @@ export async function runAxintProject(
       cloudChecks,
       commands,
       xcodeTestFailures,
+      runnerHealth,
       agent: agentProfile,
     }),
   };
@@ -470,6 +494,7 @@ export async function runAxintProject(
       workflow,
       cloudChecks,
       xcodeTestFailures,
+      runnerHealth,
       agentAdvice
     ),
   };
@@ -480,6 +505,7 @@ export async function runAxintProject(
     cloudChecks,
     commands,
     xcodeTestFailures,
+    runnerHealth,
     agent: agentProfile,
     agentAdvice,
   });
@@ -572,6 +598,11 @@ export function renderAxintRunReport(
     ...(report.xcodeTestFailures.length > 0
       ? report.xcodeTestFailures.slice(0, 8).map(renderXcodeTestFailureLine)
       : ["- None."]),
+    "",
+    "## Xcode Runner Health",
+    ...(report.runnerHealth.length > 0
+      ? report.runnerHealth.slice(0, 6).map(renderRunnerHealthLine)
+      : ["- No runner-health issues detected."]),
     "",
     "## Cloud Checks",
     ...(report.cloudChecks.length > 0
@@ -1077,6 +1108,16 @@ function stepFromCommand(name: string, result: AxintRunCommandResult): AxintRunS
   };
 }
 
+function reconcileXcodeTestStepWithRunnerHealth(
+  steps: AxintRunStep[],
+  runnerHealth: AxintRunRunnerIssue[]
+) {
+  if (runnerHealth.length === 0) return;
+  const step = steps.find((item) => item.name === "Xcode test");
+  if (!step) return;
+  step.detail = runnerHealth[0]!.message;
+}
+
 function commandPassed(result?: AxintRunCommandResult): boolean {
   return Boolean(
     result &&
@@ -1163,11 +1204,14 @@ function buildFocusedTestBehavior(
   const selectors = plan.onlyTesting.join(", ");
   if (result.exitCode !== 0 || result.timedOut) {
     const firstFailure = failures[0];
+    const runnerIssues = detectXcodeRunnerIssues(result, plan, failures);
     return {
       expectedBehavior: `Focused test selector(s) should pass: ${selectors}.`,
       actualBehavior: firstFailure
         ? `Focused test selector(s) did not pass through axint run --only-testing: ${selectors}. First failure: ${formatXcodeFailureOneLine(firstFailure)}.`
-        : `Focused test selector(s) did not pass through axint run --only-testing: ${selectors}.`,
+        : runnerIssues[0]
+          ? `Focused test selector(s) compiled but did not execute assertions through axint run --only-testing: ${selectors}. ${runnerIssues[0].message}`
+          : `Focused test selector(s) did not pass through axint run --only-testing: ${selectors}.`,
     };
   }
   return {
@@ -1260,6 +1304,79 @@ function extractXcodeTestFailuresFromText(text: string): AxintRunXcodeTestFailur
   }
 
   return failures;
+}
+
+function detectXcodeRunnerIssues(
+  result?: AxintRunCommandResult,
+  plan?: XcodePlan,
+  failures: AxintRunXcodeTestFailure[] = []
+): AxintRunRunnerIssue[] {
+  if (!result || result.dryRun || (result.exitCode === 0 && !result.timedOut)) {
+    return [];
+  }
+  const output = [result.stdout, result.stderr, readCommandLogTail(result.logPath)]
+    .filter(Boolean)
+    .join("\n");
+  const normalized = stripAnsi(output).replace(/\s+/g, " ").trim();
+  const issues: AxintRunRunnerIssue[] = [];
+  const command = [result.command, ...result.args].map(shellQuote).join(" ");
+
+  if (
+    /\btimed out while enabling automation mode\b/i.test(normalized) ||
+    /\btest runner failed to initialize for ui testing\b/i.test(normalized) ||
+    /\bfailed to initialize.*ui testing\b/i.test(normalized)
+  ) {
+    issues.push({
+      kind: "ui-automation-infrastructure",
+      severity: "blocked",
+      message:
+        "Xcode UI automation did not start; XCTest never reached a trustworthy app assertion.",
+      evidence: firstMatchingLine(output, [
+        /timed out while enabling automation mode/i,
+        /test runner failed to initialize for ui testing/i,
+        /failed to initialize.*ui testing/i,
+      ]),
+      likelyCause:
+        "The simulator/app runner or accessibility automation channel is stuck before the UI test can exercise the app.",
+      remediation:
+        "Kill stale app/test-runner processes, retry once, and report the UI proof as blocked by XCTest infrastructure if the same startup error repeats.",
+      command,
+    });
+  }
+
+  const selectorProvided = Boolean(plan?.onlyTesting.length);
+  const macHosted = !plan?.destination || /macos/i.test(plan.destination);
+  const assertionOutput =
+    failures.length > 0 ||
+    /\bxct(?:assert|fail|waiter)|failed assertion|test case\b.*\bfailed\b/i.test(output);
+  if (
+    result.timedOut &&
+    selectorProvided &&
+    macHosted &&
+    !assertionOutput &&
+    !issues.some((issue) => issue.kind === "ui-automation-infrastructure")
+  ) {
+    issues.push({
+      kind: "hosted-test-runner-timeout",
+      severity: "blocked",
+      message:
+        "Focused selector compiled, but the hosted macOS test runner timed out before any assertion output.",
+      evidence:
+        firstMatchingLine(output, [
+          /command timed out/i,
+          /timed out/i,
+          /debugserver/i,
+          /\/[^ ]+\.app\//i,
+        ]) || `Command timed out after ${Math.round(result.durationMs / 1000)}s.`,
+      likelyCause:
+        "A stale hosted app, debugserver, or xcodebuild runner is holding the test process before the selected suite can start.",
+      remediation:
+        "Kill stale host app/debugserver/xcodebuild processes, keep the same --only-testing selector, and retry before changing product code.",
+      command,
+    });
+  }
+
+  return issues;
 }
 
 function parseSwiftFailureLine(
@@ -1648,6 +1765,18 @@ function renderXcodeTestFailureLine(failure: AxintRunXcodeTestFailure): string {
   return `- ${formatXcodeFailureOneLine(failure)}${detail ? `\n  - ${detail}` : ""}`;
 }
 
+function renderRunnerHealthLine(issue: AxintRunRunnerIssue): string {
+  return [
+    `- ${issue.kind}: ${issue.message}`,
+    `  - likely cause: ${issue.likelyCause}`,
+    `  - next move: ${issue.remediation}`,
+    issue.evidence ? `  - evidence: ${issue.evidence}` : undefined,
+    issue.command ? `  - command: \`${issue.command}\`` : undefined,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function formatXcodeFailureOneLine(failure: AxintRunXcodeTestFailure): string {
   const name = failure.testName ?? failure.suiteName ?? "Unknown Xcode test";
   const location = failure.file
@@ -1672,8 +1801,24 @@ function commandEvidence(
   ]
     .filter(Boolean)
     .join("\n");
-  const output = trimCommandEvidence([result.stdout, result.stderr].join("\n"));
+  const output = trimCommandEvidence(
+    [result.stdout, result.stderr, readCommandLogTail(result.logPath)]
+      .filter(Boolean)
+      .join("\n")
+  );
   return [header, metadata, output].filter(Boolean).join("\n");
+}
+
+function firstMatchingLine(value: string, patterns: RegExp[]): string {
+  const lines = stripAnsi(value)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  for (const pattern of patterns) {
+    const line = lines.find((candidate) => pattern.test(candidate));
+    if (line) return line;
+  }
+  return "";
 }
 
 function focusedTestOutput(
@@ -1832,6 +1977,7 @@ function buildNextSteps(
   workflow: WorkflowCheckReport,
   cloudChecks: CloudCheckReport[],
   xcodeTestFailures: AxintRunXcodeTestFailure[] = [],
+  runnerHealth: AxintRunRunnerIssue[] = [],
   agentAdvice?: AxintAgentAdviceReport
 ): string[] {
   if (status === "pass") {
@@ -1866,12 +2012,26 @@ function buildNextSteps(
       }: ${failure.message}${failure.repairHint ? ` ${failure.repairHint}` : ""}`
     );
   }
+  for (const issue of runnerHealth.slice(0, 3)) {
+    next.add(
+      `${issue.message} ${issue.remediation}${
+        issue.command ? ` Retry: ${issue.command}` : ""
+      }`
+    );
+  }
   for (const item of workflow.required) next.add(item);
   for (const check of cloudChecks) {
     for (const item of check.nextSteps) next.add(item);
   }
   for (const step of steps) {
     if (step.state === "fail" && step.command) {
+      if (
+        runnerHealth.length > 0 &&
+        step.name === "Xcode test" &&
+        runnerHealth.some((issue) => issue.command === step.command)
+      ) {
+        continue;
+      }
       next.add(`Fix the failing step, then rerun: ${step.command}`);
     }
   }
@@ -1888,6 +2048,7 @@ function buildRunRepairPrompt(input: {
   cloudChecks: CloudCheckReport[];
   commands: AxintRunReport["commands"];
   xcodeTestFailures?: AxintRunXcodeTestFailure[];
+  runnerHealth?: AxintRunRunnerIssue[];
   agent?: AxintAgentToolProfile;
   agentAdvice?: AxintAgentAdviceReport;
 }) {
@@ -1977,6 +2138,13 @@ function buildRunRepairPrompt(input: {
       : [
           "- None extracted. If Xcode failed, inspect the command log or .xcresult artifact.",
         ]),
+    "",
+    "Xcode runner health:",
+    ...(input.runnerHealth && input.runnerHealth.length > 0
+      ? input.runnerHealth.slice(0, 6).map((issue) => {
+          return `- ${issue.kind}: ${issue.message} Likely cause: ${issue.likelyCause} Next move: ${issue.remediation}`;
+        })
+      : ["- No runner-health issue classified."]),
   ];
 
   if (input.agentAdvice) {

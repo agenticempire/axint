@@ -306,6 +306,40 @@ struct ProjectRoomContentView: View {
     );
   });
 
+  it("does not treat build-only evidence as UI proof when the behavior says proof is pending", () => {
+    const report = runCloudCheck({
+      fileName: "HomeFeedView.swift",
+      platform: "macOS",
+      source: `
+import SwiftUI
+
+struct HomeFeedView: View {
+    var body: some View {
+        ScrollView {
+            Button("Post") {}
+                .accessibilityIdentifier("home-post")
+        }
+    }
+}
+`,
+      expectedBehavior:
+        "The Home feed post control should stay visible and hittable after the composer repair.",
+      actualBehavior:
+        "The source patch is in place. Focused UI proof is pending and will run next.",
+      xcodeBuildLog: "** BUILD SUCCEEDED **",
+    });
+
+    expect(report.status).toBe("needs_review");
+    expect(report.gate.decision).toBe("evidence_required");
+    expect(report.gate.canClaimFixed).toBe(false);
+    expect(report.coverage).toContainEqual(
+      expect.objectContaining({
+        label: "Xcode build, UI tests, and runtime behavior",
+        state: "needs_runtime",
+      })
+    );
+  });
+
   it("trusts passing focused Xcode proof when behavior prose uses different wording", () => {
     const report = runCloudCheck({
       fileName: "DiscoverTabView.swift",
@@ -578,6 +612,54 @@ struct InviteModel {
     expect(report.gate.canClaimFixed).toBe(false);
     expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-XCTEST-FAILURE");
     expect(report.repairPrompt).toContain("failing assertion");
+  });
+
+  it("classifies Xcode UI automation startup failure separately from app assertions", () => {
+    const report = runCloudCheck({
+      fileName: "OnboardingControlsView.swift",
+      source: `
+import SwiftUI
+
+struct OnboardingControlsView: View {
+    var body: some View { Button("Continue") {} }
+}
+`,
+      xcodeBuildLog: [
+        "Focused Xcode test proof failed.",
+        "The test runner failed to initialize for UI testing.",
+        "Timed out while enabling automation mode.",
+        "** TEST FAILED **",
+      ].join("\n"),
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-XCTEST-AUTOMATION-INFRASTRUCTURE"
+    );
+    expect(report.repairPrompt).toContain("XCTest infrastructure");
+  });
+
+  it("classifies focused runner timeouts before assertions as runner health", () => {
+    const report = runCloudCheck({
+      fileName: "P3FrontendArchitectureTests.swift",
+      source: `
+import SwiftUI
+
+struct CommandPaletteShell: View {
+    var body: some View { Text("Palette") }
+}
+`,
+      xcodeBuildLog: [
+        "Focused Xcode test proof failed.",
+        "Selectors: -only-testing:SwarmTests/P3FrontendArchitectureTests",
+        "[axint] Command timed out after 240s; sending SIGTERM to child process group.",
+        "** TEST FAILED **",
+      ].join("\n"),
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-XCTEST-RUNNER-HANG");
+    expect(report.repairPrompt).toContain("runner health");
   });
 
   it("routes document-only artifacts away from Apple compiler diagnostics", () => {

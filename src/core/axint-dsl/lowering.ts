@@ -33,6 +33,9 @@ import type {
   IntegerLiteral,
   IntentDecl,
   LiteralNode,
+  PageDecl,
+  PageFieldDecl,
+  PageModuleDecl,
   ParamDecl,
   PrimitiveType,
   PropertyDecl,
@@ -56,6 +59,9 @@ import type {
   IRParameter,
   IRParameterSummary,
   IRPrimitiveType,
+  IRPublicPage,
+  IRPublicPageFieldValue,
+  IRPublicPageModule,
   IRType,
 } from "../types.js";
 import { PARAM_TYPES } from "../types.js";
@@ -65,6 +71,7 @@ import { PARAM_TYPES } from "../types.js";
 export interface LowerResult {
   readonly intents: readonly IRIntent[];
   readonly entities: readonly IREntity[];
+  readonly pages: readonly IRPublicPage[];
   readonly diagnostics: readonly Diagnostic[];
 }
 
@@ -87,7 +94,7 @@ export function lower(file: FileNode, options?: LowerOptions): LowerResult {
         targetSpan: toProtocolSpan(zeroWidthAt(file.span)),
       },
     });
-    return ctx.finish([], []);
+    return ctx.finish([], [], []);
   }
 
   const index = buildNameIndex(file.declarations);
@@ -110,7 +117,14 @@ export function lower(file: FileNode, options?: LowerOptions): LowerResult {
     }
   }
 
-  return ctx.finish(intents, entities);
+  const pages: IRPublicPage[] = [];
+  for (const decl of file.declarations) {
+    if (decl.kind === "PageDecl") {
+      pages.push(lowerPage(decl, sourceFile));
+    }
+  }
+
+  return ctx.finish(intents, entities, pages);
 }
 
 // ─── Context + diagnostic emission ─────────────────────────────────────
@@ -139,8 +153,8 @@ class LowerContext {
     });
   }
 
-  finish(intents: IRIntent[], entities: IREntity[]): LowerResult {
-    return { intents, entities, diagnostics: this.diagnostics };
+  finish(intents: IRIntent[], entities: IREntity[], pages: IRPublicPage[]): LowerResult {
+    return { intents, entities, pages, diagnostics: this.diagnostics };
   }
 }
 
@@ -166,6 +180,82 @@ function buildNameIndex(decls: readonly TopLevelDecl[]): NameIndex {
     }
   }
   return { entities, enums };
+}
+
+// ─── Public page lowering ─────────────────────────────────────────────
+
+function lowerPage(decl: PageDecl, sourceFile: string): IRPublicPage {
+  const fields = lowerPageFields(decl.fields);
+  return {
+    name: decl.name.name,
+    title: singleStringField(fields, "title"),
+    tagline: singleStringField(fields, "tagline"),
+    theme: singleStringField(fields, "theme"),
+    fields,
+    modules: decl.modules.map((module) => lowerPageModule(module)),
+    sourceFile,
+  };
+}
+
+function lowerPageModule(decl: PageModuleDecl): IRPublicPageModule {
+  const fields = lowerPageFields(decl.fields);
+  return {
+    id: decl.id.name,
+    title: decl.title.value,
+    kind: singleStringField(fields, "kind"),
+    permissions: collectStringField(fields, "permission"),
+    fields,
+  };
+}
+
+function lowerPageFields(
+  fields: readonly PageFieldDecl[]
+): Record<string, IRPublicPageFieldValue | IRPublicPageFieldValue[]> {
+  const output: Record<string, IRPublicPageFieldValue | IRPublicPageFieldValue[]> = {};
+  for (const field of fields) {
+    const key = field.name.name;
+    const value = lowerPageFieldValue(field.value);
+    const existing = output[key];
+    if (existing === undefined) {
+      output[key] = value;
+    } else if (Array.isArray(existing)) {
+      output[key] = [...existing, value];
+    } else {
+      output[key] = [existing, value];
+    }
+  }
+  return output;
+}
+
+function lowerPageFieldValue(value: LiteralNode): IRPublicPageFieldValue {
+  switch (value.kind) {
+    case "StringLiteral":
+    case "IntegerLiteral":
+    case "DecimalLiteral":
+    case "BooleanLiteral":
+      return value.value;
+    case "IdentLiteral":
+      return value.name;
+  }
+}
+
+function collectStringField(
+  fields: Record<string, IRPublicPageFieldValue | IRPublicPageFieldValue[]>,
+  key: string
+): string[] {
+  const value = fields[key];
+  if (value === undefined) return [];
+  const values = Array.isArray(value) ? value : [value];
+  return values.map((item) => String(item));
+}
+
+function singleStringField(
+  fields: Record<string, IRPublicPageFieldValue | IRPublicPageFieldValue[]>,
+  key: string
+): string | undefined {
+  const value = fields[key];
+  if (Array.isArray(value)) return value.length > 0 ? String(value[0]) : undefined;
+  return value === undefined ? undefined : String(value);
 }
 
 // ─── Entity lowering ───────────────────────────────────────────────────

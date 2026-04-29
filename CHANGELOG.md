@@ -6,6 +6,20 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.15] — 2026-04-29
+
+### Added
+
+- **`axint mcp recover`** — prints a same-thread recovery packet when an MCP client hits `Transport closed`, including version proof, project path, context-recovery commands, and the CLI fallback run loop.
+- **Xcode runner-health classification** — `axint run` now separates UI automation startup failures and hosted macOS test-runner hangs from real app assertion failures.
+- **`AX768` same-target Swift member validation** — when changed Swift files include a declaring type and a consumer, Axint warns on direct member mistakes such as `profile.detail` when the known type does not expose that member.
+- **Public page DSL manifest support** — `.axint` language files can now parse, lower, and print safe `page` / `module` declarations for host-rendered public project/profile surfaces.
+
+### Changed
+
+- **Cloud Check pending-proof handling** now downgrades build-only evidence when behavior text says UI/runtime proof is still pending, so agents cannot claim runtime fixes from prose alone.
+- **Focused test timeout guidance** now respects existing `--only-testing` selectors and tells agents to clean up/retry runner infrastructure instead of asking for another focused test when no assertion executed.
+
 ## [0.4.10] — 2026-04-27
 
 ### Added
@@ -309,7 +323,8 @@ The "it's a real compiler now" release. Everything the v0.1.x vision pointed at,
 - tsup for builds with separate CLI/MCP/library entry points
 - Vitest with snapshot testing and V8 coverage
 
-[Unreleased]: https://github.com/agenticempire/axint/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/agenticempire/axint/compare/v0.4.15...HEAD
+[0.4.15]: https://github.com/agenticempire/axint/compare/v0.4.14...v0.4.15
 [0.3.4]: https://github.com/agenticempire/axint/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/agenticempire/axint/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/agenticempire/axint/compare/v0.3.0...v0.3.2

@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { resolve, join, extname } from "node:path";
-import { validateSwiftSource } from "../core/swift-validator.js";
+import { validateSwiftSources } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
 import { getAxintLoginState } from "../core/credentials.js";
 import {
@@ -69,11 +69,14 @@ export function registerValidateSwift(program: Command) {
         const all: Diagnostic[] = [];
         const filesToScan = [...files].sort();
 
-        for (const file of filesToScan) {
-          const source = readFileSync(file, "utf-8");
-          const result = validateSwiftSource(source, file);
-          all.push(...result.diagnostics);
-        }
+        all.push(
+          ...validateSwiftSources(
+            filesToScan.map((file) => ({
+              file,
+              source: readFileSync(file, "utf-8"),
+            }))
+          ).flatMap((result) => result.diagnostics)
+        );
 
         const errors = all.filter((d) => d.severity === "error");
         let repairArtifacts:
