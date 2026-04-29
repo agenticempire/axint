@@ -84,6 +84,12 @@ export function registerWorkflow(program: Command) {
     .option("--ran-cloud-check", "Mark that axint.cloud.check was used")
     .option("--xcode-build-passed", "Mark that Xcode build evidence passed")
     .option("--xcode-tests-passed", "Mark that focused unit/UI tests passed")
+    .option(
+      "--available-tool <tool>",
+      "Axint MCP tool visible in the current host. Repeat or comma-separate tools.",
+      collectList,
+      [] as string[]
+    )
     .option("--notes <notes>", "Human/agent notes for drift or bypass detection")
     .option("--json", "Shortcut for --format json")
     .option(
@@ -113,6 +119,7 @@ export function registerWorkflow(program: Command) {
         ranCloudCheck?: boolean;
         xcodeBuildPassed?: boolean;
         xcodeTestsPassed?: boolean;
+        availableTool: string[];
         notes?: string;
         json?: boolean;
         format: WorkflowCliFormat;
@@ -137,6 +144,7 @@ export function registerWorkflow(program: Command) {
           ranCloudCheck: options.ranCloudCheck,
           xcodeBuildPassed: options.xcodeBuildPassed,
           xcodeTestsPassed: options.xcodeTestsPassed,
+          availableTools: options.availableTool,
           notes: options.notes,
           format: options.json ? "json" : options.format,
         });
@@ -178,4 +186,14 @@ function parseSurfaces(values: string[] | undefined): Surface[] | undefined {
       `invalid surface: ${value} (expected one of ${SURFACES.join(", ")})`
     );
   });
+}
+
+function collectList(value: string, previous: string[]): string[] {
+  return [
+    ...previous,
+    ...value
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean),
+  ];
 }

@@ -16,8 +16,9 @@ export interface ViewBlueprintInput {
 export function usesProfileCardBlueprint(description: string): boolean {
   const lower = description.toLowerCase();
   return (
-    /\b(profile|dating|swipe|match|card)\b/.test(lower) &&
-    /\b(name|age|bio|photo|profile|workout)\b/.test(lower)
+    /\b(dating|swipe|match|swolemate)\b/.test(lower) ||
+    (/\bprofile\s+card\b/.test(lower) &&
+      /\b(name|age|bio|photo|workout|preferences?)\b/.test(lower))
   );
 }
 
@@ -965,9 +966,20 @@ function buildSemanticDashboardBody(input: ViewBlueprintInput): string {
 }
 
 function buildSemanticCardBody(input: ViewBlueprintInput): string {
-  const labels = semanticLabels(input.description ?? input.name, 3);
-  const title = labels[0] ?? humanizeLocal(input.name);
-  const subtitle = labels.slice(1).join(" · ") || "Ready for review";
+  const description = promptOnlyDescription(input.description ?? "");
+  const labels = semanticLabels(`${input.name} ${description}`, 24);
+  const title = humanizeLocal(input.name) || labels[0] || "Semantic Card";
+  const primaryLabels = uniqueLocal(labels).slice(0, 14);
+  const anchorLabels = uniqueLocal(labels.slice(-5));
+  const subtitle = primaryLabels.slice(0, 3).join(" · ") || "Ready for review";
+  const proofLine =
+    primaryLabels.slice(6, 14).join(", ") ||
+    primaryLabels.slice(3, 6).join(", ") ||
+    "state, context, and next action";
+  const anchorLine =
+    anchorLabels.length > 1
+      ? `${anchorLabels.join(" · ")} stay visible as product anchors.`
+      : "The requested product anchors stay visible instead of collapsing into placeholder copy.";
   return `VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
                 RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "10")}, style: .continuous)
@@ -990,7 +1002,23 @@ function buildSemanticCardBody(input: ViewBlueprintInput): string {
                 Spacer()
             }
 
-            Text("Primary state, context, and next action live together so the component is useful on first render.")
+            HStack(spacing: 8) {
+                ForEach(${swiftStringArray(primaryLabels)}, id: \\.self) { item in
+                    Text(item)
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: Capsule())
+                        .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                }
+            }
+
+            Text("${escapeSwiftString(proofLine)} shape the interaction state, visual rhythm, and next action so the component is useful on first render.")
+                .font(.callout)
+                .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+
+            Text("${escapeSwiftString(anchorLine)}")
                 .font(.callout)
                 .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
 
@@ -1009,6 +1037,22 @@ function buildSemanticCardBody(input: ViewBlueprintInput): string {
             RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous)
                 .strokeBorder(${colorRef(input.tokenNamespace, "border", "Color.secondary.opacity(0.16)")}, lineWidth: 1)
         }`;
+}
+
+function uniqueLocal(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
+  }
+  return result;
+}
+
+function promptOnlyDescription(description: string): string {
+  return description.split(/\n\nProject context hints:/)[0] ?? description;
 }
 
 function buildSemanticRowBody(input: ViewBlueprintInput): string {

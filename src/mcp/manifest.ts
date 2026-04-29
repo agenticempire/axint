@@ -820,6 +820,12 @@ export const TOOL_MANIFEST = [
           type: "string",
           description: "Optional human/agent context for why a step was skipped.",
         },
+        availableTools: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional list of Axint MCP tools visible in this host session. When supplied, workflow.check will not recommend a missing tool and will return the best available fallback.",
+        },
         format: {
           type: "string",
           enum: ["markdown", "json"],
@@ -1077,6 +1083,21 @@ export const TOOL_MANIFEST = [
           enum: ["iOS", "macOS", "watchOS", "visionOS", "all"],
           description:
             "Optional target platform hint. Use macOS to catch common iOS-only SwiftUI modifiers in Mac app work.",
+        },
+        expectedVersion: {
+          type: "string",
+          description:
+            "Optional expected Axint version for this project/session. Cloud Check also reads .axint/project.json when sourcePath is inside a project.",
+        },
+        localPackageVersion: {
+          type: "string",
+          description:
+            "Optional local CLI/package version when the caller knows it. Used only for version-truth reporting.",
+        },
+        cloudRulesetVersion: {
+          type: "string",
+          description:
+            "Optional hosted/cloud ruleset version when different from the local compiler package.",
         },
         xcodeBuildLog: {
           type: "string",

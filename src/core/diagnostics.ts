@@ -713,6 +713,12 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
     message: "Overlay on a SwiftUI text input may block hit testing",
     category: "swiftui-hit-testing",
   },
+  AX765: {
+    code: "AX765",
+    severity: "error",
+    message: "Invalid SwiftUI frame(maxWidth:height:) overload",
+    category: "swiftui-api-parity",
+  },
   AX714: {
     code: "AX714",
     severity: "error",

@@ -962,3 +962,44 @@ describe("swift validator — AX764 input overlay hit testing", () => {
     );
   });
 });
+
+describe("swift validator — AX765 SwiftUI frame overload parity", () => {
+  it("flags maxWidth plus fixed height in a single frame modifier", () => {
+    const source = `
+      import SwiftUI
+
+      struct DiscoverCard: View {
+          var body: some View {
+              VStack(alignment: .leading) {
+                  Text("Marketplace")
+              }
+              .frame(maxWidth: .infinity, height: 320, alignment: .topLeading)
+          }
+      }
+    `;
+
+    const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX765");
+    expect(diagnostic?.message).toContain("frame(maxWidth:height:alignment:)");
+    expect(diagnostic?.suggestion).toContain("frame(height:alignment:)");
+  });
+
+  it("accepts chained flexible width and fixed height frame modifiers", () => {
+    const source = `
+      import SwiftUI
+
+      struct DiscoverCard: View {
+          var body: some View {
+              VStack(alignment: .leading) {
+                  Text("Marketplace")
+              }
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .frame(height: 320, alignment: .topLeading)
+          }
+      }
+    `;
+
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX765")).toHaveLength(
+      0
+    );
+  });
+});

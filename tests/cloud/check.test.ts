@@ -87,6 +87,31 @@ export default defineIntent({
     expect(report.swiftCode).toContain("struct SendMessageIntent");
   });
 
+  it("separates compiler, MCP, cloud ruleset, and expected project versions", () => {
+    const report = runCloudCheck({
+      fileName: "ContentView.swift",
+      source: `
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View { Text("Hello") }
+}
+`,
+      expectedVersion: "9.9.8",
+      localPackageVersion: "9.9.8",
+      mcpServerVersion: "9.9.7",
+      cloudRulesetVersion: "9.9.9",
+    });
+
+    expect(report.versionInfo.compilerVersion).toBe(report.compilerVersion);
+    expect(report.versionInfo.localPackageVersion).toBe("9.9.8");
+    expect(report.versionInfo.mcpServerVersion).toBe("9.9.7");
+    expect(report.versionInfo.cloudRulesetVersion).toBe("9.9.9");
+    expect(report.versionInfo.expectedProjectVersion).toBe("9.9.8");
+    expect(report.versionInfo.consistent).toBe(false);
+    expect(renderCloudCheckReport(report, "markdown")).toContain("Version truth");
+  });
+
   it("exposes Cloud Check through MCP", async () => {
     const result = await handleToolCall("axint.cloud.check", {
       fileName: "ContentView.swift",

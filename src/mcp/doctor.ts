@@ -58,6 +58,7 @@ export function runMachineDoctor(input: MachineDoctorInput = {}): MachineDoctorR
   checks.push(projectContractCheck(cwd));
   checks.push(mcpConfigCheck(cwd));
   checks.push(agentConfigCheck());
+  checks.push(pythonSdkCheck(runningVersion));
 
   if (input.toolsRegistered !== undefined) {
     checks.push({
@@ -254,6 +255,60 @@ function agentConfigCheck(): MachineDoctorCheck {
     detail: hasAxint ? "axint registered" : "config exists but axint not registered",
     fix: hasAxint ? undefined : "Run axint xcode install --project .",
   };
+}
+
+function pythonSdkCheck(runningVersion: string): MachineDoctorCheck {
+  const pip = pipShowAxint();
+  if (!pip) {
+    return {
+      label: "Python SDK",
+      status: "ok",
+      detail: "not installed in the active python3 environment",
+    };
+  }
+
+  const matches = pip.version === runningVersion || runningVersion === "unknown";
+  const editable = pip.editableProjectLocation
+    ? ` Editable install: ${pip.editableProjectLocation}.`
+    : pip.location
+      ? ` Location: ${pip.location}.`
+      : "";
+  return {
+    label: "Python SDK",
+    status: matches ? "ok" : "warn",
+    detail: `python axint ${pip.version}.${editable}`.trim(),
+    fix: matches
+      ? undefined
+      : `Run python3 -m pip install --upgrade axint==${runningVersion}, or keep the editable Axint checkout synced to the npm compiler version.`,
+  };
+}
+
+function pipShowAxint():
+  | { version: string; editableProjectLocation?: string; location?: string }
+  | undefined {
+  try {
+    const out = execSync("python3 -m pip show axint", {
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+    const fields = new Map(
+      out
+        .split(/\r?\n/)
+        .map((line) => line.match(/^([^:]+):\s*(.*)$/))
+        .filter((match): match is RegExpMatchArray => Boolean(match))
+        .map((match) => [match[1], match[2]])
+    );
+    const version = fields.get("Version");
+    if (!version) return undefined;
+    return {
+      version,
+      editableProjectLocation: fields.get("Editable project location"),
+      location: fields.get("Location"),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function nextStepsFor(checks: MachineDoctorCheck[]): string[] {

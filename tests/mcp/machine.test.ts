@@ -65,6 +65,12 @@ describe("Axint project machine", () => {
     expect(
       pack.files.find((file) => file.path === ".axint/project.json")?.content
     ).toContain("workflowCheckRequiresToken");
+    const agentInstructions =
+      pack.files.find((file) => file.path === "AGENTS.md")?.content ?? "";
+    expect(agentInstructions).toContain("11. Run `axint.cloud.check`");
+    expect(agentInstructions).toContain("12. Prefer `axint.run`");
+    expect(agentInstructions).toContain("13. Build in Xcode");
+    expect(agentInstructions).not.toContain("11. Prefer `axint.run`");
   });
 
   it("generates Codex start packs without Xcode-only write requirements", () => {

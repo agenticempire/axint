@@ -35,6 +35,7 @@ export interface WorkflowCheckInput {
   xcodeBuildPassed?: boolean;
   xcodeTestsPassed?: boolean;
   notes?: string;
+  availableTools?: string[];
   format?: "markdown" | "json";
 }
 
@@ -60,10 +61,16 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   const agent = normalizeAxintAgent(input.agent);
   const profile = buildAgentToolProfile(agent);
   const patchFirstRepair = looksLikePatchFirstRepair(input);
+  const availableTools = normalizeAvailableTools(input.availableTools);
 
   checked.push(
     `Agent tool profile: ${profile.label} (${profile.editingMode}). Default write action: ${profile.defaultWriteAction}.`
   );
+  if (availableTools) {
+    checked.push(
+      `Available Axint tools supplied by host: ${availableTools.size} tool${availableTools.size === 1 ? "" : "s"}.`
+    );
+  }
 
   if (requireSession) {
     const session = validateAxintSessionToken({
@@ -143,7 +150,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
     }
     if (!input.ranSuggest) {
       required.push(
-        "Run axint.suggest with the current app description before choosing the feature plan."
+        "Run axint.suggest with the current app description before choosing the feature plan. If MCP transport is closed, use the CLI fallback: axint suggest <app-description>."
       );
     }
   }
@@ -151,7 +158,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   if (stage === "before-write") {
     if (!input.ranSuggest) {
       required.push(
-        "Run axint.suggest before writing a new Apple-native surface so the plan is not ordinary hand-coded Swift by default."
+        "Run axint.suggest before writing a new Apple-native surface so the plan is not ordinary hand-coded Swift by default. If MCP transport is closed, use the CLI fallback: axint suggest <app-description>."
       );
     }
     if (
@@ -211,7 +218,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   }
 
   const status = required.length === 0 ? "ready" : "needs_action";
-  const nextTool =
+  let nextTool =
     status === "needs_action"
       ? nextToolForRequired(required)
       : nextToolForSatisfiedStage({
@@ -223,6 +230,16 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
           agent,
           patchFirstRepair,
         });
+  const reconciledNextTool = reconcileNextToolAvailability(nextTool, {
+    availableTools,
+    profile,
+  });
+  if (nextTool && reconciledNextTool !== nextTool) {
+    recommended.push(
+      `${baseAxintTool(nextTool)} is not available in this agent tool surface. Use the available fallback instead of pretending the missing MCP tool can be called.`
+    );
+    nextTool = reconciledNextTool;
+  }
   const score = Math.max(
     0,
     100 - required.length * 30 - recommended.length * 10 - (checked.length === 0 ? 10 : 0)
@@ -312,6 +329,54 @@ function nextToolForRequired(required: string[]): string | undefined {
   if (text.includes("axint.swift.validate")) return "axint.swift.validate";
   if (text.includes("axint.cloud.check")) return "axint.cloud.check";
   return undefined;
+}
+
+function reconcileNextToolAvailability(
+  nextTool: string | undefined,
+  input: {
+    availableTools?: Set<string>;
+    profile: ReturnType<typeof buildAgentToolProfile>;
+  }
+): string | undefined {
+  if (!nextTool || !input.availableTools) return nextTool;
+  const base = baseAxintTool(nextTool);
+  if (!base.startsWith("axint.")) return nextTool;
+  if (input.availableTools.has(base)) return nextTool;
+
+  if (base === "axint.feature") {
+    if (input.availableTools.has("axint.suggest")) {
+      return "axint.suggest, then patch existing files or use the active editor write tool";
+    }
+    if (input.availableTools.has("axint.xcode.write")) return "axint.xcode.write";
+    return input.profile.defaultWriteAction;
+  }
+  if (base === "axint.xcode.write") return input.profile.defaultWriteAction;
+  if (base === "axint.xcode.guard") {
+    if (input.availableTools.has("axint.workflow.check"))
+      return "axint.workflow.check(stage=pre-commit)";
+    return input.profile.finishAction;
+  }
+  if (base === "axint.run" && input.availableTools.has("axint.workflow.check")) {
+    return "axint.workflow.check(stage=pre-commit), then use shell xcodebuild proof";
+  }
+  return undefined;
+}
+
+function normalizeAvailableTools(tools: string[] | undefined): Set<string> | undefined {
+  if (!tools || tools.length === 0) return undefined;
+  const normalized = tools
+    .map((tool) => tool.trim())
+    .filter(Boolean)
+    .map((tool) => {
+      const direct = tool.match(/axint\.[A-Za-z0-9_.-]+/)?.[0];
+      if (direct) return direct;
+      return tool;
+    });
+  return new Set(normalized);
+}
+
+function baseAxintTool(tool: string): string {
+  return tool.split("(")[0]?.trim() ?? tool;
 }
 
 function nextToolForSatisfiedStage(input: {

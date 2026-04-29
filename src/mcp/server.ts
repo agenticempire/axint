@@ -248,6 +248,9 @@ type CloudCheckArgs = {
   fileName?: string;
   language?: "swift" | "typescript" | "unknown";
   platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "all";
+  expectedVersion?: string;
+  localPackageVersion?: string;
+  cloudRulesetVersion?: string;
   xcodeBuildLog?: string;
   testFailure?: string;
   runtimeFailure?: string;
@@ -352,6 +355,7 @@ function renderAxintRunBackgroundStart(input: {
   id: string;
   cwd: string;
   format: AxintRunFormat;
+  auto?: boolean;
 }): string {
   const payload = {
     id: input.id,
@@ -359,9 +363,13 @@ function renderAxintRunBackgroundStart(input: {
     cwd: input.cwd,
     jobPath: resolve(input.cwd, ".axint/run/jobs", `${input.id}.json`),
     latestActivePath: resolve(input.cwd, ".axint/run/latest-active.json"),
+    latestRunPath: resolve(input.cwd, ".axint/run/latest.json"),
     statusCommand: `axint run status --dir ${quoteForShell(input.cwd)} --id ${input.id}`,
     cancelCommand: `axint run cancel --dir ${quoteForShell(input.cwd)} --id ${input.id}`,
-    note: "Axint Run is continuing in the background so long Xcode proof does not time out the MCP transport.",
+    autoBackgrounded: Boolean(input.auto),
+    note: input.auto
+      ? "Axint automatically returned a background run handle because this Xcode proof may outlive the MCP transport timeout."
+      : "Axint Run is continuing in the background so long Xcode proof does not time out the MCP transport.",
   };
 
   if (input.format === "json") return JSON.stringify(payload, null, 2);
@@ -380,6 +388,7 @@ function renderAxintRunBackgroundStart(input: {
     `- Cwd: ${payload.cwd}`,
     `- Job record: ${payload.jobPath}`,
     `- Latest active: ${payload.latestActivePath}`,
+    `- Latest run snapshot: ${payload.latestRunPath}`,
     `- Status command: \`${payload.statusCommand}\``,
     `- Cancel command: \`${payload.cancelCommand}\``,
     "",
@@ -390,6 +399,17 @@ function renderAxintRunBackgroundStart(input: {
 function quoteForShell(value: string): string {
   if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
   return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function shouldAutoBackgroundMcpRun(input: AxintRunArgs): boolean {
+  if (input.dryRun || input.background || input.skipBuild) return false;
+
+  const requestedTimeout = input.timeoutSeconds ?? 0;
+  const willRunTests = input.skipTests !== true;
+  const hasFocusedTests = (input.onlyTesting ?? []).length > 0;
+  const willRunRuntimeProbe = Boolean(input.runtime);
+
+  return requestedTimeout > 100 || hasFocusedTests || willRunTests || willRunRuntimeProbe;
 }
 
 function renderStatus(format: StatusArgs["format"] = "markdown"): string {
@@ -807,6 +827,10 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       fileName: a.fileName,
       language: a.language,
       platform: a.platform,
+      expectedVersion: a.expectedVersion,
+      localPackageVersion: a.localPackageVersion,
+      mcpServerVersion: pkg.version,
+      cloudRulesetVersion: a.cloudRulesetVersion,
       xcodeBuildLog: a.xcodeBuildLog,
       testFailure: a.testFailure,
       runtimeFailure: a.runtimeFailure,
@@ -925,7 +949,8 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       writeReport: a.writeReport,
     } as const;
 
-    if (a.background) {
+    const autoBackground = shouldAutoBackgroundMcpRun(a);
+    if (a.background || autoBackground) {
       const cwd = resolve(a.cwd ?? process.cwd());
       const id = `axrun_${randomUUID()}`;
       void runAxintProject({
@@ -941,6 +966,7 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
           id,
           cwd,
           format: a.format ?? "markdown",
+          auto: autoBackground && !a.background,
         })
       );
     }
