@@ -60,6 +60,64 @@ describe("axint-dsl lowering — happy path", () => {
     expect(intent.donateOnPerform).toBe(false);
   });
 
+  it("lowers custom public pages into safe module manifests", () => {
+    const { pages, intents, entities, diagnostics } = lowerSource(`
+      page AxintLander {
+        title: "Axint"
+        tagline: "Compiler-native project pages"
+        theme: "black-cream"
+
+        module emailCapture "Join the build" {
+          kind: emailCapture
+          permission: collectEmail
+          permission: outboundLink
+          privacy: "Used only for Axint updates."
+        }
+
+        module shareCard "Launch card" {
+          kind: shareCard
+          output: "1200x630 PNG"
+          source: uploadedArtwork
+        }
+      }
+    `);
+
+    expect(diagnostics).toHaveLength(0);
+    expect(intents).toHaveLength(0);
+    expect(entities).toHaveLength(0);
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toMatchObject({
+      name: "AxintLander",
+      title: "Axint",
+      tagline: "Compiler-native project pages",
+      theme: "black-cream",
+      modules: [
+        {
+          id: "emailCapture",
+          title: "Join the build",
+          kind: "emailCapture",
+          permissions: ["collectEmail", "outboundLink"],
+          fields: {
+            kind: "emailCapture",
+            permission: ["collectEmail", "outboundLink"],
+            privacy: "Used only for Axint updates.",
+          },
+        },
+        {
+          id: "shareCard",
+          title: "Launch card",
+          kind: "shareCard",
+          permissions: [],
+          fields: {
+            kind: "shareCard",
+            output: "1200x630 PNG",
+            source: "uploadedArtwork",
+          },
+        },
+      ],
+    });
+  });
+
   it("lowers params with primitive and optional types", () => {
     const { intents, diagnostics } = lowerSource(`
       intent SendMessage {

@@ -4,6 +4,7 @@ import type {
   EntityDecl,
   EnumDecl,
   IntentDecl,
+  PageDecl,
   ParamDecl,
   SummarySwitch,
   SummaryWhen,
@@ -115,6 +116,46 @@ describe("axint-dsl parser — happy path", () => {
     expect((nav!.summary as SummaryWhen).param.name).toBe("destination");
     expect(setMode!.summary?.kind).toBe("SummarySwitch");
     expect((setMode!.summary as SummarySwitch).param.name).toBe("mode");
+  });
+
+  it("parses a custom public page with safe modules", () => {
+    const file = parseOk(`
+      page AxintLander {
+        title: "Axint"
+        tagline: "Compiler-native project pages"
+        theme: "black-cream"
+
+        module emailCapture "Join the build" {
+          kind: emailCapture
+          permission: collectEmail
+          privacy: "Used only for Axint updates."
+        }
+
+        module shareCard "Launch card" {
+          kind: shareCard
+          output: "1200x630 PNG"
+          source: uploadedArtwork
+        }
+      }
+    `);
+
+    const page = file.declarations[0] as PageDecl;
+    expect(page.kind).toBe("PageDecl");
+    expect(page.name.name).toBe("AxintLander");
+    expect(page.fields.map((field) => field.name.name)).toEqual([
+      "title",
+      "tagline",
+      "theme",
+    ]);
+    expect(page.modules.map((module) => module.id.name)).toEqual([
+      "emailCapture",
+      "shareCard",
+    ]);
+    expect(page.modules[0]!.fields.map((field) => field.name.name)).toEqual([
+      "kind",
+      "permission",
+      "privacy",
+    ]);
   });
 });
 

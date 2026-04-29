@@ -6,6 +6,12 @@ import { fileURLToPath } from "node:url";
 
 type StatusFormat = "markdown" | "json" | "prompt";
 
+export interface McpRecoveryPacketInput {
+  dir?: string;
+  agent?: string;
+  sessionToken?: string;
+}
+
 export function registerStatus(program: Command, version: string) {
   program
     .command("status")
@@ -93,6 +99,57 @@ export function renderCliStatus(
   ].join("\n");
 }
 
+export function renderMcpRecoveryPacket(
+  version: string,
+  input: McpRecoveryPacketInput = {}
+): string {
+  const cwd = resolve(input.dir ?? process.cwd());
+  const agent = input.agent ?? "<host>";
+  const sessionToken = input.sessionToken ?? "<session-token>";
+  const npxPath = which("npx") ?? "npx";
+  const statusCommand = `${npxPath} -y @axint/compiler@${version} axint status --format json`;
+  const sessionCommand = `${npxPath} -y @axint/compiler@${version} axint session start --dir ${quote(
+    cwd
+  )} --agent ${quote(agent)}`;
+  const workflowCommand = `${npxPath} -y @axint/compiler@${version} axint workflow check --dir ${quote(
+    cwd
+  )} --stage context-recovery --agent ${quote(agent)} --session-token ${quote(
+    sessionToken
+  )} --read-rehydration-context --read-agent-instructions --read-docs-context --ran-status`;
+  const runCommand = `${npxPath} -y @axint/compiler@${version} axint run --cwd ${quote(
+    cwd
+  )} --agent ${quote(agent)} --changed <files> --only-testing <focused-selector>`;
+
+  return [
+    "# Axint MCP Recovery Packet",
+    "",
+    `- Axint package: @axint/compiler@${version}`,
+    `- Project: ${cwd}`,
+    `- Agent lane: ${agent}`,
+    `- npx: ${npxPath}`,
+    "",
+    "Use this when a client says `Transport closed`, keeps showing stale MCP tools, or cannot reconnect inside the current chat.",
+    "",
+    "## Safe Same-Thread Fallback",
+    "",
+    "```sh",
+    statusCommand,
+    sessionCommand,
+    workflowCommand,
+    "```",
+    "",
+    "## Continue The Proof Loop",
+    "",
+    "```sh",
+    runCommand,
+    "```",
+    "",
+    "## Reload Hint",
+    "",
+    "Reload only the Axint MCP server/tool process when your client supports it. If the host cannot reconnect tools in-place, keep this packet in the thread and continue through the CLI fallback until a new tool session is available.",
+  ].join("\n");
+}
+
 function parseFormat(value: string | undefined): StatusFormat {
   if (value === "json" || value === "prompt" || value === "markdown") return value;
   return "markdown";
@@ -108,6 +165,11 @@ function which(binary: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function quote(value: string): string {
+  if (/^[A-Za-z0-9_./:=@+-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function findPackageJsonPath(): string {

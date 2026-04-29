@@ -33,7 +33,7 @@ Conventions (enforced by validator, not by grammar):
 Reserved words — cannot be used as identifiers:
 
 ```
-intent  entity  enum  param  property  summary  display  query
+intent  entity  enum  page  module  param  property  summary  display  query
 title   description  domain  category  default  options  dynamic
 case    default  when    then  otherwise  switch
 string  int  double  float  boolean  date  duration  url
@@ -79,7 +79,8 @@ file = { top-level-decl } .
 
 top-level-decl = enum-decl
                | entity-decl
-               | intent-decl .
+               | intent-decl
+               | page-decl .
 ```
 
 A file may contain zero or more top-level declarations in any order, except that an entity referenced by an intent must be declared in the same file (v1 is single-file). Convention: entities first, then intents.
@@ -159,6 +160,53 @@ entity Trail {
   query: property
 }
 ```
+
+### Public page declaration
+
+```
+page-decl        = "page" identifier "{" page-body "}" .
+page-body        = { page-field | page-module } .
+page-field       = identifier ":" page-value .
+page-module      = "module" identifier string-literal "{" { page-field } "}" .
+page-value       = string-literal
+                 | number-literal
+                 | boolean-literal
+                 | identifier .
+```
+
+`page` declares a safe, front-facing project/profile lander manifest. It does **not** accept arbitrary HTML, JavaScript, tracking pixels, or external code. A host app renders the declared modules inside its own sandbox and can reject modules by permission, domain, or scanner policy.
+
+The top-level fields are intentionally open-ended so a project can evolve its brand surface without forcing a compiler release for every design option. Common fields are:
+
+| Field     | Meaning                                                        |
+|-----------|----------------------------------------------------------------|
+| `title`   | Primary public-facing name.                                    |
+| `tagline` | One-line positioning statement.                                |
+| `theme`   | Host-defined theme token, e.g. `"black-cream"`.                |
+
+Modules use a stable identifier plus a human-facing title:
+
+```
+page AxintLander {
+  title: "Axint"
+  tagline: "Compiler-native project pages"
+  theme: "black-cream"
+
+  module emailCapture "Join the build" {
+    kind: emailCapture
+    permission: collectEmail
+    privacy: "Used only for Axint updates."
+  }
+
+  module shareCard "Launch card" {
+    kind: shareCard
+    output: "1200x630 PNG"
+    source: uploadedArtwork
+  }
+}
+```
+
+Repeated fields are allowed and lower to arrays. The main intended repeated field is `permission`, which lets a host scanner gate modules such as email capture, outbound links, QR rendering, install CTAs, MCP/NPM shelves, or animated share-card generation before anything is rendered.
 
 ### Intent declaration
 

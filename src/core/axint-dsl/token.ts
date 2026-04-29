@@ -31,6 +31,8 @@ export type TokenKind =
   | "INTENT"
   | "ENTITY"
   | "ENUM"
+  | "PAGE"
+  | "MODULE"
 
   // Intent body keywords
   | "TITLE"
@@ -141,6 +143,8 @@ export const KEYWORDS: Readonly<Record<string, TokenKind>> = {
   intent: "INTENT",
   entity: "ENTITY",
   enum: "ENUM",
+  page: "PAGE",
+  module: "MODULE",
 
   title: "TITLE",
   description: "DESCRIPTION",

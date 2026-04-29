@@ -9,6 +9,15 @@ Every reserved word in the language, with a one-line semantic.
 | `intent`   | Declares an App Intent. Compiles to an `AppIntent` struct.               |
 | `entity`   | Declares an App Entity. Compiles to an `AppEntity` struct + `EntityQuery`. |
 | `enum`     | Declares a closed enum. Compiles to a Swift `enum` conforming to `AppEnum`. |
+| `page`     | Declares a safe custom public project/profile lander manifest.           |
+| `module`   | Declares a host-rendered module inside a `page`.                         |
+
+## Public page keywords
+
+| Keyword  | Role                                                                                     |
+|----------|------------------------------------------------------------------------------------------|
+| `page`   | Opens a custom public page manifest. It lowers to host-rendered IR, not arbitrary HTML.  |
+| `module` | Opens a sandboxed page module with an id, title, and manifest fields.                    |
 
 ## Intent body keywords
 

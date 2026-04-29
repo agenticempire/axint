@@ -62,6 +62,10 @@ export type {
   DisplayImage,
   PropertyDecl,
   QueryClause,
+  // Public page
+  PageDecl,
+  PageFieldDecl,
+  PageModuleDecl,
   // Intent
   IntentDecl,
   MetaClause,

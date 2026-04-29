@@ -35,6 +35,11 @@ export interface SwiftValidationResult {
   diagnostics: Diagnostic[];
 }
 
+export interface SwiftValidationInput {
+  file: string;
+  source: string;
+}
+
 export function validateSwiftSource(source: string, file: string): SwiftValidationResult {
   const diagnostics: Diagnostic[] = [];
   const stripped = stripCommentsAndStrings(source);
@@ -81,6 +86,22 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkOpaqueViewReturnsNeedExplicitReturn(source, stripped, file, diagnostics);
 
   return { file, diagnostics };
+}
+
+export function validateSwiftSources(
+  inputs: SwiftValidationInput[]
+): SwiftValidationResult[] {
+  const results = inputs.map((input) => validateSwiftSource(input.source, input.file));
+  if (inputs.length < 2) return results;
+
+  const diagnosticsByFile = new Map(
+    results.map((result) => [result.file, result.diagnostics])
+  );
+  for (const diagnostic of checkSameTargetMissingMembers(inputs)) {
+    const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
+    if (diagnostics) diagnostics.push(diagnostic);
+  }
+  return results;
 }
 
 const ACCESSIBILITY_CONTAINER_NAMES = [
@@ -327,6 +348,154 @@ function checkOpaqueViewReturnsNeedExplicitReturn(
     );
   }
 }
+
+function checkSameTargetMissingMembers(inputs: SwiftValidationInput[]): Diagnostic[] {
+  const typeMembers = collectTypeMemberIndex(inputs);
+  if (typeMembers.size === 0) return [];
+
+  const diagnostics: Diagnostic[] = [];
+  const reported = new Set<string>();
+
+  for (const input of inputs) {
+    const stripped = stripCommentsAndStrings(input.source);
+    const bindings = collectTypedBindings(stripped, typeMembers);
+    if (bindings.size === 0) continue;
+
+    const memberAccess = /\b([a-z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
+    let match: RegExpExecArray | null;
+    while ((match = memberAccess.exec(stripped)) !== null) {
+      const objectName = match[1]!;
+      const memberName = match[2]!;
+      const typeName = bindings.get(objectName);
+      if (!typeName) continue;
+      if (KNOWN_CROSS_FILE_MEMBER_NAMES.has(memberName)) continue;
+
+      const members = typeMembers.get(typeName);
+      if (!members || members.has(memberName)) continue;
+
+      const key = `${input.file}:${objectName}:${typeName}:${memberName}:${match.index}`;
+      if (reported.has(key)) continue;
+      reported.add(key);
+
+      diagnostics.push(
+        makeDiagnostic(
+          "AX768",
+          input.file,
+          1 + countNewlinesUpTo(input.source, match.index),
+          {
+            message: `Changed Swift files reference '${objectName}.${memberName}', but '${typeName}' in this validation set does not declare '${memberName}'`,
+            suggestion:
+              "Use a member that exists on the declaring type, include the extension file that defines it, or rerun Xcode if this member is provided by generated code outside the validation set.",
+          }
+        )
+      );
+    }
+  }
+
+  return diagnostics;
+}
+
+function collectTypeMemberIndex(
+  inputs: SwiftValidationInput[]
+): Map<string, Set<string>> {
+  const index = new Map<string, Set<string>>();
+  for (const input of inputs) {
+    const stripped = stripCommentsAndStrings(input.source);
+    const declarations = findTypeDeclarations(stripped, input.source);
+    for (const declaration of declarations) {
+      const typeName = baseSwiftTypeName(declaration.name);
+      if (!typeName) continue;
+      const members = index.get(typeName) ?? new Set<string>();
+      const body = stripped.slice(declaration.bodyStart, declaration.bodyEnd);
+
+      for (const member of collectDeclaredMemberNames(body)) members.add(member);
+      index.set(typeName, members);
+    }
+  }
+  return index;
+}
+
+function collectDeclaredMemberNames(typeBody: string): Set<string> {
+  const members = new Set<string>();
+  const patterns = [
+    /\b(?:static\s+|class\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
+    /\b(?:static\s+|class\s+)?func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(typeBody)) !== null) {
+      members.add(match[1]!);
+    }
+  }
+
+  const casePattern =
+    /\bcase\s+([A-Za-z_][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z_][A-Za-z0-9_]*)*)/g;
+  let caseMatch: RegExpExecArray | null;
+  while ((caseMatch = casePattern.exec(typeBody)) !== null) {
+    for (const name of caseMatch[1]!.split(",")) {
+      const trimmed = name.trim();
+      if (trimmed) members.add(trimmed);
+    }
+  }
+
+  return members;
+}
+
+function collectTypedBindings(
+  stripped: string,
+  typeMembers: Map<string, Set<string>>
+): Map<string, string> {
+  const bindings = new Map<string, string>();
+  const bindingPattern =
+    /\b(?:let|var)\s+([a-z][A-Za-z0-9_]*)\s*(?::\s*([A-Z][A-Za-z0-9_.]*(?:<[^=\n>]+>)?\??))?\s*(?:=\s*([A-Z][A-Za-z0-9_.]*)\s*\()?/g;
+  let match: RegExpExecArray | null;
+  while ((match = bindingPattern.exec(stripped)) !== null) {
+    const name = match[1]!;
+    const typeName = baseSwiftTypeName(match[2] ?? match[3] ?? "");
+    if (typeName && typeMembers.has(typeName)) bindings.set(name, typeName);
+  }
+
+  const functionPattern = /\bfunc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(([^)]*)\)/g;
+  let functionMatch: RegExpExecArray | null;
+  while ((functionMatch = functionPattern.exec(stripped)) !== null) {
+    for (const rawParam of functionMatch[1]!.split(",")) {
+      const paramMatch = rawParam.match(
+        /\b(?:[A-Za-z_][A-Za-z0-9_]*\s+)?([a-z][A-Za-z0-9_]*)\s*:\s*([A-Z][A-Za-z0-9_.]*(?:<[^>]+>)?\??)/
+      );
+      if (!paramMatch) continue;
+      const typeName = baseSwiftTypeName(paramMatch[2] ?? "");
+      if (typeName && typeMembers.has(typeName)) bindings.set(paramMatch[1]!, typeName);
+    }
+  }
+
+  return bindings;
+}
+
+function baseSwiftTypeName(raw: string): string | undefined {
+  const cleaned = raw
+    .replace(/\?.*$/, "")
+    .replace(/<.*$/, "")
+    .replace(/^\[/, "")
+    .replace(/\]$/, "")
+    .split(".")
+    .at(-1)
+    ?.trim();
+  return cleaned && /^[A-Z][A-Za-z0-9_]*$/.test(cleaned) ? cleaned : undefined;
+}
+
+const KNOWN_CROSS_FILE_MEMBER_NAMES = new Set([
+  "allCases",
+  "count",
+  "debugDescription",
+  "description",
+  "hashValue",
+  "id",
+  "isEmpty",
+  "localizedDescription",
+  "rawValue",
+  "self",
+]);
 
 function hasViewBuilderAttribute(stripped: string, declarationIndex: number): boolean {
   const prefix = stripped.slice(Math.max(0, declarationIndex - 180), declarationIndex);

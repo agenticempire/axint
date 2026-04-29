@@ -448,6 +448,98 @@ describe("runAxintProject", () => {
     }
   });
 
+  it("classifies UI automation startup failures as runner infrastructure", async () => {
+    const dir = makeFakeXcodeProject();
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      [
+        "#!/bin/sh",
+        'if echo " $* " | grep -q " test "; then',
+        '  echo "The test runner failed to initialize for UI testing."',
+        '  echo "Timed out while enabling automation mode."',
+        '  echo "** TEST FAILED **"',
+        "  exit 65",
+        "else",
+        '  echo "** BUILD SUCCEEDED **"',
+        "  exit 0",
+        "fi",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    try {
+      const report = await runAxintProject({
+        cwd: dir,
+        writeReport: false,
+        onlyTesting: ["SwarmUITests/SwarmUITests/testOnboardingControls"],
+      });
+      const rendered = renderAxintRunReport(report);
+      const cloudCodes = report.cloudChecks.flatMap((check) =>
+        check.diagnostics.map((diagnostic) => diagnostic.code)
+      );
+
+      expect(report.runnerHealth).toContainEqual(
+        expect.objectContaining({ kind: "ui-automation-infrastructure" })
+      );
+      expect(report.nextSteps.join("\n")).toContain("Xcode UI automation did not start");
+      expect(rendered).toContain("## Xcode Runner Health");
+      expect(rendered).toContain("ui-automation-infrastructure");
+      expect(cloudCodes).toContain("AXCLOUD-XCTEST-AUTOMATION-INFRASTRUCTURE");
+    } finally {
+      process.env.PATH = previousPath;
+    }
+  });
+
+  it("does not tell agents to add a focused test when only-testing timed out before assertions", async () => {
+    const dir = makeFakeXcodeProject();
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      [
+        "#!/bin/sh",
+        'if echo " $* " | grep -q " test "; then',
+        "  sleep 2",
+        "  exit 1",
+        "else",
+        '  echo "** BUILD SUCCEEDED **"',
+        "  exit 0",
+        "fi",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    try {
+      const report = await runAxintProject({
+        cwd: dir,
+        writeReport: false,
+        timeoutSeconds: 1,
+        onlyTesting: ["SwarmTests/P3FrontendArchitectureTests"],
+      });
+      const nextSteps = report.nextSteps.join("\n");
+      const prompt = report.repairPrompt;
+
+      expect(report.runnerHealth).toContainEqual(
+        expect.objectContaining({ kind: "hosted-test-runner-timeout" })
+      );
+      expect(nextSteps).toContain("Focused selector compiled");
+      expect(nextSteps).not.toContain("Add or update a focused unit/UI test");
+      expect(prompt).toContain("hosted-test-runner-timeout");
+    } finally {
+      process.env.PATH = previousPath;
+    }
+  });
+
   it("reports nothing to cancel when the latest run has already finished", async () => {
     const dir = makeFakeXcodeProject();
     const report = await runAxintProject({

@@ -23,7 +23,7 @@ export interface FileNode {
   readonly declarations: readonly TopLevelDecl[];
 }
 
-export type TopLevelDecl = IntentDecl | EntityDecl | EnumDecl;
+export type TopLevelDecl = IntentDecl | EntityDecl | EnumDecl | PageDecl;
 
 // ─── Identifier ──────────────────────────────────────────────────────
 
@@ -187,6 +187,36 @@ export interface QueryClause {
   readonly kind: "QueryClause";
   readonly span: TokenSpan;
   readonly queryKind: "all" | "id" | "string" | "property";
+}
+
+// ─── Public Page ─────────────────────────────────────────────────────
+
+/**
+ * A custom front-facing project/profile page. This is intentionally a safe
+ * manifest, not arbitrary web code: authors declare modules and fields that a
+ * host app can render inside its own sandbox.
+ */
+export interface PageDecl {
+  readonly kind: "PageDecl";
+  readonly span: TokenSpan;
+  readonly name: Ident;
+  readonly fields: readonly PageFieldDecl[];
+  readonly modules: readonly PageModuleDecl[];
+}
+
+export interface PageFieldDecl {
+  readonly kind: "PageFieldDecl";
+  readonly span: TokenSpan;
+  readonly name: Ident;
+  readonly value: LiteralNode;
+}
+
+export interface PageModuleDecl {
+  readonly kind: "PageModuleDecl";
+  readonly span: TokenSpan;
+  readonly id: Ident;
+  readonly title: StringLiteral;
+  readonly fields: readonly PageFieldDecl[];
 }
 
 // ─── Intent ──────────────────────────────────────────────────────────

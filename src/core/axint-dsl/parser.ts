@@ -39,6 +39,9 @@ import type {
   MetaClause,
   NamedType,
   OptionalType,
+  PageDecl,
+  PageFieldDecl,
+  PageModuleDecl,
   ParamDecl,
   PrimitiveKind,
   PrimitiveType,
@@ -98,6 +101,7 @@ const TOP_LEVEL_KEYWORDS: ReadonlySet<TokenKind> = new Set<TokenKind>([
   "INTENT",
   "ENTITY",
   "ENUM",
+  "PAGE",
 ]);
 
 const INTENT_META_KEYWORDS: ReadonlySet<TokenKind> = new Set<TokenKind>([
@@ -207,10 +211,12 @@ class Parser {
         return this.parseEntityDecl();
       case "ENUM":
         return this.parseEnumDecl();
+      case "PAGE":
+        return this.parsePageDecl();
       default: {
         this.emit({
           code: "AX001",
-          message: `unexpected ${describeToken(this.peek())} at top level, expected \`intent\`, \`entity\`, or \`enum\``,
+          message: `unexpected ${describeToken(this.peek())} at top level, expected \`intent\`, \`entity\`, \`enum\`, or \`page\``,
           span: this.peek().span,
           fix: this.fixInsert(this.zeroWidthBefore(this.peek().span)),
         });
@@ -545,6 +551,152 @@ class Parser {
       span: spanBetween(start.span, tok.span),
       queryKind: tok.value as QueryClause["queryKind"],
     };
+  }
+
+  // ─── Public Page ───────────────────────────────────────────────────
+
+  private parsePageDecl(): PageDecl | null {
+    const start = this.consume(); // PAGE
+    const name = this.expectIdent("AX002", "page name");
+    if (!name) {
+      this.recoverToTopLevel();
+      return null;
+    }
+
+    const lbrace = this.expectPunctuation("LBRACE", "`{` to start page body");
+    if (!lbrace) {
+      this.recoverToTopLevel();
+      return null;
+    }
+
+    const fields: PageFieldDecl[] = [];
+    const modules: PageModuleDecl[] = [];
+
+    while (!this.atEnd() && this.peekKind() !== "RBRACE") {
+      if (this.peekKind() === "MODULE") {
+        const module = this.parsePageModule();
+        if (module) modules.push(module);
+      } else if (this.isPageFieldStart()) {
+        const field = this.parsePageField();
+        if (field) fields.push(field);
+      } else {
+        this.emit({
+          code: "AX007",
+          message: `unexpected ${describeToken(this.peek())} in page body`,
+          span: this.peek().span,
+          fix: this.fixRemove(this.peek().span),
+        });
+        this.recoverToPageBoundary();
+      }
+    }
+
+    const rbrace = this.expectPunctuation("RBRACE", "`}` to close page body");
+    const endSpan = rbrace?.span ?? this.previousSpan();
+    return {
+      kind: "PageDecl",
+      span: spanBetween(start.span, endSpan),
+      name,
+      fields,
+      modules,
+    };
+  }
+
+  private parsePageModule(): PageModuleDecl | null {
+    const start = this.consume(); // MODULE
+    const id = this.expectIdent("AX007", "module id");
+    if (!id) {
+      this.recoverToPageBoundary();
+      return null;
+    }
+
+    const title = this.expectStringLiteral("module title");
+    if (!title) {
+      this.recoverToPageBoundary();
+      return null;
+    }
+
+    const lbrace = this.expectPunctuation("LBRACE", "`{` to start module body");
+    if (!lbrace) {
+      this.recoverToPageBoundary();
+      return null;
+    }
+
+    const fields: PageFieldDecl[] = [];
+    while (!this.atEnd() && this.peekKind() !== "RBRACE") {
+      if (this.isPageFieldStart()) {
+        const field = this.parsePageField();
+        if (field) fields.push(field);
+      } else {
+        this.emit({
+          code: "AX007",
+          message: `unexpected ${describeToken(this.peek())} in module body`,
+          span: this.peek().span,
+          fix: this.fixRemove(this.peek().span),
+        });
+        this.recoverToPageBoundary();
+      }
+    }
+
+    const rbrace = this.expectPunctuation("RBRACE", "`}` to close module body");
+    const endSpan = rbrace?.span ?? this.previousSpan();
+    return {
+      kind: "PageModuleDecl",
+      span: spanBetween(start.span, endSpan),
+      id,
+      title,
+      fields,
+    };
+  }
+
+  private parsePageField(): PageFieldDecl | null {
+    const nameToken = this.consume();
+    const name: Ident = { kind: "Ident", span: nameToken.span, name: nameToken.value };
+    if (!this.expectPunctuation("COLON", `\`:\` after \`${name.name}\``)) {
+      this.recoverToEndOfLine(nameToken.span.startLine);
+      return null;
+    }
+
+    const value = this.parsePageFieldValue();
+    if (!value) {
+      this.recoverToEndOfLine(nameToken.span.startLine);
+      return null;
+    }
+
+    return {
+      kind: "PageFieldDecl",
+      span: spanBetween(nameToken.span, value.span),
+      name,
+      value,
+    };
+  }
+
+  private parsePageFieldValue(): LiteralNode | null {
+    const tok = this.peek();
+    switch (tok.kind) {
+      case "STRING_LITERAL":
+      case "INTEGER_LITERAL":
+      case "DECIMAL_LITERAL":
+      case "TRUE":
+      case "FALSE":
+      case "IDENTIFIER":
+        return this.parseLiteral();
+      default:
+        // Public-page manifests use identifier-like symbols for values such as
+        // `permission: collectEmail` or `animation: breathe`. Allow reserved
+        // words as symbols here because this surface is a safe manifest, not
+        // Swift code.
+        if (isIdentifierLikeLexeme(tok.value)) {
+          this.advance();
+          return { kind: "IdentLiteral", span: tok.span, name: tok.value };
+        }
+        this.emit({
+          code: "AX007",
+          message: `expected page field value, got ${describeToken(tok)}`,
+          span: tok.span,
+          fix: this.fixRemove(tok.span),
+        });
+        return null;
+    }
   }
 
   // ─── Intent ────────────────────────────────────────────────────────
@@ -1378,6 +1530,10 @@ class Parser {
     return null;
   }
 
+  private isPageFieldStart(): boolean {
+    return isIdentifierLikeLexeme(this.peek().value) && this.peekKind(1) === "COLON";
+  }
+
   // ─── Spans + diagnostics ───────────────────────────────────────────
 
   private emit(args: {
@@ -1521,9 +1677,24 @@ class Parser {
       this.advance();
     }
   }
+
+  private recoverToPageBoundary(): void {
+    if (this.atEnd()) return;
+    this.advance();
+    while (!this.atEnd()) {
+      const kind = this.peekKind();
+      if (kind === "RBRACE" || kind === "MODULE" || TOP_LEVEL_KEYWORDS.has(kind)) return;
+      if (this.isPageFieldStart()) return;
+      this.advance();
+    }
+  }
 }
 
 // ─── Module helpers ──────────────────────────────────────────────────
+
+function isIdentifierLikeLexeme(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
+}
 
 function spanBetween(a: TokenSpan, b: TokenSpan): TokenSpan {
   return {

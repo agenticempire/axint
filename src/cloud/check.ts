@@ -236,7 +236,8 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
   const warnings = diagnostics.filter((d) => d.severity === "warning").length;
   const infos = diagnostics.filter((d) => d.severity === "info").length;
   const runtimeCoverageRequired = requiresRuntimeCoverage(language, surface, swiftCode);
-  const runtimeEvidenceProvided = hasRuntimeEvidence(evidence);
+  const runtimeEvidenceProvided =
+    hasRuntimeEvidence(evidence) && !hasPendingRuntimeProofSignal(input);
   const status: CloudCheckStatus = nonAppleArtifact
     ? "needs_review"
     : errors > 0
@@ -721,6 +722,26 @@ function hasRuntimeEvidence(evidence: CloudCheckReport["evidence"]): boolean {
   );
 }
 
+function hasPendingRuntimeProofSignal(input: CloudCheckInput): boolean {
+  const text = normalizeTextForEvidence(
+    [input.expectedBehavior, input.actualBehavior, input.xcodeBuildLog, input.testFailure]
+      .filter(Boolean)
+      .join("\n")
+  );
+  if (!text) return false;
+  return (
+    /\b(?:runtime|ui|xcode|focused|test|proof|verification|smoke)\s+(?:is\s+)?(?:pending|will run|will rerun|needs to run|not run yet|still pending)\b/.test(
+      text
+    ) ||
+    /\b(?:will run|will rerun|run next|proof pending|verification pending|xcode proof pending|ui proof pending|runtime proof pending)\b/.test(
+      text
+    ) ||
+    /\bno\s+(?:xcode|runtime|ui|focused test|test)\s+(?:proof|evidence|log|screenshot)\s+(?:attached|provided|yet)\b/.test(
+      text
+    )
+  );
+}
+
 function inferEvidenceDiagnostics(input: {
   input: CloudCheckInput;
   source: string;
@@ -803,6 +824,11 @@ function inferEvidenceDiagnostics(input: {
     behaviorEvidenceContradictsExpectation(
       input.input.expectedBehavior,
       input.input.actualBehavior
+    ) &&
+    diagnostics.every(
+      (d) =>
+        d.code !== "AXCLOUD-XCTEST-AUTOMATION-INFRASTRUCTURE" &&
+        d.code !== "AXCLOUD-XCTEST-RUNNER-HANG"
     ) &&
     !(
       passingXcodeProof &&
@@ -1020,6 +1046,40 @@ function diagnosticsFromBuildLog(buildLog: string, file: string): Diagnostic[] {
       message: "Xcode build evidence reports a duplicate or redeclared symbol.",
       suggestion:
         "Remove the duplicate declaration instead of adding a second fixed declaration. This usually means a generator or fixer inserted beside the original line.",
+    });
+  }
+
+  if (
+    /\btimed out while enabling automation mode\b/.test(text) ||
+    /\btest runner failed to initialize for ui testing\b/.test(text) ||
+    /\bfailed to initialize\b.{0,80}\bui testing\b/.test(text)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-XCTEST-AUTOMATION-INFRASTRUCTURE",
+      severity: "error",
+      file,
+      message:
+        "Xcode UI automation failed before the UI test reached the app, so this is runner infrastructure evidence, not an app assertion failure.",
+      suggestion:
+        "Kill stale app/test-runner processes, retry the same focused UI test once, and report UI proof as blocked by XCTest infrastructure if the automation startup error repeats.",
+    });
+  }
+
+  if (
+    /\bcommand timed out after \d+s\b/.test(text) &&
+    /\b(?:focused xcode test proof failed|xcode test failed|test failed|sending sigterm)\b/.test(
+      text
+    ) &&
+    !/\bxct(?:assert|fail|waiter)|failed assertion|test case\b.*\bfailed\b/.test(text)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-XCTEST-RUNNER-HANG",
+      severity: "error",
+      file,
+      message:
+        "Xcode test evidence timed out before any focused assertion output, which points to runner health rather than a proven app failure.",
+      suggestion:
+        "Do not write another focused test. Clean up stale hosted app, debugserver, or xcodebuild processes, then rerun the same --only-testing selector or use alternate build/unit proof.",
     });
   }
 

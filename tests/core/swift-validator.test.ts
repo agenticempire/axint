@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { validateSwiftSource } from "../../src/core/swift-validator.js";
+import {
+  validateSwiftSource,
+  validateSwiftSources,
+} from "../../src/core/swift-validator.js";
 
 function validate(source: string) {
   return validateSwiftSource(source, "test.swift");
@@ -211,6 +214,39 @@ describe("swift validator — SwiftUI compiler parity", () => {
 
     const diagnostic = validate(source).diagnostics.find((d) => d.code === "AX739");
     expect(diagnostic?.message).toContain("isAxintProject");
+  });
+
+  it("flags changed model/view files with a direct missing member access", () => {
+    const model = `
+      struct ShareCardDesignProfile {
+          let style: ShareCardStyle
+      }
+
+      struct ShareCardStyle {
+          let detail: String
+      }
+    `;
+    const view = `
+      import SwiftUI
+
+      struct LaunchCenterView: View {
+          let profile: ShareCardDesignProfile
+
+          var body: some View {
+              Text(profile.detail)
+          }
+      }
+    `;
+
+    const diagnostics = validateSwiftSources([
+      { file: "ShareCardDesignProfile.swift", source: model },
+      { file: "LaunchCenterView.swift", source: view },
+    ]).flatMap((result) => result.diagnostics);
+
+    const diagnostic = diagnostics.find((d) => d.code === "AX768");
+    expect(diagnostic?.file).toBe("LaunchCenterView.swift");
+    expect(diagnostic?.message).toContain("profile.detail");
+    expect(diagnostic?.message).toContain("ShareCardDesignProfile");
   });
 });
 

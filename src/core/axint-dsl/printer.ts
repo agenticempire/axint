@@ -30,6 +30,9 @@ import type {
   IntentDecl,
   LiteralNode,
   MetaClause,
+  PageDecl,
+  PageFieldDecl,
+  PageModuleDecl,
   ParamDecl,
   PropertyDecl,
   ReturnTypeNode,
@@ -52,6 +55,9 @@ export function printDsl(file: FileNode): string {
         break;
       case "EnumDecl":
         printEnum(w, decl);
+        break;
+      case "PageDecl":
+        printPage(w, decl);
         break;
     }
   });
@@ -203,6 +209,39 @@ function printProperty(w: Writer, node: PropertyDecl) {
 function printEnum(w: Writer, node: EnumDecl) {
   const cases = node.cases.map((c) => c.name).join(" ");
   w.line(`enum ${node.name.name} { ${cases} }`);
+}
+
+// ─── Public Page ─────────────────────────────────────────────────────
+
+function printPage(w: Writer, node: PageDecl) {
+  w.line(`page ${node.name.name} {`);
+  w.indent();
+
+  for (const field of node.fields) {
+    printPageField(w, field);
+  }
+
+  for (const module of node.modules) {
+    if (node.fields.length > 0 || module !== node.modules[0]) w.blank();
+    printPageModule(w, module);
+  }
+
+  w.dedent();
+  w.line("}");
+}
+
+function printPageModule(w: Writer, node: PageModuleDecl) {
+  w.line(`module ${node.id.name} ${encodeString(node.title.value)} {`);
+  w.indent();
+  for (const field of node.fields) {
+    printPageField(w, field);
+  }
+  w.dedent();
+  w.line("}");
+}
+
+function printPageField(w: Writer, node: PageFieldDecl) {
+  w.line(`${node.name.name}: ${renderLiteral(node.value)}`);
 }
 
 // ─── Summary ─────────────────────────────────────────────────────────
