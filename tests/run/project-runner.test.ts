@@ -296,6 +296,98 @@ describe("runAxintProject", () => {
     }
   });
 
+  it("lets passing Xcode build and focused UI proof reconcile partial-context AX768 warnings", async () => {
+    const dir = makeFakeXcodeProject();
+    mkdirSync(join(dir, "Swarm", "Views"), { recursive: true });
+    mkdirSync(join(dir, "Swarm", "Models"), { recursive: true });
+    mkdirSync(join(dir, "SwarmUITests"), { recursive: true });
+    writeFileSync(
+      join(dir, "Swarm", "Models", "ShareCardDesignProfile.swift"),
+      [
+        "import Foundation",
+        "struct ShareCardDesignProfile {",
+        "  let style: ShareCardStyle",
+        "}",
+        "struct ShareCardStyle {",
+        "  let detail: String",
+        "}",
+        "",
+      ].join("\n")
+    );
+    writeFileSync(
+      join(dir, "Swarm", "Views", "ProjectShowcaseView.swift"),
+      [
+        "import SwiftUI",
+        "",
+        "struct ProjectShowcaseView: View {",
+        "  let profile: ShareCardDesignProfile",
+        "  var body: some View {",
+        "    Text(profile.detail)",
+        '      .accessibilityIdentifier("project-showcase-detail")',
+        "  }",
+        "}",
+        "",
+      ].join("\n")
+    );
+    writeFileSync(
+      join(dir, "SwarmUITests", "SwarmUITests.swift"),
+      "import XCTest\nfinal class SwarmUITests: XCTestCase {}\n"
+    );
+
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      [
+        "#!/bin/sh",
+        'if echo " $* " | grep -q " test "; then',
+        "  echo \"Test Suite 'SwarmUITests' started.\"",
+        "  echo \"Test Case '-[SwarmUITests testShareComposerOpensFromProjectProfileAndHome]' passed (0.72 seconds).\"",
+        '  echo "** TEST SUCCEEDED **"',
+        '  echo "Executed 1 test, with 0 failures"',
+        "else",
+        '  echo "** BUILD SUCCEEDED **"',
+        "fi",
+        "exit 0",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    try {
+      const report = await runAxintProject({
+        cwd: dir,
+        writeReport: false,
+        modifiedFiles: [
+          "Swarm/Models/ShareCardDesignProfile.swift",
+          "Swarm/Views/ProjectShowcaseView.swift",
+        ],
+        onlyTesting: [
+          "SwarmUITests/SwarmUITests/testShareComposerOpensFromProjectProfileAndHome",
+        ],
+        expectedBehavior:
+          "The project showcase detail is visible and the share composer opens from the project profile and home.",
+        actualBehavior:
+          "Focused UITest transcript attached for the current share-card proof.",
+      });
+
+      expect(report.swiftValidation.diagnostics.map((d) => d.code)).toContain("AX768");
+      expect(report.commands.build?.exitCode).toBe(0);
+      expect(report.commands.test?.exitCode).toBe(0);
+      expect(report.steps.find((step) => step.name === "Swift validation")?.state).toBe(
+        "pass"
+      );
+      expect(report.status).toBe("pass");
+      expect(report.gate.decision).toBe("ready_to_ship");
+      expect(report.gate.reason).toContain("focused Xcode proof");
+    } finally {
+      process.env.PATH = previousPath;
+    }
+  });
+
   it("extracts failing Xcode test details into the run report and Cloud Check", async () => {
     const dir = makeFakeXcodeProject();
     const binDir = join(dir, "bin");
@@ -491,6 +583,59 @@ describe("runAxintProject", () => {
       expect(rendered).toContain("## Xcode Runner Health");
       expect(rendered).toContain("ui-automation-infrastructure");
       expect(cloudCodes).toContain("AXCLOUD-XCTEST-AUTOMATION-INFRASTRUCTURE");
+    } finally {
+      process.env.PATH = previousPath;
+    }
+  });
+
+  it("classifies failed app termination during UI setup as runner health", async () => {
+    const dir = makeFakeXcodeProject();
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      [
+        "#!/bin/sh",
+        'if echo " $* " | grep -q " test "; then',
+        "  echo \"Test Suite 'SwarmUITests' started.\"",
+        '  echo "SwarmUITests.swift:62: error: Failed to terminate co.agenticempire.Swarm:9770"',
+        '  echo "** TEST FAILED **"',
+        "  exit 65",
+        "else",
+        '  echo "** BUILD SUCCEEDED **"',
+        "  exit 0",
+        "fi",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    try {
+      const report = await runAxintProject({
+        cwd: dir,
+        writeReport: false,
+        onlyTesting: [
+          "SwarmUITests/SwarmUITests/testDiscoverPrimaryCardsAndAgentActionsAreClickable",
+        ],
+      });
+      const cloudCodes = report.cloudChecks.flatMap((check) =>
+        check.diagnostics.map((diagnostic) => diagnostic.code)
+      );
+
+      expect(report.runnerHealth).toContainEqual(
+        expect.objectContaining({
+          kind: "stale-app-termination",
+          evidence: expect.stringContaining("Failed to terminate"),
+        })
+      );
+      expect(report.steps.find((step) => step.name === "Xcode test")?.state).toBe("warn");
+      expect(report.nextSteps.join("\n")).toContain("stale app process");
+      expect(report.nextSteps.join("\n")).toContain("kill 9770");
+      expect(cloudCodes).toContain("AXCLOUD-XCTEST-STALE-APP");
+      expect(cloudCodes).not.toContain("AXCLOUD-XCTEST-FAILURE");
     } finally {
       process.env.PATH = previousPath;
     }

@@ -359,6 +359,7 @@ function checkSameTargetMissingMembers(inputs: SwiftValidationInput[]): Diagnost
   for (const input of inputs) {
     const stripped = stripCommentsAndStrings(input.source);
     const bindings = collectTypedBindings(stripped, typeMembers);
+    const untypedClosureParameters = collectUntypedClosureParameters(stripped);
     if (bindings.size === 0) continue;
 
     const memberAccess = /\b([a-z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
@@ -366,6 +367,7 @@ function checkSameTargetMissingMembers(inputs: SwiftValidationInput[]): Diagnost
     while ((match = memberAccess.exec(stripped)) !== null) {
       const objectName = match[1]!;
       const memberName = match[2]!;
+      if (untypedClosureParameters.has(objectName)) continue;
       const typeName = bindings.get(objectName);
       if (!typeName) continue;
       if (KNOWN_CROSS_FILE_MEMBER_NAMES.has(memberName)) continue;
@@ -470,6 +472,16 @@ function collectTypedBindings(
   }
 
   return bindings;
+}
+
+function collectUntypedClosureParameters(stripped: string): Set<string> {
+  const parameters = new Set<string>();
+  const closurePattern = /\{\s*([a-z][A-Za-z0-9_]*)\s+in\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = closurePattern.exec(stripped)) !== null) {
+    parameters.add(match[1]!);
+  }
+  return parameters;
 }
 
 function baseSwiftTypeName(raw: string): string | undefined {

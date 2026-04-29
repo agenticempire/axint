@@ -106,7 +106,10 @@ export interface AxintRunXcodeTestFailure {
 }
 
 export interface AxintRunRunnerIssue {
-  kind: "ui-automation-infrastructure" | "hosted-test-runner-timeout";
+  kind:
+    | "ui-automation-infrastructure"
+    | "hosted-test-runner-timeout"
+    | "stale-app-termination";
   severity: "blocked";
   message: string;
   evidence: string;
@@ -184,6 +187,11 @@ interface XcodePlan {
   derivedDataPath?: string;
   testPlan?: string;
   onlyTesting: string[];
+}
+
+interface ProofReconciliation {
+  xcodeBuildPassed: boolean;
+  focusedXcodeTestsPassed: boolean;
 }
 
 export async function runAxintProject(
@@ -387,6 +395,13 @@ export async function runAxintProject(
       refreshedWithEvidence: true,
     });
   }
+  const proofReconciliation = buildProofReconciliation(commands, plan);
+  reconcileSwiftValidationStepWithXcodeProof(
+    steps,
+    validationDiagnostics,
+    proofReconciliation
+  );
+  reconcileCloudCheckStepWithFocusedProof(steps, cloudChecks, proofReconciliation);
 
   const workflow = runWorkflowCheck({
     cwd,
@@ -405,13 +420,19 @@ export async function runAxintProject(
     modifiedFiles: swiftFiles.map((file) => relativeOrAbsolute(cwd, file)),
   });
 
-  const status = summarizeStatus(steps, workflow, validationDiagnostics, cloudChecks);
+  const status = summarizeStatus(
+    steps,
+    workflow,
+    validationDiagnostics,
+    cloudChecks,
+    proofReconciliation
+  );
   const feedbackSignals = writeRunFeedbackSignals(cwd, cloudChecks);
   let report: AxintRunReport = {
     id: runId,
     kind: input.kind ?? "local",
     status,
-    gate: gateForStatus(status, steps),
+    gate: gateForStatus(status, steps, proofReconciliation),
     cwd,
     projectName,
     platform,
@@ -1115,6 +1136,7 @@ function reconcileXcodeTestStepWithRunnerHealth(
   if (runnerHealth.length === 0) return;
   const step = steps.find((item) => item.name === "Xcode test");
   if (!step) return;
+  step.state = "warn";
   step.detail = runnerHealth[0]!.message;
 }
 
@@ -1126,6 +1148,76 @@ function commandPassed(result?: AxintRunCommandResult): boolean {
     !result.timedOut &&
     !result.cancelled
   );
+}
+
+function buildProofReconciliation(
+  commands: AxintRunReport["commands"],
+  plan?: XcodePlan
+): ProofReconciliation {
+  return {
+    xcodeBuildPassed: commandPassed(commands.build),
+    focusedXcodeTestsPassed: Boolean(
+      plan?.onlyTesting.length && commandPassed(commands.test)
+    ),
+  };
+}
+
+function validationDiagnosticReconciledByXcode(
+  diagnostic: Diagnostic,
+  proof: ProofReconciliation
+): boolean {
+  return (
+    proof.xcodeBuildPassed &&
+    diagnostic.severity === "warning" &&
+    diagnostic.code === "AX768"
+  );
+}
+
+function cloudCheckReconciledByFocusedProof(
+  check: CloudCheckReport,
+  proof: ProofReconciliation
+): boolean {
+  if (!proof.xcodeBuildPassed || !proof.focusedXcodeTestsPassed) return false;
+  if (check.status !== "needs_review") return false;
+  const reviewDiagnostics = check.diagnostics.filter((d) => d.severity !== "info");
+  return (
+    reviewDiagnostics.length > 0 &&
+    reviewDiagnostics.every((d) => d.code === "AXCLOUD-UI-ACCESSIBILITY-ID")
+  );
+}
+
+function reconcileSwiftValidationStepWithXcodeProof(
+  steps: AxintRunStep[],
+  diagnostics: Diagnostic[],
+  proof: ProofReconciliation
+) {
+  if (!proof.xcodeBuildPassed) return;
+  const warnings = diagnostics.filter((d) => d.severity === "warning");
+  if (warnings.length === 0) return;
+  if (!warnings.every((d) => validationDiagnosticReconciledByXcode(d, proof))) {
+    return;
+  }
+  const step = steps.find((item) => item.name === "Swift validation");
+  if (!step || step.state !== "warn") return;
+  step.state = "pass";
+  step.detail = `${step.detail} Xcode build passed, so Axint downgraded ${warnings.length} partial-context AX768 warning${warnings.length === 1 ? "" : "s"} from the final gate.`;
+}
+
+function reconcileCloudCheckStepWithFocusedProof(
+  steps: AxintRunStep[],
+  cloudChecks: CloudCheckReport[],
+  proof: ProofReconciliation
+) {
+  if (!proof.focusedXcodeTestsPassed) return;
+  const reviewChecks = cloudChecks.filter((check) => check.status === "needs_review");
+  if (reviewChecks.length === 0) return;
+  if (!reviewChecks.every((check) => cloudCheckReconciledByFocusedProof(check, proof))) {
+    return;
+  }
+  const step = steps.find((item) => item.name === "Cloud Check");
+  if (!step || step.state !== "warn") return;
+  step.state = "pass";
+  step.detail = `${step.detail} Passing focused Xcode proof reconciled generic accessibility warnings for the final gate.`;
 }
 
 function updateCloudCheckStep(
@@ -1340,6 +1432,24 @@ function detectXcodeRunnerIssues(
         "The simulator/app runner or accessibility automation channel is stuck before the UI test can exercise the app.",
       remediation:
         "Kill stale app/test-runner processes, retry once, and report the UI proof as blocked by XCTest infrastructure if the same startup error repeats.",
+      command,
+    });
+  }
+
+  const staleTermination = normalized.match(
+    /\bfailed to terminate\s+([A-Za-z0-9_.-]+):(\d+)\b/i
+  );
+  if (staleTermination) {
+    const bundleId = staleTermination[1] ?? "the app";
+    const pid = staleTermination[2];
+    issues.push({
+      kind: "stale-app-termination",
+      severity: "blocked",
+      message:
+        "Xcode UI setup could not terminate a stale app process, so the test did not reach trustworthy app behavior.",
+      evidence: firstMatchingLine(output, [/failed to terminate\s+[A-Za-z0-9_.-]+:\d+/i]),
+      likelyCause: `${bundleId}${pid ? ` pid ${pid}` : ""} was still running or stuck when XCTest tried to reset UI state.`,
+      remediation: `Kill the stale app process${pid ? ` with kill ${pid}` : ""}, clean up stale XCTest/debugserver processes if needed, then rerun the same --only-testing selector before changing product code.`,
       command,
     });
   }
@@ -1929,20 +2039,28 @@ function summarizeStatus(
   steps: AxintRunStep[],
   workflow: WorkflowCheckReport,
   diagnostics: Diagnostic[],
-  cloudChecks: CloudCheckReport[]
+  cloudChecks: CloudCheckReport[],
+  proof: ProofReconciliation
 ): AxintRunReport["status"] {
+  const blockingDiagnostics = diagnostics.filter(
+    (diagnostic) => !validationDiagnosticReconciledByXcode(diagnostic, proof)
+  );
+  const blockingCloudChecks = cloudChecks.filter(
+    (check) => !cloudCheckReconciledByFocusedProof(check, proof)
+  );
+
   if (
     steps.some((step) => step.state === "fail") ||
     workflow.status === "needs_action" ||
-    diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
-    cloudChecks.some((check) => check.status === "fail")
+    blockingDiagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    blockingCloudChecks.some((check) => check.status === "fail")
   ) {
     return "fail";
   }
   if (
     steps.some((step) => step.state === "warn" || step.state === "skipped") ||
-    diagnostics.some((diagnostic) => diagnostic.severity === "warning") ||
-    cloudChecks.some((check) => check.status === "needs_review")
+    blockingDiagnostics.some((diagnostic) => diagnostic.severity === "warning") ||
+    blockingCloudChecks.some((check) => check.status === "needs_review")
   ) {
     return "needs_review";
   }
@@ -1951,12 +2069,15 @@ function summarizeStatus(
 
 function gateForStatus(
   status: AxintRunReport["status"],
-  steps: AxintRunStep[]
+  steps: AxintRunStep[],
+  proof: ProofReconciliation
 ): AxintRunReport["gate"] {
   if (status === "pass") {
     return {
       decision: "ready_to_ship",
-      reason: "Axint gates, build/test commands, and supplied runtime evidence passed.",
+      reason: proof.focusedXcodeTestsPassed
+        ? "Axint gates, build/test commands, and focused Xcode proof passed."
+        : "Axint gates, build/test commands, and supplied runtime evidence passed.",
     };
   }
   if (steps.some((step) => step.state === "fail")) {
