@@ -35,7 +35,7 @@
     }
   ],
   "capabilities": {
-    "tools": 20,
+    "tools": 29,
     "prompts": 5
   }
 }
