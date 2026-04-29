@@ -76,6 +76,7 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkLiveActivities(decls, source, file, diagnostics);
   checkContainerAccessibilityIdentifierPropagation(source, stripped, file, diagnostics);
   checkInteractiveInputOverlayHitTesting(source, stripped, file, diagnostics);
+  checkInvalidSwiftUIFrameOverloads(source, stripped, file, diagnostics);
 
   return { file, diagnostics };
 }
@@ -181,6 +182,48 @@ function checkInteractiveInputOverlayHitTesting(
       })
     );
   }
+}
+
+function checkInvalidSwiftUIFrameOverloads(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const frameCall = /\.frame\s*\(/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = frameCall.exec(stripped)) !== null) {
+    const openParen = stripped.indexOf("(", match.index);
+    const closeParen = findMatchingParen(stripped, openParen);
+    if (openParen === -1 || closeParen === -1) continue;
+
+    const args = stripped.slice(openParen + 1, closeParen);
+    if (!/\bmaxWidth\s*:/.test(args) || !/\bheight\s*:/.test(args)) continue;
+
+    diagnostics.push(
+      makeDiagnostic("AX765", file, 1 + countNewlinesUpTo(source, match.index), {
+        message:
+          "SwiftUI frame(maxWidth:height:alignment:) is not a valid overload and will fail Xcode compilation",
+        suggestion:
+          "Use `.frame(maxWidth:alignment:)` and chain a separate `.frame(height:alignment:)`, or use `maxHeight:` when you intend the flexible frame overload.",
+      })
+    );
+  }
+}
+
+function findMatchingParen(source: string, openIndex: number): number {
+  if (openIndex < 0 || source[openIndex] !== "(") return -1;
+  let depth = 0;
+  for (let i = openIndex; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === "(") depth++;
+    if (ch === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
 }
 
 function checkDuplicateStoredProperties(

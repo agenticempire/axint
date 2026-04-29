@@ -73,6 +73,7 @@ describe("axint.workflow.check", () => {
     expect(report.status).toBe("needs_action");
     expect(report.nextTool).toBe("axint.suggest");
     expect(report.required.join("\n")).toMatch(/axint\.suggest/);
+    expect(report.required.join("\n")).toContain("axint suggest <app-description>");
   });
 
   it("accepts an older token-scoped session after another agent starts a session", () => {
@@ -264,5 +265,20 @@ describe("axint.workflow.check", () => {
     expect(report.summary).toContain("not a completion stamp");
     expect(rendered).toContain("Next Axint Action");
     expect(rendered).toContain("Do not treat this workflow check as the only Axint step");
+  });
+
+  it("does not recommend axint.feature when the host says that tool is unavailable", () => {
+    const report = runWorkflowCheck({
+      ...sessionArgs(),
+      stage: "planning",
+      surfaces: ["view"],
+      ranSuggest: true,
+      availableTools: ["axint.suggest", "axint.workflow.check", "axint.swift.validate"],
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.nextTool).not.toBe("axint.feature");
+    expect(report.nextTool).toContain("axint.suggest");
+    expect(report.recommended.join("\n")).toContain("axint.feature is not available");
   });
 });

@@ -979,6 +979,36 @@ describe("axint.suggest", () => {
     expect(suggestions.map((s) => s.domain)).not.toContain("health");
   });
 
+  it("does not leak profile or swipe state into Swarm semantic interaction components", () => {
+    const result = generateFeature({
+      name: "SwarmPremiumInteractionSystem",
+      surfaces: ["component"],
+      platform: "macOS",
+      componentKind: "semanticCard",
+      description:
+        "Premium reusable SwiftUI interaction polish for SWARM cards and buttons. Build press feedback, hover lift, uniform card rhythm, and project-command copy across existing Home, Discover, Profile, Project, and Breakaway surfaces.",
+      context: [
+        "enum SwarmAnimations { static let quick = 0.16 }",
+        "enum SwarmDesignTokens { enum Colors { static let accent = Color.orange } }",
+      ].join("\n"),
+    });
+
+    expect(result.success).toBe(true);
+    const swift = result.files.find((file) =>
+      file.path.endsWith("SwarmPremiumInteractionSystem.swift")
+    )?.content;
+    expect(swift).toBeDefined();
+    expect(swift!).toContain("Swarm Premium Interaction System");
+    expect(swift!).toContain("Press");
+    expect(swift!).toContain("Hover");
+    expect(swift!).toContain("Rhythm");
+    expect(swift!).toContain("Discover");
+    expect(swift!).toContain("Breakaway");
+    expect(swift!).not.toMatch(
+      /photoURL|workoutPreferences|swipeOffset|lastAction|\bage\b|\bbio\b/i
+    );
+  });
+
   it("includes description cues in suggestion rationales", () => {
     const suggestions = suggestFeatures({
       appDescription:

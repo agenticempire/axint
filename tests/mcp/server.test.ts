@@ -11,7 +11,14 @@ import { scaffoldIntent } from "../../src/mcp/scaffold.js";
 import { TEMPLATES, getTemplate } from "../../src/templates/index.js";
 import { validateSwiftSource } from "../../src/core/swift-validator.js";
 import { fixSwiftSource } from "../../src/core/swift-fixer.js";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { writeProjectStartPack } from "../../src/project/start-pack.js";
@@ -146,6 +153,65 @@ describe("axint.run tool", () => {
       status: string;
     };
     expect(["running", "pass", "needs_review", "fail"]).toContain(statusPayload.status);
+  });
+
+  it("automatically backgrounds long MCP Xcode runs and writes a live snapshot", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "axint-mcp-run-auto-bg-"));
+    const schemeDir = join(dir, "Demo.xcodeproj", "xcshareddata", "xcschemes");
+    mkdirSync(schemeDir, { recursive: true });
+    writeFileSync(join(schemeDir, "Demo.xcscheme"), "<Scheme></Scheme>\n");
+    writeFileSync(
+      join(dir, "ContentView.swift"),
+      'import SwiftUI\nstruct ContentView: View { var body: some View { Text("Hi") } }\n'
+    );
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      ["#!/bin/sh", "sleep 5", "echo '** TEST SUCCEEDED **'", "exit 0", ""].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    try {
+      const result = await handleToolCall("axint.run", {
+        cwd: dir,
+        timeoutSeconds: 1200,
+        onlyTesting: ["DemoUITests/DemoUITests/testLongFlow"],
+        format: "json",
+      });
+
+      expect(result.isError).not.toBe(true);
+      const payload = JSON.parse(result.content[0].text) as {
+        id: string;
+        status: string;
+        autoBackgrounded: boolean;
+        latestRunPath: string;
+      };
+      expect(payload.status).toBe("running");
+      expect(payload.autoBackgrounded).toBe(true);
+      expect(payload.latestRunPath).toContain(".axint/run/latest.json");
+
+      const snapshot = JSON.parse(readFileSync(payload.latestRunPath, "utf-8")) as {
+        status: string;
+        gate: { decision: string };
+        job: { activePids: number[]; currentCommand?: { logPath?: string } };
+      };
+      expect(snapshot.status).toBe("running");
+      expect(snapshot.gate.decision).toBe("evidence_required");
+      expect(snapshot.job.activePids.length).toBeGreaterThan(0);
+      expect(snapshot.job.currentCommand?.logPath).toContain(".axint/run/logs");
+
+      await handleToolCall("axint.run.cancel", {
+        cwd: dir,
+        id: payload.id,
+        format: "json",
+      });
+    } finally {
+      process.env.PATH = previousPath;
+    }
   });
 });
 

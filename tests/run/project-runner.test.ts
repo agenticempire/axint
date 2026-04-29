@@ -99,6 +99,10 @@ describe("runAxintProject", () => {
 
       expect(report.commands.build?.exitCode).toBe(0);
       expect(report.commands.test?.exitCode).toBe(0);
+      expect(report.commands.build?.logPath).toContain(".axint/run/logs");
+      expect(report.commands.test?.logPath).toContain(".axint/run/logs");
+      expect(report.commands.test?.resultBundlePath).toContain(".axint/run/results");
+      expect(report.commands.test?.args).toContain("-resultBundlePath");
       expect(report.workflow.checked.join("\n")).not.toContain("axint.suggest");
       expect(report.workflow.nextTool).toBe("axint.workflow.check(stage=pre-commit)");
       expect(rendered).not.toContain("- axint.run\n");
@@ -186,6 +190,8 @@ describe("runAxintProject", () => {
     expect(report.commands.test?.args).toContain(
       "-only-testing:SwarmUITests/SwarmUITests/testOpenVaultRoutes"
     );
+    expect(report.commands.test?.args).toContain("-resultBundlePath");
+    expect(report.commands.test?.resultBundlePath).toContain(".axint/run/results");
   });
 
   it("feeds passing focused UI proof into every post-test Cloud Check", async () => {

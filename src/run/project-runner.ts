@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -7,7 +8,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { runCloudCheck, type CloudCheckReport } from "../cloud/check.js";
 import { writeProjectContextIndex } from "../project/context-index.js";
@@ -74,6 +75,8 @@ export interface AxintRunCommandResult {
   stdout: string;
   stderr: string;
   durationMs: number;
+  logPath?: string;
+  resultBundlePath?: string;
   dryRun?: boolean;
   cancelled?: boolean;
 }
@@ -266,7 +269,8 @@ export async function runAxintProject(
   }
 
   if (plan && !input.skipTests && !input.skipBuild) {
-    const testArgs = buildXcodeArgs(plan, "test");
+    const resultBundlePath = runResultBundlePath(cwd, runId, "XcodeTest");
+    const testArgs = buildXcodeArgs(plan, "test", { resultBundlePath });
     commands.test = await runCommand("Xcode test", "xcodebuild", testArgs, {
       cwd,
       timeoutSeconds: input.timeoutSeconds ?? 900,
@@ -528,7 +532,11 @@ function createXcodePlan(
   };
 }
 
-function buildXcodeArgs(plan: XcodePlan, action: "build" | "test"): string[] {
+function buildXcodeArgs(
+  plan: XcodePlan,
+  action: "build" | "test",
+  options: { resultBundlePath?: string } = {}
+): string[] {
   const args = [
     plan.containerKind === "workspace" ? "-workspace" : "-project",
     plan.containerPath,
@@ -541,6 +549,9 @@ function buildXcodeArgs(plan: XcodePlan, action: "build" | "test"): string[] {
     if (plan.testPlan) args.push("-testPlan", plan.testPlan);
     for (const selector of plan.onlyTesting) {
       args.push(formatOnlyTestingArg(selector));
+    }
+    if (options.resultBundlePath) {
+      args.push("-resultBundlePath", options.resultBundlePath);
     }
   }
   args.push(action);
@@ -574,12 +585,14 @@ async function runCommand(
   const started = Date.now();
   const commandId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   if (options.dryRun) {
+    const resultBundlePath = expectedResultBundlePath(args);
     markRunJobCommandStarted(options.job, {
       id: commandId,
       label,
       command,
       args,
       cwd: options.cwd,
+      expectedResultBundlePath: resultBundlePath,
     });
     markRunJobCommandFinished(options.job, commandId, {
       exitCode: 0,
@@ -596,6 +609,7 @@ async function runCommand(
       stdout: "",
       stderr: "",
       durationMs: 0,
+      resultBundlePath,
       dryRun: true,
     };
   }
@@ -606,6 +620,21 @@ async function runCommand(
     let timedOut = false;
     let settled = false;
     let spawnError: Error | undefined;
+    const resultBundlePath = expectedResultBundlePath(args);
+    const logPath = commandLogPath(options.cwd, options.job?.id, label, commandId);
+    appendToCommandLog(
+      logPath,
+      [
+        `# ${label}`,
+        `cwd: ${options.cwd}`,
+        `command: ${[command, ...args].map(shellQuote).join(" ")}`,
+        resultBundlePath ? `expected-xcresult: ${resultBundlePath}` : undefined,
+        "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+    if (resultBundlePath) mkdirSync(dirname(resultBundlePath), { recursive: true });
 
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -620,22 +649,36 @@ async function runCommand(
       args,
       cwd: options.cwd,
       pid: child.pid,
+      logPath,
+      expectedResultBundlePath: resultBundlePath,
     });
 
     child.stdout?.on("data", (chunk: Buffer) => {
-      stdout = appendCommandOutput(stdout, chunk.toString("utf-8"));
+      const text = chunk.toString("utf-8");
+      appendToCommandLog(logPath, text);
+      stdout = appendCommandOutput(stdout, text);
     });
     child.stderr?.on("data", (chunk: Buffer) => {
-      stderr = appendCommandOutput(stderr, chunk.toString("utf-8"));
+      const text = chunk.toString("utf-8");
+      appendToCommandLog(logPath, text);
+      stderr = appendCommandOutput(stderr, text);
     });
 
     const timeout = setTimeout(() => {
       timedOut = true;
+      appendToCommandLog(
+        logPath,
+        `\n[axint] Command timed out after ${options.timeoutSeconds}s; sending SIGTERM to child process group.\n`
+      );
       if (child.pid) killProcessGroup(child.pid, "SIGTERM");
     }, options.timeoutSeconds * 1000);
 
     child.once("error", (error) => {
       spawnError = error;
+      appendToCommandLog(
+        logPath,
+        `\n[axint] Spawn error: ${error.name}: ${error.message}\n`
+      );
       finish(null, null);
     });
     child.once("close", (code, signal) => {
@@ -665,6 +708,8 @@ async function runCommand(
           ? `${stderr}\n${spawnError.name}: ${spawnError.message}`.trim()
           : stderr,
         durationMs: Date.now() - started,
+        logPath,
+        resultBundlePath,
         cancelled,
       });
     }
@@ -953,14 +998,14 @@ function focusedTestEvidence(
   const selectors = plan?.onlyTesting ?? [];
   if (!result || result.dryRun || selectors.length === 0) return undefined;
   const state = result.exitCode === 0 && !result.timedOut ? "passed" : "failed";
-  const command = plan
-    ? ["xcodebuild", ...buildXcodeArgs(plan, "test")].map(shellQuote).join(" ")
-    : undefined;
+  const command = [result.command, ...result.args].map(shellQuote).join(" ");
   const relevantOutput = focusedTestOutput(result, selectors);
   return [
     `Focused Xcode test proof ${state}.`,
-    command ? `Command: ${command}` : undefined,
+    `Command: ${command}`,
     `Selectors: ${selectors.map(formatOnlyTestingArg).join(", ")}`,
+    result.resultBundlePath ? `Result bundle: ${result.resultBundlePath}` : undefined,
+    result.logPath ? `Command log: ${result.logPath}` : undefined,
     state === "passed" ? "** TEST SUCCEEDED **" : "** TEST FAILED **",
     relevantOutput ? `Relevant test output:\n${relevantOutput}` : undefined,
   ]
@@ -1003,8 +1048,14 @@ function commandEvidence(
   const header = `${label} ${state}. Exit: ${
     result.exitCode ?? result.signal ?? "unknown"
   }.`;
+  const metadata = [
+    result.logPath ? `Command log: ${result.logPath}` : undefined,
+    result.resultBundlePath ? `Result bundle: ${result.resultBundlePath}` : undefined,
+  ]
+    .filter(Boolean)
+    .join("\n");
   const output = trimCommandEvidence([result.stdout, result.stderr].join("\n"));
-  return output ? `${header}\n${output}` : header;
+  return [header, metadata, output].filter(Boolean).join("\n");
 }
 
 function focusedTestOutput(
@@ -1059,6 +1110,40 @@ function appendCommandOutput(current: string, next: string, maxChars = 8 * 1024 
   if (combined.length <= maxChars) return combined;
   const tail = combined.slice(-(maxChars - 80));
   return `[... axint trimmed live command output ...]\n${tail}`;
+}
+
+function commandLogPath(
+  cwd: string,
+  runId: string | undefined,
+  label: string,
+  commandId: string
+): string {
+  const id = runId ?? "untracked";
+  const slug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return join(cwd, ".axint", "run", "logs", `${id}-${slug}-${commandId}.log`);
+}
+
+function appendToCommandLog(path: string, text: string): void {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    appendFileSync(path, text, "utf-8");
+  } catch {
+    // Logging should never make the build/test proof itself fail.
+  }
+}
+
+function expectedResultBundlePath(args: string[]): string | undefined {
+  const index = args.findIndex((arg) => arg === "-resultBundlePath");
+  const value = index >= 0 ? args[index + 1] : undefined;
+  return value && !value.startsWith("-") ? value : undefined;
+}
+
+function runResultBundlePath(cwd: string, runId: string, label: string): string {
+  const safeLabel = label.replace(/[^A-Za-z0-9_.-]+/g, "-");
+  return join(cwd, ".axint", "run", "results", runId, `${safeLabel}.xcresult`);
 }
 
 function killProcessGroup(pid: number, signal: NodeJS.Signals): void {

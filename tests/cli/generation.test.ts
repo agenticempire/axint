@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { registerFeature } from "../../src/cli/feature.js";
 import { registerSchema } from "../../src/cli/schema.js";
+import { registerSuggest } from "../../src/cli/suggest.js";
 
 async function run(program: Command, args: string[]) {
   program.name("axint");
@@ -79,5 +80,33 @@ describe("agent-facing generation CLI commands", () => {
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("Written:");
     expect(output).not.toContain("Domain: messaging");
+  });
+
+  it("suggests Swarm features from the CLI when MCP suggest is unavailable", async () => {
+    const program = new Command();
+    registerSuggest(program);
+    await run(program, [
+      "suggest",
+      "SWARM is a macOS AI-agent mission-control app for project rooms, handoffs, operator review, and focused execution. It is not dating.",
+      "--platform",
+      "macOS",
+      "--exclude",
+      "dating,match,swolemate",
+      "--json",
+    ]);
+
+    const output = logSpy.mock.calls.flat().join("\n");
+    const payload = JSON.parse(output) as {
+      suggestions: Array<{ domain: string; featurePrompt: string; rationale?: string }>;
+    };
+    expect(payload.suggestions.length).toBeGreaterThan(0);
+    expect(payload.suggestions[0].domain).toBe("collaboration");
+    expect(payload.suggestions[0].featurePrompt).toMatch(
+      /swarm|mission|agent|handoff|operator|workspace/i
+    );
+    const generatedPlan = payload.suggestions
+      .map((suggestion) => suggestion.featurePrompt)
+      .join("\n");
+    expect(generatedPlan).not.toMatch(/dating|swolemate|swipe/i);
   });
 });

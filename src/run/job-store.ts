@@ -18,6 +18,8 @@ export interface AxintRunJobCommand {
   args: string[];
   cwd: string;
   pid?: number;
+  logPath?: string;
+  expectedResultBundlePath?: string;
   startedAt: string;
   endedAt?: string;
   exitCode?: number | null;
@@ -93,6 +95,7 @@ export function createRunJobRecord(input: {
   };
   writeRunJobRecord(job);
   writeLatestActiveJob(job);
+  writeLatestRunProgressSnapshot(job);
   return job;
 }
 
@@ -328,6 +331,7 @@ function touch(job: AxintRunJobRecord): void {
   job.updatedAt = new Date().toISOString();
   writeRunJobRecord(job);
   writeLatestActiveJob(job);
+  writeLatestRunProgressSnapshot(job);
 }
 
 function writeRunJobRecord(job: AxintRunJobRecord): void {
@@ -340,6 +344,59 @@ function writeLatestActiveJob(job: AxintRunJobRecord): void {
   const path = latestActivePath(job.cwd);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(job, null, 2)}\n`, "utf-8");
+}
+
+function writeLatestRunProgressSnapshot(job: AxintRunJobRecord): void {
+  if (!["running", "cancel_requested", "cancelled"].includes(job.status)) return;
+  const dir = resolve(job.cwd, ".axint/run");
+  const jsonPath = join(dir, "latest.json");
+  const markdownPath = join(dir, "latest.md");
+  const statusCommand = `axint run status --dir ${shellQuote(job.cwd)} --id ${shellQuote(job.id)}`;
+  const cancelCommand = `axint run cancel --dir ${shellQuote(job.cwd)} --id ${shellQuote(job.id)}`;
+  const snapshot = {
+    schema: "https://axint.ai/schemas/run-progress.v1.json",
+    id: job.id,
+    kind: job.kind,
+    status: job.status,
+    cwd: job.cwd,
+    projectName: job.projectName,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    gate: {
+      decision: job.status === "cancelled" ? "fix_required" : "evidence_required",
+      reason:
+        job.status === "cancelled"
+          ? "Axint Run was cancelled before final build/test evidence was written."
+          : "Axint Run is still running. Poll the job status before trusting older proof.",
+    },
+    job: {
+      id: job.id,
+      path: jobPath(job.cwd, job.id),
+      statusCommand,
+      cancelCommand,
+      activePids: activeJobCommands(job)
+        .map((command) => command.pid)
+        .filter((pid): pid is number => typeof pid === "number"),
+      currentCommand: job.currentCommand,
+      commands: job.commands,
+    },
+    artifacts: {
+      json: jsonPath,
+      markdown: markdownPath,
+      job: jobPath(job.cwd, job.id),
+      latestActive: latestActivePath(job.cwd),
+    },
+    nextSteps:
+      job.status === "cancelled"
+        ? ["Repair the cancelled step, then start a fresh axint run."]
+        : [
+            `Poll with ${statusCommand}.`,
+            `Cancel safely with ${cancelCommand} if the child process should not continue.`,
+          ],
+  };
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(jsonPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf-8");
+  writeFileSync(markdownPath, renderRunProgressSnapshot(snapshot), "utf-8");
 }
 
 function readLatestActiveJob(cwd: string): AxintRunJobRecord | undefined {
@@ -389,6 +446,57 @@ function jobPath(cwd: string, id: string): string {
 
 function latestActivePath(cwd: string): string {
   return resolve(cwd, ".axint/run/latest-active.json");
+}
+
+function renderRunProgressSnapshot(snapshot: {
+  id: string;
+  status: string;
+  cwd: string;
+  projectName: string;
+  gate: { decision: string; reason: string };
+  job: {
+    path: string;
+    statusCommand: string;
+    cancelCommand: string;
+    activePids: number[];
+    currentCommand?: AxintRunJobCommand;
+  };
+  artifacts: { job: string; latestActive: string };
+  nextSteps: string[];
+}): string {
+  const current = snapshot.job.currentCommand;
+  return [
+    `# Axint Run: ${snapshot.status}`,
+    "",
+    `- Project: ${snapshot.projectName}`,
+    `- Run: ${snapshot.id}`,
+    `- CWD: ${snapshot.cwd}`,
+    `- Gate: ${snapshot.gate.decision}`,
+    `- Reason: ${snapshot.gate.reason}`,
+    `- Active pid(s): ${snapshot.job.activePids.length > 0 ? snapshot.job.activePids.join(", ") : "none"}`,
+    `- Job record: ${snapshot.job.path}`,
+    `- Latest active: ${snapshot.artifacts.latestActive}`,
+    `- Status command: \`${snapshot.job.statusCommand}\``,
+    `- Cancel command: \`${snapshot.job.cancelCommand}\``,
+    current ? `- Current command: ${current.label}` : undefined,
+    current
+      ? `- Command line: \`${[current.command, ...current.args].map(shellQuote).join(" ")}\``
+      : undefined,
+    current?.logPath ? `- Log: ${current.logPath}` : undefined,
+    current?.expectedResultBundlePath
+      ? `- Expected xcresult: ${current.expectedResultBundlePath}`
+      : undefined,
+    "",
+    "## Next Steps",
+    ...snapshot.nextSteps.map((step) => `- ${step}`),
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+}
+
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_./:=@%+-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function killProcessGroup(pid: number): string | undefined {

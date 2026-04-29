@@ -15,6 +15,7 @@
  *   axint cloud status            Show Cloud sign-in and Pro repair-check allowance
  *   axint tokens ingest --source  Convert design tokens into SwiftUI token enums
  *   axint schema compile <file>   Compile compact JSON schemas into Swift
+ *   axint suggest <description>   Suggest Apple-native features when MCP is unavailable
  *   axint feature <description>   Generate a multi-file feature package
  *   axint repair <issue>          Plan a project-aware Apple repair loop
  *   axint feedback create         Create privacy-safe repair feedback packets
@@ -65,6 +66,7 @@ import { registerLogin } from "./login.js";
 import { registerCloud } from "./cloud.js";
 import { registerTokens } from "./tokens.js";
 import { registerSchema } from "./schema.js";
+import { registerSuggest } from "./suggest.js";
 import { registerFeature } from "./feature.js";
 import { registerRepair } from "./repair.js";
 import { registerFeedback } from "./feedback.js";
@@ -184,6 +186,7 @@ registerLogin(program);
 registerCloud(program);
 registerTokens(program);
 registerSchema(program);
+registerSuggest(program);
 registerFeature(program);
 registerRepair(program);
 registerFeedback(program);

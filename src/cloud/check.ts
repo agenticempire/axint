@@ -47,6 +47,10 @@ export interface CloudCheckInput {
   fileName?: string;
   language?: CloudCheckLanguage;
   platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "all";
+  expectedVersion?: string;
+  localPackageVersion?: string;
+  mcpServerVersion?: string;
+  cloudRulesetVersion?: string;
   xcodeBuildLog?: string;
   testFailure?: string;
   runtimeFailure?: string;
@@ -72,6 +76,15 @@ export interface CloudCheckReport {
     requiredEvidence: string[];
   };
   compilerVersion: string;
+  versionInfo: {
+    compilerVersion: string;
+    localPackageVersion?: string;
+    mcpServerVersion?: string;
+    cloudRulesetVersion: string;
+    expectedProjectVersion?: string;
+    consistent: boolean;
+    notes: string[];
+  };
   language: CloudCheckLanguage;
   surface: string;
   fileName: string;
@@ -147,6 +160,8 @@ export interface CloudLearningSignal {
 
 export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
   const { source, fileName } = readCloudCheckSource(input);
+  const compilerVersion = packageVersion();
+  const versionInfo = buildCloudCheckVersionInfo(input, compilerVersion);
   const language = input.language ?? inferLanguage(fileName, source);
   const createdAt = new Date().toISOString();
   let surface = language === "swift" ? inferSwiftSurface(source) : "unknown";
@@ -340,7 +355,8 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     label: labelForStatus(status),
     confidence,
     gate,
-    compilerVersion: packageVersion(),
+    compilerVersion,
+    versionInfo,
     language,
     surface,
     fileName,
@@ -408,6 +424,9 @@ export function renderCloudCheckReport(
     `- Surface: ${report.surface}`,
     `- Language: ${report.language}`,
     `- Compiler: Axint ${report.compilerVersion}`,
+    report.versionInfo.consistent
+      ? `- Version truth: consistent (${report.versionInfo.cloudRulesetVersion})`
+      : `- Version truth: needs attention — ${report.versionInfo.notes.join("; ")}`,
     `- Confidence: ${report.confidence.level} — ${report.confidence.detail}`,
     `- Gate: ${report.gate.decision} — ${report.gate.reason}`,
     `- Diagnostics: ${report.errors} errors, ${report.warnings} warnings, ${report.infos} info`,
@@ -2246,6 +2265,67 @@ function packageVersion(): string {
     }
   }
   return "unknown";
+}
+
+function buildCloudCheckVersionInfo(
+  input: CloudCheckInput,
+  compilerVersion: string
+): CloudCheckReport["versionInfo"] {
+  const expectedProjectVersion =
+    input.expectedVersion ?? expectedVersionFromProject(input.sourcePath);
+  const localPackageVersion = input.localPackageVersion ?? compilerVersion;
+  const cloudRulesetVersion = input.cloudRulesetVersion ?? compilerVersion;
+  const mcpServerVersion = input.mcpServerVersion;
+  const notes: string[] = [];
+
+  const comparisons: Array<[string, string | undefined]> = [
+    ["local package", localPackageVersion],
+    ["MCP server", mcpServerVersion],
+    ["expected project", expectedProjectVersion],
+    ["Cloud ruleset", cloudRulesetVersion],
+  ];
+
+  for (const [label, value] of comparisons) {
+    if (
+      value &&
+      value !== "unknown" &&
+      compilerVersion !== "unknown" &&
+      value !== compilerVersion
+    ) {
+      notes.push(`${label} is ${value}, compiler is ${compilerVersion}`);
+    }
+  }
+
+  return {
+    compilerVersion,
+    localPackageVersion,
+    mcpServerVersion,
+    cloudRulesetVersion,
+    expectedProjectVersion,
+    consistent: notes.length === 0,
+    notes,
+  };
+}
+
+function expectedVersionFromProject(sourcePath: string | undefined): string | undefined {
+  if (!sourcePath) return undefined;
+  let current = dirname(resolve(sourcePath));
+  for (let i = 0; i < 12; i++) {
+    const candidate = resolve(current, ".axint/project.json");
+    try {
+      const project = JSON.parse(readFileSync(candidate, "utf-8")) as {
+        axintVersion?: string;
+        expectedVersion?: string;
+      };
+      return project.axintVersion ?? project.expectedVersion;
+    } catch {
+      // keep walking up
+    }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return undefined;
 }
 
 function hashString(value: string): string {

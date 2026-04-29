@@ -312,7 +312,7 @@ function buildStartPrompt(input: {
       ? "10. Call axint.xcode.guard before long tasks, before broad Swift edits, and after any context recovery."
       : "10. Use axint.workflow.check as the long-task guard, plus validate/Cloud Check/build evidence. Do not fake Xcode guard packets outside Xcode.",
     "11. Call axint.workflow.check with sessionToken at planning, before-write, pre-build, and pre-commit checkpoints.",
-    "12. Before planning new Apple-native surfaces, call axint.suggest.",
+    "12. Before planning new Apple-native surfaces, call axint.suggest. If MCP transport is closed, use the CLI fallback: axint suggest <app-description>.",
     "13. For generated surfaces, use axint.feature, axint.scaffold, axint.compile, or axint.schema.compile before hand-writing from scratch.",
     "14. Prefer axint.run before each build so the session, workflow gate, Swift validation, Cloud Check, xcodebuild, tests, and runtime evidence stay tied together.",
     writeStep,
@@ -333,7 +333,7 @@ function buildRequiredLoop(profile: AxintAgentToolProfile): string[] {
       : "host-native patch/edit lane; do not call Xcode-only guard/write tools outside Xcode",
     "axint.status",
     `axint.workflow.check with agent=${profile.agent}`,
-    "axint.suggest",
+    "axint.suggest or axint suggest <app-description> when MCP is unavailable",
     "axint.feature or axint.scaffold",
     profile.xcodeToolsAllowed
       ? "axint.xcode.write for guarded Xcode file writes"
@@ -411,13 +411,13 @@ Do not rely on model memory alone. Rehydrate the workflow from the files.
 4. Call \`axint.status\`.
 5. Call \`axint.workflow.check\` with \`sessionToken\` at session start, after context recovery, before planning, before writing, before building, and before committing.
 6. If \`axint.workflow.check\` returns \`ready\`, call the report's \`Next Axint Action\` before broad Apple-native work.
-7. Use \`axint.suggest\` for feature planning.
+7. Use \`axint.suggest\` for feature planning. If MCP transport is unavailable, use \`axint suggest <app-description>\` and then pass \`--ran-suggest\` to the workflow check.
 8. Use \`axint.feature\`, \`axint.scaffold\`, \`axint.compile\`, or \`axint.schema.compile\` for Apple-native surfaces.
 9. ${writeLine}
 10. Run \`axint.swift.validate\` on modified Swift.
 11. Run \`axint.cloud.check\` with Xcode build, test, runtime, or behavior evidence when available.
-11. Prefer \`axint.run\` when moving toward build/test/runtime proof so Axint owns the loop instead of relying on memory.
-12. Build in Xcode or via \`xcodebuild\`. Static Axint checks are not a replacement for runtime proof.
+12. Prefer \`axint.run\` when moving toward build/test/runtime proof so Axint owns the loop instead of relying on memory.
+13. Build in Xcode or via \`xcodebuild\`. Static Axint checks are not a replacement for runtime proof.
 
 ## Hard Rule
 
