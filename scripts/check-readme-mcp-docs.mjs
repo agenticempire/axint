@@ -8,10 +8,12 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const README = resolve(ROOT, "README.md");
 const METRICS = resolve(ROOT, "metrics.json");
+const SERVER_JSON = resolve(ROOT, "server.json");
 const PUBLIC_TRUTH = resolve(ROOT, "..", "public-truth", "public-truth.json");
 
 const readme = readFileSync(README, "utf-8");
 const metrics = JSON.parse(readFileSync(METRICS, "utf-8"));
+const serverJson = JSON.parse(readFileSync(SERVER_JSON, "utf-8"));
 const publicTruth = existsSync(PUBLIC_TRUTH)
   ? JSON.parse(readFileSync(PUBLIC_TRUTH, "utf-8"))
   : null;
@@ -27,6 +29,18 @@ for (const promptName of metrics.mcpPromptNames ?? []) {
   if (!readme.includes(`\`${promptName}\``)) {
     failures.push(`README is missing MCP prompt reference: ${promptName}`);
   }
+}
+
+if (serverJson.capabilities?.tools !== metrics.mcpTools) {
+  failures.push(
+    `server.json capabilities.tools is ${serverJson.capabilities?.tools}, expected ${metrics.mcpTools}`,
+  );
+}
+
+if (serverJson.capabilities?.prompts !== metrics.mcpPrompts) {
+  failures.push(
+    `server.json capabilities.prompts is ${serverJson.capabilities?.prompts}, expected ${metrics.mcpPrompts}`,
+  );
 }
 
 const proofMatch = readme.match(
