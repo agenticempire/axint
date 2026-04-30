@@ -1,7 +1,7 @@
 {
   "name": "axint",
   "displayName": "Axint — App Intents Compiler",
-  "version": "0.4.15",
+  "version": "0.4.16",
   "publisher": "agenticempire",
   "description": "Preview, validate, browse templates, and open shareable Axint Cloud reports from VS Code. Compile TypeScript or Python into Apple-native surfaces from your editor.",
   "license": "Apache-2.0",

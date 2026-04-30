@@ -76,6 +76,11 @@ export interface AxintRunInput {
   writeReport?: boolean;
 }
 
+const DEFAULT_CLOUD_SWEEP_LIMIT = 8;
+const DEFAULT_COMMAND_CAPTURE_CHARS = 64 * 1024;
+const DEFAULT_COMMAND_EVIDENCE_CHARS = 4 * 1024;
+const DEFAULT_COMMAND_RENDER_TAIL_CHARS = 600;
+
 export interface AxintRunCommandResult {
   command: string;
   args: string[];
@@ -259,7 +264,14 @@ export async function runAxintProject(
         : `Validated ${swiftFiles.length} Swift file${swiftFiles.length === 1 ? "" : "s"}.`,
   });
 
-  const cloudTargets = swiftFiles.length > 0 ? swiftFiles : [];
+  const cloudTargets = selectCloudCheckTargets({
+    cwd,
+    swiftFiles,
+    modifiedFiles: input.modifiedFiles,
+    projectContext: projectContext.index,
+  });
+  const cloudTargetsWereLimited =
+    swiftFiles.length > cloudTargets.length && !input.modifiedFiles?.length;
   for (const file of cloudTargets) {
     cloudChecks.push(
       runCloudCheck({
@@ -286,7 +298,9 @@ export async function runAxintProject(
     detail:
       cloudChecks.length === 0
         ? "No source file was available for Cloud Check."
-        : `Ran ${cloudChecks.length} Cloud Check report${cloudChecks.length === 1 ? "" : "s"}.`,
+        : cloudTargetsWereLimited
+          ? `Ran ${cloudChecks.length} compact Cloud Check report${cloudChecks.length === 1 ? "" : "s"} from the highest-risk project files. Pass --changed for a focused full sweep.`
+          : `Ran ${cloudChecks.length} Cloud Check report${cloudChecks.length === 1 ? "" : "s"}.`,
   });
 
   const commands: AxintRunReport["commands"] = {};
@@ -1014,6 +1028,28 @@ function resolveSwiftFiles(cwd: string, files?: string[]): string[] {
     );
   }
   return findSwiftFiles(cwd).slice(0, 80);
+}
+
+function selectCloudCheckTargets(input: {
+  cwd: string;
+  swiftFiles: string[];
+  modifiedFiles?: string[];
+  projectContext: { topInteractionRiskFiles?: Array<{ path: string }> };
+}): string[] {
+  if (input.modifiedFiles?.length) return input.swiftFiles;
+  if (input.swiftFiles.length <= DEFAULT_CLOUD_SWEEP_LIMIT) return input.swiftFiles;
+
+  const byPath = new Map(
+    input.swiftFiles.map((file) => [relativeOrAbsolute(input.cwd, file), file])
+  );
+  const ranked = (input.projectContext.topInteractionRiskFiles ?? [])
+    .map((file) => byPath.get(file.path))
+    .filter((file): file is string => Boolean(file));
+  const selected = unique([...ranked, ...input.swiftFiles]).slice(
+    0,
+    DEFAULT_CLOUD_SWEEP_LIMIT
+  );
+  return selected;
 }
 
 function findSwiftFiles(dir: string): string[] {
@@ -1970,7 +2006,7 @@ function runtimeFailureFromCommand(result?: AxintRunCommandResult): string | und
   );
 }
 
-function trimCommandEvidence(value: string, maxChars = 12000): string {
+function trimCommandEvidence(value: string, maxChars = commandEvidenceBudget()): string {
   const text = value.trim();
   if (text.length <= maxChars) return text;
   const head = text.slice(0, 1600).trimEnd();
@@ -1978,7 +2014,11 @@ function trimCommandEvidence(value: string, maxChars = 12000): string {
   return `${head}\n\n[... axint trimmed long command evidence ...]\n\n${tail}`;
 }
 
-function appendCommandOutput(current: string, next: string, maxChars = 8 * 1024 * 1024) {
+function appendCommandOutput(
+  current: string,
+  next: string,
+  maxChars = commandCaptureBudget()
+) {
   const combined = `${current}${next}`;
   if (combined.length <= maxChars) return combined;
   const tail = combined.slice(-(maxChars - 80));
@@ -2292,8 +2332,12 @@ function buildRunRepairPrompt(input: {
       `${label} command failed:`,
       `- Command: ${[result.command, ...result.args].map(shellQuote).join(" ")}`,
       `- Exit: ${result.exitCode ?? result.signal ?? "unknown"}`,
-      result.stderr ? `- stderr: ${result.stderr.slice(0, 4000)}` : "",
-      result.stdout ? `- stdout: ${result.stdout.slice(-4000)}` : ""
+      result.stderr
+        ? `- stderr: ${tailText(result.stderr, DEFAULT_COMMAND_RENDER_TAIL_CHARS)}`
+        : "",
+      result.stdout
+        ? `- stdout: ${tailText(result.stdout, DEFAULT_COMMAND_RENDER_TAIL_CHARS)}`
+        : ""
     );
   }
 
@@ -2309,8 +2353,9 @@ function writeRunArtifacts(report: AxintRunReport) {
   mkdirSync(dir, { recursive: true });
   const jsonPath = join(dir, "latest.json");
   const markdownPath = join(dir, "latest.md");
+  const compactReport = compactRunReport(report, {});
   const serializable = {
-    ...report,
+    ...compactReport,
     artifacts: {
       json: jsonPath,
       markdown: markdownPath,
@@ -2320,7 +2365,7 @@ function writeRunArtifacts(report: AxintRunReport) {
     },
   };
   writeFileSync(jsonPath, `${JSON.stringify(serializable, null, 2)}\n`, "utf-8");
-  writeFileSync(markdownPath, renderAxintRunReport(serializable), "utf-8");
+  writeFileSync(markdownPath, renderAxintRunReport(report), "utf-8");
   return {
     json: jsonPath,
     markdown: markdownPath,
@@ -2403,8 +2448,8 @@ function compactRunCommand(
   if (!result) return undefined;
   const { stdout, stderr, ...rest } = result;
   const compact: CompactRunCommandResult = { ...rest };
-  if (stdout) compact.stdoutTail = tailText(stdout, 1200);
-  if (stderr) compact.stderrTail = tailText(stderr, 1200);
+  if (stdout) compact.stdoutTail = tailText(stdout, DEFAULT_COMMAND_RENDER_TAIL_CHARS);
+  if (stderr) compact.stderrTail = tailText(stderr, DEFAULT_COMMAND_RENDER_TAIL_CHARS);
   if (stdout || stderr) {
     compact.outputRedaction = {
       ...(stdout ? { stdout: "trimmed_from_axint_run_json" as const } : {}),
@@ -2447,6 +2492,21 @@ function compactCloudCheckForRun(report: CloudCheckReport): Omit<
 function tailText(value: string, maxChars: number): string {
   if (value.length <= maxChars) return value;
   return `[... ${value.length - maxChars} chars trimmed ...]\n${value.slice(-maxChars)}`;
+}
+
+function commandCaptureBudget(): number {
+  return positiveEnvInt("AXINT_COMMAND_CAPTURE_CHARS", DEFAULT_COMMAND_CAPTURE_CHARS);
+}
+
+function commandEvidenceBudget(): number {
+  return positiveEnvInt("AXINT_COMMAND_EVIDENCE_CHARS", DEFAULT_COMMAND_EVIDENCE_CHARS);
+}
+
+function positiveEnvInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 function relativeOrAbsolute(cwd: string, path: string) {

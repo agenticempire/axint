@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import worker from "../../workers/mcp-http/src/worker.js";
-import { TOOL_MANIFEST } from "../../src/mcp/manifest.js";
+import { TOOL_MANIFEST, getRuntimeToolManifest } from "../../src/mcp/manifest.js";
 import { PROMPT_MANIFEST } from "../../src/mcp/prompts.js";
 
 const packageVersion = JSON.parse(
@@ -78,15 +78,20 @@ describe("axint HTTP MCP transport", () => {
     });
   });
 
-  it("lists the full MCP tool manifest", async () => {
+  it("lists the compact MCP tool manifest by default", async () => {
     const response = await request({ jsonrpc: "2.0", id: 1, method: "tools/list" });
     const payload = await response.json();
+    const compactManifest = getRuntimeToolManifest();
 
     expect(response.status).toBe(200);
     expect(payload.result.tools).toHaveLength(TOOL_MANIFEST.length);
     expect(payload.result.tools.map((tool: { name: string }) => tool.name)).toEqual(
       TOOL_MANIFEST.map((tool) => tool.name)
     );
+    expect(JSON.stringify(payload.result.tools).length).toBeLessThan(
+      JSON.stringify(TOOL_MANIFEST).length
+    );
+    expect(payload.result.tools).toEqual(compactManifest);
   });
 
   it("reports the running remote MCP server version through axint.status", async () => {

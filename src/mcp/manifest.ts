@@ -1065,7 +1065,7 @@ export const TOOL_MANIFEST = [
         source: {
           type: "string",
           description:
-            "Inline Swift or Axint TypeScript source to check. Use this when the agent already has the code in memory.",
+            "Inline Swift or Axint TypeScript source to check. Prefer sourcePath when possible; inline source should be reserved for short snippets already in the agent context.",
         },
         sourcePath: {
           type: "string",
@@ -1107,12 +1107,12 @@ export const TOOL_MANIFEST = [
         xcodeBuildLog: {
           type: "string",
           description:
-            "Optional Xcode build output. Cloud Check will classify recognized compile, availability, duplicate symbol, and conformance failures into actionable diagnostics.",
+            "Optional short Xcode build excerpt. Pass only the failing lines or focused proof summary; full logs should stay in .axint artifacts or local files.",
         },
         testFailure: {
           type: "string",
           description:
-            "Optional failing unit/UI-test output. Use this when static checks pass but Xcode tests still fail; Cloud Check will look for element lookup, accessibility identifier, timeout, and runtime evidence patterns.",
+            "Optional short failing unit/UI-test excerpt. Use this when static checks pass but Xcode tests still fail; include the assertion, selector, file/line, and not the full transcript.",
         },
         runtimeFailure: {
           type: "string",
@@ -1594,7 +1594,7 @@ export const TOOL_MANIFEST = [
           type: "array",
           items: { type: "string" },
           description:
-            "Changed Swift files to validate and Cloud Check. If omitted, Axint scans project Swift files.",
+            "Changed Swift files to validate and Cloud Check. Pass this whenever possible; if omitted, Axint validates the project but Cloud Checks only a compact highest-risk subset.",
         },
         skipBuild: {
           type: "boolean",
@@ -2131,3 +2131,94 @@ export const TOOL_MANIFEST = [
     },
   },
 ] as const;
+
+type RuntimeManifestEnv = {
+  AXINT_MCP_FULL_MANIFEST?: string;
+  AXINT_MCP_MANIFEST_MODE?: string;
+  AXINT_MCP_TOOL_DESCRIPTION_CHARS?: string;
+  AXINT_MCP_SCHEMA_DESCRIPTION_CHARS?: string;
+  AXINT_MCP_NESTED_DESCRIPTION_CHARS?: string;
+};
+
+type CompactManifestOptions = {
+  toolDescriptionChars: number;
+  schemaDescriptionChars: number;
+  nestedDescriptionChars: number;
+};
+
+const DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS = 140;
+const DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS = 0;
+const DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS = 0;
+
+export function getRuntimeToolManifest(env: RuntimeManifestEnv = {}) {
+  const mode = env.AXINT_MCP_MANIFEST_MODE?.trim().toLowerCase();
+  if (env.AXINT_MCP_FULL_MANIFEST === "1" || mode === "full" || mode === "verbose") {
+    return TOOL_MANIFEST;
+  }
+
+  return compactToolManifest({
+    toolDescriptionChars: positiveEnvInt(
+      env.AXINT_MCP_TOOL_DESCRIPTION_CHARS,
+      DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS
+    ),
+    schemaDescriptionChars: positiveEnvInt(
+      env.AXINT_MCP_SCHEMA_DESCRIPTION_CHARS,
+      DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS
+    ),
+    nestedDescriptionChars: positiveEnvInt(
+      env.AXINT_MCP_NESTED_DESCRIPTION_CHARS,
+      DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS
+    ),
+  });
+}
+
+export function compactToolManifest(options: CompactManifestOptions) {
+  return TOOL_MANIFEST.map((tool) => ({
+    ...tool,
+    description: compactDescription(tool.description, options.toolDescriptionChars),
+    inputSchema: compactSchemaValue(tool.inputSchema, options, 0),
+  })) as unknown as typeof TOOL_MANIFEST;
+}
+
+function compactSchemaValue(
+  value: unknown,
+  options: CompactManifestOptions,
+  depth: number
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => compactSchemaValue(item, options, depth + 1));
+  }
+
+  if (!value || typeof value !== "object") return value;
+
+  const compacted: Record<string, unknown> = {};
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (key === "description" && typeof nestedValue === "string") {
+      const limit =
+        depth <= 2 ? options.schemaDescriptionChars : options.nestedDescriptionChars;
+      if (limit <= 0) continue;
+      compacted[key] = compactDescription(nestedValue, limit);
+      continue;
+    }
+
+    compacted[key] = compactSchemaValue(nestedValue, options, depth + 1);
+  }
+
+  return compacted;
+}
+
+function compactDescription(value: string, maxChars: number): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxChars) return normalized;
+
+  const safeLimit = Math.max(32, maxChars);
+  const wordBoundary = normalized.lastIndexOf(" ", safeLimit - 4);
+  const end = wordBoundary > 32 ? wordBoundary : safeLimit - 3;
+  return `${normalized.slice(0, end).trim()}...`;
+}
+
+function positiveEnvInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}

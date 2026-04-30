@@ -133,6 +133,7 @@ struct ContentView: View {
     expect(payload.fileName).toBe("ContentView.swift");
     expect(payload.swiftCode).toBeUndefined();
     expect(payload.sourceRedaction.swiftCode).toBe("omitted_from_rendered_json");
+    expect(payload.outputRedaction.mode).toBe("compact");
     expect(payload.confidence.level).toBe("medium");
     expect(payload.coverage).toContainEqual(
       expect.objectContaining({
@@ -147,6 +148,40 @@ struct ContentView: View {
       })
     );
     expect(payload.repairPrompt).toContain("This is not a runtime pass");
+  });
+
+  it("keeps JSON and markdown reports compact for agent contexts", () => {
+    const longBuildLog = Array.from(
+      { length: 300 },
+      (_, index) =>
+        `CompileSwift normal arm64 File${index}.swift warning: long generated output line ${index}`
+    ).join("\n");
+    const report = runCloudCheck({
+      fileName: "ContentView.swift",
+      source: `
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View { Text("Hello") }
+}
+`,
+      xcodeBuildLog: longBuildLog,
+      expectedBehavior: "The focused UI proof should pass.",
+      actualBehavior: "The focused UI proof has not run yet.",
+    });
+
+    const payload = JSON.parse(renderCloudCheckReport(report, "json")) as {
+      evidence: { summary: string[] };
+      repairPrompt: string;
+      outputRedaction?: { mode: string; fullPromptFormat: string };
+    };
+    const markdown = renderCloudCheckReport(report, "markdown");
+
+    expect(payload.evidence.summary.join("\n").length).toBeLessThan(1400);
+    expect(payload.repairPrompt.length).toBeLessThanOrEqual(3000);
+    expect(payload.outputRedaction?.mode).toBe("compact");
+    expect(payload.outputRedaction?.fullPromptFormat).toBe("--format prompt");
+    expect(markdown.length).toBeLessThan(9000);
   });
 
   it("turns supplied UI-test evidence into actionable Cloud diagnostics", () => {
