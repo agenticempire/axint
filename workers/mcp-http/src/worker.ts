@@ -49,7 +49,7 @@ import type { SuggestInput } from "../../../src/mcp/suggest.js";
 import { TEMPLATES, getTemplate } from "../../../src/templates/index.js";
 import { validateSwiftSource } from "../../../src/core/swift-validator.js";
 import { fixSwiftSourceMultipass } from "../../../src/core/swift-fixer.js";
-import { TOOL_MANIFEST } from "../../../src/mcp/manifest.js";
+import { TOOL_MANIFEST, getRuntimeToolManifest } from "../../../src/mcp/manifest.js";
 import { PROMPT_MANIFEST, getPromptMessages } from "../../../src/mcp/prompts.js";
 import type {
   IRIntent,
@@ -69,7 +69,7 @@ import type {
 } from "../../../src/core/types.js";
 import { isPrimitiveType, isSceneKind } from "../../../src/core/types.js";
 
-const VERSION = "0.4.15";
+const VERSION = "0.4.16";
 
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
 
@@ -124,6 +124,11 @@ const GLAMA_SERVER_MARKER = {
 type Env = {
   ALLOWED_ORIGINS?: string;
   MAX_BODY_BYTES?: string;
+  AXINT_MCP_FULL_MANIFEST?: string;
+  AXINT_MCP_MANIFEST_MODE?: string;
+  AXINT_MCP_TOOL_DESCRIPTION_CHARS?: string;
+  AXINT_MCP_SCHEMA_DESCRIPTION_CHARS?: string;
+  AXINT_MCP_NESTED_DESCRIPTION_CHARS?: string;
 };
 
 function resolveAllowedOrigin(origin: string | null, env: Env): string | null {
@@ -850,7 +855,7 @@ export default {
     }
 
     if (method === "tools/list") {
-      return jsonrpc(id, { tools: TOOL_MANIFEST }, cors);
+      return jsonrpc(id, { tools: getRuntimeToolManifest(env) }, cors);
     }
 
     if (method === "tools/call") {

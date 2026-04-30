@@ -158,6 +158,10 @@ export interface CloudLearningSignal {
   createdAt: string;
 }
 
+const DEFAULT_CLOUD_PROMPT_RENDER_CHARS = 1_600;
+const DEFAULT_CLOUD_JSON_PROMPT_CHARS = 3_000;
+const DEFAULT_CLOUD_EVIDENCE_SUMMARY_CHARS = 800;
+
 export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
   const { source, fileName } = readCloudCheckSource(input);
   const compilerVersion = packageVersion();
@@ -574,7 +578,18 @@ export function renderCloudCheckReport(
     );
   }
 
-  lines.push("", "## Agent Repair Prompt", "```text", report.repairPrompt, "```");
+  const compactPrompt = trimMiddle(
+    report.repairPrompt,
+    positiveEnvInt("AXINT_CLOUD_PROMPT_RENDER_CHARS", DEFAULT_CLOUD_PROMPT_RENDER_CHARS),
+    "agent repair prompt"
+  );
+  lines.push("", "## Agent Repair Prompt", "```text", compactPrompt, "```");
+  if (compactPrompt !== report.repairPrompt) {
+    lines.push(
+      "",
+      "_Prompt compacted for agent-token safety. Use `--format prompt` only when you need the full continuation block inline._"
+    );
+  }
   return lines.join("\n");
 }
 
@@ -898,10 +913,32 @@ function compactCloudCheckReport(report: CloudCheckReport): Omit<
     sourceLines: number;
     outputLines: number;
   };
+  outputRedaction: {
+    mode: "compact";
+    reason: string;
+    fullPromptFormat: "--format prompt";
+  };
 } {
   const { swiftCode, ...rest } = report;
+  const promptBudget = positiveEnvInt(
+    "AXINT_CLOUD_JSON_PROMPT_CHARS",
+    DEFAULT_CLOUD_JSON_PROMPT_CHARS
+  );
   return {
     ...rest,
+    evidence: {
+      ...report.evidence,
+      summary: report.evidence.summary.map((item) =>
+        trimMiddle(item, DEFAULT_CLOUD_EVIDENCE_SUMMARY_CHARS, "evidence")
+      ),
+    },
+    repairPrompt: trimMiddle(report.repairPrompt, promptBudget, "repair prompt"),
+    outputRedaction: {
+      mode: "compact" as const,
+      reason:
+        "Rendered Cloud Check JSON keeps verdict, diagnostics, evidence summary, and next steps compact for agent conversations.",
+      fullPromptFormat: "--format prompt" as const,
+    },
     ...(swiftCode
       ? {
           sourceRedaction: {
@@ -2605,7 +2642,25 @@ function summarizeEvidenceValue(label: string, value: string): string {
     .join(" | ")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 1500);
+    .slice(0, DEFAULT_CLOUD_EVIDENCE_SUMMARY_CHARS);
+}
+
+function trimMiddle(value: string, maxChars: number, label: string): string {
+  if (value.length <= maxChars) return value;
+  const marker = `\n\n[... axint compacted ${value.length - maxChars} chars from ${label}; use the dedicated full-output format or inspect artifacts if needed ...]\n\n`;
+  if (marker.length >= maxChars) return value.slice(0, maxChars);
+  const headChars = Math.max(200, Math.floor((maxChars - marker.length) * 0.45));
+  const tailChars = Math.max(200, maxChars - marker.length - headChars);
+  return `${value.slice(0, headChars).trimEnd()}${marker}${value
+    .slice(-tailChars)
+    .trimStart()}`;
+}
+
+function positiveEnvInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 function unique<T>(values: T[]): T[] {

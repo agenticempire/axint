@@ -58,7 +58,7 @@ import { suggestFeaturesSmart, type SuggestInput } from "./suggest.js";
 import { TEMPLATES, getTemplate } from "../templates/index.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import { fixSwiftSourceMultipass } from "../core/swift-fixer.js";
-import { TOOL_MANIFEST } from "./manifest.js";
+import { TOOL_MANIFEST, getRuntimeToolManifest } from "./manifest.js";
 import { PROMPT_MANIFEST, getPromptMessages } from "./prompts.js";
 import { handleCompileFromSchema, type SchemaCompileArgs } from "./schema-compile.js";
 import {
@@ -1240,7 +1240,7 @@ export function createAxintServer(): Server {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: TOOL_MANIFEST,
+    tools: getRuntimeToolManifest(process.env),
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {

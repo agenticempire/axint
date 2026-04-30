@@ -9,7 +9,7 @@
   },
   "homepage": "https://axint.ai",
   "documentation": "https://docs.axint.ai",
-  "version": "0.4.15",
+  "version": "0.4.16",
   "remotes": [
     {
       "type": "streamable-http",
@@ -20,7 +20,7 @@
     {
       "registryType": "npm",
       "identifier": "@axint/compiler",
-      "version": "0.4.15",
+      "version": "0.4.16",
       "transport": {
         "type": "stdio"
       }
@@ -28,7 +28,7 @@
     {
       "registryType": "pypi",
       "identifier": "axint",
-      "version": "0.4.15",
+      "version": "0.4.16",
       "transport": {
         "type": "stdio"
       }

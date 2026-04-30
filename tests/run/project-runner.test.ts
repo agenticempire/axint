@@ -176,6 +176,85 @@ describe("runAxintProject", () => {
     }
   });
 
+  it("writes compact latest artifacts and caps captured command output", async () => {
+    const dir = makeFakeXcodeProject();
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      [
+        "#!/bin/sh",
+        "printf '%12000s\\n' x",
+        "echo '** TEST SUCCEEDED **'",
+        "exit 0",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+
+    const previousPath = process.env.PATH;
+    const previousCapture = process.env.AXINT_COMMAND_CAPTURE_CHARS;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    process.env.AXINT_COMMAND_CAPTURE_CHARS = "2000";
+    try {
+      const report = await runAxintProject({
+        cwd: dir,
+        writeReport: true,
+      });
+      const latest = JSON.parse(readFileSync(report.artifacts.json!, "utf-8")) as {
+        cloudChecks: Array<{ swiftCode?: string; sourceRedaction?: unknown }>;
+        commands: { build?: { stdout?: string; stdoutTail?: string } };
+        outputRedaction?: { mode: string };
+      };
+
+      expect(report.commands.build?.stdout.length).toBeLessThanOrEqual(2000);
+      expect(latest.cloudChecks[0]?.swiftCode).toBeUndefined();
+      expect(latest.cloudChecks[0]?.sourceRedaction).toBeDefined();
+      expect(latest.commands.build?.stdout).toBeUndefined();
+      expect(latest.commands.build?.stdoutTail?.length).toBeLessThanOrEqual(700);
+      expect(latest.outputRedaction?.mode).toBe("compact");
+    } finally {
+      process.env.PATH = previousPath;
+      if (previousCapture === undefined) {
+        delete process.env.AXINT_COMMAND_CAPTURE_CHARS;
+      } else {
+        process.env.AXINT_COMMAND_CAPTURE_CHARS = previousCapture;
+      }
+    }
+  });
+
+  it("limits broad Cloud Check sweeps when changed files are omitted", async () => {
+    const dir = makeFakeXcodeProject();
+    for (let index = 0; index < 12; index += 1) {
+      writeFileSync(
+        join(dir, `ExtraView${index}.swift`),
+        [
+          "import SwiftUI",
+          "",
+          `struct ExtraView${index}: View {`,
+          "  var body: some View {",
+          `    Text("Extra ${index}")`,
+          "  }",
+          "}",
+          "",
+        ].join("\n")
+      );
+    }
+
+    const report = await runAxintProject({
+      cwd: dir,
+      dryRun: true,
+      writeReport: false,
+    });
+    const cloudStep = report.steps.find((step) => step.name === "Cloud Check");
+
+    expect(report.swiftValidation.filesChecked).toBe(13);
+    expect(report.cloudChecks).toHaveLength(8);
+    expect(cloudStep?.detail).toContain("compact Cloud Check");
+    expect(cloudStep?.detail).toContain("Pass --changed");
+  });
+
   it("plans focused Xcode UI tests with only-testing selectors", async () => {
     const dir = makeFakeXcodeProject();
     const report = await runAxintProject({

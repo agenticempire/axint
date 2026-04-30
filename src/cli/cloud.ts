@@ -59,9 +59,9 @@ export function registerCloud(program: Command) {
       "Target platform hint: iOS, macOS, watchOS, visionOS, all",
       parseCloudPlatform
     )
-    .option("--build-log <text>", "Inline Xcode build log or error snippet")
+    .option("--build-log <text>", "Inline short Xcode build error/proof snippet")
     .option("--build-log-file <file>", "Read Xcode build log evidence from a file")
-    .option("--test-failure <text>", "Inline unit/UI test failure output")
+    .option("--test-failure <text>", "Inline short unit/UI test failure excerpt")
     .option(
       "--test-failure-file <file>",
       "Read unit/UI test failure evidence from a file"

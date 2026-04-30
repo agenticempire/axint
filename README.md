@@ -259,7 +259,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.15 · 33 MCP tools + 5 prompts · 189 diagnostic codes · 1213 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.16 · 33 MCP tools + 5 prompts · 189 diagnostic codes · 1217 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -318,6 +318,10 @@ For a repeatable first-use demo, inspect `examples/wow/composer-blocker`. It mod
 Long runs also write `.axint/run/jobs/<id>.json` and `.axint/run/latest-active.json`. If a client disconnects, an MCP transport times out, or an agent needs to rejoin a build in the same thread, use `axint run status` to see active process IDs and `axint run cancel` to stop the child process group without restarting the whole chat.
 
 Rendered `axint run --format json` is compact by default: it keeps verdict, evidence, diagnostics, artifact paths, feedback packet paths, and next actions visible while omitting full Swift source and trimming long command output. Use `--include-source` only when the active agent explicitly needs inline Swift/code output in the response.
+
+Agent-token safety is also built into the default run loop. `axint run` keeps full command logs on disk under `.axint/run/logs`, while the agent-facing report keeps compact tails and artifact paths. If you omit `--changed`, Axint validates the project but Cloud Checks only the highest-risk Swift files instead of pushing every source file into the next agent turn. Pass `--changed <files>` when you want a focused full proof loop.
+
+The MCP tool listing is compact by default for the same reason: agents receive tool names, schemas, enums, and short summaries instead of the full prose-heavy manifest. Set `AXINT_MCP_MANIFEST_MODE=full` or `AXINT_MCP_FULL_MANIFEST=1` only when debugging tool documentation.
 
 Use `--dry-run` to prove the harness and planned `xcodebuild` commands before letting a local or BYO Mac runner execute the job.
 
