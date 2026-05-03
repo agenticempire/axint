@@ -63,11 +63,12 @@ python/**/__pycache__/
 *.tgz
 
 # Hosted separately — not part of the compiler repo
-registry/
-site/
-launch/
-docs/launch/
-.github-org-profile/
+# Anchored to repo root so we don't accidentally exclude src/registry/, etc.
+/registry/
+/site/
+/launch/
+/docs/launch/
+/.github-org-profile/
 profile/
 .github-org-temp/
 .scratch/
