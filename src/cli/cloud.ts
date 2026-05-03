@@ -81,6 +81,22 @@ export function registerCloud(program: Command) {
       "--write-feedback [dir]",
       "Write the redacted learning signal to .axint/feedback or the provided directory"
     )
+    .option(
+      "--diff-only",
+      "Only report diagnostics on lines this branch actually changed (suppresses ambient pre-existing warnings)"
+    )
+    .option(
+      "--diff-base <ref>",
+      "Base ref for --diff-only (defaults to working tree against HEAD)"
+    )
+    .option(
+      "--diff-cwd <dir>",
+      "Repo root for --diff-only (defaults to source's git root)"
+    )
+    .option(
+      "--no-snapshot-affinity",
+      "Suppress the snapshot-baseline reminder that lists matching __Snapshots__/*.png paths"
+    )
     .action(
       (
         file: string | undefined,
@@ -101,6 +117,10 @@ export function registerCloud(program: Command) {
           actual?: string;
           context?: string;
           writeFeedback?: boolean | string;
+          diffOnly?: boolean;
+          diffBase?: string;
+          diffCwd?: string;
+          snapshotAffinity?: boolean;
         }
       ) => {
         try {
@@ -127,6 +147,10 @@ export function registerCloud(program: Command) {
             expectedBehavior: options.expected,
             actualBehavior: options.actual,
             projectContextPath: options.context,
+            diffOnly: options.diffOnly,
+            diffBaseRef: options.diffBase,
+            diffCwd: options.diffCwd,
+            snapshotAffinity: options.snapshotAffinity,
           });
           if (options.writeFeedback && report.learningSignal) {
             const stored = writeCloudFeedbackSignal(report.learningSignal, {

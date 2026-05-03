@@ -150,6 +150,12 @@ export function validateSwiftSources(
         if (diagnostics) diagnostics.push(diagnostic);
       }
 
+      const nestedTypeAccess = checkProjectIndexNestedTypeAccess(inputs, projectFiles);
+      for (const diagnostic of nestedTypeAccess) {
+        const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
+        if (diagnostics) diagnostics.push(diagnostic);
+      }
+
       const conformance = checkSynthesizedConformancePropagation(inputs, projectFiles);
       for (const diagnostic of conformance) {
         const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
@@ -859,6 +865,9 @@ function collectDeclaredMemberNames(typeBody: string): Set<string> {
   const patterns = [
     /\b(?:static\s+|class\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
     /\b(?:static\s+|class\s+)?func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g,
+    // Nested type declarations are addressable as `Parent.Nested`. Without
+    // this, AX841/AX848 would false-positive on every nested-type reference.
+    /\b(?:struct|class|actor|enum|typealias)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
   ];
 
   for (const pattern of patterns) {
@@ -881,9 +890,38 @@ function collectDeclaredMemberNames(typeBody: string): Set<string> {
   return members;
 }
 
+/**
+ * Walk a type body collecting every property → declared-type pair we can
+ * read off the source. Powers AX841's typed-collection-element inference
+ * (`for item in store.results` resolves `item: VoiceCaptureResult` when
+ * `store: VoiceInboxStore` and `VoiceInboxStore.results` is `[VoiceCaptureResult]`).
+ *
+ * Type extraction is intentionally narrow — the value is the raw declared
+ * type token (e.g. `[VoiceCaptureResult]`, `VoiceCaptureResult?`,
+ * `Set<UUID>`). Callers normalize via {@link baseSwiftTypeName} to peel
+ * the wrappers when they want the element type.
+ */
+function collectDeclaredMemberTypes(typeBody: string): Map<string, string> {
+  const types = new Map<string, string>();
+  // Stored properties with explicit type annotations: `let x: T`, `var x: T`,
+  // `static var x: T`, `@StateObject var x: T`. Captures up to a `=`, `{`,
+  // or end-of-line so we get the whole annotation including generics and
+  // collection wrappers.
+  const propertyPattern =
+    /\b(?:static\s+|class\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^={\n]+?)(?=\s*[={]|\s*$)/gm;
+  let match: RegExpExecArray | null;
+  while ((match = propertyPattern.exec(typeBody)) !== null) {
+    const name = match[1]!;
+    const typeAnnotation = match[2]!.trim().replace(/\s+/g, " ");
+    if (typeAnnotation) types.set(name, typeAnnotation);
+  }
+  return types;
+}
+
 function collectTypedBindings(
   stripped: string,
-  typeMembers: Map<string, Set<string>>
+  typeMembers: Map<string, Set<string>>,
+  projectPropertyTypes?: Map<string, Map<string, string>>
 ): Map<string, string> {
   const bindings = new Map<string, string>();
   const bindingPattern =
@@ -908,7 +946,123 @@ function collectTypedBindings(
     }
   }
 
+  // Closure-bound iteration variables. Without these we silently miss the
+  // most common cross-file member-resolution case in SwiftUI code:
+  //
+  //   ForEach(store.results) { item in
+  //       Text(item.headline)        // member access on closure parameter
+  //   }
+  //
+  //   for item in store.results { item.headline }
+  //
+  // We resolve `store` to its project-indexed type, look up the declared
+  // type of `results` (`[VoiceCaptureResult]`), peel the collection wrapper
+  // to get `VoiceCaptureResult`, and bind the closure parameter to it.
+  if (projectPropertyTypes) {
+    bindClosureLoopVariables(stripped, bindings, typeMembers, projectPropertyTypes);
+  }
+
   return bindings;
+}
+
+/**
+ * `ForEach(receiver.property) { name in ... }` and
+ * `for name in receiver.property { ... }`
+ *
+ * Resolve `receiver`'s type (already in `bindings`), look up `property`'s
+ * declared type on that type (`projectPropertyTypes`), peel the collection
+ * wrapper, and bind `name` to the element type so downstream member-access
+ * checks fire on it.
+ */
+function bindClosureLoopVariables(
+  stripped: string,
+  bindings: Map<string, string>,
+  typeMembers: Map<string, Set<string>>,
+  projectPropertyTypes: Map<string, Map<string, string>>
+): void {
+  const forEachPattern =
+    /\bForEach\s*\(\s*([a-z][A-Za-z0-9_]*)\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)\b[^)]*\)\s*\{\s*([a-z][A-Za-z0-9_]*)\s+in\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = forEachPattern.exec(stripped)) !== null) {
+    const receiver = match[1]!;
+    const property = match[2]!;
+    const loopVar = match[3]!;
+    const elementType = resolveCollectionElementType(
+      receiver,
+      property,
+      bindings,
+      typeMembers,
+      projectPropertyTypes
+    );
+    if (elementType) bindings.set(loopVar, elementType);
+  }
+
+  const forInPattern =
+    /\bfor\s+([a-z][A-Za-z0-9_]*)\s+in\s+([a-z][A-Za-z0-9_]*)\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  while ((match = forInPattern.exec(stripped)) !== null) {
+    const loopVar = match[1]!;
+    const receiver = match[2]!;
+    const property = match[3]!;
+    const elementType = resolveCollectionElementType(
+      receiver,
+      property,
+      bindings,
+      typeMembers,
+      projectPropertyTypes
+    );
+    if (elementType) bindings.set(loopVar, elementType);
+  }
+
+  // ForEach(items) { item in ... } — receiver IS the collection itself,
+  // already typed in `bindings` via let/var collection annotation.
+  const forEachDirectPattern =
+    /\bForEach\s*\(\s*([a-z][A-Za-z0-9_]*)\s*\)\s*\{\s*([a-z][A-Za-z0-9_]*)\s+in\b/g;
+  while ((match = forEachDirectPattern.exec(stripped)) !== null) {
+    const receiver = match[1]!;
+    const loopVar = match[2]!;
+    // No explicit property — receiver itself must be a collection-typed
+    // local. We don't currently track that as a binding, so skip until we
+    // have the data. (Tracked for AX841 follow-up.)
+    void receiver;
+    void loopVar;
+  }
+}
+
+function resolveCollectionElementType(
+  receiver: string,
+  property: string,
+  bindings: Map<string, string>,
+  typeMembers: Map<string, Set<string>>,
+  projectPropertyTypes: Map<string, Map<string, string>>
+): string | undefined {
+  const receiverType = bindings.get(receiver);
+  if (!receiverType) return undefined;
+  const propertyTypes = projectPropertyTypes.get(receiverType);
+  if (!propertyTypes) return undefined;
+  const rawType = propertyTypes.get(property);
+  if (!rawType) return undefined;
+  const elementType = peelCollectionWrapper(rawType);
+  if (elementType && typeMembers.has(elementType)) return elementType;
+  return undefined;
+}
+
+/**
+ * `[VoiceCaptureResult]` → `VoiceCaptureResult`
+ * `Set<UUID>` → `UUID`
+ * `Array<Foo>` → `Foo`
+ * `[String: Foo]` → undefined (dictionary value, not a single element type)
+ */
+function peelCollectionWrapper(raw: string): string | undefined {
+  const cleaned = raw.replace(/\?\s*$/, "").trim();
+  // [Element] form — disallow `:` to filter out dictionaries.
+  const arrayMatch = cleaned.match(/^\[\s*([A-Z][A-Za-z0-9_.]*)\s*\]$/);
+  if (arrayMatch) return baseSwiftTypeName(arrayMatch[1]!);
+  // Array<Element>, Set<Element>, OrderedSet<Element>, Slice<Element>...
+  const genericMatch = cleaned.match(
+    /^(?:Array|Set|OrderedSet|ContiguousArray|Slice|ArraySlice)\s*<\s*([A-Z][A-Za-z0-9_.]*)\s*>$/
+  );
+  if (genericMatch) return baseSwiftTypeName(genericMatch[1]!);
+  return undefined;
 }
 
 function collectUntypedClosureParameters(stripped: string): Set<string> {
@@ -2588,6 +2742,8 @@ function checkProjectIndexMemberAccess(
 
   // Build a type → members map across the entire project.
   const projectMembers = new Map<string, Set<string>>();
+  // And a type → property → declared-type map for closure-element inference.
+  const projectPropertyTypes = new Map<string, Map<string, string>>();
   for (const [, source] of projectFiles) {
     const stripped = stripCommentsAndStrings(source);
     const decls = findTypeDeclarations(stripped, source);
@@ -2598,6 +2754,13 @@ function checkProjectIndexMemberAccess(
       const existing = projectMembers.get(baseName) ?? new Set<string>();
       for (const m of collectDeclaredMemberNames(body)) existing.add(m);
       projectMembers.set(baseName, existing);
+
+      const propertyTypes =
+        projectPropertyTypes.get(baseName) ?? new Map<string, string>();
+      for (const [name, type] of collectDeclaredMemberTypes(body)) {
+        propertyTypes.set(name, type);
+      }
+      projectPropertyTypes.set(baseName, propertyTypes);
     }
   }
 
@@ -2612,7 +2775,7 @@ function checkProjectIndexMemberAccess(
   for (const input of inputs) {
     if (!inputPaths.has(resolve(input.file))) continue;
     const stripped = stripCommentsAndStrings(input.source);
-    const bindings = collectTypedBindings(stripped, projectMembers);
+    const bindings = collectTypedBindings(stripped, projectMembers, projectPropertyTypes);
     if (bindings.size === 0) continue;
     const untypedClosureParameters = collectUntypedClosureParameters(stripped);
 
@@ -2621,10 +2784,16 @@ function checkProjectIndexMemberAccess(
     while ((match = memberAccess.exec(stripped)) !== null) {
       const objectName = match[1]!;
       const memberName = match[2]!;
-      if (untypedClosureParameters.has(objectName)) continue;
+
+      // If we successfully inferred the closure parameter's type via
+      // ForEach/for-in collection inference (bindClosureLoopVariables),
+      // honor it — the inferred binding overrides the untyped-closure
+      // skip-list. Without this, AX841 silently misses every `item.foo`
+      // inside a typed `ForEach(store.results) { item in ... }` loop.
+      const typeName = bindings.get(objectName);
+      if (!typeName && untypedClosureParameters.has(objectName)) continue;
       if (KNOWN_CROSS_FILE_MEMBER_NAMES.has(memberName)) continue;
 
-      const typeName = bindings.get(objectName);
       if (!typeName) continue;
 
       const members = projectMembers.get(typeName);
@@ -2658,6 +2827,213 @@ function checkProjectIndexMemberAccess(
 
   return diagnostics;
 }
+
+// ─── Rule: AX848 — Nested type / static member access on a project type ─
+//
+// Closes the gap AX841 leaves open. AX841's regex is anchored on a
+// lowercase-first receiver (instance member access). When the receiver
+// is itself a type literal — `IntelBriefItem.Kind`, `Color.semantic`,
+// `MyEnum.foo` — Swift is doing nested-type / static-member lookup, not
+// instance-member lookup, and AX841 ignores it.
+//
+// AX848 specifically catches the type-on-type form. It only fires when
+// the parent type is project-indexed (we know its full member set,
+// including nested types and enum cases via collectDeclaredMemberNames).
+//
+// Skipped: bare `Foo()` calls (constructors, not member access), `Foo.self`,
+// `Foo.Type`, `Foo.init`, and types in SYSTEM_TYPE_MEMBERS or
+// KNOWN_NESTED_TYPE_NAMES (system-shaped names like `Result.success`).
+
+function checkProjectIndexNestedTypeAccess(
+  inputs: SwiftValidationInput[],
+  projectFiles: Map<string, string>
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const inputPaths = new Set(inputs.map((i) => resolve(i.file)));
+
+  // Same indexing pass as AX841. We rebuild it locally so AX848 stays
+  // standalone (the validator pipeline runs both rules; the cost of the
+  // duplicate scan is negligible against a single tsup build).
+  const projectMembers = new Map<string, Set<string>>();
+  for (const [, source] of projectFiles) {
+    const stripped = stripCommentsAndStrings(source);
+    const decls = findTypeDeclarations(stripped, source);
+    for (const decl of decls) {
+      const baseName = baseSwiftTypeName(decl.name);
+      if (!baseName) continue;
+      const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+      const existing = projectMembers.get(baseName) ?? new Set<string>();
+      for (const m of collectDeclaredMemberNames(body)) existing.add(m);
+      projectMembers.set(baseName, existing);
+    }
+  }
+  if (projectMembers.size === 0) return diagnostics;
+
+  for (const [typeName, members] of Object.entries(SYSTEM_TYPE_MEMBERS)) {
+    const set = projectMembers.get(typeName) ?? new Set<string>();
+    for (const m of members) set.add(m);
+    projectMembers.set(typeName, set);
+  }
+
+  const reported = new Set<string>();
+  for (const input of inputs) {
+    if (!inputPaths.has(resolve(input.file))) continue;
+    const stripped = stripCommentsAndStrings(input.source);
+
+    // Receiver is uppercase-first (= a type literal); accessed name can be
+    // any identifier. We exclude trailing `(` (constructor call), `.init`,
+    // `.self`, `.Type`, `.Protocol` — those are language forms that don't
+    // need member-table validation.
+    const nestedAccess = /\b([A-Z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
+    let match: RegExpExecArray | null;
+    while ((match = nestedAccess.exec(stripped)) !== null) {
+      const parentTypeName = match[1]!;
+      const accessedName = match[2]!;
+
+      if (LANGUAGE_RESERVED_TYPE_MEMBERS.has(accessedName)) continue;
+      if (KNOWN_NESTED_TYPE_NAMES.has(accessedName)) continue;
+
+      // Skip declaration sites: `struct ParentType.Foo`, `extension ParentType.Foo`,
+      // `case ParentType.foo`, `static let Parent.Foo`. These match the
+      // pattern but aren't member access.
+      const before = stripped.slice(Math.max(0, match.index - 32), match.index);
+      if (
+        /\b(?:struct|class|actor|enum|extension|case|protocol|typealias)\s+$/.test(before)
+      ) {
+        continue;
+      }
+
+      // Skip method invocation following the access: `Parent.factory(...)`.
+      // The pattern can match the head; we only fire when the access is
+      // resolved as a name lookup, not as a function call. Since static
+      // methods are valid members, leaving `(` patterns in keeps the rule
+      // honest — but we also need to require that the parent is genuinely
+      // project-indexed and that `accessedName` does not appear in its
+      // member set. Constructor calls are filtered downstream by the
+      // member-set check (the constructor isn't in the member set, so we'd
+      // false-positive on every `Foo()` call).
+      const after = stripped[match.index + match[0].length];
+      if (after === "(") {
+        // Could be a constructor-shaped pattern like `Result.success(value)`.
+        // We treat parens after a capitalized accessed name as enum-case
+        // construction; require the accessed name to be lowercase-first to
+        // proceed (typical for static methods / enum cases).
+        if (/^[A-Z]/.test(accessedName)) continue;
+      }
+
+      const members = projectMembers.get(parentTypeName);
+      if (!members) continue;
+      if (members.has(accessedName)) continue;
+
+      const key = `${input.file}:${parentTypeName}:${accessedName}:${match.index}`;
+      if (reported.has(key)) continue;
+      reported.add(key);
+
+      const suggestion = suggestSimilarMember(accessedName, members);
+
+      diagnostics.push(
+        makeDiagnostic(
+          "AX848",
+          input.file,
+          1 + countNewlinesUpTo(input.source, match.index),
+          {
+            message: `'${accessedName}' is not a nested type or static member of '${parentTypeName}'.${
+              suggestion ? ` Did you mean '${suggestion}'?` : ""
+            } (resolved via project-context index)`,
+            suggestion: suggestion
+              ? `Replace '${parentTypeName}.${accessedName}' with '${parentTypeName}.${suggestion}', or grep the declaring file to confirm the real nested type name.`
+              : `Open the file declaring '${parentTypeName}' and verify the nested type / static member name. Swift will reject this on the next build with 'is not a member type of'.`,
+          }
+        )
+      );
+    }
+  }
+
+  return diagnostics;
+}
+
+// Names that look like member access syntactically but are language forms
+// or have meta-type semantics. Filtering these keeps AX848 noise-free.
+const LANGUAGE_RESERVED_TYPE_MEMBERS = new Set([
+  "self",
+  "Self",
+  "Type",
+  "Protocol",
+  "init",
+  "deinit",
+  "subscript",
+]);
+
+// Common nested type / static member names that come from the standard
+// library or system frameworks. These would otherwise generate noise on
+// project types that happen to share a parent name with a system type.
+const KNOWN_NESTED_TYPE_NAMES = new Set([
+  // Result + Optional
+  "success",
+  "failure",
+  "some",
+  "none",
+  // Bool / Int / String shorthand
+  "max",
+  "min",
+  "zero",
+  "one",
+  "infinity",
+  "pi",
+  "nan",
+  // SwiftUI common namespacing
+  "shared",
+  "default",
+  "global",
+  "main",
+  "current",
+  // Color / Edge / Alignment / Axis static members (SwiftUI)
+  "red",
+  "green",
+  "blue",
+  "yellow",
+  "orange",
+  "purple",
+  "pink",
+  "white",
+  "black",
+  "gray",
+  "primary",
+  "secondary",
+  "accentColor",
+  "clear",
+  "leading",
+  "trailing",
+  "top",
+  "bottom",
+  "center",
+  "horizontal",
+  "vertical",
+  "all",
+  "automatic",
+  // Animation / Transition
+  "easeIn",
+  "easeOut",
+  "easeInOut",
+  "linear",
+  "spring",
+  "interactiveSpring",
+  "interpolatingSpring",
+  "slide",
+  "scale",
+  "opacity",
+  // Date / Calendar
+  "now",
+  "distantFuture",
+  "distantPast",
+  // Logging
+  "info",
+  "debug",
+  "warning",
+  "error",
+  "notice",
+  "fault",
+]);
 
 function suggestSimilarMember(needle: string, haystack: Set<string>): string | null {
   let best: { name: string; distance: number } | null = null;

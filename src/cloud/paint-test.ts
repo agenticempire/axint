@@ -10,13 +10,13 @@
  * crash the body resolution, empty-state regressions where every pixel
  * came out clear.
  *
- * What this module ships in 0.4.20:
+ * What this module ships (introduced in 0.4.20):
  *   1. A scaffold generator that walks the project, finds every `struct X: View`,
  *      and emits a Swift test file with one assertion per view.
  *   2. The test file uses XCTest + ImageRenderer to mount the view and
  *      check pixel coverage. Standard Apple APIs, no third-party deps.
  *
- * What this module does NOT ship in 0.4.20:
+ * What this module does NOT ship yet:
  *   - Actually running the test (requires xcodebuild on a Mac runner;
  *     the user wires it into their existing CI). The snapshot-tests
  *     module covers that orchestration shape if needed.

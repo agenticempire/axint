@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import type { Surface } from "./feature.js";
 import {
   buildAgentToolProfile,
@@ -49,6 +51,22 @@ export interface WorkflowCheckReport {
   recommended: string[];
   nextTool?: string;
   checked: string[];
+  /**
+   * Time since the most recent prior workflow.check call in this project.
+   * Powers the drift-age indicator from 2026-05-03 dogfooding — agents
+   * who skip the 10-minute checkpoint rule see "minutes since last
+   * workflow.check" surfaced explicitly so they self-correct.
+   */
+  driftAge?: {
+    /** Minutes since the previous workflow.check call (rounded). */
+    minutesSinceLastCheck: number;
+    /** Stage of the previous check, when known. */
+    previousStage?: WorkflowStage;
+    /** ISO timestamp of the previous check. */
+    previousAt?: string;
+    /** True if the gap exceeded the 10-minute checkpoint rule. */
+    exceedsThreshold: boolean;
+  };
 }
 
 export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport {
@@ -241,6 +259,23 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
     );
   }
 
+  // Drift-age stamp: read prior workflow.check timestamp, compute gap,
+  // surface it in the checked list so the agent self-corrects without
+  // having to remember the 10-minute checkpoint rule. Persist a fresh
+  // stamp before returning so the next call has data to compare against.
+  const drift = readDriftAgeAndStamp(input.cwd, stage);
+  if (drift) {
+    if (drift.exceedsThreshold) {
+      recommended.push(
+        `Workflow drift: ${drift.minutesSinceLastCheck} minutes since the last workflow.check (previous stage: ${drift.previousStage ?? "unknown"}). The 10-minute checkpoint rule fired — checkpoint more often during long-running edits.`
+      );
+    } else {
+      checked.push(
+        `Last workflow.check ran ${drift.minutesSinceLastCheck} minute${drift.minutesSinceLastCheck === 1 ? "" : "s"} ago at stage ${drift.previousStage ?? "unknown"}.`
+      );
+    }
+  }
+
   const status = required.length === 0 ? "ready" : "needs_action";
   let nextTool =
     status === "needs_action"
@@ -285,6 +320,63 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
     recommended,
     nextTool,
     checked,
+    driftAge: drift,
+  };
+}
+
+const DRIFT_AGE_THRESHOLD_MINUTES = 10;
+
+interface DriftAgeStamp {
+  at: string;
+  stage: WorkflowStage;
+}
+
+function driftStampPath(cwd?: string): string {
+  return resolve(cwd ?? process.cwd(), ".axint/session/last-workflow-check.json");
+}
+
+/**
+ * Read the prior workflow.check timestamp from `.axint/session/`, compute
+ * minutes elapsed, then write a fresh stamp so the next call sees us as
+ * the new baseline. Returns undefined when no prior stamp exists.
+ */
+function readDriftAgeAndStamp(
+  cwd: string | undefined,
+  stage: WorkflowStage
+): WorkflowCheckReport["driftAge"] | undefined {
+  const path = driftStampPath(cwd);
+  let prior: DriftAgeStamp | undefined;
+  if (existsSync(path)) {
+    try {
+      const raw = readFileSync(path, "utf-8");
+      const parsed = JSON.parse(raw) as Partial<DriftAgeStamp>;
+      if (typeof parsed.at === "string") {
+        prior = { at: parsed.at, stage: (parsed.stage ?? stage) as WorkflowStage };
+      }
+    } catch {
+      // Corrupt stamp — overwrite, no drift to report.
+    }
+  }
+
+  // Persist a fresh stamp regardless of whether we had a prior one.
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    const next: DriftAgeStamp = { at: new Date().toISOString(), stage };
+    writeFileSync(path, JSON.stringify(next, null, 2));
+  } catch {
+    // Best-effort — don't fail the gate over a stamp write.
+  }
+
+  if (!prior) return undefined;
+  const priorMs = new Date(prior.at).getTime();
+  if (!Number.isFinite(priorMs)) return undefined;
+  const minutes = Math.round((Date.now() - priorMs) / 60_000);
+  if (minutes < 0) return undefined;
+  return {
+    minutesSinceLastCheck: minutes,
+    previousStage: prior.stage,
+    previousAt: prior.at,
+    exceedsThreshold: minutes > DRIFT_AGE_THRESHOLD_MINUTES,
   };
 }
 
@@ -320,6 +412,15 @@ export function renderWorkflowCheckReport(report: WorkflowCheckReport): string {
       ? "- Do not treat this workflow check as the only Axint step. Call the next Axint action before continuing with raw Xcode tools or hand-written Swift."
       : "- Do not treat this workflow check as the only gate. Patch surgically, then return to Axint validation before claiming the repair is done.";
     lines.push("", actionHeading, `- ${report.nextTool}`, actionReminder);
+  }
+
+  if (report.driftAge) {
+    const tag = report.driftAge.exceedsThreshold ? "DRIFT" : "ok";
+    lines.push(
+      "",
+      "## Drift Age",
+      `- ${tag}: ${report.driftAge.minutesSinceLastCheck} minute${report.driftAge.minutesSinceLastCheck === 1 ? "" : "s"} since last workflow.check (previous stage: ${report.driftAge.previousStage ?? "unknown"}).`
+    );
   }
 
   return lines.join("\n");
