@@ -16,9 +16,11 @@ import type { Diagnostic } from "./types.js";
 import {
   type SwiftDeclaration,
   countNewlinesUpTo,
+  findMatchingBrace,
   hasAttribute,
   hasConformance,
   makeDiagnostic,
+  stripCommentsAndStrings,
 } from "./swift-ast.js";
 
 export function checkConcurrency(
@@ -47,6 +49,7 @@ export function checkConcurrency(
   }
 
   checkTaskDetached(source, file, diagnostics);
+  checkRedundantTaskMainActorInLifecycle(source, file, diagnostics);
 }
 
 // ─── AX720 — DispatchQueue.main.async → Task { @MainActor in } ──────
@@ -60,7 +63,7 @@ function checkDispatchMainAsync(source: string, file: string, diagnostics: Diagn
         message:
           "DispatchQueue.main.async is discouraged under Swift 6 — use Task { @MainActor in }",
         suggestion:
-          "Replace with: Task { @MainActor in ... } — compiler will enforce isolation.",
+          "Replace with: Task { @MainActor in ... }. If you're already inside a SwiftUI view body, .task, or .onAppear, the surrounding context is MainActor-implicit and you can drop the wrapper entirely.",
       })
     );
   }
@@ -312,7 +315,8 @@ function checkRedundantMainActorRun(
     diagnostics.push(
       makeDiagnostic("AX730", file, line, {
         message: `Redundant 'await MainActor.run' inside @MainActor context in '${decl.name}'`,
-        suggestion: "Remove the wrapper — the code is already on the main actor.",
+        suggestion:
+          "Remove the wrapper — the code is already on the main actor. SwiftUI lifecycle blocks like .task and .onAppear, plus any function in a View body, are MainActor-implicit.",
       })
     );
   }
@@ -429,5 +433,54 @@ function checkTaskDetached(source: string, file: string, diagnostics: Diagnostic
           "If you need main-actor work, use Task { @MainActor in ... }. If you want background work, keep Task.detached but add a comment.",
       })
     );
+  }
+}
+
+// ─── AX789 — Redundant Task { @MainActor in } inside .onAppear / .task ─
+//
+// Companion to AX730 (which catches `await MainActor.run` inside an
+// already-MainActor function). SwiftUI's `.onAppear`, `.task`, and
+// `.task(id:)` modifiers run their closure on the main actor by default,
+// so wrapping the body in `Task { @MainActor in ... }` is dead weight
+// and obscures intent.
+
+function checkRedundantTaskMainActorInLifecycle(
+  source: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const stripped = stripCommentsAndStrings(source);
+  // Match `.onAppear { ... }`, `.task { ... }`, `.task(id: X) { ... }`.
+  const lifecycleRe = /\.(onAppear|task)\s*(?:\([^)]*\))?\s*\{/g;
+  let match: RegExpExecArray | null;
+  while ((match = lifecycleRe.exec(stripped)) !== null) {
+    const modifierName = match[1]!;
+    const open = stripped.indexOf("{", match.index);
+    const close = findMatchingBrace(stripped, open);
+    if (open === -1 || close === -1) continue;
+    const body = stripped.slice(open + 1, close);
+
+    // Look for `Task { @MainActor in ...` near the start of the body.
+    // Allow leading whitespace and at most one comment-stripped statement
+    // before it, since the wrapper is usually the first thing in the block.
+    const taskRe = /\bTask\s*\{\s*@MainActor\s+in\b/g;
+    let taskMatch: RegExpExecArray | null;
+    while ((taskMatch = taskRe.exec(body)) !== null) {
+      // Skip if this Task is itself nested inside another closure that
+      // crossed an actor boundary (rare, but the rule should not fire).
+      const slice = body.slice(0, taskMatch.index);
+      const openBraces = (slice.match(/\{/g) ?? []).length;
+      const closeBraces = (slice.match(/\}/g) ?? []).length;
+      if (openBraces - closeBraces > 0) continue;
+
+      const offsetInSource = open + 1 + taskMatch.index;
+      diagnostics.push(
+        makeDiagnostic("AX789", file, 1 + countNewlinesUpTo(source, offsetInSource), {
+          message: `Redundant 'Task { @MainActor in }' inside .${modifierName} — that lifecycle block already runs on the main actor.`,
+          suggestion:
+            "Drop the Task wrapper. The body of .onAppear and .task is MainActor-implicit; you can call your async work directly with `await` inside .task or use a plain `Task {}` only when you genuinely need to detach.",
+        })
+      );
+    }
   }
 }

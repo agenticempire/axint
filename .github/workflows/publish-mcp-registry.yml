@@ -1,13 +1,15 @@
 name: Publish MCP Registry
 
+# Triggered after a release tag lands (npm publish has already happened) or
+# manually via the Actions tab. The previous trigger was on every push to
+# main that touched server.json, which raced against the manual `npm publish`
+# step and produced a red X on main when the visibility check ran before npm
+# had the new version.
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-    paths:
-      - server.json
-      - .github/workflows/publish-mcp-registry.yml
+    tags:
+      - "v*"
 
 permissions:
   contents: read
@@ -59,7 +61,11 @@ jobs:
                   : `https://pypi.org/pypi/${encodeURIComponent(pkg.name)}/${pkg.version}/json`;
               let ok = false;
 
-              for (let attempt = 1; attempt <= 18; attempt += 1) {
+              // 30 attempts × 20s = 10-minute total budget. The previous 3-minute
+              // window was too tight when CDN propagation was slow on either npm
+              // or PyPI; bumping this is much cheaper than a manual rerun.
+              const MAX_ATTEMPTS = 30;
+              for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
                 const res = await fetch(url);
                 if (res.ok) {
                   console.log(`${pkg.name}@${pkg.version} is visible on ${pkg.registryType}.`);
@@ -68,9 +74,9 @@ jobs:
                 }
 
                 console.log(
-                  `${pkg.name}@${pkg.version} not visible on ${pkg.registryType} yet (${res.status}); retry ${attempt}/18.`
+                  `${pkg.name}@${pkg.version} not visible on ${pkg.registryType} yet (${res.status}); retry ${attempt}/${MAX_ATTEMPTS}.`
                 );
-                await sleep(10_000);
+                await sleep(20_000);
               }
 
               if (!ok) {

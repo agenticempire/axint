@@ -20,6 +20,10 @@ export function registerValidateSwift(program: Command) {
     .option("--json", "Emit a machine-readable JSON report to stdout")
     .option("--color", "Force ANSI color output even when stdout/stderr are not TTYs")
     .option(
+      "--quiet-system-symbols",
+      "Suppress AX768 partial-validation warnings against AppKit/Foundation/SwiftUI system types"
+    )
+    .option(
       "--no-fix-packet",
       "Skip writing the local Fix Packet under .axint/fix/latest.{json,md}"
     )
@@ -35,6 +39,7 @@ export function registerValidateSwift(program: Command) {
           quiet?: boolean;
           json?: boolean;
           color?: boolean;
+          quietSystemSymbols?: boolean;
           fixPacket?: boolean;
           fixPacketDir: string;
         }
@@ -77,6 +82,18 @@ export function registerValidateSwift(program: Command) {
             }))
           ).flatMap((result) => result.diagnostics)
         );
+
+        if (options.quietSystemSymbols === true) {
+          const before = all.length;
+          for (let i = all.length - 1; i >= 0; i--) {
+            if (all[i]!.code === "AX768") all.splice(i, 1);
+          }
+          if (!options.quiet && before > all.length) {
+            const removed = before - all.length;
+            const note = `dropped ${removed} AX768 partial-validation warning${removed === 1 ? "" : "s"} (--quiet-system-symbols)`;
+            console.error(color ? `\x1b[2m${note}\x1b[0m` : note);
+          }
+        }
 
         const errors = all.filter((d) => d.severity === "error");
         let repairArtifacts:

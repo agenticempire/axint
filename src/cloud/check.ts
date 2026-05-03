@@ -1002,7 +1002,7 @@ function buildCloudRepairPlan(input: {
         title: "Keep source behavior stable",
         detail:
           input.runtimeCoverageRequired && !input.runtimeEvidenceProvided
-            ? "Static checks are clean, but the SwiftUI/app flow still needs Xcode build or UI-test evidence."
+            ? "axint static checks are clean — pending Xcode build proof. Cross-file resolution is partial; the Swift compiler is the next gate, full stop."
             : "Static checks and supplied evidence did not surface a blocking Apple-facing issue.",
       },
       {
@@ -2139,9 +2139,9 @@ function buildCloudConfidence(input: {
     return {
       level: "medium",
       detail:
-        "Static checks are clean, but SwiftUI runtime behavior still needs Xcode build or UI-test evidence.",
+        "axint static checks are clean — this is NOT a build pass. Cross-file symbol resolution and Apple SDK signature validation are partial; xcodebuild is the next gate.",
       missingEvidence: [
-        "Xcode build",
+        "xcodebuild build (compile proof — non-negotiable)",
         "Relevant unit/UI tests",
         "Runtime route/accessibility verification",
       ],
@@ -2207,11 +2207,11 @@ function buildCloudGate(input: {
       decision: "evidence_required",
       canClaimFixed: false,
       reason:
-        "Static SwiftUI/app checks are clean, but runtime, route, accessibility, and state behavior still need Xcode evidence.",
+        "axint static checks pass — this does NOT mean the Swift compiler will accept the file. Cross-file symbol resolution, Apple SDK signatures, switch exhaustiveness over external enums, and runtime/route/accessibility behavior all still need Xcode proof. Treat this as the start of the proof chain, not the end.",
       requiredEvidence: [
-        "Xcode build",
-        "Relevant unit or UI test",
-        "Runtime/preview verification for the touched flow",
+        "xcodebuild ... build (compile proof — non-negotiable)",
+        "Relevant unit or UI test for the touched flow",
+        "Runtime/preview verification of the change",
       ],
     };
   }
@@ -2231,8 +2231,8 @@ function buildCloudGate(input: {
     canClaimFixed: input.evidenceProvided,
     reason: input.evidenceProvided
       ? "Static checks and supplied evidence were clean."
-      : "Static Apple-facing checks are clean; build proof is still the next step.",
-    requiredEvidence: input.evidenceProvided ? [] : ["Xcode build"],
+      : "axint static checks are clean — pending Xcode build proof. Static checks cannot fully resolve cross-file symbols or Apple SDK API surface, so 'ready_for_build' means 'no axint-rule fired,' not 'the Swift compiler will accept this.' Run xcodebuild before claiming compile success.",
+    requiredEvidence: input.evidenceProvided ? [] : ["xcodebuild build (compile proof)"],
   };
 }
 

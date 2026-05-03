@@ -137,7 +137,20 @@ program
   .description(
     "The open-source compiler that transforms AI agent definitions into native Apple App Intents."
   )
-  .version(VERSION);
+  .version(VERSION)
+  .addHelpText(
+    "after",
+    `
+Linux sandbox / Cowork lane:
+  Hosts without a Swift toolchain (Cowork, Linux CI, restricted containers)
+  can still run validate-swift, workflow check, cloud check, suggest, and
+  feature directly with:
+
+    npx -y -p @axint/compiler@${VERSION} axint <command>
+
+  The build/test proof step still needs a Mac with xcodebuild.
+`
+  );
 
 // ─── init ────────────────────────────────────────────────────────────
 

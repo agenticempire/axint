@@ -332,7 +332,9 @@ struct ProjectRoomContentView: View {
     expect(report.status).toBe("needs_review");
     expect(report.gate.decision).toBe("evidence_required");
     expect(report.gate.canClaimFixed).toBe(false);
-    expect(report.confidence.missingEvidence).toContain("Xcode build");
+    expect(report.confidence.missingEvidence).toContain(
+      "xcodebuild build (compile proof — non-negotiable)"
+    );
     expect(report.coverage).toContainEqual(
       expect.objectContaining({
         label: "Xcode build, UI tests, and runtime behavior",
@@ -1023,7 +1025,9 @@ struct ContentView: View {
 
     expect(report.status).toBe("needs_review");
     expect(report.errors).toBe(0);
-    expect(report.confidence.missingEvidence).toContain("Xcode build");
+    expect(report.confidence.missingEvidence).toContain(
+      "xcodebuild build (compile proof — non-negotiable)"
+    );
     expect(report.learningSignal?.diagnosticCodes).toContain("AXCLOUD-RUNTIME-COVERAGE");
     expect(report.learningSignal?.signals).toContain("runtime-evidence-missing");
     expect(report.learningSignal?.suggestedOwner).toBe("cloud");
