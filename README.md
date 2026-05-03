@@ -259,7 +259,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.18 · 33 MCP tools + 5 prompts · 198 diagnostic codes · 1257 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.19 · 34 MCP tools + 5 prompts · 203 diagnostic codes · 1278 tests · 5 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -390,6 +390,7 @@ MCP tools and built-in prompts:
 | `axint.context.docs` | Return the project-local Axint docs context so agents can reload docs after compaction |
 | `axint.suggest` | Suggest app-specific Apple-native features, reusable components, and shared stores from a product description |
 | `axint suggest` | CLI fallback for the same suggestion pass when MCP transport is stale, closed, or unavailable |
+| `axint.registry.search` | Search the Axint Registry for already-published packages that match a natural-language query — call this before `axint.feature` so agents install existing packages instead of regenerating Swift the community has shipped |
 | `axint.workflow.check` | Check whether an agent rehydrated Axint after compaction, has an active session token, and used suggest, feature, swift.validate, cloud.check, and Xcode proof before moving on |
 | `axint workflow check` | CLI fallback for the same workflow gate when MCP is stale, closed, or unavailable |
 | `axint.scaffold` | Generate a starter TypeScript intent from a description |

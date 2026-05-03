@@ -25,6 +25,7 @@ import {
   escapeRegex,
   findMatchingBrace,
   findTypeDeclarations,
+  hasAttribute,
   hasConformance,
   makeDiagnostic,
   stripCommentsAndStrings,
@@ -105,6 +106,9 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkDenseViewWithoutAffordance(source, stripped, file, diagnostics);
   checkUndefinedBooleanIdentifiers(source, stripped, file, diagnostics);
   checkUndefinedStringInterpolationIdentifiers(source, stripped, file, diagnostics);
+  checkMainActorStaticInDefaultValue(source, stripped, file, diagnostics);
+  checkViewBuilderReturnType(source, stripped, file, diagnostics);
+  checkTypeErasedProtocolMethods(source, stripped, file, diagnostics);
 
   return { file, diagnostics };
 }
@@ -142,6 +146,18 @@ export function validateSwiftSources(
 
       const projectMember = checkProjectIndexMemberAccess(inputs, projectFiles);
       for (const diagnostic of projectMember) {
+        const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
+        if (diagnostics) diagnostics.push(diagnostic);
+      }
+
+      const conformance = checkSynthesizedConformancePropagation(inputs, projectFiles);
+      for (const diagnostic of conformance) {
+        const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
+        if (diagnostics) diagnostics.push(diagnostic);
+      }
+
+      const stateOrphans = checkStateMachineOrphans(inputs, projectFiles);
+      for (const diagnostic of stateOrphans) {
         const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
         if (diagnostics) diagnostics.push(diagnostic);
       }
@@ -2860,4 +2876,689 @@ function collectImportedModules(stripped: string): Set<string> {
     modules.add(root);
   }
   return modules;
+}
+
+// ─── Rule: AX844 — Synthesized conformance can't propagate across files ─
+//
+// Catches the dogfooding pattern where a struct declares Hashable/Equatable/
+// Codable but a stored property's type — defined in another file — doesn't
+// conform. Swift's compiler walks the stored-property type graph at conf-
+// ormance derivation time and rejects the synthesis. axint's other rules
+// don't do that walk; this one does, using the project-context index.
+//
+// Heuristic boundaries: only fires when (a) we have project context, (b) the
+// property's type is in the project index (so we know its declared
+// conformances), (c) the type doesn't itself declare the protocol, and (d)
+// the type isn't a known-conforming primitive (Int, String, Bool, etc).
+
+const SYNTHESIZABLE_PROTOCOLS = [
+  "Hashable",
+  "Equatable",
+  "Codable",
+  "Decodable",
+  "Encodable",
+] as const;
+type SynthProtocol = (typeof SYNTHESIZABLE_PROTOCOLS)[number];
+
+// Standard library types every Swift programmer takes for granted as
+// conforming to the synthesizable protocols. Not exhaustive but covers the
+// common ones used as stored-property types.
+const PRIMITIVE_CONFORMING: Record<SynthProtocol, ReadonlySet<string>> = {
+  Hashable: new Set([
+    "Int",
+    "Int8",
+    "Int16",
+    "Int32",
+    "Int64",
+    "UInt",
+    "UInt8",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+    "Float",
+    "Float32",
+    "Float64",
+    "Double",
+    "CGFloat",
+    "Bool",
+    "String",
+    "Substring",
+    "Character",
+    "Date",
+    "URL",
+    "UUID",
+    "Data",
+    "TimeInterval",
+    "Decimal",
+  ]),
+  Equatable: new Set([
+    "Int",
+    "Int8",
+    "Int16",
+    "Int32",
+    "Int64",
+    "UInt",
+    "UInt8",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+    "Float",
+    "Float32",
+    "Float64",
+    "Double",
+    "CGFloat",
+    "Bool",
+    "String",
+    "Substring",
+    "Character",
+    "Date",
+    "URL",
+    "UUID",
+    "Data",
+    "TimeInterval",
+    "Decimal",
+  ]),
+  Codable: new Set([
+    "Int",
+    "Int8",
+    "Int16",
+    "Int32",
+    "Int64",
+    "UInt",
+    "UInt8",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+    "Float",
+    "Float32",
+    "Float64",
+    "Double",
+    "CGFloat",
+    "Bool",
+    "String",
+    "Date",
+    "URL",
+    "UUID",
+    "Data",
+    "TimeInterval",
+    "Decimal",
+  ]),
+  Decodable: new Set([
+    "Int",
+    "Int8",
+    "Int16",
+    "Int32",
+    "Int64",
+    "UInt",
+    "UInt8",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+    "Float",
+    "Float32",
+    "Float64",
+    "Double",
+    "CGFloat",
+    "Bool",
+    "String",
+    "Date",
+    "URL",
+    "UUID",
+    "Data",
+    "TimeInterval",
+    "Decimal",
+  ]),
+  Encodable: new Set([
+    "Int",
+    "Int8",
+    "Int16",
+    "Int32",
+    "Int64",
+    "UInt",
+    "UInt8",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+    "Float",
+    "Float32",
+    "Float64",
+    "Double",
+    "CGFloat",
+    "Bool",
+    "String",
+    "Date",
+    "URL",
+    "UUID",
+    "Data",
+    "TimeInterval",
+    "Decimal",
+  ]),
+};
+
+interface ConformanceIndexEntry {
+  // The conformances this type declares directly via `: A, B, C` syntax,
+  // plus conformances added via `extension TypeName: A {}` declarations
+  // anywhere in the project.
+  conformances: Set<string>;
+}
+
+function checkSynthesizedConformancePropagation(
+  inputs: SwiftValidationInput[],
+  projectFiles: Map<string, string>
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const inputPaths = new Set(inputs.map((i) => resolve(i.file)));
+
+  // Build a project-wide map of type → declared conformances (incl. extensions).
+  const conformanceIndex = collectConformanceIndex(projectFiles);
+
+  for (const input of inputs) {
+    if (!inputPaths.has(resolve(input.file))) continue;
+    const stripped = stripCommentsAndStrings(input.source);
+    const decls = findTypeDeclarations(stripped, input.source);
+
+    for (const decl of decls) {
+      // Only structs synthesize Hashable/Equatable/Codable for free
+      // (classes need explicit implementations, enums w/o associated values
+      // get them automatically anyway).
+      if (decl.kind !== "struct") continue;
+
+      const declaredProtocols: SynthProtocol[] = [];
+      for (const proto of SYNTHESIZABLE_PROTOCOLS) {
+        if (hasConformance(decl, proto)) declaredProtocols.push(proto);
+      }
+      if (declaredProtocols.length === 0) continue;
+
+      const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+      const properties = collectStoredPropertyTypes(body);
+      if (properties.length === 0) continue;
+
+      for (const prop of properties) {
+        const elementType = unwrapCollectionType(prop.typeText);
+        const baseName = baseSwiftTypeName(elementType);
+        if (!baseName) continue;
+
+        for (const proto of declaredProtocols) {
+          if (PRIMITIVE_CONFORMING[proto].has(baseName)) continue;
+          const entry = conformanceIndex.get(baseName);
+          // Type isn't in our index — could be a system type we don't know
+          // about. Don't fire (would produce false positives on Apple SDK
+          // types like `BindingType` etc.).
+          if (!entry) continue;
+          if (entry.conformances.has(proto)) continue;
+
+          const propLine =
+            1 + countNewlinesUpTo(input.source, decl.bodyStart + prop.offsetInBody);
+
+          diagnostics.push(
+            makeDiagnostic("AX844", input.file, propLine, {
+              message: `Synthesized '${proto}' for '${decl.name}' will fail: stored property '${prop.name}' has type '${prop.typeText}' and '${baseName}' does not declare '${proto}' conformance.`,
+              suggestion: `Either remove '${proto}' from '${decl.name}', or extend '${baseName}: ${proto}' in its defining file, or change '${prop.name}' to a ${proto}-conforming type. The Swift compiler will reject this on the next build.`,
+            })
+          );
+        }
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
+function collectConformanceIndex(
+  projectFiles: Map<string, string>
+): Map<string, ConformanceIndexEntry> {
+  const index = new Map<string, ConformanceIndexEntry>();
+
+  for (const [, source] of projectFiles) {
+    const stripped = stripCommentsAndStrings(source);
+    const decls = findTypeDeclarations(stripped, source);
+
+    for (const decl of decls) {
+      const baseName = baseSwiftTypeName(decl.name);
+      if (!baseName) continue;
+      const entry = index.get(baseName) ?? { conformances: new Set<string>() };
+
+      // Direct conformances from `struct X: A, B, C {`. The decl's own
+      // attributes/conformances are tracked elsewhere; we re-extract here
+      // from the declaration source to avoid coupling assumptions.
+      const beforeBody = source.slice(0, decl.bodyStart);
+      const headerMatch = beforeBody.match(
+        /\b(?:struct|class|enum|actor|protocol)\s+[A-Za-z_][A-Za-z0-9_]*\s*(?:<[^>]*>)?\s*:\s*([^{]+)\{\s*$/
+      );
+      if (headerMatch) {
+        for (const conformance of headerMatch[1]!.split(",")) {
+          const name = baseSwiftTypeName(conformance.trim());
+          if (name) entry.conformances.add(name);
+        }
+      }
+
+      index.set(baseName, entry);
+    }
+
+    // Also pick up `extension TypeName: A, B {}` style.
+    const extPattern =
+      /\bextension\s+([A-Za-z_][A-Za-z0-9_.]*)\s*(?:<[^>]*>)?\s*:\s*([^{]+)\{/g;
+    let extMatch: RegExpExecArray | null;
+    while ((extMatch = extPattern.exec(stripped)) !== null) {
+      const baseName = baseSwiftTypeName(extMatch[1]!);
+      if (!baseName) continue;
+      const entry = index.get(baseName) ?? { conformances: new Set<string>() };
+      for (const conformance of extMatch[2]!.split(",")) {
+        const name = baseSwiftTypeName(conformance.trim());
+        if (name) entry.conformances.add(name);
+      }
+      index.set(baseName, entry);
+    }
+  }
+
+  return index;
+}
+
+interface StoredPropertyInfo {
+  name: string;
+  typeText: string;
+  offsetInBody: number;
+}
+
+function collectStoredPropertyTypes(body: string): StoredPropertyInfo[] {
+  const properties: StoredPropertyInfo[] = [];
+  // Match `let foo: Type` or `var foo: Type = …` patterns. Type capture
+  // starts with `[`, `(`, or a letter so we cover array/dict sugar like
+  // `[Foo]` and tuple types like `(String, Int)` in addition to bare names.
+  // Skips computed properties via the `(?=\s*(?:=|$|\{|\n))` lookahead.
+  const pattern =
+    /(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s+)?(?:public|internal|private|fileprivate|open|static|class)?\s*(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([[(A-Za-z_][A-Za-z0-9_.<>?![\](), :\s]*?)(?=\s*(?:=|\{|\n|$))/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(body)) !== null) {
+    const name = match[1]!;
+    const typeText = (match[2] ?? "").trim().replace(/\s+/g, " ");
+    if (!typeText) continue;
+    if (typeText.endsWith("{") || /\bget\b/.test(typeText)) continue;
+    properties.push({ name, typeText, offsetInBody: match.index });
+  }
+  return properties;
+}
+
+function unwrapCollectionType(typeText: string): string {
+  let t = typeText.trim();
+  // Strip optional sugar.
+  while (t.endsWith("?") || t.endsWith("!")) t = t.slice(0, -1).trim();
+  // Array sugar: [Foo] -> Foo
+  const arrayMatch = t.match(/^\[\s*(.+)\s*\]$/);
+  if (arrayMatch) return unwrapCollectionType(arrayMatch[1]!);
+  // Dictionary sugar: [K: V] -> we care about V (the more interesting type)
+  const dictMatch = t.match(/^\[\s*[^:]+\s*:\s*(.+)\s*\]$/);
+  if (dictMatch) return unwrapCollectionType(dictMatch[1]!);
+  // Generic collections: Set<Foo>, Array<Foo>, Optional<Foo>
+  const genMatch = t.match(/^(?:Set|Array|Optional|Dictionary)<\s*([^,>]+)/);
+  if (genMatch) return unwrapCollectionType(genMatch[1]!);
+  return t;
+}
+
+// ─── Rule: AX843 — State-machine orphan ─────────────────────────────────
+//
+// Catches the dogfooding pattern where an enum case is assigned somewhere
+// (e.g. `Navigator.rightPane = .voiceInbox`) but no `switch` or pattern
+// match anywhere reads it. The case is dead state — the writer thinks
+// it's wiring something up; the reader was never built or got dropped in
+// a refactor (the SocialShellView voice-inbox case).
+//
+// Conservative scope to keep noise down:
+//   - Only fires when project context is loaded (we need the full read
+//     surface, not just what's in the input set).
+//   - Only fires for enums declared in the input set (otherwise we'd
+//     warn on every system enum case the agent uses).
+//   - "Read" means: appears in `case .X:`, `case .X(let …):`, `is .X`,
+//     or `== .X` patterns.
+//   - Severity is `info` because false positives are possible (cases
+//     might be read via reflection, JSON decoding, etc.).
+
+function checkStateMachineOrphans(
+  inputs: SwiftValidationInput[],
+  projectFiles: Map<string, string>
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const inputPaths = new Set(inputs.map((i) => resolve(i.file)));
+
+  // For each enum declared in the input set, collect its cases.
+  for (const input of inputs) {
+    if (!inputPaths.has(resolve(input.file))) continue;
+    const stripped = stripCommentsAndStrings(input.source);
+    const decls = findTypeDeclarations(stripped, input.source);
+
+    for (const decl of decls) {
+      if (decl.kind !== "enum") continue;
+      const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+      const cases = collectEnumCases(body);
+      if (cases.length === 0) continue;
+
+      for (const enumCase of cases) {
+        const writeCount = countCaseWrites(projectFiles, decl.name, enumCase.name);
+        if (writeCount === 0) continue; // never written, so not an "orphan"
+
+        const readCount = countCaseReads(projectFiles, enumCase.name, decl.name);
+        if (readCount > 0) continue;
+
+        const offsetInSource = decl.bodyStart + enumCase.offsetInBody;
+        diagnostics.push(
+          makeDiagnostic(
+            "AX843",
+            input.file,
+            1 + countNewlinesUpTo(input.source, offsetInSource),
+            {
+              message: `Enum case '${decl.name}.${enumCase.name}' is assigned ${writeCount} time(s) in the project but no switch/pattern reads it.`,
+              suggestion: `Either add a consumer (a 'switch ${enumCase.name === "default" ? "value" : "value"}' or 'case .${enumCase.name}:' branch) somewhere reachable from the live root, or remove the case if the feature was dropped. Common cause: a refactor replaced the consumer view but kept the writer.`,
+            }
+          )
+        );
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
+function collectEnumCases(body: string): Array<{ name: string; offsetInBody: number }> {
+  const cases: Array<{ name: string; offsetInBody: number }> = [];
+  // `case foo`, `case foo, bar`, `case foo(String)` — capture each name.
+  const pattern = /\bcase\s+([A-Za-z_][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z_][A-Za-z0-9_]*)*)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(body)) !== null) {
+    const startOffset = match.index + match[0].indexOf(match[1]!);
+    let cursor = startOffset;
+    for (const raw of match[1]!.split(",")) {
+      const name = raw.trim();
+      if (name) {
+        const offset = body.indexOf(name, cursor);
+        cases.push({ name, offsetInBody: offset >= 0 ? offset : cursor });
+        cursor = offset + name.length;
+      }
+    }
+  }
+  return cases;
+}
+
+function countCaseWrites(
+  projectFiles: Map<string, string>,
+  enumName: string,
+  caseName: string
+): number {
+  // Writes look like `Foo.bar = ...`, `someExpr = .bar`, `someExpr = Foo.bar`.
+  // We're conservative: only count `= .caseName` and `= EnumName.caseName`.
+  let count = 0;
+  const directRe = new RegExp(`=\\s*\\.${escapeRegex(caseName)}\\b`, "g");
+  const qualifiedRe = new RegExp(
+    `=\\s*${escapeRegex(enumName)}\\.${escapeRegex(caseName)}\\b`,
+    "g"
+  );
+  for (const [, source] of projectFiles) {
+    const stripped = stripCommentsAndStrings(source);
+    count += (stripped.match(directRe) ?? []).length;
+    count += (stripped.match(qualifiedRe) ?? []).length;
+  }
+  return count;
+}
+
+function countCaseReads(
+  projectFiles: Map<string, string>,
+  caseName: string,
+  enumName: string
+): number {
+  // Reads: `case .caseName`, `is .caseName`, `== .caseName`, `case let .caseName`,
+  // `case EnumName.caseName`. We don't try to scope to switches over the right
+  // enum — too brittle. We just count any of these patterns; if zero, no read.
+  let count = 0;
+  const patterns = [
+    new RegExp(`\\bcase\\s+(?:let\\s+|var\\s+)?\\.${escapeRegex(caseName)}\\b`, "g"),
+    new RegExp(
+      `\\bcase\\s+(?:let\\s+|var\\s+)?${escapeRegex(enumName)}\\.${escapeRegex(caseName)}\\b`,
+      "g"
+    ),
+    new RegExp(`\\bis\\s+\\.${escapeRegex(caseName)}\\b`, "g"),
+    new RegExp(`==\\s*\\.${escapeRegex(caseName)}\\b`, "g"),
+    new RegExp(`==\\s*${escapeRegex(enumName)}\\.${escapeRegex(caseName)}\\b`, "g"),
+    // if case .caseName = expr  syntax
+    new RegExp(
+      `\\bif\\s+case\\s+(?:let\\s+|var\\s+)?\\.${escapeRegex(caseName)}\\b`,
+      "g"
+    ),
+  ];
+  for (const [, source] of projectFiles) {
+    const stripped = stripCommentsAndStrings(source);
+    for (const pattern of patterns) {
+      count += (stripped.match(pattern) ?? []).length;
+    }
+  }
+  return count;
+}
+
+// ─── Rule: AX845 — @MainActor static method in init default-value ──────
+//
+// Catches the dogfooding pattern where a `@MainActor` class/struct has an
+// init parameter whose default value calls one of the same type's static
+// methods (e.g. `init(base: URL = MyStore.defaultBase())`). Default-value
+// expressions evaluate at the call-site's isolation context — which is
+// often non-isolated (SwiftUI environment injection, parallel construction).
+// Swift 6 rejects the actor crossing.
+//
+// Fix the agent should propose: mark the static helper `nonisolated` if it
+// doesn't actually touch MainActor state. Single-keyword fix.
+//
+// Conservative scope: only fires on `static func` references (not `static
+// let` constants, which are evaluated once at type initialization). Single-
+// file analysis — no project context needed.
+
+function checkMainActorStaticInDefaultValue(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const decls = findTypeDeclarations(stripped, source);
+  for (const decl of decls) {
+    if (decl.kind !== "class" && decl.kind !== "struct") continue;
+    if (!hasAttribute(decl, "@MainActor")) continue;
+
+    const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+
+    // Collect the type's static methods that aren't explicitly nonisolated.
+    const isolatedStatics = collectIsolatedStaticMethods(body);
+    if (isolatedStatics.size === 0) continue;
+
+    // Find every init declaration's parameter list and inspect default values.
+    const initPattern = /\binit\s*\(([^)]*)\)/g;
+    let initMatch: RegExpExecArray | null;
+    while ((initMatch = initPattern.exec(body)) !== null) {
+      const paramsText = initMatch[1] ?? "";
+      const initStartInBody = initMatch.index;
+
+      // Walk each top-level parameter, looking for `= TypeName.staticMember(`.
+      for (const rawParam of splitTopLevelArgs(paramsText)) {
+        const eqIdx = findTopLevelEquals(rawParam);
+        if (eqIdx === -1) continue;
+        const defaultExpr = rawParam.slice(eqIdx + 1).trim();
+
+        // Match `TypeName.foo(` and `Self.foo(` patterns.
+        const callPattern = new RegExp(
+          `\\b(?:${escapeRegex(decl.name)}|Self)\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(`,
+          "g"
+        );
+        let callMatch: RegExpExecArray | null;
+        while ((callMatch = callPattern.exec(defaultExpr)) !== null) {
+          const memberName = callMatch[1]!;
+          if (!isolatedStatics.has(memberName)) continue;
+
+          const offsetInSource = decl.bodyStart + initStartInBody;
+          diagnostics.push(
+            makeDiagnostic("AX845", file, 1 + countNewlinesUpTo(source, offsetInSource), {
+              message: `@MainActor type '${decl.name}' has an init parameter default that calls static method '${memberName}()' — Swift 6 rejects this because default-value expressions evaluate at the caller's isolation context, which may not be MainActor.`,
+              suggestion: `Mark '${memberName}()' as 'nonisolated' (preferred — it's a one-keyword fix if the method doesn't touch MainActor state). Alternatively, move the default into the body of init or remove the default and require callers to provide the value explicitly.`,
+            })
+          );
+        }
+      }
+    }
+  }
+}
+
+function collectIsolatedStaticMethods(typeBody: string): Set<string> {
+  const isolated = new Set<string>();
+  // Match `static func X(...)` declarations. Capture the name. Then check
+  // back ~100 chars to see if `nonisolated` precedes it on the same line
+  // or attribute block.
+  const pattern = /\bstatic\s+func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(typeBody)) !== null) {
+    const name = match[1]!;
+    const before = typeBody.slice(Math.max(0, match.index - 120), match.index);
+    if (/\bnonisolated\b\s*$/.test(before)) continue;
+    if (/\bnonisolated\b[^{};]*$/m.test(before)) continue;
+    isolated.add(name);
+  }
+  return isolated;
+}
+
+function findTopLevelEquals(text: string): number {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "(" || c === "[" || c === "<") depth++;
+    else if (c === ")" || c === "]" || c === ">") depth--;
+    else if (c === "=" && depth === 0 && text[i + 1] !== "=" && text[i - 1] !== "=") {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// ─── Rule: AX846 — @ViewBuilder requires a View return type ────────────
+//
+// Catches the dogfooding pattern where `@ViewBuilder` annotates a property
+// or function whose return type isn't `some View` / `View`. The result-
+// builder transform produces `_ConditionalContent<A, B>` for if/else, and
+// `_ConditionalContent` only conforms to `View` — never to `Shape`,
+// `Layout`, `ToolbarContent`, etc. So `@ViewBuilder some Shape` is
+// unsatisfiable and Xcode rejects it.
+//
+// Single-file analysis, no project context required. Fires per declaration.
+
+const VIEWBUILDER_LIKE_RETURN_TYPES = new Set([
+  "View",
+  "AnyView",
+  "EmptyView",
+  "TupleView",
+  "Group",
+  // Other result builders Apple ships — not exhaustive, but covers the
+  // ones a developer would plausibly @ViewBuilder against by mistake.
+]);
+
+function checkViewBuilderReturnType(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  // Match `@ViewBuilder ... var name : ReturnType {` and similar for func.
+  // We capture the return type so we can validate it.
+  const propertyPattern =
+    /@ViewBuilder\b[^{};]*?\b(?:var|let)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(some\s+[A-Za-z_][A-Za-z0-9_.]*|[A-Za-z_][A-Za-z0-9_.<>?[\]]*)\s*\{/g;
+  const funcPattern =
+    /@ViewBuilder\b[^{};]*?\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\([^)]*\)\s*->\s*(some\s+[A-Za-z_][A-Za-z0-9_.]*|[A-Za-z_][A-Za-z0-9_.<>?[\]]*)/g;
+
+  for (const pattern of [propertyPattern, funcPattern]) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(stripped)) !== null) {
+      const name = match[1]!;
+      const returnTypeRaw = match[2]!.trim();
+      const baseName = baseSwiftTypeName(returnTypeRaw.replace(/^some\s+/, ""));
+      if (!baseName) continue;
+      if (VIEWBUILDER_LIKE_RETURN_TYPES.has(baseName)) continue;
+
+      // Special case: if the return type is something obviously View-shaped
+      // by suffix convention (ends in "View"), skip — the dev knows what
+      // they're doing. e.g. `some MyCustomView`.
+      if (baseName.endsWith("View")) continue;
+
+      diagnostics.push(
+        makeDiagnostic("AX846", file, 1 + countNewlinesUpTo(source, match.index), {
+          message: `@ViewBuilder on '${name}' returns '${returnTypeRaw}' but @ViewBuilder produces View-shaped content (_ConditionalContent / TupleView / EmptyView). '${baseName}' is not a View protocol — Xcode will reject this.`,
+          suggestion:
+            baseName === "Shape"
+              ? "Drop @ViewBuilder and return AnyShape directly: write `private var name: AnyShape { if cond { return AnyShape(Circle()) } else { return AnyShape(...) } }`. AnyShape is the canonical type-erased Shape and preserves Shape methods like strokeBorder."
+              : `Drop @ViewBuilder and return Any${baseName} (if available) explicitly with branches that wrap each result. @ViewBuilder is exclusively for View-returning helpers.`,
+        })
+      );
+    }
+  }
+}
+
+// ─── Rule: AX847 — type-erased SwiftUI protocol method missing ─────────
+//
+// Catches the dogfooding pattern where a developer type-erases to AnyShape
+// (or AnyView / AnyTransition) and then calls a method that lives on a
+// sub-protocol the erasure dropped. The canonical example: AnyShape only
+// conforms to Shape, but `.strokeBorder` is on InsettableShape — so
+// `anyShape.strokeBorder(...)` fails compile.
+//
+// Bundled table of "type-erased name -> methods that DON'T exist on the
+// erased surface". Walks property declarations, let/var bindings, and
+// computed properties for variables typed as one of these erased names,
+// then scans for forbidden method calls on them.
+
+const TYPE_ERASURE_LOST_METHODS: Record<string, Record<string, string>> = {
+  AnyShape: {
+    strokeBorder:
+      "Use .stroke instead. strokeBorder lives on InsettableShape; AnyShape only conforms to Shape. The visual difference (half-pixel inset) is invisible at lineWidths <= 1pt. For perfect inset rendering, write a custom AnyInsettableShape wrapper.",
+    inset:
+      "AnyShape erases the InsettableShape conformance. Either keep the original concrete type (Circle / RoundedRectangle), or write a custom AnyInsettableShape wrapper.",
+  },
+  // Future: AnyView, AnyTransition, AnyLayout — add as incidents surface.
+};
+
+function checkTypeErasedProtocolMethods(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  // Find every binding/property typed as a known type-erased protocol.
+  // Covers `let x: AnyShape`, `var x: AnyShape`, `private var x: AnyShape`,
+  // and computed properties `var x: AnyShape { ... }`.
+  const erasedBindings = new Map<string, string>();
+  const erasedNames = Object.keys(TYPE_ERASURE_LOST_METHODS);
+  const namePattern = erasedNames.map(escapeRegex).join("|");
+  const declRegex = new RegExp(
+    `\\b(?:let|var)\\s+([a-z_][A-Za-z0-9_]*)\\s*:\\s*(${namePattern})\\b`,
+    "g"
+  );
+  let declMatch: RegExpExecArray | null;
+  while ((declMatch = declRegex.exec(stripped)) !== null) {
+    erasedBindings.set(declMatch[1]!, declMatch[2]!);
+  }
+
+  if (erasedBindings.size === 0) return;
+
+  const reported = new Set<string>();
+  for (const [varName, erasedType] of erasedBindings) {
+    const lostMethods = TYPE_ERASURE_LOST_METHODS[erasedType]!;
+    for (const [methodName, advice] of Object.entries(lostMethods)) {
+      const callRegex = new RegExp(
+        `\\b${escapeRegex(varName)}\\.${escapeRegex(methodName)}\\s*\\(`,
+        "g"
+      );
+      let callMatch: RegExpExecArray | null;
+      while ((callMatch = callRegex.exec(stripped)) !== null) {
+        const key = `${varName}:${methodName}:${callMatch.index}`;
+        if (reported.has(key)) continue;
+        reported.add(key);
+
+        diagnostics.push(
+          makeDiagnostic("AX847", file, 1 + countNewlinesUpTo(source, callMatch.index), {
+            message: `'${varName}' is typed as '${erasedType}' but '.${methodName}(' lives on a sub-protocol that ${erasedType} does not conform to. Xcode will reject this with "Value of type '${erasedType}' has no member '${methodName}'".`,
+            suggestion: advice,
+          })
+        );
+      }
+    }
+  }
 }

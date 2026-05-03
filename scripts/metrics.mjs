@@ -3,7 +3,7 @@
 // compares it against the committed snapshot so CI catches drift.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,11 +29,44 @@ export function computeMetrics({ countTests = true } = {}) {
           python: runPytestCount(),
         }
       : { typescript: 0, python: 0 },
-    // Kept as explicit constants — both depend on repos outside the compiler tree.
-    // Update these when the corresponding surface ships a new package.
-    registryPackages: 14,
+    registryPackages: countRegistryPackages(),
+    // Distribution surfaces still hand-tracked — they're abstract enough
+    // (axint.ai, docs.axint.ai, registry.axint.ai, MCP registry) that
+    // counting from the filesystem doesn't make sense.
     distributionSurfaces: 4,
   };
+}
+
+// Counts published packages in the sibling axint-registry repo. Looks for
+// per-package directories (each one is a published package). Honors an
+// explicit AXINT_REGISTRY_PATH env var so CI can point at any checkout.
+// Falls back to a sensible default of 0 + a stderr warning if the registry
+// repo isn't reachable — better than silently shipping a stale hardcoded
+// number forever.
+function countRegistryPackages() {
+  const candidates = [
+    process.env.AXINT_REGISTRY_PATH,
+    resolve(ROOT, "..", "axint-registry"),
+    resolve(ROOT, "..", "..", "axint-registry"),
+  ].filter(Boolean);
+
+  for (const root of candidates) {
+    const firstParty = resolve(root, "first-party");
+    if (!existsSync(firstParty)) continue;
+    let count = 0;
+    for (const name of readdirSync(firstParty)) {
+      if (name.startsWith(".") || name === "README.md") continue;
+      const stat = statSync(resolve(firstParty, name));
+      if (stat.isDirectory()) count++;
+    }
+    return count;
+  }
+
+  // Registry not on disk — surface honestly rather than lying with 14.
+  console.warn(
+    "metrics: axint-registry not found at any known path; registryPackages = 0. Set AXINT_REGISTRY_PATH to override."
+  );
+  return 0;
 }
 
 function extractTopLevelNames(relPath, symbol) {
