@@ -40,9 +40,17 @@ export function computeMetrics({ countTests = true } = {}) {
 // Counts published packages in the sibling axint-registry repo. Looks for
 // per-package directories (each one is a published package). Honors an
 // explicit AXINT_REGISTRY_PATH env var so CI can point at any checkout.
-// Falls back to a sensible default of 0 + a stderr warning if the registry
-// repo isn't reachable — better than silently shipping a stale hardcoded
-// number forever.
+//
+// Fallback chain when the registry isn't on disk (CI runners that don't
+// have the private axint-registry repo cloned):
+//   1. Read the previously-committed value from metrics.json. This makes
+//      drift detection still work — `metrics:emit` updates the count on
+//      the dev machine that has the registry; CI trusts what got committed.
+//   2. Default to 0 + a stderr warning if no metrics.json exists yet.
+//
+// Net effect: dev machines compute the real count, CI preserves it.
+// `metrics:check` only fires when the dev machine forgot to re-emit after
+// the registry actually changed.
 function countRegistryPackages() {
   const candidates = [
     process.env.AXINT_REGISTRY_PATH,
@@ -62,9 +70,22 @@ function countRegistryPackages() {
     return count;
   }
 
-  // Registry not on disk — surface honestly rather than lying with 14.
+  // Registry not on disk (typical for CI). Trust the committed value so
+  // we don't fail check just because CI can't see the private repo.
+  try {
+    const metricsPath = resolve(ROOT, "metrics.json");
+    if (existsSync(metricsPath)) {
+      const committed = JSON.parse(readFileSync(metricsPath, "utf-8"));
+      if (typeof committed.registryPackages === "number") {
+        return committed.registryPackages;
+      }
+    }
+  } catch {
+    // Fall through to 0 + warning.
+  }
+
   console.warn(
-    "metrics: axint-registry not found at any known path; registryPackages = 0. Set AXINT_REGISTRY_PATH to override."
+    "metrics: axint-registry not found and no committed value in metrics.json; registryPackages = 0. Set AXINT_REGISTRY_PATH to override."
   );
   return 0;
 }
