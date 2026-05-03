@@ -87,6 +87,7 @@ import { registerProject } from "./project.js";
 import { registerSession } from "./session.js";
 import { registerWorkflow } from "./workflow.js";
 import { registerRun } from "./run.js";
+import { registerPaintTest } from "./paint-test.js";
 import { registerXcodeGuard } from "./xcode-guard.js";
 import {
   renderProjectStartPack,
@@ -305,6 +306,7 @@ registerProject(program, VERSION);
 registerSession(program, VERSION);
 registerWorkflow(program);
 registerRun(program, VERSION);
+registerPaintTest(program);
 
 // ─── mcp ─────────────────────────────────────────────────────────────
 
