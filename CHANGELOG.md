@@ -6,6 +6,20 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.18] — 2026-05-03
+
+### Added
+
+- **`AX842` SwiftUI view reachability** — flags any `struct X: View` that has zero call sites anywhere in the project. Catches sprint-scale dead-code work where the agent ships features into views the live app never renders. Honors `// axint:reachable` comment opt-out for views constructed reflectively. Skips `App`-conforming structs and `PreviewProvider`s.
+- **`AX841` cross-file member resolution via project context** — extends `AX768` to index every `class`/`struct`/`actor`/`enum` declared in the project, not just files in the validation set. Catches `voiceInbox.items` when `VoiceInboxStore` actually exposes `results`. Includes a "Did you mean…" suggestion via Levenshtein when a near-match exists.
+- **`AX840` cross-module symbol requires unimported framework** — bundled table of common Swift framework symbols (UTType, AVPlayer, Chart, MKMapView, Combine, AppIntents, CryptoKit, …) that fires when the file uses one but doesn't import the defining module. Includes SwiftUI shorthand patterns like `[.text]` for UTType inference.
+- **`AX787` string-interpolation extension** — companion pass that scans `\(IDENTIFIER)` interpolations for undefined identifiers, regardless of name shape. The original AX787 ran on stripped source (no string literals); this fills the gap so refactor-leftover identifiers like `\(projectName)` get caught pre-build.
+- **`validateSwiftSources` accepts `projectContext: { projectRoot }`** — opt-in second argument that unlocks AX841 and AX842. Without it, the validator stays in single-input scope (no behavior change for existing callers).
+
+### Changed
+
+- `validateSwiftSource` and `validateSwiftSources` now also run AX840 (module-import) on every input, no project context required.
+
 ## [0.4.17] — 2026-05-02
 
 ### Added
