@@ -55,6 +55,7 @@ import { formatSwift } from "../core/format.js";
 import { scaffoldIntent } from "./scaffold.js";
 import { generateFeature, type FeatureInput, type Surface } from "./feature.js";
 import { suggestFeaturesSmart, type SuggestInput } from "./suggest.js";
+import { searchRegistry, type RegistrySearchOptions } from "../registry/search.js";
 import { TEMPLATES, getTemplate } from "../templates/index.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import { fixSwiftSourceMultipass } from "../core/swift-fixer.js";
@@ -736,6 +737,44 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       suggestions.length > 0
         ? `Suggested Apple-native features:\n${domainSummary}\n\n${output}\n\nUse axint.feature with any prompt above to generate the full feature package.`
         : "No specific suggestions for this app description. Try providing more detail about the app's purpose."
+    );
+  }
+
+  if (name === "axint.registry.search") {
+    const a = args as RegistrySearchOptions;
+    if (!a.query) {
+      return errorText("Error: 'query' is required for axint.registry.search");
+    }
+    const hits = searchRegistry(a);
+    if (hits.length === 0) {
+      return diagnosticsText(
+        `No matching packages in the Axint Registry for query: "${a.query}".\n` +
+          `Either the package isn't published yet (consider publishing yours), ` +
+          `or the registry isn't reachable (set AXINT_REGISTRY_PATH if you have a checkout). ` +
+          `Proceed with axint.feature / axint.compile to generate fresh.`
+      );
+    }
+    const lines = hits.map((hit, i) => {
+      const ns = hit.namespace ? `${hit.namespace}/` : "";
+      const tags = hit.tags.length ? ` | tags: ${hit.tags.slice(0, 5).join(", ")}` : "";
+      const surfaces = hit.surfaceAreas.length
+        ? ` | surfaces: ${hit.surfaceAreas.join(", ")}`
+        : "";
+      const matchedOn = hit.matchedOn.length
+        ? ` (matched on: ${hit.matchedOn.join(", ")})`
+        : "";
+      return (
+        `${i + 1}. ${ns}${hit.name}@${hit.version}  [score ${hit.score.toFixed(2)}${matchedOn}]\n` +
+        `   ${hit.description}${surfaces}${tags}\n` +
+        `   Install: ${hit.installCommand}`
+      );
+    });
+    return diagnosticsText(
+      `Found ${hits.length} matching package${hits.length === 1 ? "" : "s"} ` +
+        `in the Axint Registry. Prefer installing one of these instead of ` +
+        `regenerating Swift the community has already shipped:\n\n${lines.join(
+          "\n\n"
+        )}\n\nIf none of these match, proceed with axint.feature / axint.compile.`
     );
   }
 

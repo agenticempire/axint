@@ -76,7 +76,7 @@ else
   green "committed"
 fi
 
-bold "Pushing to origin/$FEATURE…"
+bold "Pushing to origin/${FEATURE}"
 git push -u origin "$FEATURE"
 green "pushed"
 

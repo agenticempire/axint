@@ -799,6 +799,41 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
       "SwiftUI View struct is declared but has zero call sites in the project — likely dead code",
     category: "swiftui-reachability",
   },
+  AX843: {
+    code: "AX843",
+    severity: "info",
+    message:
+      "Enum case is assigned somewhere in the project but no switch/pattern reads it — likely dead state branch",
+    category: "swift-state-machine",
+  },
+  AX844: {
+    code: "AX844",
+    severity: "error",
+    message:
+      "Synthesized Hashable/Equatable/Codable cannot be derived because a stored property's type does not conform",
+    category: "swift-cross-file",
+  },
+  AX845: {
+    code: "AX845",
+    severity: "error",
+    message:
+      "@MainActor static member referenced from a non-isolated init default-value expression — Swift 6 rejects the actor crossing",
+    category: "swift-concurrency",
+  },
+  AX846: {
+    code: "AX846",
+    severity: "error",
+    message:
+      "@ViewBuilder requires a View-shaped return type — _ConditionalContent only conforms to View, never to Shape, Layout, or other protocols",
+    category: "swiftui-viewbuilder",
+  },
+  AX847: {
+    code: "AX847",
+    severity: "error",
+    message:
+      "Method called on a type-erased SwiftUI protocol (AnyShape, AnyView, ...) that does not exist on the erased protocol surface",
+    category: "swiftui-type-erasure",
+  },
   AX714: {
     code: "AX714",
     severity: "error",

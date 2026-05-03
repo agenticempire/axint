@@ -6,6 +6,22 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.19] — 2026-05-03
+
+### Added
+
+- **`AX847` type-erased SwiftUI protocol method missing** — bundled table of methods that exist on a sub-protocol but not on the type-erased name. Catches the dogfooding `AnyShape.strokeBorder` pattern (strokeBorder lives on InsettableShape; AnyShape only conforms to Shape). Suggests the closest valid replacement (e.g. `.stroke` for `.strokeBorder` on AnyShape).
+- **`AX846` @ViewBuilder requires View return type** — flags any `@ViewBuilder` annotation on a property/function whose return type isn't `some View` / `View`. Catches the dogfooding `@ViewBuilder some Shape` pattern that produces `_ConditionalContent` (View only) but is asked to satisfy a Shape constraint.
+- **`AX845` @MainActor static method in init default-value** — for any `@MainActor` class/struct with init parameter defaults that call `TypeName.staticMethod()` or `Self.staticMethod()`, fires when the static method isn't `nonisolated`. Default-value expressions evaluate at the caller's isolation context (often non-isolated), and Swift 6 rejects the actor crossing. Single-keyword fix the diagnostic suggests directly.
+- **`AX844` synthesized conformance propagation** — for any struct that explicitly declares `Hashable`, `Equatable`, `Codable`, `Decodable`, or `Encodable`, walks stored properties via project-context index and confirms each property's type also conforms. Catches the `LiveTeammate { let builder: BuilderProfile }` pattern where the property type lives in another file and doesn't conform. Includes a project-wide extension scan so `extension X: Hashable {}` declarations elsewhere are honored.
+- **`AX843` state-machine orphan** — for each enum declared in the input set, finds case-write sites (`= .foo`) and case-read sites (`switch`/`case .foo:`/`is .foo`/`==`/`if case`) across the project. Cases with writes but zero reads emit `info`-severity. Catches the `Navigator.rightPane = .voiceInbox` pattern where the writer survived a refactor but the consumer view was dropped.
+- **`axint.registry.search` MCP tool** — natural-language query against the local Axint Registry. Returns ranked hits with name, version, description, surface areas, install command. Token-overlap scoring with field weighting (name + tags + siri-phrases ranked higher than description). Filters by `kind` (app-intent, view, widget, ...) and `platform` (iOS/macOS/...). Use BEFORE `axint.feature` / `axint.compile` so agents can install existing packages instead of regenerating Swift.
+- **`AXINT_REGISTRY_PATH`** env var — points the registry tooling at any axint-registry checkout. Defaults to the sibling `../axint-registry/` for normal workspace setups.
+
+### Changed
+
+- **`registryPackages` metric is now auto-counted** from the sibling `axint-registry/first-party/` directory instead of a hardcoded constant. The previous value (14) was stale; the real count from the registry is now what shows up in `metrics.json` and on every public surface. Honestly smaller, but real.
+
 ## [0.4.18] — 2026-05-03
 
 ### Added

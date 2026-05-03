@@ -3,7 +3,7 @@
 // compares it against the committed snapshot so CI catches drift.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,11 +29,65 @@ export function computeMetrics({ countTests = true } = {}) {
           python: runPytestCount(),
         }
       : { typescript: 0, python: 0 },
-    // Kept as explicit constants — both depend on repos outside the compiler tree.
-    // Update these when the corresponding surface ships a new package.
-    registryPackages: 14,
+    registryPackages: countRegistryPackages(),
+    // Distribution surfaces still hand-tracked — they're abstract enough
+    // (axint.ai, docs.axint.ai, registry.axint.ai, MCP registry) that
+    // counting from the filesystem doesn't make sense.
     distributionSurfaces: 4,
   };
+}
+
+// Counts published packages in the sibling axint-registry repo. Looks for
+// per-package directories (each one is a published package). Honors an
+// explicit AXINT_REGISTRY_PATH env var so CI can point at any checkout.
+//
+// Fallback chain when the registry isn't on disk (CI runners that don't
+// have the private axint-registry repo cloned):
+//   1. Read the previously-committed value from metrics.json. This makes
+//      drift detection still work — `metrics:emit` updates the count on
+//      the dev machine that has the registry; CI trusts what got committed.
+//   2. Default to 0 + a stderr warning if no metrics.json exists yet.
+//
+// Net effect: dev machines compute the real count, CI preserves it.
+// `metrics:check` only fires when the dev machine forgot to re-emit after
+// the registry actually changed.
+function countRegistryPackages() {
+  const candidates = [
+    process.env.AXINT_REGISTRY_PATH,
+    resolve(ROOT, "..", "axint-registry"),
+    resolve(ROOT, "..", "..", "axint-registry"),
+  ].filter(Boolean);
+
+  for (const root of candidates) {
+    const firstParty = resolve(root, "first-party");
+    if (!existsSync(firstParty)) continue;
+    let count = 0;
+    for (const name of readdirSync(firstParty)) {
+      if (name.startsWith(".") || name === "README.md") continue;
+      const stat = statSync(resolve(firstParty, name));
+      if (stat.isDirectory()) count++;
+    }
+    return count;
+  }
+
+  // Registry not on disk (typical for CI). Trust the committed value so
+  // we don't fail check just because CI can't see the private repo.
+  try {
+    const metricsPath = resolve(ROOT, "metrics.json");
+    if (existsSync(metricsPath)) {
+      const committed = JSON.parse(readFileSync(metricsPath, "utf-8"));
+      if (typeof committed.registryPackages === "number") {
+        return committed.registryPackages;
+      }
+    }
+  } catch {
+    // Fall through to 0 + warning.
+  }
+
+  console.warn(
+    "metrics: axint-registry not found and no committed value in metrics.json; registryPackages = 0. Set AXINT_REGISTRY_PATH to override."
+  );
+  return 0;
 }
 
 function extractTopLevelNames(relPath, symbol) {

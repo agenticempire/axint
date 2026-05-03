@@ -693,6 +693,59 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.registry.search",
+    description:
+      "Search the Axint Registry for already-published packages that match a " +
+      "natural-language query. Use this BEFORE calling axint.feature or " +
+      "axint.compile so the agent can install an existing package instead " +
+      "of regenerating Swift the community has already shipped. Returns " +
+      "ranked hits with name, version, description, surface areas, and the " +
+      "install command. Local mode walks the sibling axint-registry " +
+      "checkout (configurable via AXINT_REGISTRY_PATH).",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "Free-form description of what the agent is about to build. " +
+            "E.g., 'log a workout', 'capture a voice note', 'show timer'. " +
+            "Tokenized and matched against package name, tags, surface areas, " +
+            "siri phrases, and description.",
+        },
+        kind: {
+          type: "string",
+          description:
+            "Optional surface filter. One of: app-intent, view, widget, " +
+            "store, app, component. Loose match; 'intent' matches 'app-intent'.",
+        },
+        platform: {
+          type: "string",
+          description:
+            "Optional platform filter. One of: iOS, macOS, watchOS, tvOS, " +
+            "visionOS. Filters by the manifest's min-platform version field.",
+        },
+        limit: {
+          type: "number",
+          description: "Hard cap on returned hits. Defaults to 10.",
+        },
+        minScore: {
+          type: "number",
+          description:
+            "Minimum normalized match score (0..1) below which results are " +
+            "dropped. Defaults to 0.1.",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "axint.workflow.check",
     description:
       "Read-only agent workflow gate. Requires the current Axint session token " +
