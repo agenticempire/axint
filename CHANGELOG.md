@@ -6,6 +6,18 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.20] — 2026-05-03
+
+### Added — three high-leverage moves from SWARM's strategic feedback
+
+- **`swift -typecheck` integration in Cloud Check** — opt-in via `typecheck: true` on the `axint.cloud.check` MCP tool. When the host machine has the Swift toolchain (Mac with Xcode, or Linux with swift installed), Cloud Check shells out to `swift -typecheck` and merges the compiler diagnostics (`AX-SWIFTC-ERROR`, `AX-SWIFTC-WARNING`) into the report. Closes the cross-file conformance / actor-isolation / opaque-return / protocol-method-availability gap that motivated all five new rules in 0.4.19. On Linux/CI without a toolchain it's a no-op so existing pipelines stay green. Honors `AXINT_SWIFT_BINARY` for non-default toolchains.
+- **Snapshot test integration scaffold** — new `runSnapshotTests` helper that drives `xcodebuild test -only-testing:<suite>`, parses pass/fail counts, and surfaces snapshot failures with their reference-image artifact paths as `AX-SNAPSHOT-FAIL` diagnostics. Catches the visual regression class (dead-but-rendered, layout drift, white-on-white) that no static analysis can see.
+- **`axint paint-test scaffold` CLI command** — auto-generates an `XCTest` file that mounts every reachable `struct X: View` at canonical viewports (iPhone 16 Pro, iPad Pro 13") and asserts the body resolves + > 0% non-empty pixels render. Skips App-conforming roots, PreviewProviders, generics, and structs with required init args (with explicit reasons surfaced for each so you can add manual mounts). Standard Apple `ImageRenderer` + `XCTest`, no third-party dependencies.
+
+### Changed
+
+- `CloudCheckReport` now includes a `typecheck` field exposing toolchain availability, exit code, and how many extra diagnostics came from the compiler — so agents can tell whether the verdict was rule-pack-only or rule-pack + Apple typechecker.
+
 ## [0.4.19] — 2026-05-03
 
 ### Added

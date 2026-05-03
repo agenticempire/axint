@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileAnySource } from "../core/compiler.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
+import { runSwiftTypecheck } from "./swift-typecheck.js";
 import type { CompilerOutput, Diagnostic } from "../core/types.js";
 import {
   buildProjectContextHint,
@@ -58,6 +59,19 @@ export interface CloudCheckInput {
   actualBehavior?: string;
   projectContextPath?: string;
   projectContext?: ProjectContextIndex;
+  /**
+   * If true and the host machine has a Swift toolchain, run `swift -typecheck`
+   * against the source and merge the compiler diagnostics into the report.
+   * On Linux/CI without a toolchain this is a no-op (we degrade gracefully).
+   * Closes the gap on cross-file conformance, actor isolation, opaque-return,
+   * and protocol-method-availability errors that the static rule pack misses.
+   */
+  typecheck?: boolean;
+  /**
+   * Project root used for cross-file resolution when typecheck is enabled.
+   * Defaults to the directory containing sourcePath, then process.cwd().
+   */
+  typecheckProjectRoot?: string;
 }
 
 export interface CloudCheckReport {
@@ -97,6 +111,15 @@ export interface CloudCheckReport {
   errors: number;
   warnings: number;
   infos: number;
+  typecheck?: {
+    ran: boolean;
+    available: boolean;
+    swiftBinary?: string;
+    exitCode?: number | null;
+    diagnosticsAdded: number;
+    timedOut: boolean;
+    unavailableReason?: string;
+  };
   checks: Array<{
     label: string;
     state: "pass" | "warn" | "fail";
@@ -235,6 +258,41 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
       evidence,
     }),
   ];
+
+  // Optional: shell out to Apple's `swift -typecheck` when available.
+  // Closes the gap on cross-file conformance, actor isolation, opaque
+  // returns, and protocol-method-availability — every class of error
+  // axint's static rule pack misses today. No-op when the toolchain
+  // isn't present (Linux CI, axint cloud, Cowork sandbox).
+  let typecheckMeta: {
+    ran: boolean;
+    available: boolean;
+    swiftBinary?: string;
+    exitCode?: number | null;
+    diagnosticsAdded: number;
+    timedOut: boolean;
+    unavailableReason?: string;
+  } = { ran: false, available: false, diagnosticsAdded: 0, timedOut: false };
+  if (input.typecheck && language === "swift" && (input.sourcePath || source)) {
+    const filesToCheck = input.sourcePath ? [input.sourcePath] : [];
+    if (filesToCheck.length > 0) {
+      const result = runSwiftTypecheck({
+        files: filesToCheck,
+        projectRoot: input.typecheckProjectRoot ?? input.projectContextPath,
+        platform: input.platform === "all" || !input.platform ? "macOS" : input.platform,
+      });
+      typecheckMeta = {
+        ran: true,
+        available: result.available,
+        swiftBinary: result.swiftBinary ?? undefined,
+        exitCode: result.exitCode,
+        diagnosticsAdded: result.diagnostics.length,
+        timedOut: result.timedOut,
+        unavailableReason: result.unavailableReason,
+      };
+      diagnostics = [...diagnostics, ...result.diagnostics];
+    }
+  }
 
   const errors = diagnostics.filter((d) => d.severity === "error").length;
   const warnings = diagnostics.filter((d) => d.severity === "warning").length;
@@ -425,6 +483,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     checks,
     coverage,
     evidence,
+    typecheck: typecheckMeta.ran ? typecheckMeta : undefined,
     projectContext: projectContext
       ? {
           path: projectContext.path,

@@ -27,7 +27,7 @@ the same Swift generator and hits the same validator rules.
 
 from __future__ import annotations
 
-__version__ = "0.4.19"
+__version__ = "0.4.20"
 
 from .generator import (
     generate_entitlements_fragment,
