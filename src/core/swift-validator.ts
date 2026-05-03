@@ -16,6 +16,8 @@
  * is fast enough to put inside a build pipeline.
  */
 
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { Diagnostic } from "./types.js";
 import {
   type SwiftDeclaration,
@@ -38,6 +40,22 @@ export interface SwiftValidationResult {
 export interface SwiftValidationInput {
   file: string;
   source: string;
+}
+
+/**
+ * Project-context options that unlock cross-file rules (AX841, AX842).
+ * Without these, the validator stays in single-input scope.
+ *
+ *   - `projectRoot` enables filesystem scans (find every .swift file in the
+ *     project so we can spot zero-call-site Views and resolve members on
+ *     types whose definition isn't in the input set).
+ *   - `contextIndexPath` (optional) lets the validator skip the disk walk
+ *     and use the catalog written by `axint project index`. Falls back to
+ *     scanning `projectRoot` if the index is missing or stale.
+ */
+export interface ValidateSwiftProjectContext {
+  projectRoot?: string;
+  contextIndexPath?: string;
 }
 
 export function validateSwiftSource(source: string, file: string): SwiftValidationResult {
@@ -86,12 +104,14 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkOpaqueViewReturnsNeedExplicitReturn(source, stripped, file, diagnostics);
   checkDenseViewWithoutAffordance(source, stripped, file, diagnostics);
   checkUndefinedBooleanIdentifiers(source, stripped, file, diagnostics);
+  checkUndefinedStringInterpolationIdentifiers(source, stripped, file, diagnostics);
 
   return { file, diagnostics };
 }
 
 export function validateSwiftSources(
-  inputs: SwiftValidationInput[]
+  inputs: SwiftValidationInput[],
+  projectContext?: ValidateSwiftProjectContext
 ): SwiftValidationResult[] {
   const results = inputs.map((input) => validateSwiftSource(input.source, input.file));
 
@@ -106,6 +126,34 @@ export function validateSwiftSources(
   for (const diagnostic of layoutCrossFile) {
     const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
     if (diagnostics) diagnostics.push(diagnostic);
+  }
+
+  // Project-aware rules. These only fire when the caller passes a
+  // projectRoot — without it we have no view of files outside the input
+  // set, so we'd produce false positives.
+  if (projectContext?.projectRoot) {
+    const projectFiles = collectProjectSwiftFiles(projectContext.projectRoot, inputs);
+    if (projectFiles.size > 0) {
+      const reachability = checkViewReachability(inputs, projectFiles);
+      for (const diagnostic of reachability) {
+        const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
+        if (diagnostics) diagnostics.push(diagnostic);
+      }
+
+      const projectMember = checkProjectIndexMemberAccess(inputs, projectFiles);
+      for (const diagnostic of projectMember) {
+        const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
+        if (diagnostics) diagnostics.push(diagnostic);
+      }
+    }
+  }
+
+  // AX840 (missing module import) doesn't need a project root — the
+  // module-export table is bundled. Runs on every input.
+  for (const input of inputs) {
+    const moduleDiagnostics = checkMissingModuleImports(input);
+    const diagnostics = diagnosticsByFile.get(input.file);
+    if (diagnostics) diagnostics.push(...moduleDiagnostics);
   }
 
   if (inputs.length < 2) return results;
@@ -2174,6 +2222,109 @@ function isExpressionPosition(stripped: string, refIndex: number): boolean {
   return true;
 }
 
+// ─── Rule: AX787 (string-interpolation extension) ──────────────────────
+//
+// Companion to checkUndefinedBooleanIdentifiers above. The boolean check
+// runs against `stripped` source — which removes string literals, so it
+// can't see identifiers used inside `\(...)` interpolations. This pass
+// rescans the original source for `\(IDENT)` and flags identifiers that
+// don't resolve in the file scope, regardless of name shape.
+//
+// This is exactly the `\(projectName)` case from the dogfooding entry:
+// a helper interpolated a property that didn't exist on the surrounding
+// type. Both axint and Cloud Check passed; Xcode caught it.
+
+const STRING_INTERPOLATION_IDENT_PATTERN = /\\\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/g;
+
+const SWIFT_BUILTIN_IDENTIFIERS = new Set([
+  // Functions / globals always in scope without import.
+  "print",
+  "debugPrint",
+  "dump",
+  "assert",
+  "assertionFailure",
+  "precondition",
+  "preconditionFailure",
+  "fatalError",
+  "abs",
+  "min",
+  "max",
+  "stride",
+  "zip",
+  "type",
+  "repeatElement",
+  "swap",
+  "withUnsafePointer",
+  "MemoryLayout",
+  "ObjectIdentifier",
+  "String",
+  "Int",
+  "Double",
+  "Float",
+  "Bool",
+  "Array",
+  "Dictionary",
+  "Set",
+  "Optional",
+  "Result",
+  "Range",
+  "ClosedRange",
+  // SwiftUI helpers commonly used as values.
+  "Color",
+  "Image",
+  "Text",
+  "Font",
+  "Animation",
+  "Spring",
+  "EdgeInsets",
+  "Angle",
+  "Path",
+  // Foundation values that show up bare.
+  "Date",
+  "URL",
+  "UUID",
+  "Data",
+  "Calendar",
+  "Locale",
+  "TimeZone",
+  "Decimal",
+  "true",
+  "false",
+  "nil",
+  "self",
+  "super",
+]);
+
+function checkUndefinedStringInterpolationIdentifiers(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const declared = collectAllInFileIdentifiers(stripped);
+  const reported = new Set<string>();
+
+  let match: RegExpExecArray | null;
+  while ((match = STRING_INTERPOLATION_IDENT_PATTERN.exec(source)) !== null) {
+    const name = match[1]!;
+    if (name.length < 2) continue; // skip $0/$1-style noise
+    if (SWIFT_BUILTIN_IDENTIFIERS.has(name)) continue;
+    if (declared.has(name)) continue;
+
+    const key = `${name}:${match.index}`;
+    if (reported.has(key)) continue;
+    reported.add(key);
+
+    diagnostics.push(
+      makeDiagnostic("AX787", file, 1 + countNewlinesUpTo(source, match.index), {
+        message: `String interpolation references '${name}', but no declaration is in scope. If a recent refactor renamed or deleted '${name}', the Xcode build will fail with 'Cannot find ${name} in scope'.`,
+        suggestion:
+          "Either restore/rename the property/method, or grep the surrounding type to find the actual property name. axint cannot resolve names against the live symbol table; this is the most common refactor leftover the validator can flag pre-build.",
+      })
+    );
+  }
+}
+
 // ─── Rule: AX788 — HStack child collapses siblings via maxWidth: .infinity ─
 //
 // SwiftUI's native Divider auto-orients (vertical inside HStack, horizontal
@@ -2251,4 +2402,462 @@ function collectInfinityWidthViews(inputs: SwiftValidationInput[]): Set<string> 
     }
   }
   return views;
+}
+
+// ─── Project-context shared helpers ────────────────────────────────────
+//
+// AX841 and AX842 both need to look at .swift files outside the input set.
+// Rather than scan the entire project on every call, we collect a Map of
+// `path -> source` once and reuse it for both checks. The walk skips
+// node_modules, build, .git, DerivedData and similar noise directories.
+
+const SKIP_PROJECT_DIRS = new Set([
+  "node_modules",
+  ".git",
+  ".build",
+  "DerivedData",
+  ".axint",
+  "build",
+  "dist",
+  ".next",
+  ".vercel",
+  ".swiftpm",
+  "Pods",
+  "Carthage",
+]);
+
+function collectProjectSwiftFiles(
+  projectRoot: string,
+  inputs: SwiftValidationInput[]
+): Map<string, string> {
+  const root = resolve(projectRoot);
+  if (!existsSync(root)) return new Map();
+
+  const files = new Map<string, string>();
+
+  // Pre-populate with the in-flight inputs so we never re-read them from
+  // disk and we always validate against the agent's pending edits.
+  for (const input of inputs) {
+    files.set(resolve(input.file), input.source);
+  }
+
+  const walk = (dir: string, depth: number): void => {
+    if (depth > 8) return; // sanity bound on absurdly deep trees
+    let entries;
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      if (SKIP_PROJECT_DIRS.has(name)) continue;
+      if (name.startsWith(".")) continue; // skip dotfiles/dirs
+      const full = join(dir, name);
+      let stat;
+      try {
+        stat = statSync(full);
+      } catch {
+        continue;
+      }
+      if (stat.isDirectory()) {
+        walk(full, depth + 1);
+      } else if (stat.isFile() && name.endsWith(".swift")) {
+        const resolved = resolve(full);
+        if (files.has(resolved)) continue;
+        try {
+          files.set(resolved, readFileSync(full, "utf8"));
+        } catch {
+          // unreadable file — skip silently
+        }
+      }
+    }
+  };
+
+  walk(root, 0);
+  return files;
+}
+
+// ─── Rule: AX842 — SwiftUI View has zero call sites in the project ─────
+//
+// Coarse heuristic version. Walks every .swift file in the project, finds
+// `struct X: View` declarations, then checks whether the project contains
+// at least one `\bX\(` call site. Zero call sites → almost certainly dead
+// code that the live app never renders.
+//
+// Skips Views that are:
+//   - the App's @main scene (rendered by the runtime, not via X())
+//   - PreviewProvider declarations (rendered only by Xcode previews)
+//   - tagged with `// axint:reachable` so authors can opt out for views
+//     constructed via reflection / dynamic wiring
+
+function checkViewReachability(
+  inputs: SwiftValidationInput[],
+  projectFiles: Map<string, string>
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const inputPaths = new Set(inputs.map((i) => resolve(i.file)));
+
+  // Build the set of every View struct name and where it was declared.
+  const views: Array<{ name: string; file: string; line: number; source: string }> = [];
+  for (const [path, source] of projectFiles) {
+    const stripped = stripCommentsAndStrings(source);
+    const decls = findTypeDeclarations(stripped, source);
+    for (const decl of decls) {
+      if (decl.kind !== "struct") continue;
+      if (!hasConformance(decl, "View")) continue;
+      // Skip preview helpers — they're only ever rendered by Xcode.
+      if (hasConformance(decl, "PreviewProvider")) continue;
+      // Skip @main App-conforming structs — runtime renders them.
+      if (hasConformance(decl, "App")) continue;
+      // Honor an explicit opt-out hint above the declaration.
+      const before = source.slice(Math.max(0, decl.bodyStart - 200), decl.bodyStart);
+      if (/\/\/\s*axint:reachable\b/.test(before)) continue;
+      views.push({ name: decl.name, file: path, line: decl.startLine, source });
+    }
+  }
+
+  if (views.length === 0) return diagnostics;
+
+  // For each view, scan every project file (including the declaring file
+  // for self-instantiation in #Preview blocks) for `\bName(` call sites.
+  // We only emit when zero call sites exist anywhere AND the declaring
+  // file is in the input set — otherwise we'd noise on every validate-swift
+  // run against unrelated files.
+  for (const view of views) {
+    if (!inputPaths.has(view.file)) continue;
+
+    const callSitePattern = new RegExp(`\\b${escapeRegex(view.name)}\\s*\\(`, "g");
+    let callSites = 0;
+    for (const [path, source] of projectFiles) {
+      // Don't count the declaration itself as a call site.
+      const haystack =
+        path === view.file
+          ? source.replace(
+              new RegExp(`\\bstruct\\s+${escapeRegex(view.name)}\\s*:`, "g"),
+              ""
+            )
+          : source;
+      const matches = haystack.match(callSitePattern);
+      if (matches) callSites += matches.length;
+      if (callSites > 0) break;
+    }
+
+    if (callSites === 0) {
+      diagnostics.push(
+        makeDiagnostic("AX842", view.file, view.line, {
+          message: `SwiftUI View '${view.name}' has zero call sites anywhere in the project — the live app cannot render it.`,
+          suggestion:
+            "Either route this View from a live navigation chain (trace from your @main App's body to confirm), delete it as dead code, or add a `// axint:reachable` comment above the declaration if it's instantiated reflectively.",
+        })
+      );
+    }
+  }
+
+  return diagnostics;
+}
+
+// ─── Rule: AX841 — Member access on a project type that lacks the member ─
+//
+// Extends AX768 (same-target member resolution) by indexing every type
+// declared anywhere in the project, not just within the input set. This is
+// what catches the `voiceInbox.items` / `root.foo.bar` pattern where the
+// type is defined in a file the agent isn't editing.
+
+function checkProjectIndexMemberAccess(
+  inputs: SwiftValidationInput[],
+  projectFiles: Map<string, string>
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const inputPaths = new Set(inputs.map((i) => resolve(i.file)));
+
+  // Build a type → members map across the entire project.
+  const projectMembers = new Map<string, Set<string>>();
+  for (const [, source] of projectFiles) {
+    const stripped = stripCommentsAndStrings(source);
+    const decls = findTypeDeclarations(stripped, source);
+    for (const decl of decls) {
+      const baseName = baseSwiftTypeName(decl.name);
+      if (!baseName) continue;
+      const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+      const existing = projectMembers.get(baseName) ?? new Set<string>();
+      for (const m of collectDeclaredMemberNames(body)) existing.add(m);
+      projectMembers.set(baseName, existing);
+    }
+  }
+
+  // Seed system types so e.g. `window.delegate` doesn't fire.
+  for (const [typeName, members] of Object.entries(SYSTEM_TYPE_MEMBERS)) {
+    const set = projectMembers.get(typeName) ?? new Set<string>();
+    for (const m of members) set.add(m);
+    projectMembers.set(typeName, set);
+  }
+
+  const reported = new Set<string>();
+  for (const input of inputs) {
+    if (!inputPaths.has(resolve(input.file))) continue;
+    const stripped = stripCommentsAndStrings(input.source);
+    const bindings = collectTypedBindings(stripped, projectMembers);
+    if (bindings.size === 0) continue;
+    const untypedClosureParameters = collectUntypedClosureParameters(stripped);
+
+    const memberAccess = /\b([a-z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
+    let match: RegExpExecArray | null;
+    while ((match = memberAccess.exec(stripped)) !== null) {
+      const objectName = match[1]!;
+      const memberName = match[2]!;
+      if (untypedClosureParameters.has(objectName)) continue;
+      if (KNOWN_CROSS_FILE_MEMBER_NAMES.has(memberName)) continue;
+
+      const typeName = bindings.get(objectName);
+      if (!typeName) continue;
+
+      const members = projectMembers.get(typeName);
+      if (!members || members.has(memberName)) continue;
+
+      const key = `${input.file}:${objectName}:${typeName}:${memberName}:${match.index}`;
+      if (reported.has(key)) continue;
+      reported.add(key);
+
+      // Cheap "did you mean" suggestion via Levenshtein over the indexed
+      // members of the resolved type.
+      const suggestion = suggestSimilarMember(memberName, members);
+
+      diagnostics.push(
+        makeDiagnostic(
+          "AX841",
+          input.file,
+          1 + countNewlinesUpTo(input.source, match.index),
+          {
+            message: `Value of type '${typeName}' has no member '${memberName}'.${
+              suggestion ? ` Did you mean '${suggestion}'?` : ""
+            } (resolved via project-context index)`,
+            suggestion: suggestion
+              ? `Replace '${memberName}' with '${suggestion}' on '${objectName}', or grep the declaring type to confirm the real property name.`
+              : `Open the file declaring '${typeName}' and verify the actual property/method name. The compiler will fail with the same diagnostic on the next Xcode build.`,
+          }
+        )
+      );
+    }
+  }
+
+  return diagnostics;
+}
+
+function suggestSimilarMember(needle: string, haystack: Set<string>): string | null {
+  let best: { name: string; distance: number } | null = null;
+  for (const candidate of haystack) {
+    const distance = levenshtein(needle, candidate);
+    const max = Math.max(needle.length, candidate.length);
+    if (distance > Math.floor(max / 2)) continue;
+    if (!best || distance < best.distance) best = { name: candidate, distance };
+  }
+  return best ? best.name : null;
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  let prev = new Array(b.length + 1).fill(0).map((_, i) => i);
+  let curr = new Array(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(curr[j - 1] + 1, prev[j]! + 1, prev[j - 1]! + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[b.length]!;
+}
+
+// ─── Rule: AX840 — Cross-module symbol requires unimported framework ───
+//
+// Bundled table of "if you reference X.Y, you need to `import M`". Covers
+// the most common Swift-only modules where agents trip up. The catch
+// fires when the file uses one of these symbols and doesn't import the
+// declaring module.
+//
+// To extend: add an entry under MODULE_SYMBOLS. The map value is a list
+// of `Type.member` strings that uniquely identify the module — we don't
+// fire on bare type names like `URL` (Foundation is auto-imported almost
+// everywhere) but on member access where the module signal is clear.
+
+// `SHORTHAND` patterns are full regex sources (no escaping happens) so we
+// can match SwiftUI shorthand like `[.text]` / `of: [.image]` / `.fileURL`
+// where the parameter type is inferred. These are uniquely-UTType shorthand
+// names — bare `.text` outside a UTType context (e.g. a TextField type
+// param) won't match because the patterns require list/argument context.
+const MODULE_SYMBOLS: Record<string, readonly string[]> = {
+  UniformTypeIdentifiers: [
+    "UTType.text",
+    "UTType.url",
+    "UTType.fileURL",
+    "UTType.image",
+    "UTType.movie",
+    "UTType.audio",
+    "UTType.pdf",
+    "UTType.data",
+    "UTType.json",
+    "UTType.plainText",
+    "UTType.utf8PlainText",
+    "UTType.html",
+    "UTType.xml",
+    "UTType.zip",
+    "UTType.folder",
+    // SwiftUI shorthand inside `onDrop`, `fileImporter`, `itemProvider`
+    // etc. where the parameter is typed as `[UTType]` and Swift infers.
+    "SHORTHAND:\\[\\s*\\.(?:text|url|fileURL|image|movie|audio|pdf|data|json|plainText|html|xml|zip|folder)\\b",
+    "SHORTHAND:of\\s*:\\s*\\[\\s*\\.(?:text|url|fileURL|image|movie|audio|pdf|data|json|plainText|html|xml|zip|folder)\\b",
+  ],
+  Combine: [
+    "AnyCancellable",
+    "PassthroughSubject",
+    "CurrentValueSubject",
+    "Just(",
+    "Empty(",
+    "Future(",
+    "ObservableObjectPublisher",
+  ],
+  Charts: [
+    "Chart(",
+    "BarMark(",
+    "LineMark(",
+    "PointMark(",
+    "AreaMark(",
+    "RuleMark(",
+    "ChartProxy",
+  ],
+  AVFoundation: [
+    "AVPlayer(",
+    "AVAsset(",
+    "AVAudioPlayer(",
+    "AVAudioSession",
+    "AVCaptureSession(",
+    "AVURLAsset(",
+  ],
+  AVKit: ["VideoPlayer("],
+  MapKit: [
+    "MKMapView(",
+    "MKMapItem(",
+    "MKCoordinateRegion(",
+    "MKMarkerAnnotationView(",
+    "Marker(",
+    "Annotation(",
+    "MapPolyline(",
+  ],
+  CoreLocation: [
+    "CLLocationManager(",
+    "CLLocation(",
+    "CLLocationCoordinate2D(",
+    "CLAuthorizationStatus",
+  ],
+  CoreImage: ["CIImage(", "CIFilter(", "CIContext(", "CIColor("],
+  CoreData: [
+    "NSManagedObject",
+    "NSManagedObjectContext",
+    "NSPersistentContainer(",
+    "NSFetchRequest",
+    "NSEntityDescription",
+  ],
+  PhotosUI: ["PhotosPicker(", "PhotosPickerItem("],
+  StoreKit: ["Product.products(", "Transaction.currentEntitlements", "AppStore.sync("],
+  WidgetKit: [
+    "WidgetCenter.shared",
+    "TimelineEntry",
+    "TimelineProvider",
+    "StaticConfiguration(",
+    "AppIntentConfiguration(",
+  ],
+  AppIntents: [
+    "AppIntent",
+    "AppEntity",
+    "EntityQuery",
+    "AppShortcut(",
+    "AppShortcutsProvider",
+    "IntentParameter",
+  ],
+  WeatherKit: ["WeatherService.shared", "CurrentWeather", "DayWeather"],
+  HealthKit: ["HKHealthStore(", "HKQuantityType", "HKWorkout"],
+  AuthenticationServices: [
+    "ASWebAuthenticationSession(",
+    "ASAuthorizationAppleIDProvider(",
+    "SignInWithAppleButton(",
+  ],
+  CryptoKit: [
+    "SHA256.hash(",
+    "SHA512.hash(",
+    "SymmetricKey(",
+    "AES.GCM.seal(",
+    "Curve25519.Signing",
+  ],
+};
+
+function checkMissingModuleImports(input: SwiftValidationInput): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const stripped = stripCommentsAndStrings(input.source);
+  const importedModules = collectImportedModules(stripped);
+  const reported = new Set<string>();
+
+  for (const [moduleName, symbols] of Object.entries(MODULE_SYMBOLS)) {
+    if (importedModules.has(moduleName)) continue;
+    for (const symbol of symbols) {
+      // Three pattern shapes:
+      //   - `SHORTHAND:<regex>` — raw regex, used for SwiftUI shorthand
+      //     like `[.text]` where Swift infers the type. The regex source
+      //     follows the `SHORTHAND:` prefix verbatim.
+      //   - `Foo(`              — must match a constructor / function call.
+      //   - `Foo` or `Foo.bar`  — must match as bare identifier / member.
+      let core: string;
+      let pattern: RegExp;
+      if (symbol.startsWith("SHORTHAND:")) {
+        const rawRe = symbol.slice("SHORTHAND:".length);
+        pattern = new RegExp(rawRe);
+        // Display label for the diagnostic — pull the first identifier
+        // out of the regex so the message is readable.
+        core = rawRe.match(/[A-Za-z_][A-Za-z0-9_]*/)?.[0] ?? rawRe;
+      } else if (symbol.endsWith("(")) {
+        core = symbol.slice(0, -1);
+        pattern = new RegExp(`\\b${escapeRegex(core)}\\s*\\(`);
+      } else {
+        core = symbol;
+        pattern = new RegExp(`\\b${escapeRegex(core)}\\b`);
+      }
+      const match = pattern.exec(stripped);
+      if (!match) continue;
+
+      const key = `${moduleName}:${symbol}`;
+      if (reported.has(key)) continue;
+      reported.add(key);
+
+      diagnostics.push(
+        makeDiagnostic(
+          "AX840",
+          input.file,
+          1 + countNewlinesUpTo(input.source, match.index),
+          {
+            message: `'${core}' is declared in the '${moduleName}' module but this file does not import it. Xcode will fail with: "Static property/method '${core.split(".").pop() ?? core}' is not available due to missing import of defining module".`,
+            suggestion: `Add \`import ${moduleName}\` to the top of this file. The compiler treats missing-import errors as fatal even when every other gate passes.`,
+          }
+        )
+      );
+      // Only one diagnostic per missing module per file — once we tell
+      // the agent the import is missing, listing every site is noise.
+      break;
+    }
+  }
+
+  return diagnostics;
+}
+
+function collectImportedModules(stripped: string): Set<string> {
+  const modules = new Set<string>();
+  const pattern = /^\s*import\s+([A-Za-z_][A-Za-z0-9_.]*)/gm;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(stripped)) !== null) {
+    // `import Foundation.NSURL` style — root module is what matters.
+    const root = match[1]!.split(".")[0]!;
+    modules.add(root);
+  }
+  return modules;
 }

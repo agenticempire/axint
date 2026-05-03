@@ -778,6 +778,27 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
       "Task { @MainActor in ... } inside .onAppear or .task is redundant — those lifecycle blocks already run on the main actor",
     category: "swift-concurrency",
   },
+  AX840: {
+    code: "AX840",
+    severity: "error",
+    message:
+      "Reference to a system framework symbol whose defining module is not imported in this file",
+    category: "swift-imports",
+  },
+  AX841: {
+    code: "AX841",
+    severity: "error",
+    message:
+      "Member access on a project type that does not declare that member (resolved via project-context index)",
+    category: "swift-cross-file",
+  },
+  AX842: {
+    code: "AX842",
+    severity: "warning",
+    message:
+      "SwiftUI View struct is declared but has zero call sites in the project — likely dead code",
+    category: "swiftui-reachability",
+  },
   AX714: {
     code: "AX714",
     severity: "error",
