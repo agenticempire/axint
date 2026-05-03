@@ -1197,3 +1197,386 @@ describe("swift validator — AX766 type-erased SwiftUI modifier chains", () => 
     );
   });
 });
+
+// ─── AX780 — Top-level symbol redeclaration across files ─────────────
+
+describe("swift validator — AX780 top-level redeclaration", () => {
+  it("flags two files declaring the same top-level struct in the same module", () => {
+    const fileA = `
+      import SwiftUI
+
+      struct FlowLayout: Layout {
+          var spacing: CGFloat = 8
+      }
+    `;
+    const fileB = `
+      import SwiftUI
+
+      struct FlowLayout: Layout {
+          var spacing: CGFloat = 12
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "AgentMarketplaceView.swift", source: fileA },
+      { file: "BuilderPublicProfileView.swift", source: fileB },
+    ]).flatMap((r) => r.diagnostics);
+
+    const ax780 = diagnostics.filter((d) => d.code === "AX780");
+    expect(ax780).toHaveLength(1);
+    expect(ax780[0]!.file).toBe("BuilderPublicProfileView.swift");
+    expect(ax780[0]!.message).toContain("FlowLayout");
+    expect(ax780[0]!.message).toContain("AgentMarketplaceView.swift");
+  });
+
+  it("does not flag extensions declared in two files (extensions are allowed to repeat)", () => {
+    const fileA = `
+      extension String {
+          var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
+      }
+    `;
+    const fileB = `
+      extension String {
+          var slug: String { lowercased() }
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "StringTrim.swift", source: fileA },
+      { file: "StringSlug.swift", source: fileB },
+    ]).flatMap((r) => r.diagnostics);
+
+    expect(diagnostics.filter((d) => d.code === "AX780")).toEqual([]);
+  });
+
+  it("does not flag file-private declarations with the same name in different files", () => {
+    const fileA = `
+      private struct LocalCard: View {
+          var body: some View { Text("a") }
+      }
+    `;
+    const fileB = `
+      private struct LocalCard: View {
+          var body: some View { Text("b") }
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "ScreenA.swift", source: fileA },
+      { file: "ScreenB.swift", source: fileB },
+    ]).flatMap((r) => r.diagnostics);
+
+    expect(diagnostics.filter((d) => d.code === "AX780")).toEqual([]);
+  });
+
+  it("does not flag a nested type sharing the name of another file's top-level type", () => {
+    const fileA = `
+      struct Card: View {
+          var body: some View { Text("top") }
+      }
+    `;
+    const fileB = `
+      enum Wrapper {
+          struct Card {
+              let title: String
+          }
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "Card.swift", source: fileA },
+      { file: "Wrapper.swift", source: fileB },
+    ]).flatMap((r) => r.diagnostics);
+
+    expect(diagnostics.filter((d) => d.code === "AX780")).toEqual([]);
+  });
+
+  it("flags the second and third occurrences when a type is declared in three files", () => {
+    const make = (label: string) => `struct Token { let value: String /* ${label} */ }`;
+    const diagnostics = validateSwiftSources([
+      { file: "A.swift", source: make("A") },
+      { file: "B.swift", source: make("B") },
+      { file: "C.swift", source: make("C") },
+    ]).flatMap((r) => r.diagnostics);
+
+    const ax780 = diagnostics.filter((d) => d.code === "AX780");
+    expect(ax780.map((d) => d.file)).toEqual(["B.swift", "C.swift"]);
+  });
+});
+
+// ─── AX781 — Cross-file optional argument mismatch ───────────────────
+
+describe("swift validator — AX781 cross-file optional arg", () => {
+  it("flags an optional struct field passed to a non-optional parameter", () => {
+    const brand = `
+      struct BrandKit {
+          let primaryColorHex: String?
+          let backgroundColorHex: String?
+      }
+    `;
+    const studio = `
+      import SwiftUI
+
+      struct ProjectBrandStudioView: View {
+          let brand: BrandKit
+
+          func parseHex(_ raw: String) -> UInt32? {
+              return UInt32(raw, radix: 16)
+          }
+
+          var body: some View {
+              let primary = parseHex(brand.primaryColorHex)
+              return Text(String(describing: primary))
+          }
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "BrandKit.swift", source: brand },
+      { file: "ProjectBrandStudioView.swift", source: studio },
+    ]).flatMap((r) => r.diagnostics);
+
+    const ax781 = diagnostics.filter((d) => d.code === "AX781");
+    expect(ax781.length).toBeGreaterThanOrEqual(1);
+    expect(ax781[0]!.file).toBe("ProjectBrandStudioView.swift");
+    expect(ax781[0]!.message).toContain("parseHex");
+    expect(ax781[0]!.message).toContain("primaryColorHex");
+    expect(ax781[0]!.message).toContain("BrandKit.swift");
+  });
+
+  it("does not flag a non-optional field passed to a non-optional parameter", () => {
+    const brand = `
+      struct BrandKit {
+          let primaryColorHex: String
+      }
+    `;
+    const studio = `
+      import SwiftUI
+
+      struct ProjectBrandStudioView: View {
+          let brand: BrandKit
+
+          func parseHex(_ raw: String) -> UInt32? {
+              return UInt32(raw, radix: 16)
+          }
+
+          var body: some View {
+              let _ = parseHex(brand.primaryColorHex)
+              return Text("ok")
+          }
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "BrandKit.swift", source: brand },
+      { file: "ProjectBrandStudioView.swift", source: studio },
+    ]).flatMap((r) => r.diagnostics);
+
+    expect(diagnostics.filter((d) => d.code === "AX781")).toEqual([]);
+  });
+
+  it("does not flag when the parameter type is optional", () => {
+    const brand = `
+      struct BrandKit {
+          let primaryColorHex: String?
+      }
+    `;
+    const studio = `
+      import SwiftUI
+
+      struct ProjectBrandStudioView: View {
+          let brand: BrandKit
+
+          func parseHex(_ raw: String?) -> UInt32? {
+              return raw.flatMap { UInt32($0, radix: 16) }
+          }
+
+          var body: some View {
+              let _ = parseHex(brand.primaryColorHex)
+              return Text("ok")
+          }
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "BrandKit.swift", source: brand },
+      { file: "ProjectBrandStudioView.swift", source: studio },
+    ]).flatMap((r) => r.diagnostics);
+
+    expect(diagnostics.filter((d) => d.code === "AX781")).toEqual([]);
+  });
+});
+
+// ─── AX768 noise — system-type member resolution ─────────────────────
+
+describe("swift validator — AX768 system-type silencing", () => {
+  // The cross-file member check only runs with ≥2 inputs, so each test
+  // pairs the file under inspection with a small sibling.
+  const sibling = {
+    file: "Sibling.swift",
+    source: "struct Sibling { let value: String }",
+  };
+
+  it("does not flag NSWindow members during partial validation", () => {
+    const source = `
+      import AppKit
+      import SwiftUI
+
+      struct WindowChrome {
+          let window: NSWindow
+
+          func tune() {
+              window.titlebarAppearsTransparent = true
+              window.delegate = nil
+              _ = window.contentView
+              _ = window.minSize
+          }
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "WindowChrome.swift", source },
+      sibling,
+    ]).flatMap((r) => r.diagnostics);
+
+    expect(diagnostics.filter((d) => d.code === "AX768")).toEqual([]);
+  });
+
+  it("still flags real undeclared members on user types", () => {
+    const source = `
+      struct ShareCardStyle {
+          let detail: String
+      }
+      struct LaunchCenterView {
+          let style: ShareCardStyle
+          func render() -> String {
+              return style.nonexistentMember
+          }
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "LaunchCenterView.swift", source },
+      sibling,
+    ]).flatMap((r) => r.diagnostics);
+
+    const ax768 = diagnostics.filter((d) => d.code === "AX768");
+    expect(ax768.length).toBeGreaterThanOrEqual(1);
+    expect(ax768[0]!.message).toContain("nonexistentMember");
+  });
+
+  it("recognizes Foundation URL members during partial validation", () => {
+    const source = `
+      struct LinkPreview {
+          let url: URL
+          var host: String? { url.host }
+          var ext: String { url.pathExtension }
+      }
+    `;
+    const diagnostics = validateSwiftSources([
+      { file: "LinkPreview.swift", source },
+      sibling,
+    ]).flatMap((r) => r.diagnostics);
+
+    expect(diagnostics.filter((d) => d.code === "AX768")).toEqual([]);
+  });
+});
+
+// ─── AX782 — Dense View body without an affordance ───────────────────
+
+describe("swift validator — AX782 dense view", () => {
+  it("flags a ScrollView with eight stacked sections and no affordance", () => {
+    const source = `
+      import SwiftUI
+
+      struct BrandBibleView: View {
+          var body: some View {
+              ScrollView {
+                  VStack(spacing: 24) {
+                      HeroBanner()
+                      IntakeForm()
+                      CommandStrip()
+                      VoiceCard()
+                      AssetsCard()
+                      WordmarkCard()
+                      LegalCard()
+                      AdminCard()
+                  }
+              }
+          }
+      }
+    `;
+    const ax782 = validate(source).diagnostics.filter((d) => d.code === "AX782");
+    expect(ax782).toHaveLength(1);
+    expect(ax782[0]!.message).toContain("BrandBibleView");
+  });
+
+  it("does not flag a ScrollView with a segmented Picker affordance", () => {
+    const source = `
+      import SwiftUI
+
+      struct BrandBibleView: View {
+          @State var segment: BrandSegment = .voice
+          var body: some View {
+              ScrollView {
+                  Picker("", selection: $segment) {
+                      Text("Voice").tag(BrandSegment.voice)
+                      Text("Assets").tag(BrandSegment.assets)
+                      Text("Legal").tag(BrandSegment.legal)
+                  }
+                  .pickerStyle(.segmented)
+                  VStack(spacing: 24) {
+                      HeroBanner()
+                      IntakeForm()
+                      CommandStrip()
+                      VoiceCard()
+                      AssetsCard()
+                      WordmarkCard()
+                      LegalCard()
+                      AdminCard()
+                  }
+              }
+          }
+      }
+    `;
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX782")).toEqual([]);
+  });
+
+  it("does not flag a ScrollView with five sections", () => {
+    const source = `
+      import SwiftUI
+
+      struct BrandBibleView: View {
+          var body: some View {
+              ScrollView {
+                  VStack {
+                      HeroBanner()
+                      IntakeForm()
+                      VoiceCard()
+                      AssetsCard()
+                      LegalCard()
+                  }
+              }
+          }
+      }
+    `;
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX782")).toEqual([]);
+  });
+
+  it("does not flag a ScrollView guarded by DisclosureGroup", () => {
+    const source = `
+      import SwiftUI
+
+      struct AdminPanelView: View {
+          var body: some View {
+              ScrollView {
+                  DisclosureGroup("Power user") {
+                      VStack {
+                          HeroBanner()
+                          IntakeForm()
+                          CommandStrip()
+                          VoiceCard()
+                          AssetsCard()
+                          WordmarkCard()
+                          LegalCard()
+                          AdminCard()
+                      }
+                  }
+              }
+          }
+      }
+    `;
+    expect(validate(source).diagnostics.filter((d) => d.code === "AX782")).toEqual([]);
+  });
+});

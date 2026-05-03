@@ -6,6 +6,20 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.17] — 2026-05-02
+
+### Added
+
+- **`AX787` undefined boolean identifier** — catches `is*`/`has*`/`should*`/`can*`/`did*`/`will*` references that no longer resolve in scope after a refactor (the "deleted computed property, call site left behind" pattern). Skips Swift built-ins like `isEmpty` and `hasPrefix`.
+- **`AX788` HStack child collapses siblings** — flags `HStack` that contains a custom `View` whose body chains `.frame(maxWidth: .infinity)` without a fixed-width clamp. Static analysis was previously blind to this layout-collapse class even though it breaks rendering on every page.
+- **`AX789` redundant `Task { @MainActor in }` in lifecycle** — companion to `AX730`. `.onAppear` and `.task` are already main-actor isolated; the wrapper is dead weight.
+- **`AX768` system-prefix downgrade** — references on Apple framework types (`NS*`, `UI*`, `CK*`, `AV*`, `MK*`, `CL*`, `SK*`, `MTL*`, `CA*`, `CG*`, `CI*`) that fall outside the bundled member table now emit at `info` instead of `warning`, with a suggestion to extend `SYSTEM_TYPE_MEMBERS` if the member is real. Cuts noise on partial-validation runs.
+- **Bundled member coverage** for `ScrollGeometry`, `ScrollPhase`, `Animation`, `Color`, `Image`, `Text`, `Bindable`, `Binding`, `AnyView`, `EmptyView`.
+
+### Changed
+
+- **Cloud Check honesty** — `evidence_required` and `ready_for_build` reasons now state explicitly that static checks do not equal compiler acceptance. Required evidence wording surfaces `xcodebuild build (compile proof — non-negotiable)` so agents stop reading a clean static gate as a build pass.
+
 ## [0.4.15] — 2026-04-29
 
 ### Added

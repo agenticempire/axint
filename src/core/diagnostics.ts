@@ -738,6 +738,46 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
       "Changed Swift files reference a member that is not declared on the known type",
     category: "swift-member-resolution",
   },
+  AX780: {
+    code: "AX780",
+    severity: "error",
+    message: "Top-level type is declared in more than one file in the same module",
+    category: "swift-cross-file",
+  },
+  AX781: {
+    code: "AX781",
+    severity: "error",
+    message: "Optional value passed where the function expects a non-optional",
+    category: "swift-cross-file",
+  },
+  AX782: {
+    code: "AX782",
+    severity: "warning",
+    message:
+      "Top-level View body composes many sections without a segmented control or disclosure",
+    category: "swiftui-information-density",
+  },
+  AX787: {
+    code: "AX787",
+    severity: "error",
+    message:
+      "Reference to a boolean-style identifier that is not declared in this file or the indexed module",
+    category: "swift-cross-file",
+  },
+  AX788: {
+    code: "AX788",
+    severity: "warning",
+    message:
+      "HStack child is a View that chains frame(maxWidth: .infinity); it will eat sibling space and collapse them",
+    category: "swiftui-layout",
+  },
+  AX789: {
+    code: "AX789",
+    severity: "warning",
+    message:
+      "Task { @MainActor in ... } inside .onAppear or .task is redundant — those lifecycle blocks already run on the main actor",
+    category: "swift-concurrency",
+  },
   AX714: {
     code: "AX714",
     severity: "error",

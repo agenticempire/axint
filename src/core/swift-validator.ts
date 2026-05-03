@@ -84,6 +84,8 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkInvalidSwiftUIFrameOverloads(source, stripped, file, diagnostics);
   checkTypeErasedSwiftUIModifierChains(source, stripped, file, diagnostics);
   checkOpaqueViewReturnsNeedExplicitReturn(source, stripped, file, diagnostics);
+  checkDenseViewWithoutAffordance(source, stripped, file, diagnostics);
+  checkUndefinedBooleanIdentifiers(source, stripped, file, diagnostics);
 
   return { file, diagnostics };
 }
@@ -92,12 +94,28 @@ export function validateSwiftSources(
   inputs: SwiftValidationInput[]
 ): SwiftValidationResult[] {
   const results = inputs.map((input) => validateSwiftSource(input.source, input.file));
-  if (inputs.length < 2) return results;
 
   const diagnosticsByFile = new Map(
     results.map((result) => [result.file, result.diagnostics])
   );
-  for (const diagnostic of checkSameTargetMissingMembers(inputs)) {
+
+  // HStack-collapse runs even on single-file input — the View whose
+  // .frame(maxWidth: .infinity) eats sibling space might be defined in
+  // the same file as the HStack that uses it.
+  const layoutCrossFile = checkHStackCollapsesInfinityChild(inputs);
+  for (const diagnostic of layoutCrossFile) {
+    const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
+    if (diagnostics) diagnostics.push(diagnostic);
+  }
+
+  if (inputs.length < 2) return results;
+
+  const crossFile: Diagnostic[] = [
+    ...checkSameTargetMissingMembers(inputs),
+    ...checkTopLevelSymbolRedeclaration(inputs),
+    ...checkCrossFileOptionalArgMismatch(inputs),
+  ];
+  for (const diagnostic of crossFile) {
     const diagnostics = diagnosticsByFile.get(diagnostic.file ?? "");
     if (diagnostics) diagnostics.push(diagnostic);
   }
@@ -343,7 +361,7 @@ function checkOpaqueViewReturnsNeedExplicitReturn(
       makeDiagnostic("AX767", file, 1 + countNewlinesUpTo(source, match.index), {
         message: `${kind} '${name}' returns some View after local declarations but has no explicit return`,
         suggestion:
-          "Add `return` before the final view expression, or mark the helper with `@ViewBuilder` if it intentionally contains multiple result-builder statements.",
+          "Prefer `@ViewBuilder` for SwiftUI helpers — it documents intent, supports multi-statement bodies as the surface grows, and matches the style of `var body`. Use an explicit `return` only when the helper truly returns a single expression.",
       })
     );
   }
@@ -379,28 +397,75 @@ function checkSameTargetMissingMembers(inputs: SwiftValidationInput[]): Diagnost
       if (reported.has(key)) continue;
       reported.add(key);
 
-      diagnostics.push(
-        makeDiagnostic(
-          "AX768",
-          input.file,
-          1 + countNewlinesUpTo(input.source, match.index),
-          {
-            message: `Changed Swift files reference '${objectName}.${memberName}', but '${typeName}' in this validation set does not declare '${memberName}'`,
-            suggestion:
-              "Use a member that exists on the declaring type, include the extension file that defines it, or rerun Xcode if this member is provided by generated code outside the validation set.",
-          }
-        )
+      const diagnostic = makeDiagnostic(
+        "AX768",
+        input.file,
+        1 + countNewlinesUpTo(input.source, match.index),
+        {
+          message: `Changed Swift files reference '${objectName}.${memberName}', but '${typeName}' in this validation set does not declare '${memberName}'`,
+          suggestion:
+            "Use a member that exists on the declaring type, include the extension file that defines it, or rerun Xcode if this member is provided by generated code outside the validation set.",
+        }
       );
+
+      // Downgrade to `info` when the type is a known system framework type
+      // (NSWindow, UIView, CKRecord, AVPlayer, MK*, CL*, SK*, etc.) and our
+      // bundled member table for it doesn't exhaustively cover Apple's
+      // headers. This collapses the noise floor when validating only a few
+      // changed files against system APIs we can't fully mirror.
+      if (isPartialSystemTypeCoverage(typeName)) {
+        diagnostic.severity = "info";
+        diagnostic.suggestion = `'${typeName}' is a system framework type. Axint's bundled member table is partial; verify with Xcode if this member exists. Add it to SYSTEM_TYPE_MEMBERS to silence the warning permanently.`;
+      }
+
+      diagnostics.push(diagnostic);
     }
   }
 
   return diagnostics;
 }
 
+const SYSTEM_TYPE_PREFIXES = [
+  "NS",
+  "UI",
+  "CK",
+  "AV",
+  "MK",
+  "CL",
+  "SK",
+  "MTL",
+  "CA",
+  "CG",
+  "CI",
+];
+
+function isPartialSystemTypeCoverage(typeName: string): boolean {
+  // Already in our table — coverage is intentional, no downgrade needed.
+  if (SYSTEM_TYPE_MEMBERS[typeName]) return false;
+  // Two-letter Apple framework prefix (NSView, UIScrollView, CKRecord, ...)
+  // followed by an UpperCamel name.
+  for (const prefix of SYSTEM_TYPE_PREFIXES) {
+    if (typeName.startsWith(prefix)) {
+      const tail = typeName.slice(prefix.length);
+      if (tail.length > 0 && /^[A-Z]/.test(tail)) return true;
+    }
+  }
+  return false;
+}
+
 function collectTypeMemberIndex(
   inputs: SwiftValidationInput[]
 ): Map<string, Set<string>> {
   const index = new Map<string, Set<string>>();
+
+  // Seed with members of common system types so partial validation stops
+  // flagging real AppKit/Foundation/SwiftUI references like
+  // `window.titlebarAppearsTransparent` when the user only passes a few
+  // changed files.
+  for (const [typeName, members] of Object.entries(SYSTEM_TYPE_MEMBERS)) {
+    index.set(typeName, new Set(members));
+  }
+
   for (const input of inputs) {
     const stripped = stripCommentsAndStrings(input.source);
     const declarations = findTypeDeclarations(stripped, input.source);
@@ -416,6 +481,314 @@ function collectTypeMemberIndex(
   }
   return index;
 }
+
+// System-type member sets used to silence AX768 false positives when a
+// partial validation set references AppKit/Foundation/SwiftUI types whose
+// real definitions live outside the input files. These sets cover the
+// most common members; the exhaustive surface lives in Apple's headers.
+const SYSTEM_TYPE_MEMBERS: Record<string, readonly string[]> = {
+  NSWindow: [
+    "title",
+    "delegate",
+    "contentView",
+    "contentViewController",
+    "frame",
+    "minSize",
+    "maxSize",
+    "styleMask",
+    "isOpaque",
+    "backgroundColor",
+    "titlebarAppearsTransparent",
+    "titleVisibility",
+    "isMovableByWindowBackground",
+    "level",
+    "collectionBehavior",
+    "tabbingMode",
+    "toolbar",
+    "toolbarStyle",
+    "appearance",
+    "isReleasedWhenClosed",
+    "makeKeyAndOrderFront",
+    "orderOut",
+    "close",
+    "miniaturize",
+    "deminiaturize",
+    "performClose",
+    "setFrame",
+    "setIsVisible",
+  ],
+  NSWorkspace: [
+    "shared",
+    "runningApplications",
+    "frontmostApplication",
+    "menuBarOwningApplication",
+    "open",
+    "openApplication",
+    "selectFile",
+    "activateFileViewerSelecting",
+    "urlForApplication",
+  ],
+  NSColor: [
+    "white",
+    "black",
+    "clear",
+    "red",
+    "green",
+    "blue",
+    "labelColor",
+    "secondaryLabelColor",
+    "tertiaryLabelColor",
+    "windowBackgroundColor",
+    "controlBackgroundColor",
+    "controlAccentColor",
+    "selectedContentBackgroundColor",
+    "separatorColor",
+    "withAlphaComponent",
+    "blended",
+  ],
+  NSEvent: [
+    "type",
+    "modifierFlags",
+    "characters",
+    "charactersIgnoringModifiers",
+    "keyCode",
+    "isARepeat",
+    "locationInWindow",
+    "deltaX",
+    "deltaY",
+    "deltaZ",
+    "addLocalMonitorForEvents",
+    "addGlobalMonitorForEvents",
+    "removeMonitor",
+  ],
+  NSApplication: [
+    "shared",
+    "delegate",
+    "windows",
+    "mainWindow",
+    "keyWindow",
+    "activationPolicy",
+    "isActive",
+    "activate",
+    "terminate",
+    "run",
+    "setActivationPolicy",
+  ],
+  NSImage: [
+    "name",
+    "size",
+    "isTemplate",
+    "draw",
+    "lockFocus",
+    "unlockFocus",
+    "tiffRepresentation",
+  ],
+  NSScreen: [
+    "main",
+    "screens",
+    "frame",
+    "visibleFrame",
+    "backingScaleFactor",
+    "deviceDescription",
+    "safeAreaInsets",
+  ],
+  URL: [
+    "absoluteString",
+    "path",
+    "lastPathComponent",
+    "pathExtension",
+    "scheme",
+    "host",
+    "port",
+    "query",
+    "fragment",
+    "appendingPathComponent",
+    "appendingPathExtension",
+    "deletingLastPathComponent",
+    "deletingPathExtension",
+    "standardized",
+    "standardizedFileURL",
+    "isFileURL",
+    "absoluteURL",
+    "baseURL",
+    "pathComponents",
+    "relativePath",
+  ],
+  URLRequest: [
+    "url",
+    "httpMethod",
+    "httpBody",
+    "allHTTPHeaderFields",
+    "timeoutInterval",
+    "cachePolicy",
+    "setValue",
+    "addValue",
+  ],
+  URLSession: [
+    "shared",
+    "data",
+    "dataTask",
+    "downloadTask",
+    "uploadTask",
+    "configuration",
+    "delegate",
+    "delegateQueue",
+  ],
+  Date: [
+    "timeIntervalSince1970",
+    "timeIntervalSinceNow",
+    "timeIntervalSinceReferenceDate",
+    "addingTimeInterval",
+    "advanced",
+    "distance",
+    "formatted",
+    "ISO8601Format",
+    "now",
+    "distantPast",
+    "distantFuture",
+  ],
+  FileManager: [
+    "default",
+    "urls",
+    "url",
+    "fileExists",
+    "createDirectory",
+    "createFile",
+    "removeItem",
+    "moveItem",
+    "copyItem",
+    "contentsOfDirectory",
+    "attributesOfItem",
+    "homeDirectoryForCurrentUser",
+    "temporaryDirectory",
+  ],
+  Bundle: [
+    "main",
+    "bundleIdentifier",
+    "bundleURL",
+    "bundlePath",
+    "infoDictionary",
+    "url",
+    "path",
+    "loadNibNamed",
+    "object",
+  ],
+  ProcessInfo: [
+    "processInfo",
+    "environment",
+    "arguments",
+    "operatingSystemVersion",
+    "isMacCatalystApp",
+    "thermalState",
+    "isLowPowerModeEnabled",
+    "hostName",
+    "physicalMemory",
+  ],
+  UserDefaults: [
+    "standard",
+    "object",
+    "string",
+    "integer",
+    "double",
+    "bool",
+    "url",
+    "array",
+    "dictionary",
+    "data",
+    "set",
+    "register",
+    "removeObject",
+    "synchronize",
+  ],
+  NotificationCenter: ["default", "post", "addObserver", "removeObserver", "publisher"],
+  Notification: ["name", "object", "userInfo"],
+  EnvironmentValues: [
+    "colorScheme",
+    "horizontalSizeClass",
+    "verticalSizeClass",
+    "dismiss",
+    "openURL",
+    "scenePhase",
+    "controlSize",
+    "isEnabled",
+    "locale",
+    "timeZone",
+    "calendar",
+    "displayScale",
+    "pixelLength",
+    "redactionReasons",
+    "openWindow",
+    "supportsMultipleWindows",
+  ],
+  GeometryProxy: ["size", "safeAreaInsets", "frame"],
+  ScrollViewProxy: ["scrollTo"],
+  ScrollViewReader: ["body"],
+  PreviewProvider: ["previews"],
+  ScrollGeometry: [
+    "contentOffset",
+    "contentSize",
+    "containerSize",
+    "contentInsets",
+    "visibleRect",
+    "bounds",
+  ],
+  ScrollPhase: ["idle", "tracking", "interacting", "decelerating", "animating"],
+  Animation: [
+    "default",
+    "linear",
+    "easeIn",
+    "easeOut",
+    "easeInOut",
+    "spring",
+    "interpolatingSpring",
+    "interactiveSpring",
+    "smooth",
+    "snappy",
+    "bouncy",
+    "speed",
+    "delay",
+    "repeatForever",
+    "repeatCount",
+  ],
+  Color: [
+    "primary",
+    "secondary",
+    "accentColor",
+    "clear",
+    "black",
+    "white",
+    "gray",
+    "red",
+    "green",
+    "blue",
+    "orange",
+    "yellow",
+    "pink",
+    "purple",
+    "brown",
+    "cyan",
+    "indigo",
+    "mint",
+    "teal",
+    "opacity",
+    "blended",
+    "gradient",
+  ],
+  Image: [
+    "resizable",
+    "renderingMode",
+    "interpolation",
+    "antialiased",
+    "symbolRenderingMode",
+    "imageScale",
+    "system",
+  ],
+  Text: ["font", "foregroundStyle", "lineLimit", "multilineTextAlignment"],
+  Bindable: ["wrappedValue", "projectedValue"],
+  Binding: ["wrappedValue", "projectedValue", "constant", "animation"],
+  AnyView: ["body"],
+  EmptyView: ["body"],
+};
 
 function collectDeclaredMemberNames(typeBody: string): Set<string> {
   const members = new Set<string>();
@@ -1212,4 +1585,670 @@ function humanizeIdentifier(name: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/^./, (char) => char.toUpperCase());
+}
+
+// ─── Rule: AX780 — Top-level symbol redeclaration across files ──────
+
+function checkTopLevelSymbolRedeclaration(inputs: SwiftValidationInput[]): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const firstSeen = new Map<
+    string,
+    { file: string; line: number; kind: SwiftDeclaration["kind"] }
+  >();
+
+  for (const input of inputs) {
+    const stripped = stripCommentsAndStrings(input.source);
+    const decls = findTypeDeclarations(stripped, input.source);
+    const topLevel = decls.filter((decl) => isTopLevelDeclaration(decl, decls));
+
+    for (const decl of topLevel) {
+      // Extensions are allowed to repeat across files; that's how Swift
+      // spreads conformances. Same with generic parameter clauses — the
+      // parser strips those before reaching the name.
+      if (decl.kind === "extension") continue;
+      if (declarationIsFileScoped(decl)) continue;
+
+      const baseName = baseSwiftTypeName(decl.name);
+      if (!baseName) continue;
+
+      const previous = firstSeen.get(baseName);
+      if (!previous) {
+        firstSeen.set(baseName, {
+          file: input.file,
+          line: decl.startLine,
+          kind: decl.kind,
+        });
+        continue;
+      }
+
+      diagnostics.push(
+        makeDiagnostic("AX780", input.file, decl.startLine, {
+          message: `Top-level ${decl.kind} '${baseName}' is also declared at ${previous.file}:${previous.line} as ${previous.kind}`,
+          suggestion:
+            "Rename one declaration, move it into a namespace, or merge them. Two top-level types with the same name in the same module produce an `invalid redeclaration` build error and ambiguous initializers.",
+        })
+      );
+    }
+  }
+
+  return diagnostics;
+}
+
+function isTopLevelDeclaration(decl: SwiftDeclaration, all: SwiftDeclaration[]): boolean {
+  for (const other of all) {
+    if (other === decl) continue;
+    if (decl.bodyStart > other.bodyStart && decl.bodyEnd < other.bodyEnd) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function declarationIsFileScoped(decl: SwiftDeclaration): boolean {
+  return decl.attributes.some((attr) => attr === "private" || attr === "fileprivate");
+}
+
+// ─── Rule: AX781 — Optional value passed to non-optional parameter ──
+
+interface FunctionSignature {
+  name: string;
+  file: string;
+  line: number;
+  parameters: FunctionParameter[];
+}
+
+interface FunctionParameter {
+  externalLabel: string | null;
+  internalName: string;
+  typeText: string;
+  isOptional: boolean;
+}
+
+function checkCrossFileOptionalArgMismatch(inputs: SwiftValidationInput[]): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const reported = new Set<string>();
+
+  // Build a project-wide index of optional fields declared on indexed types,
+  // and a project-wide index of free-function signatures.
+  const optionalFields = collectOptionalFields(inputs);
+  const functions = collectModuleFunctions(inputs);
+  if (optionalFields.size === 0 || functions.length === 0) return diagnostics;
+
+  const functionsByName = new Map<string, FunctionSignature[]>();
+  for (const fn of functions) {
+    const existing = functionsByName.get(fn.name);
+    if (existing) existing.push(fn);
+    else functionsByName.set(fn.name, [fn]);
+  }
+
+  for (const input of inputs) {
+    const stripped = stripCommentsAndStrings(input.source);
+    const bindings = collectTypedBindingsForOptionalCheck(stripped, optionalFields);
+
+    const callPattern = /\b([a-z_][A-Za-z0-9_]*)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = callPattern.exec(stripped)) !== null) {
+      const fnName = match[1]!;
+      const argsText = match[2] ?? "";
+      const candidates = functionsByName.get(fnName);
+      if (!candidates) continue;
+
+      for (const fn of candidates) {
+        // Skip self-call inside the declaring file at the declaration site itself.
+        if (
+          fn.file === input.file &&
+          fn.line === 1 + countNewlinesUpTo(input.source, match.index)
+        ) {
+          continue;
+        }
+
+        const args = splitTopLevelArgs(argsText);
+        for (let i = 0; i < args.length && i < fn.parameters.length; i++) {
+          const param = fn.parameters[i]!;
+          if (param.isOptional) continue;
+
+          const argExpr = stripArgumentLabel(args[i]!, param.externalLabel);
+          const optionalArg = expressionResolvesToOptional(
+            argExpr,
+            bindings,
+            optionalFields
+          );
+          if (!optionalArg) continue;
+
+          const callLine = 1 + countNewlinesUpTo(input.source, match.index);
+          const key = `${input.file}:${callLine}:${fn.name}:${i}`;
+          if (reported.has(key)) continue;
+          reported.add(key);
+
+          diagnostics.push(
+            makeDiagnostic("AX781", input.file, callLine, {
+              message: `'${fn.name}' expects '${param.typeText}' for parameter '${param.externalLabel ?? param.internalName}', but '${optionalArg.expression}' is '${optionalArg.optionalType}?' (declared at ${optionalArg.declaredAt})`,
+              suggestion:
+                "Unwrap with `if let` / `guard let`, supply a default with `??`, or change the parameter to accept the optional. Static validation can't unwrap across files automatically.",
+            })
+          );
+        }
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
+function collectOptionalFields(
+  inputs: SwiftValidationInput[]
+): Map<string, Map<string, { typeText: string; declaredAt: string }>> {
+  const index = new Map<string, Map<string, { typeText: string; declaredAt: string }>>();
+  for (const input of inputs) {
+    const stripped = stripCommentsAndStrings(input.source);
+    const decls = findTypeDeclarations(stripped, input.source);
+    for (const decl of decls) {
+      const baseName = baseSwiftTypeName(decl.name);
+      if (!baseName) continue;
+      const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+      const fieldPattern =
+        /\b(?:public|internal|private|fileprivate|open)?\s*(?:static\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_.<>\s,]*)\??/g;
+      const optionalPattern =
+        /\b(?:public|internal|private|fileprivate|open)?\s*(?:static\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_.<>\s,]*)\?/g;
+      let optMatch: RegExpExecArray | null;
+      while ((optMatch = optionalPattern.exec(body)) !== null) {
+        const fieldName = optMatch[1]!;
+        const typeText = (optMatch[2] ?? "").trim();
+        const offsetInSource = decl.bodyStart + optMatch.index;
+        const line = 1 + countNewlinesUpTo(input.source, offsetInSource);
+        const fields = index.get(baseName) ?? new Map();
+        fields.set(fieldName, {
+          typeText,
+          declaredAt: `${input.file}:${line}`,
+        });
+        index.set(baseName, fields);
+      }
+      // Suppress unused-variable warning for fieldPattern — the pattern is
+      // documented above as the broad-field shape; the optional pattern is
+      // its strict variant.
+      void fieldPattern;
+    }
+  }
+  return index;
+}
+
+function collectModuleFunctions(inputs: SwiftValidationInput[]): FunctionSignature[] {
+  const functions: FunctionSignature[] = [];
+  for (const input of inputs) {
+    const stripped = stripCommentsAndStrings(input.source);
+    const decls = findTypeDeclarations(stripped, input.source);
+    const funcPattern =
+      /\b(?:private\s+|fileprivate\s+|public\s+|internal\s+|static\s+|class\s+)*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(([^)]*)\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = funcPattern.exec(stripped)) !== null) {
+      // Skip private/fileprivate functions — calling those across files
+      // doesn't compile, so the rule wouldn't fire anyway.
+      const prefix = stripped.slice(Math.max(0, match.index - 60), match.index);
+      if (/\b(?:private|fileprivate)\b\s*$/.test(prefix)) continue;
+
+      const enclosing = decls.find(
+        (d) => match!.index > d.bodyStart && match!.index < d.bodyEnd
+      );
+      // Treat methods on a type the same as free functions for argument
+      // checking — the param types are still cross-file resolvable.
+      void enclosing;
+
+      const name = match[1]!;
+      const paramsText = match[2] ?? "";
+      const parameters = parseParameterList(paramsText);
+      if (parameters.length === 0) continue;
+
+      functions.push({
+        name,
+        file: input.file,
+        line: 1 + countNewlinesUpTo(input.source, match.index),
+        parameters,
+      });
+    }
+  }
+  return functions;
+}
+
+function parseParameterList(text: string): FunctionParameter[] {
+  const params: FunctionParameter[] = [];
+  for (const raw of splitTopLevelArgs(text)) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    // Match `external internal: Type` or `name: Type`.
+    const m = trimmed.match(
+      /^(?:([A-Za-z_][A-Za-z0-9_]*)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^=]+?)(?:\s*=\s*[^,]+)?$/
+    );
+    if (!m) continue;
+    const externalLabel = m[1] ?? m[2]!;
+    const internalName = m[2]!;
+    const typeText = (m[3] ?? "").trim();
+    if (!typeText) continue;
+    const isOptional = /\?\s*$/.test(typeText) || /^Optional</.test(typeText);
+    params.push({
+      externalLabel: externalLabel === "_" ? null : externalLabel,
+      internalName,
+      typeText: typeText.replace(/\s+/g, " "),
+      isOptional,
+    });
+  }
+  return params;
+}
+
+function splitTopLevelArgs(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "(" || ch === "[" || ch === "<") depth++;
+    else if (ch === ")" || ch === "]" || ch === ">") depth--;
+    else if (ch === "," && depth === 0) {
+      parts.push(text.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
+function stripArgumentLabel(arg: string, label: string | null): string {
+  const trimmed = arg.trim();
+  if (label === null) return trimmed;
+  const labelMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/s);
+  if (labelMatch && labelMatch[1] === label) return labelMatch[2]!.trim();
+  return trimmed;
+}
+
+function collectTypedBindingsForOptionalCheck(
+  stripped: string,
+  optionalFields: Map<string, Map<string, unknown>>
+): Map<string, string> {
+  const bindings = new Map<string, string>();
+  const explicit =
+    /\b(?:let|var)\s+([a-z_][A-Za-z0-9_]*)\s*:\s*([A-Z][A-Za-z0-9_.]*)\??/g;
+  let match: RegExpExecArray | null;
+  while ((match = explicit.exec(stripped)) !== null) {
+    const typeName = baseSwiftTypeName(match[2] ?? "");
+    if (typeName && optionalFields.has(typeName)) bindings.set(match[1]!, typeName);
+  }
+
+  const params = /\bfunc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(([^)]*)\)/g;
+  let pmatch: RegExpExecArray | null;
+  while ((pmatch = params.exec(stripped)) !== null) {
+    for (const raw of splitTopLevelArgs(pmatch[1]!)) {
+      const m = raw.match(
+        /\b(?:[A-Za-z_][A-Za-z0-9_]*\s+)?([a-z_][A-Za-z0-9_]*)\s*:\s*([A-Z][A-Za-z0-9_.]*)\??/
+      );
+      if (!m) continue;
+      const typeName = baseSwiftTypeName(m[2] ?? "");
+      if (typeName && optionalFields.has(typeName)) bindings.set(m[1]!, typeName);
+    }
+  }
+  return bindings;
+}
+
+function expressionResolvesToOptional(
+  expr: string,
+  bindings: Map<string, string>,
+  optionalFields: Map<string, Map<string, { typeText: string; declaredAt: string }>>
+): { expression: string; optionalType: string; declaredAt: string } | null {
+  const cleaned = expr.trim();
+  if (!cleaned) return null;
+  // Pure member access chain `obj.field` — resolve through the bindings.
+  const memberMatch = cleaned.match(
+    /^([a-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*$/
+  );
+  if (!memberMatch) return null;
+  const objectName = memberMatch[1]!;
+  const memberName = memberMatch[2]!;
+  const typeName = bindings.get(objectName);
+  if (!typeName) return null;
+  const fields = optionalFields.get(typeName);
+  if (!fields) return null;
+  const field = fields.get(memberName);
+  if (!field) return null;
+  return {
+    expression: cleaned,
+    optionalType: field.typeText.replace(/\?\s*$/, ""),
+    declaredAt: field.declaredAt,
+  };
+}
+
+// ─── Rule: AX782 — Dense View body without an affordance ────────────
+
+function checkDenseViewWithoutAffordance(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const decls = findTypeDeclarations(stripped, source);
+  for (const decl of decls) {
+    if (decl.kind !== "struct") continue;
+    if (!hasConformance(decl, "View")) continue;
+
+    const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+    const bodyMatch = body.match(/\bvar\s+body\s*:\s*some\s+View\s*\{/);
+    if (!bodyMatch) continue;
+
+    const bodyOpen = body.indexOf("{", bodyMatch.index! + bodyMatch[0].length - 1);
+    const bodyClose = findMatchingBrace(body, bodyOpen);
+    if (bodyOpen === -1 || bodyClose === -1) continue;
+
+    const bodyContent = body.slice(bodyOpen + 1, bodyClose);
+    const denseScroll = findDenseScrollView(bodyContent);
+    if (!denseScroll) continue;
+
+    if (hasScopingAffordance(bodyContent, denseScroll.start, denseScroll.end)) continue;
+
+    const offsetInSource = decl.bodyStart + bodyOpen + 1 + denseScroll.start;
+    diagnostics.push(
+      makeDiagnostic("AX782", file, 1 + countNewlinesUpTo(source, offsetInSource), {
+        message: `View '${decl.name}' stacks ${denseScroll.childCount} top-level sections in a ScrollView with no segmented control, disclosure group, or tab to scope what's visible`,
+        suggestion:
+          "Add a segmented Picker, DisclosureGroup, TabView, or a `.tabItem` so the surface presents one focused area at a time. First-paint density above ~6 sections tends to feel overwhelming.",
+      })
+    );
+  }
+}
+
+function findDenseScrollView(
+  bodyContent: string
+): { start: number; end: number; childCount: number } | null {
+  const scrollPattern = /\bScrollView\s*(?:\([^)]*\))?\s*\{/g;
+  let match: RegExpExecArray | null;
+  while ((match = scrollPattern.exec(bodyContent)) !== null) {
+    const open = bodyContent.indexOf("{", match.index);
+    const close = findMatchingBrace(bodyContent, open);
+    if (open === -1 || close === -1) continue;
+
+    const inner = bodyContent.slice(open + 1, close);
+    const stackMatch = inner.match(/^\s*(?:VStack|LazyVStack)\s*(?:\([^)]*\))?\s*\{/);
+    if (!stackMatch) continue;
+
+    const stackOpen = inner.indexOf("{", stackMatch.index! + stackMatch[0].length - 1);
+    const stackClose = findMatchingBrace(inner, stackOpen);
+    if (stackOpen === -1 || stackClose === -1) continue;
+
+    const stackBody = inner.slice(stackOpen + 1, stackClose);
+    const childCount = countTopLevelChildren(stackBody);
+    if (childCount > 6) {
+      return {
+        start: match.index,
+        end: close,
+        childCount,
+      };
+    }
+  }
+  return null;
+}
+
+function countTopLevelChildren(stackBody: string): number {
+  let depth = 0;
+  let count = 0;
+  let onChild = false;
+  let parenDepth = 0;
+  for (let i = 0; i < stackBody.length; i++) {
+    const ch = stackBody[i];
+    if (ch === "(") parenDepth++;
+    else if (ch === ")") parenDepth--;
+    else if (ch === "{") {
+      if (depth === 0 && parenDepth === 0) onChild = true;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && parenDepth === 0) onChild = false;
+    } else if (depth === 0 && parenDepth === 0) {
+      if (ch === "\n") {
+        if (onChild) {
+          count++;
+          onChild = false;
+        }
+      } else if (!/\s/.test(ch)) {
+        if (!onChild) {
+          // First non-whitespace char on a new top-level line — treat as a
+          // new child expression.
+          onChild = true;
+        }
+      }
+    }
+  }
+  if (onChild) count++;
+  return count;
+}
+
+function hasScopingAffordance(
+  bodyContent: string,
+  scrollStart: number,
+  scrollEnd: number
+): boolean {
+  const scrollSlice = bodyContent.slice(scrollStart, scrollEnd + 1);
+  // Look for a Picker(.segmented), TabView, DisclosureGroup, or a top-level
+  // `if <state>` switch above or inside the scroll view.
+  if (/\bPicker\s*\([\s\S]*?pickerStyle\s*\(\s*\.segmented\s*\)/.test(bodyContent)) {
+    return true;
+  }
+  if (/\bDisclosureGroup\s*\(/.test(bodyContent)) return true;
+  if (/\bTabView\s*\{/.test(bodyContent)) return true;
+  if (/\.tabItem\s*\{/.test(bodyContent)) return true;
+  // A top-level `if <stateLikeName>` before or wrapping the ScrollView is
+  // also a scoping affordance.
+  const before = bodyContent.slice(0, scrollStart);
+  if (/\bif\s+[A-Za-z_][A-Za-z0-9_]*\s*\{[\s\S]*$/.test(before)) return true;
+  // Also accept an inline switch that gates which children render.
+  if (/\bswitch\s+[A-Za-z_][A-Za-z0-9_]*\s*\{/.test(scrollSlice)) return true;
+  return false;
+}
+
+// ─── Rule: AX787 — Reference to undeclared boolean identifier ────────
+//
+// Catches the cross-file or in-file pattern where a refactor deletes a
+// computed boolean property (e.g. `isAxintShowcase`) but leaves call
+// sites that still read it. Without this rule the reference compiles
+// "clean" through static validation and Cloud Check, then breaks at
+// `xcodebuild` with "Cannot find 'X' in scope". Scoped to the boolean
+// shape (is/has/should/can/did/will + UpperCamel) to keep false positives
+// low; that shape is the most common refactor leftover.
+
+const BOOLEAN_REF_PATTERN =
+  /(?<![.\w@])(is[A-Z][A-Za-z0-9_]*|has[A-Z][A-Za-z0-9_]*|should[A-Z][A-Za-z0-9_]*|can[A-Z][A-Za-z0-9_]*|did[A-Z][A-Za-z0-9_]*|will[A-Z][A-Za-z0-9_]*)\b(?!\s*:)/g;
+
+const SWIFT_BUILTIN_BOOLEAN_NAMES = new Set([
+  "isEmpty",
+  "isFinite",
+  "isInfinite",
+  "isNaN",
+  "isMultiple",
+  "isZero",
+  "hasPrefix",
+  "hasSuffix",
+  "isLess",
+  "isLessThan",
+  "isEqual",
+  "isStrictSubset",
+  "isStrictSuperset",
+  "isSubset",
+  "isSuperset",
+  "isDisjoint",
+  "isContiguousUTF8",
+  "isASCII",
+  "isContiguous",
+  "isUniquelyReferenced",
+]);
+
+function checkUndefinedBooleanIdentifiers(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const declared = collectAllInFileIdentifiers(stripped);
+  const reported = new Set<string>();
+
+  let match: RegExpExecArray | null;
+  while ((match = BOOLEAN_REF_PATTERN.exec(stripped)) !== null) {
+    const name = match[1]!;
+    if (SWIFT_BUILTIN_BOOLEAN_NAMES.has(name)) continue;
+    if (declared.has(name)) continue;
+
+    // Only flag when the identifier appears in a position where it must
+    // resolve to something — guard/if/return/ternary/&&/|| context. This
+    // filters out string interpolation labels, comments stripped earlier,
+    // and named-argument labels that the regex accidentally caught.
+    if (!isExpressionPosition(stripped, match.index)) continue;
+
+    const key = `${name}:${match.index}`;
+    if (reported.has(key)) continue;
+    reported.add(key);
+
+    diagnostics.push(
+      makeDiagnostic("AX787", file, 1 + countNewlinesUpTo(source, match.index), {
+        message: `Reference to '${name}' but no declaration is in scope. If a recent refactor deleted '${name}', remove or update this call site — Xcode will fail with 'Cannot find ${name} in scope'.`,
+        suggestion:
+          "Either restore the property/method, or replace the reference with the new shape introduced by the refactor (often a switch over an enum). Check the diff for recently deleted computed properties matching this name.",
+      })
+    );
+  }
+}
+
+function collectAllInFileIdentifiers(stripped: string): Set<string> {
+  const names = new Set<string>();
+  const patterns = [
+    // let / var declarations (any access modifier, with or without type)
+    /\b(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
+    // func declarations
+    /\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)\s*[(<]/g,
+    // function parameter internal names (after the first label)
+    /\bfunc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(([^)]*)\)/g,
+    // case labels (enum cases, switch case let bindings)
+    /\bcase\s+(?:let\s+|var\s+)?([A-Za-z_][A-Za-z0-9_]*)\b/g,
+    // closure parameter `{ name in` and `{ (name, x) in`
+    /\{\s*([A-Za-z_][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z_][A-Za-z0-9_]*)*)\s+in\b/g,
+    // if let / guard let / if var / guard var bindings
+    /\b(?:if|guard|while)\s+(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
+    // type names — struct/class/enum/protocol/typealias/extension
+    /\b(?:struct|class|enum|protocol|actor|typealias)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(stripped)) !== null) {
+      const captured = match[1] ?? "";
+      // Function parameter list — split on commas and pick the internal name
+      // (the one after an optional external label).
+      if (captured.includes(":")) {
+        for (const raw of captured.split(",")) {
+          const m = raw
+            .trim()
+            .match(/^(?:[A-Za-z_][A-Za-z0-9_]*\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+          if (m) names.add(m[1]!);
+        }
+      } else if (captured.includes(",")) {
+        // Closure tuple parameter list `{ a, b in`
+        for (const raw of captured.split(",")) {
+          const trimmed = raw.trim();
+          if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) names.add(trimmed);
+        }
+      } else if (captured) {
+        names.add(captured);
+      }
+    }
+  }
+  return names;
+}
+
+function isExpressionPosition(stripped: string, refIndex: number): boolean {
+  // The BOOLEAN_REF_PATTERN's `(?!\s*:)` lookahead already excludes the
+  // argument-label case (`foo(isEnabled: true)`), so any match here is in
+  // an expression position by definition. We keep the function for two
+  // narrow rejections that the lookahead can't catch:
+  //   1. dictionary keys: `["isFoo": ...]` — the colon is far away.
+  //   2. attribute argument values: `@Annotation(isFoo)` — too rare to handle.
+  // Otherwise default to true so the rule actually fires; the boolean
+  // shape filter keeps the surface narrow.
+  const start = Math.max(0, refIndex - 24);
+  const slice = stripped.slice(start, refIndex);
+  // Reject dictionary key context: `[` followed by quoted shape and a
+  // colon is a key, not a reference.
+  if (/\[\s*$/.test(slice)) return false;
+  return true;
+}
+
+// ─── Rule: AX788 — HStack child collapses siblings via maxWidth: .infinity ─
+//
+// SwiftUI's native Divider auto-orients (vertical inside HStack, horizontal
+// inside VStack). Custom "divider" or "rule" Views that always chain
+// .frame(maxWidth: .infinity) read fine in a VStack but eat all sibling
+// horizontal space inside an HStack — the catastrophic failure mode that
+// broke SWARM's bulk Divider→SwarmGradientDivider sweep.
+//
+// We detect any View struct whose body chains frame(maxWidth: .infinity)
+// without a corresponding fixed-width frame, then look across the input
+// set for HStack {} blocks that instantiate that view as a child.
+
+function checkHStackCollapsesInfinityChild(inputs: SwiftValidationInput[]): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const dangerousViews = collectInfinityWidthViews(inputs);
+  if (dangerousViews.size === 0) return diagnostics;
+
+  for (const input of inputs) {
+    const stripped = stripCommentsAndStrings(input.source);
+    const hstackRe = /\bHStack\s*(?:<[^>]*>)?\s*(?:\([^)]*\))?\s*\{/g;
+    let match: RegExpExecArray | null;
+    while ((match = hstackRe.exec(stripped)) !== null) {
+      const open = stripped.indexOf("{", match.index);
+      const close = findMatchingBrace(stripped, open);
+      if (open === -1 || close === -1) continue;
+      const body = stripped.slice(open + 1, close);
+
+      for (const viewName of dangerousViews) {
+        const usageRe = new RegExp(`\\b${escapeRegex(viewName)}\\s*\\(`, "g");
+        let usage: RegExpExecArray | null;
+        while ((usage = usageRe.exec(body)) !== null) {
+          // Skip if this exact call has a downstream .frame(width:) or
+          // .frame(maxWidth: <number>) override that re-bounds it.
+          const tail = body.slice(usage.index, usage.index + 240);
+          if (/\.frame\s*\(\s*(?:width|maxWidth)\s*:\s*[0-9]/.test(tail)) continue;
+          if (/\.fixedSize\s*\(/.test(tail)) continue;
+
+          const offsetInSource = open + 1 + usage.index;
+          diagnostics.push(
+            makeDiagnostic(
+              "AX788",
+              input.file,
+              1 + countNewlinesUpTo(input.source, offsetInSource),
+              {
+                message: `'${viewName}' inside HStack will eat all available horizontal space — its body chains .frame(maxWidth: .infinity), which inside HStack collapses sibling views to their intrinsic width.`,
+                suggestion:
+                  "Either give '" +
+                  viewName +
+                  "' a fixed width in this call site (.frame(width: X)), or auto-orient the View itself by reading the parent stack's axis. Native Divider() handles this correctly via its built-in Layout shape.",
+              }
+            )
+          );
+        }
+      }
+    }
+  }
+  return diagnostics;
+}
+
+function collectInfinityWidthViews(inputs: SwiftValidationInput[]): Set<string> {
+  const views = new Set<string>();
+  for (const input of inputs) {
+    const stripped = stripCommentsAndStrings(input.source);
+    const decls = findTypeDeclarations(stripped, input.source);
+    for (const decl of decls) {
+      if (decl.kind !== "struct") continue;
+      if (!hasConformance(decl, "View")) continue;
+      const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+      const hasInfinityWidth = /\.frame\s*\(\s*maxWidth\s*:\s*\.infinity\b/.test(body);
+      if (!hasInfinityWidth) continue;
+      // Skip if the view also clamps with a fixed width somewhere — those
+      // are intentional (e.g. flexible container with a hard cap).
+      if (/\.frame\s*\(\s*(?:width|maxWidth)\s*:\s*[0-9]/.test(body)) continue;
+      views.add(decl.name);
+    }
+  }
+  return views;
 }
