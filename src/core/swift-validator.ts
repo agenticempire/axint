@@ -2929,7 +2929,12 @@ function checkProjectIndexNestedTypeAccess(
       if (reported.has(key)) continue;
       reported.add(key);
 
-      const suggestion = suggestSimilarMember(accessedName, members);
+      // For type-on-type access we want nested-type-shaped candidates
+      // (uppercase-first) to win over a same-name stored property
+      // (lowercase-first). `IntelBriefItem.Kind` should suggest `IntelKind`,
+      // not the `kind: IntelKind` stored property — the agent is clearly
+      // looking up a nested type, and a property name is the wrong fix.
+      const suggestion = suggestSimilarMemberWithCasePreference(accessedName, members);
 
       diagnostics.push(
         makeDiagnostic(
@@ -3044,6 +3049,50 @@ function suggestSimilarMember(needle: string, haystack: Set<string>): string | n
     if (!best || distance < best.distance) best = { name: candidate, distance };
   }
   return best ? best.name : null;
+}
+
+/**
+ * Like {@link suggestSimilarMember} but biased toward case-shape parity
+ * with the needle, with a substring-of-candidate preference layered on
+ * top. Used by AX848 for type-on-type access where the user typed a
+ * capitalized member and the candidate set contains both nested types
+ * (uppercase-first) and stored properties (lowercase-first).
+ *
+ * Ranking, in order:
+ *   1. Candidates that share the needle's case shape AND contain the
+ *      needle as a substring (e.g. needle "Kind" → candidate "IntelKind").
+ *   2. Other candidates that share the needle's case shape, ranked by
+ *      Levenshtein.
+ *   3. Fall back to standard Levenshtein over the full candidate set if
+ *      no case-shape-matching candidate clears the threshold.
+ */
+function suggestSimilarMemberWithCasePreference(
+  needle: string,
+  haystack: Set<string>
+): string | null {
+  const needleStartsUpper = /^[A-Z]/.test(needle);
+  const sameCase: string[] = [];
+  for (const candidate of haystack) {
+    const candidateStartsUpper = /^[A-Z]/.test(candidate);
+    if (candidateStartsUpper === needleStartsUpper) sameCase.push(candidate);
+  }
+
+  // First pass: substring match on a same-case candidate. This is the
+  // common shape for renamed nested types where the full name embeds
+  // the original (Kind → IntelKind, Result → ResultV2).
+  for (const candidate of sameCase) {
+    if (candidate.includes(needle) || needle.includes(candidate)) return candidate;
+  }
+
+  // Second pass: Levenshtein over same-case candidates only.
+  if (sameCase.length > 0) {
+    const sameCaseSet = new Set(sameCase);
+    const sameCaseHit = suggestSimilarMember(needle, sameCaseSet);
+    if (sameCaseHit) return sameCaseHit;
+  }
+
+  // Final fallback: full set, original behavior.
+  return suggestSimilarMember(needle, haystack);
 }
 
 function levenshtein(a: string, b: string): number {
