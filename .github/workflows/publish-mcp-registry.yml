@@ -100,15 +100,37 @@ jobs:
       - name: Publish server.json
         run: |
           set -euo pipefail
-          if output=$(./mcp-publisher publish 2>&1); then
+          # Retry publish up to 8 times (≈ 8 min total) because mcp-publisher
+          # does its own PyPI / npm lookup against an endpoint that often
+          # lags behind the JSON APIs our pre-check uses. Without a retry
+          # loop, registries that are still propagating return 404 inside
+          # mcp-publisher even though we already saw them as visible.
+          # 'duplicate version' is treated as success (idempotent reruns).
+          MAX_ATTEMPTS=8
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            if output=$(./mcp-publisher publish 2>&1); then
+              echo "$output"
+              exit 0
+            fi
+
             echo "$output"
-            exit 0
-          fi
 
-          echo "$output"
-          if grep -qi "duplicate version" <<<"$output"; then
-            echo "::notice::This server.json version is already published in the official MCP Registry."
-            exit 0
-          fi
+            if grep -qi "duplicate version" <<<"$output"; then
+              echo "::notice::This server.json version is already published in the official MCP Registry."
+              exit 0
+            fi
 
+            # Only retry on registry-propagation 404s. Anything else is a
+            # real error we shouldn't keep hammering.
+            if ! grep -qiE "not found.*404|status: 404" <<<"$output"; then
+              exit 1
+            fi
+
+            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+              echo "::notice::Registry propagation 404 on attempt ${attempt}/${MAX_ATTEMPTS}; sleeping 60s and retrying."
+              sleep 60
+            fi
+          done
+
+          echo "::error::mcp-publisher kept seeing 404 after ${MAX_ATTEMPTS} attempts. The package was visible to our pre-check but the upstream MCP registry validator never caught up."
           exit 1
