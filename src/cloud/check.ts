@@ -4,6 +4,16 @@ import { fileURLToPath } from "node:url";
 import { compileAnySource } from "../core/compiler.js";
 import { validateSwiftSource } from "../core/swift-validator.js";
 import { runSwiftTypecheck } from "./swift-typecheck.js";
+import {
+  filterDiagnosticsToDiff,
+  loadChangedLines,
+  type ChangedLines,
+} from "./diff-filter.js";
+import {
+  findSnapshotAffinity,
+  renderSnapshotAffinityHint,
+  type SnapshotAffinityResult,
+} from "./snapshot-affinity.js";
 import type { CompilerOutput, Diagnostic } from "../core/types.js";
 import {
   buildProjectContextHint,
@@ -72,6 +82,29 @@ export interface CloudCheckInput {
    * Defaults to the directory containing sourcePath, then process.cwd().
    */
   typecheckProjectRoot?: string;
+  /**
+   * If true, only report diagnostics on lines this branch actually
+   * changed. Pre-existing warnings stay silent. Closes the noise problem
+   * documented in the 2026-05-03 dogfooding entry where ambient warnings
+   * on unchanged lines made the warning count meaningless.
+   */
+  diffOnly?: boolean;
+  /**
+   * Base ref to diff against when `diffOnly` is set. Defaults to the
+   * working tree (uncommitted + staged changes against HEAD).
+   */
+  diffBaseRef?: string;
+  /**
+   * Working directory used to run `git diff`. Defaults to the directory
+   * containing `sourcePath` walking upward to the repo root, then `cwd()`.
+   */
+  diffCwd?: string;
+  /**
+   * If true (default when sourcePath is provided), append a one-line
+   * snapshot-baseline reminder to the report when matching baselines exist
+   * on disk. Set to false to suppress.
+   */
+  snapshotAffinity?: boolean;
 }
 
 export interface CloudCheckReport {
@@ -119,6 +152,19 @@ export interface CloudCheckReport {
     diagnosticsAdded: number;
     timedOut: boolean;
     unavailableReason?: string;
+  };
+  diffFilter?: {
+    applied: boolean;
+    baseRef?: string;
+    suppressedDiagnostics: number;
+    changedFileCount: number;
+    unavailableReason?: string;
+  };
+  snapshotAffinity?: {
+    viewName: string;
+    baselineCount: number;
+    baselinePaths: string[];
+    hint: string;
   };
   checks: Array<{
     label: string;
@@ -294,6 +340,75 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     }
   }
 
+  // Optional: filter diagnostics down to lines this branch actually
+  // touched. Closes the noise problem from 2026-05-03 dogfooding where
+  // ambient warnings on unchanged lines made the warning count meaningless.
+  let diffFilterMeta:
+    | {
+        applied: boolean;
+        baseRef?: string;
+        suppressedDiagnostics: number;
+        changedFileCount: number;
+        unavailableReason?: string;
+      }
+    | undefined;
+  if (input.diffOnly) {
+    const cwd = input.diffCwd ?? deriveDiffCwd(input.sourcePath);
+    const changed: ChangedLines | null = loadChangedLines({
+      baseRef: input.diffBaseRef,
+      cwd,
+      files: input.sourcePath ? [input.sourcePath] : undefined,
+    });
+    if (!changed) {
+      diffFilterMeta = {
+        applied: false,
+        baseRef: input.diffBaseRef,
+        suppressedDiagnostics: 0,
+        changedFileCount: 0,
+        unavailableReason:
+          "git diff was unavailable in this directory — no filtering applied. Pass diffCwd to point at the repo root.",
+      };
+    } else {
+      const before = diagnostics.length;
+      const { kept, suppressed } = filterDiagnosticsToDiff(diagnostics, changed);
+      diagnostics = kept;
+      diffFilterMeta = {
+        applied: true,
+        baseRef: input.diffBaseRef,
+        suppressedDiagnostics: suppressed,
+        changedFileCount: changed.files.size,
+      };
+      void before;
+    }
+  }
+
+  // Snapshot-affinity hint. Default-on when sourcePath is provided so
+  // the agent gets the rebaseline reminder for free.
+  let snapshotAffinityMeta:
+    | {
+        viewName: string;
+        baselineCount: number;
+        baselinePaths: string[];
+        hint: string;
+      }
+    | undefined;
+  const snapshotEnabled = input.snapshotAffinity ?? Boolean(input.sourcePath);
+  if (snapshotEnabled && input.sourcePath && language === "swift") {
+    const affinity: SnapshotAffinityResult = findSnapshotAffinity({
+      swiftFile: input.sourcePath,
+      projectRoot: input.typecheckProjectRoot ?? input.projectContextPath,
+    });
+    const hint = renderSnapshotAffinityHint(affinity);
+    if (hint) {
+      snapshotAffinityMeta = {
+        viewName: affinity.viewName,
+        baselineCount: affinity.baselinePaths.length,
+        baselinePaths: affinity.baselinePaths,
+        hint,
+      };
+    }
+  }
+
   const errors = diagnostics.filter((d) => d.severity === "error").length;
   const warnings = diagnostics.filter((d) => d.severity === "warning").length;
   const infos = diagnostics.filter((d) => d.severity === "info").length;
@@ -414,6 +529,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     .filter((d) => d.severity !== "info")
     .slice(0, 4)
     .map((d) => d.suggestion || d.message);
+  if (snapshotAffinityMeta) nextSteps.push(snapshotAffinityMeta.hint);
   const repairPlan = buildCloudRepairPlan({
     diagnostics,
     runtimeCoverageRequired,
@@ -484,6 +600,8 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     coverage,
     evidence,
     typecheck: typecheckMeta.ran ? typecheckMeta : undefined,
+    diffFilter: diffFilterMeta,
+    snapshotAffinity: snapshotAffinityMeta,
     projectContext: projectContext
       ? {
           path: projectContext.path,
@@ -650,6 +768,24 @@ export function renderCloudCheckReport(
     );
   }
   return lines.join("\n");
+}
+
+/**
+ * Walk upward from a Swift source path to the nearest directory that
+ * contains a `.git` folder, falling back to the file's directory and
+ * finally `process.cwd()`. Used by `--diff-only` so callers don't have
+ * to hand-pass `diffCwd` for every check.
+ */
+function deriveDiffCwd(sourcePath?: string): string {
+  if (!sourcePath) return process.cwd();
+  let current = dirname(resolve(sourcePath));
+  for (let depth = 0; depth < 12; depth++) {
+    if (existsSync(resolve(current, ".git"))) return current;
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return dirname(resolve(sourcePath));
 }
 
 function readCloudCheckSource(input: CloudCheckInput): {

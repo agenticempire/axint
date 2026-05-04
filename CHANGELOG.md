@@ -6,6 +6,21 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.21] — 2026-05-03
+
+### Added — closes the recurring cross-file resolution gap (4 dogfooding misses across 2 sprints)
+
+- **`AX848` nested-type / static-member access on a project-indexed type** — fills the gap `AX841` deliberately leaves open. `AX841`'s receiver regex is anchored on lowercase-first identifiers (instance member access). When the receiver is itself a type literal — `IntelBriefItem.Kind`, `MyEnum.somethingMissing` — Swift is doing nested-type / static-member lookup, not instance-member lookup, and `AX841` skips it. `AX848` specifically catches the type-on-type form, only fires when the parent is project-indexed, and emits a "Did you mean…" hint via Levenshtein over the parent's nested types, static members, and enum cases. Resolves the FIFTH cross-file member-resolution miss documented in `AXINT_DOGFOODING.md` (2026-05-03 entry).
+- **`AX841` extended with typed-collection-element inference** — adds `ForEach(store.results) { item in … }` and `for item in store.results { … }` as binding sources. The validator now resolves `store` to its project-indexed type, looks up `results` to get `[VoiceCaptureResult]`, peels the array wrapper, and binds the closure parameter / loop variable to `VoiceCaptureResult` so downstream member access on it actually fires. Previously the closure parameter was indiscriminately added to `untypedClosureParameters` and silently skipped — closing the dogfooding `item.title` (real field is `headline`) miss.
+- **`axint cloud check --diff-only`** — new flag that filters diagnostics down to lines this branch actually touched. Pre-existing warnings on unchanged lines stay silent so the warning count means "things I broke" instead of "ambient project state." Walks `git diff --unified=0` and parses hunk headers; falls back to a no-op when git isn't usable. Companion flags `--diff-base <ref>` and `--diff-cwd <dir>` cover branch and submodule layouts. `CloudCheckReport.diffFilter` exposes the suppressed-diagnostic count.
+- **Snapshot-baseline affinity hint** — when the validated Swift file has matching `__Snapshots__/<view>*.png` baselines on disk, Cloud Check appends a one-line "this view has N snapshot baselines; rebaseline after the next build" reminder to `nextSteps`. Default-on when `sourcePath` is provided; opt out with `axint cloud check --no-snapshot-affinity`. `CloudCheckReport.snapshotAffinity` exposes the matching baseline paths.
+- **Drift-age stamp on `axint.workflow.check`** — every workflow.check call writes a tiny `.axint/session/last-workflow-check.json` stamp and reads the prior one to compute "minutes since last workflow.check." Surfaced in `checked` for normal runs and in `recommended` (with a `DRIFT` tag) when the gap exceeds the 10-minute checkpoint rule. `WorkflowCheckReport.driftAge` exposes the structured value.
+
+### Changed
+
+- `collectDeclaredMemberNames` now includes nested type names (`struct`/`class`/`actor`/`enum`/`typealias` declared inside the parent body), so `AX841` and `AX848` no longer false-positive on project types that legitimately namespace nested kinds.
+- `validateSwiftSources` member-access loop now honors a closure parameter's inferred type when present, instead of skipping every closure-bound identifier whether or not we managed to resolve it.
+
 ## [0.4.20] — 2026-05-03
 
 ### Added — three high-leverage moves from SWARM's strategic feedback

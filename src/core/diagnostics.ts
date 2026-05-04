@@ -834,6 +834,13 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
       "Method called on a type-erased SwiftUI protocol (AnyShape, AnyView, ...) that does not exist on the erased protocol surface",
     category: "swiftui-type-erasure",
   },
+  AX848: {
+    code: "AX848",
+    severity: "error",
+    message:
+      "Nested type or static member access on a project-indexed type that does not declare the accessed name (catches the IntelBriefItem.Kind class of cross-file miss that AX841 deliberately skips)",
+    category: "swift-cross-file-resolution",
+  },
   AX714: {
     code: "AX714",
     severity: "error",
