@@ -10,7 +10,7 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ### Added
 
-- **`create-axint-app` launchpad** — `axint create` plus the `create-axint-app` bin alias now generate a premium Apple-native starter with an App Intent source contract, agent prompts for Codex/Claude/Cursor, a SwiftUI companion view, first-run proof contract, demo script, and shareable local proof card.
+- **`create-axint-app` Day Agent launchpad** — `axint create` plus the `create-axint-app` bin alias now generate a premium Apple-native mini app with three App Intent source contracts, agent prompts for Codex/Claude/Cursor, a SwiftUI app shell, first-run proof contract, demo script, and interactive local proof preview.
 
 ## [0.4.22] — 2026-05-05
 
