@@ -5,6 +5,7 @@
  *
  *   axint init [dir]              Scaffold a new Axint project
  *   axint compile <file>          Compile TS intent → Swift App Intent
+ *   axint create [dir]            Create a premium Apple-native agent launchpad
  *   axint validate <file>         Validate a compiled intent
  *   axint validate-swift <path...> Validate existing Swift sources against Axint's build-time rules
  *   axint eject <file>            Eject intent to standalone Swift (no vendor lock-in)
@@ -61,6 +62,7 @@ import { fileURLToPath } from "node:url";
 import type { XcodeCheckOutput } from "./xcode-check.js";
 import type { XcodePacketKind, XcodePacketOutput } from "./xcode-packet.js";
 import { scaffoldProject } from "./scaffold.js";
+import { registerCreate } from "./create.js";
 import { registerCompile } from "./compile.js";
 import { registerValidate } from "./validate.js";
 import { registerValidateSwift } from "./validate-swift.js";
@@ -124,6 +126,13 @@ const INIT_AGENT_CHOICES = [
   "xcode",
 ] as const;
 const INIT_MCP_MODE_CHOICES = ["local", "remote"] as const;
+
+if (
+  basename(process.argv[1] ?? "") === "create-axint-app" &&
+  process.argv[2] !== "create"
+) {
+  process.argv.splice(2, 0, "create");
+}
 
 function parseChoice<T extends string>(
   label: string,
@@ -307,6 +316,7 @@ registerValidateSwift(program);
 registerEject(program);
 registerFormat(program);
 registerTemplates(program);
+registerCreate(program, VERSION);
 registerLogin(program);
 registerCloud(program);
 registerTokens(program);

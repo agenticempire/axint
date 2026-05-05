@@ -24,6 +24,7 @@
 <p align="center">
   <a href="https://axint.ai">Website</a> ·
   <a href="https://axint.ai/#playground">Playground</a> ·
+  <a href="#create-a-wow-starter">Create App</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#mcp-server">MCP Server</a> ·
   <a href="https://docs.axint.ai">Docs</a> ·
@@ -113,6 +114,29 @@ the same facts.
 ---
 
 ## Quick start
+
+### Create a wow starter
+
+If you want the fastest shareable proof path, start here:
+
+```bash
+npx -y -p @axint/compiler create-axint-app apple-calendar-agent
+cd apple-calendar-agent
+npm run proof
+open share/built-with-axint.html
+```
+
+This creates a premium Apple-native launchpad instead of a blank scaffold:
+
+- `intents/create-event.ts` is the App Intent source contract.
+- `.axint/agent-prompts/` gives Codex, Claude Code, and Cursor the exact proof loop.
+- `ios/Preview/CalendarCommandCenter.swift` gives the starter a polished SwiftUI companion view.
+- `.axint/run/latest.md` starts the durable proof trail.
+- `share/built-with-axint.html` gives you a screenshot-ready "Built with Axint" card.
+
+The point is not to fake a full app. The point is to show the real Axint loop:
+agent writes the Apple-native contract, Axint compiles it, validates it, and
+hands the agent a repair path when something breaks.
 
 ```bash
 npm install -g @axint/compiler
@@ -271,7 +295,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.22 · 34 MCP tools + 5 prompts · 204 diagnostic codes · 1302 tests · 5 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.23 · 34 MCP tools + 5 prompts · 204 diagnostic codes · 1305 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 

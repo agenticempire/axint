@@ -45,6 +45,9 @@ import {
   ListToolsRequestSchema,
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -371,6 +374,7 @@ type TokensIngestArgs = TokenIngestArgs & {
 };
 type ToolResult = {
   content: Array<{ type: string; text: string }>;
+  structuredContent?: Record<string, unknown>;
   isError?: boolean;
 };
 type ProjectPackArgs = {
@@ -390,15 +394,27 @@ type ContextMemoryArgs = {
 type ContextDocsArgs = ContextMemoryArgs;
 
 function diagnosticsText(text: string): ToolResult {
-  return {
+  return withStructuredText({
     content: [{ type: "text" as const, text }],
-  };
+  });
 }
 
 function errorText(text: string): ToolResult {
-  return {
+  return withStructuredText({
     content: [{ type: "text" as const, text }],
     isError: true,
+  });
+}
+
+function withStructuredText(result: ToolResult): ToolResult {
+  if (result.structuredContent) return result;
+  const text = result.content.find((block) => block.type === "text")?.text ?? "";
+  return {
+    ...result,
+    structuredContent: {
+      text,
+      isError: Boolean(result.isError),
+    },
   };
 }
 
@@ -1277,7 +1293,7 @@ function summarizeSuggestionDomains(
 export function createAxintServer(): Server {
   const server = new Server(
     { name: "axint", version: pkg.version },
-    { capabilities: { tools: {}, prompts: {} } }
+    { capabilities: { tools: {}, prompts: {}, resources: {} } }
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -1296,9 +1312,9 @@ export function createAxintServer(): Server {
     });
 
     try {
-      return await handleToolCall(name, args);
+      return withStructuredText(await handleToolCall(name, args));
     } catch (err: unknown) {
-      return {
+      return withStructuredText({
         content: [
           {
             type: "text" as const,
@@ -1306,7 +1322,7 @@ export function createAxintServer(): Server {
           },
         ],
         isError: true,
-      };
+      });
     }
   });
 
@@ -1318,6 +1334,18 @@ export function createAxintServer(): Server {
     const { name, arguments: args } = request.params;
     return getPromptMessages(name, args);
   });
+
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: [],
+  }));
+
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
+    resourceTemplates: [],
+  }));
+
+  server.setRequestHandler(ReadResourceRequestSchema, async () => ({
+    contents: [],
+  }));
 
   return server;
 }
