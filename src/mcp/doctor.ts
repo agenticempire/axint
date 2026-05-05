@@ -139,6 +139,15 @@ function versionCheck(
     };
   }
   const matches = runningVersion === expectedVersion;
+  const ordering = compareSemver(runningVersion, expectedVersion);
+  if (!matches && ordering > 0) {
+    return {
+      label: "Axint version",
+      status: "warn",
+      detail: `running ${runningVersion}, expected ${expectedVersion}`,
+      fix: "Running Axint is newer than the project hint. Update the project/session expected version if this was intentional, or pin exact versions only when strict compatibility is required.",
+    };
+  }
   return {
     label: "Axint version",
     status: matches ? "ok" : "fail",
@@ -147,6 +156,23 @@ function versionCheck(
       ? undefined
       : "Run axint upgrade --apply, then reload or reconnect the Axint MCP server/tool process.",
   };
+}
+
+function compareSemver(left: string, right: string): number {
+  const leftParts = parseSemver(left);
+  const rightParts = parseSemver(right);
+  if (!leftParts || !rightParts) return 0;
+  for (let index = 0; index < 3; index += 1) {
+    const diff = leftParts[index] - rightParts[index];
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function parseSemver(value: string): [number, number, number] | undefined {
+  const match = value.trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return undefined;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
 function nodeCheck(): MachineDoctorCheck {

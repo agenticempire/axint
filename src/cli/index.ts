@@ -22,6 +22,7 @@
  *   axint agent advice            Ask the local brain for host-specific next moves
  *   axint memory index            Build local project memory from context, proofs, repairs, and feedback
  *   axint feedback create         Create privacy-safe repair feedback packets
+ *   axint telemetry status        Inspect source-free adoption telemetry controls
  *   axint publish                 Publish an intent to the Registry
  *   axint add <package>           Install a template from the Registry
  *   axint search [query]          Search the Axint Registry for intent templates
@@ -76,6 +77,7 @@ import { registerRepair } from "./repair.js";
 import { registerAgent } from "./agent.js";
 import { registerMemory } from "./memory.js";
 import { registerFeedback } from "./feedback.js";
+import { registerTelemetry } from "./telemetry.js";
 import { registerPublish } from "./publish.js";
 import { registerAdd } from "./add.js";
 import { registerSearch } from "./search.js";
@@ -99,6 +101,11 @@ import {
   installAxintLocalAgent,
   renderAxintAgentInstallReport,
 } from "../project/local-agent.js";
+import {
+  commandPathFor,
+  inferAxintHost,
+  recordAdoptionEvent,
+} from "../telemetry/adoption.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf-8"));
@@ -152,6 +159,21 @@ Linux sandbox / Cowork lane:
   The build/test proof step still needs a Mac with xcodebuild.
 `
   );
+
+program.hook("preAction", async (_thisCommand, actionCommand) => {
+  const command = commandPathFor(actionCommand);
+  if (!command || command === "telemetry" || command.startsWith("telemetry ")) {
+    return;
+  }
+
+  await recordAdoptionEvent({
+    source: "cli",
+    eventName: "cli_command_started",
+    version: VERSION,
+    command,
+    host: inferAxintHost(actionCommand.opts?.() as Record<string, unknown>),
+  });
+});
 
 // ─── init ────────────────────────────────────────────────────────────
 
@@ -295,6 +317,7 @@ registerRepair(program);
 registerAgent(program);
 registerMemory(program);
 registerFeedback(program);
+registerTelemetry(program);
 registerPublish(program, VERSION);
 registerAdd(program, VERSION);
 registerSearch(program, VERSION);
@@ -577,4 +600,4 @@ export function __axintExistsSync(p: string) {
   return existsSync(p);
 }
 
-program.parse();
+await program.parseAsync();

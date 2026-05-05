@@ -252,9 +252,9 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
         severity: "info",
         file: fileName,
         message:
-          "Cloud Check received a document or web artifact instead of Swift, Axint TypeScript, or Apple-native source.",
+          "Cloud Check received a non-Apple artifact instead of Swift, Axint TypeScript, or Apple-native source.",
         suggestion:
-          "Use browser/render/link verification for this artifact, then run Cloud Check on the Swift or Axint source that implements the Apple-facing behavior.",
+          "Use the proof surface for this artifact type, then run Cloud Check only on Swift or Axint source that implements Apple-facing behavior.",
       },
     ];
   } else if (language === "swift") {
@@ -437,7 +437,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
             label: "Apple-specific findings",
             state: "pass" as const,
             detail:
-              "No Apple-native compiler rules were applied. Verify this artifact through browser/render/link evidence instead.",
+              "No Apple-native compiler rules were applied. Verify this artifact through its matching proof surface instead.",
           },
         ]
       : [
@@ -547,7 +547,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
   if (nextSteps.length === 0) {
     if (nonAppleArtifact) {
       nextSteps.push(
-        "Verify this document or web artifact with a browser/render smoke test instead of treating Cloud Check as an Apple compiler verdict."
+        "Verify this artifact with its matching proof surface, such as browser/render/link proof for document or web artifacts, instead of treating Cloud Check as an Apple compiler verdict."
       );
       nextSteps.push(
         "Run Cloud Check on the Swift or Axint source files that implement the Apple-facing behavior referenced by the artifact."
@@ -863,8 +863,21 @@ function inferLanguage(fileName: string, source: string): CloudCheckLanguage {
 }
 
 function isNonAppleArtifact(fileName: string, source: string): boolean {
-  if (/\.(html?|md|mdx|txt|pdf)$/i.test(fileName)) return true;
+  if (
+    /\.(html?|md|mdx|txt|pdf|sql|sqlite|db|yaml|yml|toml|env|css|scss|sass|png|jpe?g|gif|webp|svg)$/i.test(
+      fileName
+    )
+  ) {
+    return true;
+  }
   if (/\b<!doctype\s+html\b|\b<html[\s>]/i.test(source)) return true;
+  if (
+    /^\s*(create|alter|drop|insert|update|delete)\s+(table|index|view|trigger|into|from)\b/im.test(
+      source
+    )
+  ) {
+    return true;
+  }
   if (
     /^\s*#\s+\S+/m.test(source) &&
     !/\bdefine(Intent|View|Widget|App)\s*\(/.test(source)
@@ -875,9 +888,12 @@ function isNonAppleArtifact(fileName: string, source: string): boolean {
 }
 
 function inferNonAppleArtifactSurface(fileName: string, source: string): string {
+  if (/\.(sql|sqlite|db)$/i.test(fileName)) return "database-artifact";
   if (/\.(html?|mdx?)$/i.test(fileName) || /\b<html[\s>]/i.test(source)) {
     return "document";
   }
+  if (/\.(yaml|yml|toml|env)$/i.test(fileName)) return "config-artifact";
+  if (/\.(css|scss|sass)$/i.test(fileName)) return "style-artifact";
   if (/\b(sprint|roadmap)\b/i.test(fileName)) return "sprint-artifact";
   if (/\b(audit|north star|north-star)\b/i.test(fileName)) return "audit-artifact";
   return "document-artifact";
@@ -1464,6 +1480,18 @@ function diagnosticsFromTestFailure(
     });
   }
 
+  if (looksLikeSnapshotBaselineFailure(text)) {
+    diagnostics.push({
+      code: "AX-SNAP-001",
+      severity: "warning",
+      file,
+      message:
+        "XCTest evidence looks dominated by a snapshot baseline mismatch or missing reference image.",
+      suggestion:
+        "If the UI change is intentional, rerun the focused snapshot test with RECORD_SNAPSHOTS=1, verify the test process receives that flag, promote the generated PNGs into __Snapshots__, then rerun without recording.",
+    });
+  }
+
   if (
     /\baccessibilityidentifier|accessibility identifier|identifier propagation|overwrote\b/.test(
       text
@@ -1498,6 +1526,12 @@ function diagnosticsFromTestFailure(
   }
 
   return diagnostics;
+}
+
+function looksLikeSnapshotBaselineFailure(value: string): boolean {
+  return /\b(snapshot|snapshottesting|reference image|reference was found|recorded snapshot|record_snapshots|__snapshots__|pixel mismatch|does not match reference|failed snapshot)\b/i.test(
+    value
+  );
 }
 
 function diagnosticsFromRuntimeFailure(
@@ -2222,7 +2256,7 @@ function buildCloudCoverage(input: {
 
   coverage.push({
     label: input.nonAppleArtifact
-      ? "Document/web artifact routing"
+      ? "Non-Apple artifact routing"
       : input.language === "typescript"
         ? "Axint parse and lowering"
         : "Source loading",
@@ -2301,10 +2335,10 @@ function buildCloudConfidence(input: {
     return {
       level: "medium",
       detail:
-        "Cloud Check correctly identified this as a document/web artifact, not an Apple-native compiler target.",
+        "Cloud Check correctly identified this as a non-Apple artifact, not an Apple-native compiler target.",
       missingEvidence: [
-        "Browser/render smoke test",
-        "Link or route verification",
+        "Matching proof surface for this artifact type",
+        "Browser/render smoke test when this artifact affects UI",
         "Cloud Check on the related Swift or Axint source if Apple behavior changed",
       ],
     };
@@ -2376,10 +2410,10 @@ function buildCloudGate(input: {
       decision: "evidence_required",
       canClaimFixed: false,
       reason:
-        "Cloud Check is not applicable as the final proof for a document or web artifact.",
+        "Cloud Check is not applicable as the final proof for this non-Apple artifact.",
       requiredEvidence: [
-        "Rendered browser verification",
-        "Relevant route/link checks",
+        "Matching proof surface for this artifact type",
+        "Relevant route/link checks when UI-facing",
         "Apple-source Cloud Check only if Swift or Axint source changed",
       ],
     };
@@ -2438,10 +2472,10 @@ function buildCloudRepairPrompt(report: CloudCheckReport): string {
     if (report.diagnostics.some((d) => d.code === "AXCLOUD-NON-APPLE-ARTIFACT")) {
       return [
         `Review ${report.fileName}.`,
-        "Axint Cloud Check identified this as a document or web artifact, not an Apple-native source file.",
+        "Axint Cloud Check identified this as a document or web artifact, or another non-Apple artifact, not an Apple-native source file.",
         `Ship gate: ${report.gate.decision}. ${report.gate.reason}`,
         `Checked: ${checkedCoverageSummary(report)}.`,
-        "Use browser/render/link proof for this artifact.",
+        "Use the matching proof surface for this artifact, such as browser/render/link proof when it affects a page.",
         "Run Cloud Check on the related Swift or Axint source only if Apple-facing behavior changed.",
         "",
         "Repair plan:",

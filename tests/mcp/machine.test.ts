@@ -193,7 +193,8 @@ describe("Axint project machine", () => {
     expect(doctor.checks.map((check: { label: string }) => check.label)).toContain(
       "Axint version"
     );
-    expect(doctorResult.isError).toBe(true);
+    expect(doctor.status).toBe("warn");
+    expect(doctorResult.isError).toBe(false);
 
     const memoryResult = await handleToolCall("axint.context.memory", {
       projectName: "Swarm",

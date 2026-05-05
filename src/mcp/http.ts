@@ -9,7 +9,8 @@
 
 import { createServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createAxintServer } from "./server.js";
+import { AXINT_MCP_VERSION, createAxintServer } from "./server.js";
+import { inferAxintHost, recordAdoptionEventSoon } from "../telemetry/adoption.js";
 
 const port = parseInt(process.env.PORT || "3001", 10);
 const logLevel = process.env.LOG_LEVEL || "info";
@@ -208,6 +209,13 @@ const httpServer = createServer(async (req, res) => {
 });
 
 httpServer.listen(port, () => {
+  recordAdoptionEventSoon({
+    source: "mcp-http",
+    eventName: "mcp_http_server_started",
+    version: AXINT_MCP_VERSION,
+    transport: "http",
+    host: inferAxintHost(),
+  });
   if (shouldLog("info")) {
     console.log(`axint mcp http server listening on port ${port}`);
   }

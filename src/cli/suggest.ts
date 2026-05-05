@@ -49,6 +49,10 @@ export function registerSuggest(program: Command) {
       [] as string[]
     )
     .option(
+      "--dir <dir>",
+      "Project directory/context hint; accepted for symmetry with workflow/run commands"
+    )
+    .option(
       "--stage <stage>",
       `Product stage: ${STAGES.join(", ")}`,
       parseStage,
@@ -79,6 +83,7 @@ type SuggestOptions = {
   mode: SuggestInput["mode"];
   platform?: SuggestInput["platform"];
   audience?: string;
+  dir?: string;
   exclude: string[];
   goal: string[];
   constraint: string[];
@@ -100,6 +105,7 @@ function buildSuggestInput(
     mode: options.mode,
     platform: options.platform,
     audience: options.audience,
+    cwd: options.dir,
     exclude: options.exclude,
     goals: options.goal,
     constraints: options.constraint,
@@ -117,6 +123,7 @@ function renderSuggestReport(
     `- App: ${input.appDescription}`,
     input.platform ? `- Platform: ${input.platform}` : null,
     input.domain ? `- Domain hint: ${input.domain}` : null,
+    input.cwd ? `- Project context: ${input.cwd}` : null,
     input.exclude?.length ? `- Excluding: ${input.exclude.join(", ")}` : null,
     "",
     "Use these before `axint feature` or as the planning proof for `axint workflow check --ran-suggest` when MCP transport is closed.",

@@ -6,6 +6,20 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.22] — 2026-05-05
+
+### Added
+
+- **Source-free adoption telemetry controls** — `axint telemetry status|opt-out|opt-in` gives users a clear local control surface. Events are source-free and path-free, honor `AXINT_TELEMETRY=off`, `AXINT_DISABLE_TELEMETRY=1`, and `DO_NOT_TRACK=1`, and send only coarse usage metadata.
+- **Snapshot failure diagnosis** — Xcode failure summaries and Cloud Check evidence now classify stale or missing snapshot baselines as `AX-SNAP-001`, with an explicit `RECORD_SNAPSHOTS=1` rebaseline path instead of generic UI-test advice.
+- **CLI-safe session handoff** — `axint session start` now prints both MCP JSON and a CLI-safe `axint workflow check ...` command so agents do not accidentally pass JSON booleans as flag values.
+
+### Changed
+
+- `axint suggest --dir` is accepted as a project-context hint for parity with `workflow`, `run`, and other project commands.
+- Cloud Check routes SQL/config/style/document artifacts away from Apple compiler diagnostics so migrations and non-Apple files no longer produce fake Axint parse failures.
+- `axint doctor` treats a newer running Axint than the project hint as a warning instead of a hard failure unless strict pinning is actually needed.
+
 ## [0.4.21] — 2026-05-03
 
 ### Added — closes the recurring cross-file resolution gap (4 dogfooding misses across 2 sprints)

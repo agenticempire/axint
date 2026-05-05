@@ -18,6 +18,7 @@ export interface SuggestInput {
   mode?: "local" | "auto" | "ai" | "pro";
   platform?: "iOS" | "macOS" | "watchOS" | "visionOS" | "multi";
   audience?: string;
+  cwd?: string;
   exclude?: string[];
   goals?: string[];
   stage?: "idea" | "prototype" | "mvp" | "growth" | "enterprise" | "unknown";

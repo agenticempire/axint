@@ -153,6 +153,7 @@ import {
   renderRunJobStatus,
   type AxintRunJobOutputFormat,
 } from "../run/job-store.js";
+import { inferAxintHost, recordAdoptionEventSoon } from "../telemetry/adoption.js";
 
 type PackageInfo = {
   name?: string;
@@ -237,6 +238,7 @@ try {
 }
 
 const serverStartedAt = new Date();
+export const AXINT_MCP_VERSION = pkg.version;
 
 type CompileArgs = {
   source: string;
@@ -1284,6 +1286,14 @@ export function createAxintServer(): Server {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+    recordAdoptionEventSoon({
+      source: "mcp",
+      eventName: "mcp_tool_called",
+      version: pkg.version,
+      toolName: name,
+      transport: process.env.AXINT_MCP_TRANSPORT ?? "stdio",
+      host: inferAxintHost(),
+    });
 
     try {
       return await handleToolCall(name, args);
@@ -1323,5 +1333,12 @@ export function createSandboxServer(): Server {
 export async function startMCPServer(): Promise<void> {
   const server = createAxintServer();
   const transport = new StdioServerTransport();
+  recordAdoptionEventSoon({
+    source: "mcp",
+    eventName: "mcp_server_started",
+    version: pkg.version,
+    transport: "stdio",
+    host: inferAxintHost(),
+  });
   await server.connect(transport);
 }

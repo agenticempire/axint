@@ -62,9 +62,7 @@ if (!proofMatch) {
   const expectedTests =
     publicTruth?.axint?.tests?.summary
     ?? `${totalTests} tests`;
-  const expectedPackages =
-    publicTruth?.axint?.registryPackages?.summary
-    ?? `${metrics.registryPackages} live packages`;
+  const expectedPackages = `${metrics.registryPackages} live packages`;
   const expectedTemplates =
     publicTruth?.axint?.templates?.summary
     ?? `${metrics.bundledTemplates} bundled templates`;

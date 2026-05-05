@@ -1843,6 +1843,15 @@ function inferXcodeFailureRepair(
     .join(" ")
     .toLowerCase();
 
+  if (looksLikeSnapshotBaselineFailure(haystack)) {
+    return {
+      likelyCause:
+        "Snapshot evidence points to a missing or stale reference image, not necessarily a product logic regression.",
+      repairHint:
+        "If the UI change is intentional, rerun the focused snapshot test with RECORD_SNAPSHOTS=1, confirm the app test process received that env var, then promote the generated PNGs under __Snapshots__ and rerun normally.",
+    };
+  }
+
   if (
     /\bnot hittable|should be hittable|not tappable|should be tappable\b/.test(haystack)
   ) {
@@ -1883,6 +1892,12 @@ function inferXcodeFailureRepair(
   }
 
   return {};
+}
+
+function looksLikeSnapshotBaselineFailure(value: string): boolean {
+  return /\b(snapshot|snapshottesting|reference image|reference was found|recorded snapshot|record_snapshots|__snapshots__|pixel mismatch|does not match reference|failed snapshot)\b/i.test(
+    value
+  );
 }
 
 function xcodeFailureEvidence(failures: AxintRunXcodeTestFailure[]): string | undefined {
