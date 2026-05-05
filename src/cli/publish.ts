@@ -86,6 +86,8 @@ export function registerPublish(program: Command, version: string) {
         pySource = readFileSync(pyPath, "utf-8");
       }
 
+      const demo = loadShipKitDemo(cwd);
+
       const tags = options.tag ?? config.tags ?? [];
       // Schema enforces a leading @ — validate already rejected it otherwise.
       const namespace = config.namespace;
@@ -126,6 +128,9 @@ export function registerPublish(program: Command, version: string) {
         ir: result.output.ir ?? {},
         compiler_version: version,
         bundle_hash: bundleHash,
+        demo_gif_url: demo?.gifUrl,
+        demo_poster_url: demo?.posterUrl,
+        demo_metadata: demo?.metadata,
       };
 
       if (options.dryRun) {
@@ -207,4 +212,66 @@ export function registerPublish(program: Command, version: string) {
         process.exit(1);
       }
     });
+}
+
+function loadShipKitDemo(cwd: string):
+  | {
+      gifUrl?: string;
+      posterUrl?: string;
+      metadata: Record<string, unknown>;
+    }
+  | undefined {
+  const shipkitPath = resolve(cwd, "shipkit.json");
+  if (!existsSync(shipkitPath)) return undefined;
+
+  try {
+    const shipkit = JSON.parse(readFileSync(shipkitPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const demo = isRecord(shipkit.demo) ? shipkit.demo : {};
+    const gifUrl = typeof demo.rawUrl === "string" ? demo.rawUrl : undefined;
+    const posterUrl =
+      typeof demo.posterRawUrl === "string"
+        ? demo.posterRawUrl
+        : gifUrl?.endsWith("/demo.gif")
+          ? gifUrl.replace(/\/demo\.gif$/, "/poster.png")
+          : undefined;
+
+    if (!gifUrl && !posterUrl) return undefined;
+
+    return {
+      gifUrl,
+      posterUrl,
+      metadata: {
+        schemaVersion: shipkit.schemaVersion,
+        status: shipkit.status,
+        backlogId: shipkit.backlogId,
+        rank: shipkit.rank,
+        category: shipkit.category,
+        title: shipkit.title,
+        variants: Array.isArray(shipkit.variants) ? shipkit.variants : [],
+        states: Array.isArray(shipkit.states) ? shipkit.states : [],
+        appleContracts: Array.isArray(shipkit.appleContracts)
+          ? shipkit.appleContracts
+          : [],
+        demo: {
+          asset: typeof demo.asset === "string" ? demo.asset : undefined,
+          poster: typeof demo.poster === "string" ? demo.poster : undefined,
+          style:
+            typeof demo.style === "string" ? demo.style : "minimal-interaction-gallery",
+          aspectRatio: typeof demo.aspectRatio === "string" ? demo.aspectRatio : "4:3",
+          frameDescriptions: Array.isArray(demo.frameDescriptions)
+            ? demo.frameDescriptions
+            : [],
+        },
+      },
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
