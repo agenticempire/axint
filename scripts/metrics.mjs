@@ -37,21 +37,34 @@ export function computeMetrics({ countTests = true } = {}) {
   };
 }
 
-// Counts published packages in the sibling axint-registry repo. Looks for
-// per-package directories (each one is a published package). Honors an
-// explicit AXINT_REGISTRY_PATH env var so CI can point at any checkout.
+// Counts live Registry packages. Prefer the deployed health endpoint because
+// the local seed repo can lag behind the public D1 inventory.
 //
-// Fallback chain when the registry isn't on disk (CI runners that don't
-// have the private axint-registry repo cloned):
+// Fallback chain when the Registry is unreachable:
 //   1. Read the previously-committed value from metrics.json. This makes
 //      drift detection still work — `metrics:emit` updates the count on
-//      the dev machine that has the registry; CI trusts what got committed.
-//   2. Default to 0 + a stderr warning if no metrics.json exists yet.
+//      a networked dev machine; CI can trust what got committed.
+//   2. Count first-party local seed directories when available.
+//   3. Default to 0 + a stderr warning if no source exists yet.
 //
-// Net effect: dev machines compute the real count, CI preserves it.
-// `metrics:check` only fires when the dev machine forgot to re-emit after
-// the registry actually changed.
+// Net effect: public proof follows the live Registry, and offline checks do
+// not fail just because the public endpoint is temporarily unavailable.
 function countRegistryPackages() {
+  const liveCount = fetchLiveRegistryPackageCount();
+  if (typeof liveCount === "number") return liveCount;
+
+  try {
+    const metricsPath = resolve(ROOT, "metrics.json");
+    if (existsSync(metricsPath)) {
+      const committed = JSON.parse(readFileSync(metricsPath, "utf-8"));
+      if (typeof committed.registryPackages === "number") {
+        return committed.registryPackages;
+      }
+    }
+  } catch {
+    // Fall through to local seed counting.
+  }
+
   const candidates = [
     process.env.AXINT_REGISTRY_PATH,
     resolve(ROOT, "..", "axint-registry"),
@@ -70,24 +83,30 @@ function countRegistryPackages() {
     return count;
   }
 
-  // Registry not on disk (typical for CI). Trust the committed value so
-  // we don't fail check just because CI can't see the private repo.
-  try {
-    const metricsPath = resolve(ROOT, "metrics.json");
-    if (existsSync(metricsPath)) {
-      const committed = JSON.parse(readFileSync(metricsPath, "utf-8"));
-      if (typeof committed.registryPackages === "number") {
-        return committed.registryPackages;
-      }
-    }
-  } catch {
-    // Fall through to 0 + warning.
-  }
-
   console.warn(
-    "metrics: axint-registry not found and no committed value in metrics.json; registryPackages = 0. Set AXINT_REGISTRY_PATH to override."
+    "metrics: registry health unavailable, axint-registry not found, and no committed value in metrics.json; registryPackages = 0. Set AXINT_REGISTRY_PATH to override."
   );
   return 0;
+}
+
+function fetchLiveRegistryPackageCount() {
+  if (process.env.AXINT_REGISTRY_HEALTH_URL === "off") return null;
+  const url = process.env.AXINT_REGISTRY_HEALTH_URL || "https://registry.axint.ai/api/v1/health";
+  try {
+    const out = execFileSync("curl", ["-fsSL", url], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 5000,
+      maxBuffer: 1024 * 1024,
+    });
+    const payload = JSON.parse(out);
+    if (Number.isInteger(payload?.packages) && payload.packages >= 0) {
+      return payload.packages;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function extractTopLevelNames(relPath, symbol) {

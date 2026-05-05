@@ -2185,6 +2185,23 @@ export const TOOL_MANIFEST = [
   },
 ] as const;
 
+export const TOOL_TEXT_OUTPUT_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    text: {
+      type: "string" as const,
+      description:
+        "Primary Axint tool response text, matching the first text content block.",
+    },
+    isError: {
+      type: "boolean" as const,
+      description: "Whether Axint marked the tool response as an error.",
+    },
+  },
+  required: ["text"],
+  additionalProperties: false,
+};
+
 type RuntimeManifestEnv = {
   AXINT_MCP_FULL_MANIFEST?: string;
   AXINT_MCP_MANIFEST_MODE?: string;
@@ -2200,13 +2217,13 @@ type CompactManifestOptions = {
 };
 
 const DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS = 140;
-const DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS = 0;
-const DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS = 0;
+const DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS = 48;
+const DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS = 48;
 
 export function getRuntimeToolManifest(env: RuntimeManifestEnv = {}) {
   const mode = env.AXINT_MCP_MANIFEST_MODE?.trim().toLowerCase();
   if (env.AXINT_MCP_FULL_MANIFEST === "1" || mode === "full" || mode === "verbose") {
-    return TOOL_MANIFEST;
+    return withOutputSchemas(TOOL_MANIFEST);
   }
 
   return compactToolManifest({
@@ -2226,11 +2243,20 @@ export function getRuntimeToolManifest(env: RuntimeManifestEnv = {}) {
 }
 
 export function compactToolManifest(options: CompactManifestOptions) {
-  return TOOL_MANIFEST.map((tool) => ({
+  return withOutputSchemas(
+    TOOL_MANIFEST.map((tool) => ({
+      ...tool,
+      description: compactDescription(tool.description, options.toolDescriptionChars),
+      inputSchema: compactSchemaValue(tool.inputSchema, options, 0),
+    }))
+  ) as unknown as typeof TOOL_MANIFEST;
+}
+
+function withOutputSchemas<T extends readonly Record<string, unknown>[]>(tools: T) {
+  return tools.map((tool) => ({
     ...tool,
-    description: compactDescription(tool.description, options.toolDescriptionChars),
-    inputSchema: compactSchemaValue(tool.inputSchema, options, 0),
-  })) as unknown as typeof TOOL_MANIFEST;
+    outputSchema: TOOL_TEXT_OUTPUT_SCHEMA,
+  }));
 }
 
 function compactSchemaValue(
@@ -2257,7 +2283,31 @@ function compactSchemaValue(
     compacted[key] = compactSchemaValue(nestedValue, options, depth + 1);
   }
 
+  if (shouldAddFallbackDescription(compacted, depth)) {
+    compacted.description = fallbackSchemaDescription(compacted);
+  }
+
   return compacted;
+}
+
+function shouldAddFallbackDescription(
+  value: Record<string, unknown>,
+  depth: number
+): boolean {
+  if (depth <= 0 || typeof value.description === "string") return false;
+  if (typeof value.type === "string") return true;
+  if (Array.isArray(value.enum)) return true;
+  return Boolean(value.properties || value.items || value.additionalProperties);
+}
+
+function fallbackSchemaDescription(value: Record<string, unknown>): string {
+  const type = typeof value.type === "string" ? value.type : "value";
+  if (Array.isArray(value.enum)) return `Allowed ${type} value for this Axint parameter.`;
+  if (value.items) return `Array value for this Axint parameter.`;
+  if (value.properties || value.additionalProperties) {
+    return `Structured ${type} value for this Axint parameter.`;
+  }
+  return `${type[0]?.toUpperCase() ?? "V"}${type.slice(1)} value for this Axint parameter.`;
 }
 
 function compactDescription(value: string, maxChars: number): string {

@@ -55,6 +55,30 @@ describe("axint HTTP MCP transport", () => {
     });
   });
 
+  it("serves server card metadata on registry and Smithery-compatible routes", async () => {
+    for (const path of [
+      "/server.json",
+      "/.well-known/mcp-server.json",
+      "/.well-known/mcp/server-card.json",
+    ]) {
+      const response = await request("{}", {
+        method: "GET",
+        url: `https://mcp.axint.ai${path}`,
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload).toMatchObject({
+        name: "io.github.agenticempire/axint",
+        version: packageVersion,
+        capabilities: {
+          tools: TOOL_MANIFEST.length,
+          prompts: PROMPT_MANIFEST.length,
+        },
+      });
+    }
+  });
+
   it("handles CORS preflight for allowed origins", async () => {
     const response = await request("{}", {
       method: "OPTIONS",
@@ -92,6 +116,16 @@ describe("axint HTTP MCP transport", () => {
       JSON.stringify(TOOL_MANIFEST).length
     );
     expect(payload.result.tools).toEqual(compactManifest);
+    expect(
+      payload.result.tools.every((tool: { outputSchema?: unknown }) =>
+        Boolean(tool.outputSchema)
+      )
+    ).toBe(true);
+    expect(
+      payload.result.tools.every((tool: { inputSchema?: unknown }) =>
+        schemaHasParameterDescriptions(tool.inputSchema)
+      )
+    ).toBe(true);
   });
 
   it("reports the running remote MCP server version through axint.status", async () => {
@@ -115,6 +149,10 @@ describe("axint HTTP MCP transport", () => {
     expect(status.server).toBe("axint-mcp");
     expect(status.version).toBe(packageVersion);
     expect(status.restartRequiredAfterUpdate).toBe(true);
+    expect(payload.result.structuredContent).toMatchObject({
+      text,
+      isError: false,
+    });
   });
 
   it("lists built-in prompts and resolves prompt content", async () => {
@@ -145,6 +183,26 @@ describe("axint HTTP MCP transport", () => {
     expect(text).toContain("CreateReminder");
     expect(text).toContain("productivity");
     expect(text).toContain("axint.scaffold");
+  });
+
+  it("reports an empty resource surface for registry scanners", async () => {
+    const listResponse = await request({
+      jsonrpc: "2.0",
+      id: 12,
+      method: "resources/list",
+    });
+    await expect(listResponse.json()).resolves.toMatchObject({
+      result: { resources: [] },
+    });
+
+    const templatesResponse = await request({
+      jsonrpc: "2.0",
+      id: 13,
+      method: "resources/templates/list",
+    });
+    await expect(templatesResponse.json()).resolves.toMatchObject({
+      result: { resourceTemplates: [] },
+    });
   });
 
   it("compiles schema requests over HTTP", async () => {
@@ -202,3 +260,40 @@ describe("axint HTTP MCP transport", () => {
     });
   });
 });
+
+function schemaHasParameterDescriptions(schema: unknown): boolean {
+  const properties = asObject(schema)?.properties;
+  if (!properties || typeof properties !== "object") return true;
+  return Object.values(properties).every(parameterSchemaHasDescription);
+}
+
+function parameterSchemaHasDescription(schema: unknown): boolean {
+  const object = asObject(schema);
+  if (!object) return true;
+  if (typeof object.description !== "string" || object.description.trim() === "") {
+    return false;
+  }
+
+  const properties = asObject(object.properties);
+  if (properties && !Object.values(properties).every(parameterSchemaHasDescription)) {
+    return false;
+  }
+
+  if (object.items && !parameterSchemaHasDescription(object.items)) return false;
+
+  if (
+    object.additionalProperties &&
+    typeof object.additionalProperties === "object" &&
+    !parameterSchemaHasDescription(object.additionalProperties)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function asObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}

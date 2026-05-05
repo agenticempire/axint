@@ -36,9 +36,12 @@ describe("axint/mcp import surface", () => {
     expect(compact.map((tool: { name: string }) => tool.name)).toEqual(
       mod.TOOL_MANIFEST.map((tool: { name: string }) => tool.name)
     );
-    expect(full).toBe(mod.TOOL_MANIFEST);
+    expect(full).toHaveLength(mod.TOOL_MANIFEST.length);
+    expect(
+      full.every((tool: { outputSchema?: unknown }) => Boolean(tool.outputSchema))
+    ).toBe(true);
     expect(JSON.stringify(compact).length).toBeLessThan(
-      JSON.stringify(mod.TOOL_MANIFEST).length * 0.75
+      JSON.stringify(full).length * 0.85
     );
   });
 });

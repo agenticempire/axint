@@ -1,5 +1,31 @@
 # Release Notes
 
+## 2026-05-05 — Create Axint App launchpad
+
+This release wave turns first use into something developers can demo, screenshot,
+and hand to an AI agent without extra setup.
+
+### Added
+
+- `axint create`
+  - Creates a premium Apple-native launchpad for AI coding agents.
+  - Defaults to a Calendar Agent starter backed by the existing Create Event App Intent template.
+  - Writes the same compiler-ready project skeleton as `axint init`, plus proof, prompt, demo, and share artifacts.
+- `create-axint-app`
+  - Added as a bin alias that routes into `axint create`.
+  - Gives docs, demos, and launch content a single memorable command path.
+- Launchpad artifacts
+  - `.axint/START_HERE.md` gives the agent a grounded proof loop before it edits anything.
+  - `.axint/agent-prompts/codex.md`, `claude.md`, and `cursor.md` give each AI tool the same Apple-native repair contract.
+  - `ios/Preview/CalendarCommandCenter.swift` gives the starter a polished SwiftUI companion surface.
+  - `share/built-with-axint.html` gives the user a screenshot-ready local proof card.
+
+### Why it matters
+
+The first run should not look like a generic scaffold. It should prove the core
+Axint promise: AI writes the Apple-native contract, Axint compiles and validates
+it, and the agent gets a concrete repair loop instead of guessing through Swift.
+
 ## 2026-04-29 — Agent-aware run loop and first-use wow fixture
 
 This release wave makes Axint feel more like a project brain for Apple-native agents instead of a set of separate commands.

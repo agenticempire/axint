@@ -53,6 +53,8 @@ describe("scaffoldProject", () => {
     expect(pkg.scripts.compile).toContain("axint compile");
     expect(pkg.scripts.validate).toContain("axint validate");
     expect(pkg.scripts.sandbox).toContain("--sandbox");
+    expect(pkg.scripts.proof).toContain("compile:plist");
+    expect(pkg.scripts["cloud:check"]).toContain("axint cloud check");
   });
 
   it("rewrites the template import to the package root", async () => {
@@ -177,5 +179,39 @@ describe("scaffoldProject", () => {
     expect(readme).toContain("book-ride");
     expect(readme).toContain("axint.ai");
     expect(readme).toContain("@axint/compiler@^0.3.0");
+  });
+
+  it("writes premium launchpad files for create-axint-app", async () => {
+    const result = await scaffoldProject({
+      targetDir: workDir,
+      projectName: "calendar-agent",
+      template: "create-event",
+      version: "0.4.22",
+      install: false,
+      experience: "launchpad",
+    });
+
+    expect(result.experience).toBe("launchpad");
+    expect(result.proofFile).toBe(".axint/run/latest.md");
+    expect(result.shareFile).toBe("share/built-with-axint.html");
+    expect(result.files).toContain(".axint/START_HERE.md");
+    expect(result.files).toContain(".axint/agent-prompts/codex.md");
+    expect(result.files).toContain("ios/Preview/CalendarCommandCenter.swift");
+    expect(result.files).toContain("scripts/render-demo.mjs");
+    expect(result.files).toContain("share/built-with-axint.html");
+
+    const startHere = await readFile(join(workDir, ".axint", "START_HERE.md"), "utf-8");
+    expect(startHere).toContain("compile, validate, and repair");
+
+    const share = await readFile(
+      join(workDir, "share", "built-with-axint.html"),
+      "utf-8"
+    );
+    expect(share).toContain("Apple-native agent proof");
+    expect(share).toContain("@axint/compiler 0.4.22");
+
+    const pkg = JSON.parse(await readFile(join(workDir, "package.json"), "utf-8"));
+    expect(pkg.scripts.proof).toContain("render:demo");
+    expect(pkg.scripts["render:demo"]).toBe("node scripts/render-demo.mjs");
   });
 });
