@@ -81,11 +81,12 @@ Every kit gets the same visual artifact shape so the Registry can be browsed wit
 - `media/poster.png` beside the GIF.
 - A public mirror at `media/ship-kits/<slug>/demo.gif` in the Axint repo.
 - README image points to the public mirror.
-- GIF size target: 540 x 960.
-- GIF length target: 3 to 8 frames.
-- Each frame should show the kit name, backlog id, what the component does, and the proof/contract angle.
+- GIF size target: 960 x 720.
+- GIF length target: 88 to 128 frames.
+- Each GIF should show the actual behavior of the component, not a generic package card.
+- Browse-card posters and GIFs must live in structured Registry metadata, not only in README markdown.
 
-The generator is `axint-registry/scripts/generate-shipkit-demo.mjs`.
+The primary render path is `axint-registry/packages/interactions`.
 
 ## Completion Ledger
 
@@ -98,6 +99,26 @@ Do not mark a kit done until it is published and has a visible demo asset.
 | yes | 3 | PAY-001 | `@axint/subscription-paywall-view` | `https://registry.axint.ai/@axint/subscription-paywall-view` | `media/ship-kits/subscription-paywall-view/demo.gif` |
 | yes | 4 | AUT-001 | `@axint/sign-in-with-apple-view` | `https://registry.axint.ai/@axint/sign-in-with-apple-view` | `media/ship-kits/sign-in-with-apple-view/demo.gif` |
 | yes | 5 | FDB-005 | `@axint/app-state-panel-view` | `https://registry.axint.ai/@axint/app-state-panel-view` | `media/ship-kits/app-state-panel-view/demo.gif` |
+| yes | 6 | UI-006 | `@axint/search-bar-view` | `https://registry.axint.ai/@axint/search-bar-view` | `media/ship-kits/search-bar-view/demo.gif` |
+| yes | 7 | UI-007 | `@axint/empty-state-view` | `https://registry.axint.ai/@axint/empty-state-view` | `media/ship-kits/empty-state-view/demo.gif` |
+| yes | 8 | UI-008 | `@axint/loading-skeleton-view` | `https://registry.axint.ai/@axint/loading-skeleton-view` | `media/ship-kits/loading-skeleton-view/demo.gif` |
+| yes | 9 | UI-009 | `@axint/error-banner-view` | `https://registry.axint.ai/@axint/error-banner-view` | `media/ship-kits/error-banner-view/demo.gif` |
+| yes | 10 | UI-010 | `@axint/toast-notification-view` | `https://registry.axint.ai/@axint/toast-notification-view` | `media/ship-kits/toast-notification-view/demo.gif` |
+| yes | 11 | UI-011 | `@axint/filter-chip-row-view` | `https://registry.axint.ai/@axint/filter-chip-row-view` | `media/ship-kits/filter-chip-row-view/demo.gif` |
+| yes | 12 | UI-012 | `@axint/onboarding-carousel-view` | `https://registry.axint.ai/@axint/onboarding-carousel-view` | `media/ship-kits/onboarding-carousel-view/demo.gif` |
+| yes | 13 | UI-013 | `@axint/profile-completion-card-view` | `https://registry.axint.ai/@axint/profile-completion-card-view` | `media/ship-kits/profile-completion-card-view/demo.gif` |
+| yes | 14 | UI-014 | `@axint/media-picker-grid-view` | `https://registry.axint.ai/@axint/media-picker-grid-view` | `media/ship-kits/media-picker-grid-view/demo.gif` |
+| yes | 15 | UI-015 | `@axint/settings-row-group-view` | `https://registry.axint.ai/@axint/settings-row-group-view` | `media/ship-kits/settings-row-group-view/demo.gif` |
+| yes | 16 | UI-016 | `@axint/segmented-control-view` | `https://registry.axint.ai/@axint/segmented-control-view` | `media/ship-kits/segmented-control-view/demo.gif` |
+| yes | 17 | UI-017 | `@axint/bottom-sheet-view` | `https://registry.axint.ai/@axint/bottom-sheet-view` | `media/ship-kits/bottom-sheet-view/demo.gif` |
+| yes | 18 | UI-018 | `@axint/modal-confirmation-view` | `https://registry.axint.ai/@axint/modal-confirmation-view` | `media/ship-kits/modal-confirmation-view/demo.gif` |
+| yes | 19 | UI-019 | `@axint/form-field-stack-view` | `https://registry.axint.ai/@axint/form-field-stack-view` | `media/ship-kits/form-field-stack-view/demo.gif` |
+| yes | 20 | UI-020 | `@axint/tab-bar-view` | `https://registry.axint.ai/@axint/tab-bar-view` | `media/ship-kits/tab-bar-view/demo.gif` |
+| yes | 21 | UI-021 | `@axint/card-list-view` | `https://registry.axint.ai/@axint/card-list-view` | `media/ship-kits/card-list-view/demo.gif` |
+| yes | 22 | UI-022 | `@axint/detail-header-view` | `https://registry.axint.ai/@axint/detail-header-view` | `media/ship-kits/detail-header-view/demo.gif` |
+| yes | 23 | UI-023 | `@axint/progress-ring-view` | `https://registry.axint.ai/@axint/progress-ring-view` | `media/ship-kits/progress-ring-view/demo.gif` |
+| yes | 24 | UI-024 | `@axint/rating-prompt-view` | `https://registry.axint.ai/@axint/rating-prompt-view` | `media/ship-kits/rating-prompt-view/demo.gif` |
+| yes | 25 | UI-025 | `@axint/swipe-action-row-view` | `https://registry.axint.ai/@axint/swipe-action-row-view` | `media/ship-kits/swipe-action-row-view/demo.gif` |
 
 ## Procurement And Ingestion
 
