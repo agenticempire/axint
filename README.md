@@ -30,6 +30,10 @@
   <a href="https://registry.axint.ai">Registry</a>
 </p>
 
+<p align="center">
+  <img src="media/intro.gif" alt="axint loop — compile, validate, fix packet, repair, ship" width="640" />
+</p>
+
 ---
 
 ## The loop
@@ -246,6 +250,14 @@ Repair finds an Axint learning signal. The default endpoint is
 Use `axint feedback list` on a maintainer inbox to cluster imported edge cases
 into the next Axint fixes.
 
+Axint also sends a tiny source-free adoption heartbeat so the project can see
+which install paths are actually working: CLI command class, MCP tool name,
+version, coarse host hint, OS family, Node major version, CI flag, and a random
+anonymous install ID. It never sends source code, prompts, generated Swift,
+arguments, file names, local paths, credentials, or machine IDs. Inspect it with
+`axint telemetry status`, turn it off with `axint telemetry opt-out`, or disable
+it per process with `AXINT_TELEMETRY=off` / `AXINT_DISABLE_TELEMETRY=1`.
+
 The same senior repair read is shared by `axint.suggest`, `axint.feature`,
 `axint.cloud.check`, and `axint.repair`. If a prompt describes a broken existing
 SwiftUI flow, Axint routes toward the smallest repair/proof loop instead of
@@ -259,7 +271,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.21 · 34 MCP tools + 5 prompts · 204 diagnostic codes · 1302 tests · 5 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.22 · 34 MCP tools + 5 prompts · 204 diagnostic codes · 1302 tests · 14 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -401,6 +413,7 @@ MCP tools and built-in prompts:
 | `axint.repair` | Plan a project-aware Apple repair loop for existing app bugs, with likely files, root causes, host-aware patch guidance, proof commands, and feedback packet |
 | `axint.feedback.create` | Create or read a privacy-safe, source-free feedback packet |
 | `axint feedback status / opt-out / opt-in / sync / list` | Manage automatic source-free feedback, opt out, retry queued packets, and cluster imported feedback into Axint fix queues |
+| `axint telemetry status / opt-out / opt-in` | Inspect and manage source-free adoption telemetry for CLI and MCP usage |
 | `axint.agent.install` | Install the local multi-agent project brain so Codex, Claude, Cursor, Xcode, and humans share one `.axint` truth layer |
 | `axint.agent.advice` | Return host-specific next moves from project context, active claims, latest proof, and latest repair artifacts |
 | `axint.agent.claim` | Claim files before an agent edits them so other agents avoid conflicting patches |
