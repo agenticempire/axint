@@ -24,6 +24,14 @@
       "transport": {
         "type": "stdio"
       }
+    },
+    {
+      "registryType": "pypi",
+      "identifier": "axint",
+      "version": "0.4.23",
+      "transport": {
+        "type": "stdio"
+      }
     }
   ],
   "capabilities": {
