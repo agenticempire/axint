@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { compileFile } from "../core/compiler.js";
+import { compileAnyFile } from "../core/compiler.js";
 import { hashBundle } from "../core/bundle-hash.js";
 import { loadAxintCredentials, resolveCredentialsPath } from "../core/credentials.js";
 import { registryBaseUrl } from "../core/env.js";
@@ -10,7 +10,7 @@ import { loadAxintConfig } from "../core/axint-config.js";
 export function registerPublish(program: Command, version: string) {
   program
     .command("publish")
-    .description("Publish an intent to the Axint Registry")
+    .description("Publish an Axint source package to the Axint Registry")
     .option("--dry-run", "Validate and show what would be published without uploading")
     .option("--tag <tags...>", "Override tags")
     .action(async (options: { dryRun?: boolean; tag?: string[] }) => {
@@ -54,9 +54,9 @@ export function registerPublish(program: Command, version: string) {
 
       console.log(`  \x1b[2m⏺\x1b[0m Compiling ${entryFile}…`);
 
-      let result: Awaited<ReturnType<typeof compileFile>>;
+      let result: Awaited<ReturnType<typeof compileAnyFile>>;
       try {
-        result = await compileFile(entryPath, {});
+        result = await compileAnyFile(entryPath, {});
       } catch (err: unknown) {
         console.error(`  \x1b[31m✗\x1b[0m Compilation failed: ${(err as Error).message}`);
         process.exit(1);
@@ -91,7 +91,10 @@ export function registerPublish(program: Command, version: string) {
       const namespace = config.namespace;
 
       const tsSource = readFileSync(entryPath, "utf-8");
-      const plistFragment = result.output.infoPlistFragment ?? null;
+      const plistFragment =
+        "infoPlistFragment" in result.output
+          ? (result.output.infoPlistFragment ?? null)
+          : null;
 
       // Hash the exact bytes the registry will return at install time so the
       // server can verify we agree on what was published. `axint add` re-runs
