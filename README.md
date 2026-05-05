@@ -120,23 +120,24 @@ the same facts.
 If you want the fastest shareable proof path, start here:
 
 ```bash
-npx -y -p @axint/compiler create-axint-app apple-calendar-agent
-cd apple-calendar-agent
+npx -y -p @axint/compiler create-axint-app apple-day-agent
+cd apple-day-agent
 npm run proof
 open share/built-with-axint.html
 ```
 
-This creates a premium Apple-native launchpad instead of a blank scaffold:
+This creates a premium Apple-native mini app instead of a blank scaffold:
 
 - `intents/create-event.ts` is the App Intent source contract.
+- `intents/create-reminder.ts` and `intents/check-weather.ts` add two more Apple capabilities.
 - `.axint/agent-prompts/` gives Codex, Claude Code, and Cursor the exact proof loop.
-- `ios/Preview/CalendarCommandCenter.swift` gives the starter a polished SwiftUI companion view.
+- `ios/App/DayDashboardView.swift` gives the starter a real SwiftUI app shell.
 - `.axint/run/latest.md` starts the durable proof trail.
-- `share/built-with-axint.html` gives you a screenshot-ready "Built with Axint" card.
+- `share/built-with-axint.html` gives you an interactive browser preview with the generated app shell, contracts, Swift, and proof.
 
-The point is not to fake a full app. The point is to show the real Axint loop:
-agent writes the Apple-native contract, Axint compiles it, validates it, and
-hands the agent a repair path when something breaks.
+The point is to make the first run feel real: agent writes Apple-native
+contracts, Axint compiles multiple capabilities, validates them, renders a
+usable app preview, and hands the agent a repair path when something breaks.
 
 ```bash
 npm install -g @axint/compiler

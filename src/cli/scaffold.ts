@@ -342,18 +342,19 @@ function launchpadReadme(
 ): string {
   return `# ${name}
 
-This is a premium Axint launchpad: an Apple-native feature contract, agent-ready
-instructions, local proof artifacts, and a shareable demo page in one project.
+This is a premium Axint launchpad: Apple-native feature contracts, agent-ready
+instructions, local proof artifacts, a SwiftUI mini app shell, and a shareable
+demo page in one project.
 
 Generated from **${title}** and pinned to \`@axint/compiler@^${version}\`.
 
 ## The moment
 
-Ask your AI agent to finish this Apple-native feature without guessing:
+Ask your AI agent to finish this Apple-native mini app without guessing:
 
 \`\`\`text
 Read .axint/START_HERE.md, then use Axint to compile, validate, and repair this
-project until the App Intent is ready for Xcode.
+project until the app shell and generated intents are ready for Xcode.
 \`\`\`
 
 ## Run the proof loop
@@ -363,8 +364,9 @@ npm install
 npm run proof
 \`\`\`
 
-That compiles the intent, emits Swift + plist + entitlement artifacts into
-\`ios/Intents/\`, then validates the source contract.
+That compiles the generated intents, emits Swift + plist + entitlement artifacts
+into \`ios/Intents/\`, validates the source contracts, and renders the local
+interactive demo.
 
 For hosted review:
 
@@ -374,8 +376,9 @@ npm run cloud:check
 
 ## Show the demo
 
-Open \`share/built-with-axint.html\` after the first proof pass. It gives you a
-clean local proof card for screenshots, demos, and investor/developer updates.
+Open \`share/built-with-axint.html\` after the first proof pass. It gives you an
+interactive Day Agent preview with the generated app shell, contracts, Swift,
+proof, and Xcode handoff in one place.
 
 ## Give this to your agent
 
@@ -385,8 +388,9 @@ clean local proof card for screenshots, demos, and investor/developer updates.
 
 ## Files that matter
 
-- \`intents/${template}.ts\` is the Apple-native source contract.
-- \`ios/Preview/CalendarCommandCenter.swift\` is a polished SwiftUI companion view.
+- \`intents/${template}.ts\`, \`intents/create-reminder.ts\`, and \`intents/check-weather.ts\` are the Apple-native source contracts.
+- \`ios/App/DayDashboardView.swift\` is the SwiftUI mini app shell.
+- \`ios/Preview/CalendarCommandCenter.swift\` is a compact SwiftUI companion view.
 - \`.axint/run/latest.md\` is the first-run proof contract.
 - \`docs/DEMO_SCRIPT.md\` is the 60-second demo flow.
 
@@ -409,7 +413,7 @@ function startHere(name: string, template: string, title: string): string {
   return `# Start Here: ${name}
 
 You are inside an Axint launchpad. Your job is to turn one AI-authored Apple
-feature into validated Apple-native output without guessing.
+mini app into validated Apple-native output without guessing.
 
 The loop is simple: compile, validate, and repair until the Apple-native proof
 is concrete enough for a human to trust.
@@ -418,18 +422,20 @@ is concrete enough for a human to trust.
 
 This project should prove the Axint loop:
 
-1. Read the source contract at \`intents/${template}.ts\`.
-2. Compile it into Swift App Intent artifacts.
-3. Validate the contract and fix anything Axint reports.
-4. Keep proof in \`.axint/run/latest.md\`.
-5. Do not claim this is ready for Xcode until the proof loop passes.
+1. Read the source contracts in \`intents/\`.
+2. Compile them into Swift App Intent artifacts.
+3. Inspect the SwiftUI shell in \`ios/App/\`.
+4. Validate the contracts and fix anything Axint reports.
+5. Keep proof in \`.axint/run/latest.md\`.
+6. Do not claim this is ready for Xcode until the proof loop passes.
 
 ## Starter
 
 - Template: ${title}
-- Source: \`intents/${template}.ts\`
+- Sources: \`intents/${template}.ts\`, \`intents/create-reminder.ts\`, \`intents/check-weather.ts\`
 - Output: \`ios/Intents/\`
-- Share card: \`share/built-with-axint.html\`
+- App shell: \`ios/App/DayDashboardView.swift\`
+- Interactive demo: \`share/built-with-axint.html\`
 
 ## Commands
 
@@ -446,7 +452,7 @@ source contract or Swift companion change, and rerun the proof command.
 `;
 }
 
-function agentPrompt(agent: string, name: string, template: string): string {
+function agentPrompt(agent: string, name: string, _template: string): string {
   return `# Axint Prompt for ${agent}
 
 Read \`.axint/START_HERE.md\` first.
@@ -456,13 +462,13 @@ Use Axint as the proof loop, not as decoration.
 
 ## Goal
 
-Make the App Intent contract in \`intents/${template}.ts\` compile and validate.
-Then explain the generated Swift artifacts and the smallest Xcode integration
-step a human should take next.
+Make the App Intent contracts in \`intents/\` compile and validate. Then explain
+the generated Swift artifacts, the SwiftUI Day Agent shell, and the smallest
+Xcode integration step a human should take next.
 
 ## Required loop
 
-1. Inspect \`intents/${template}.ts\`, \`axint.json\`, and this prompt.
+1. Inspect \`intents/\`, \`ios/App/\`, \`axint.json\`, and this prompt.
 2. Run \`npm run proof\`.
 3. If it fails, patch the smallest relevant file.
 4. Rerun until proof passes or Axint gives a concrete blocker.
@@ -471,7 +477,7 @@ step a human should take next.
 ## Guardrails
 
 - Do not claim the feature ships without Axint proof.
-- Do not rewrite the project into a generic app scaffold.
+- Do not rewrite the project into a generic web demo or throwaway app scaffold.
 - Keep Apple-specific details explicit: App Intents, Info.plist, entitlements, Swift output, Xcode next step.
 - Keep source private unless the user asks to publish it.
 `;
@@ -494,8 +500,9 @@ npm run proof
 
 ## Expected evidence
 
-- TypeScript intent source exists at \`intents/${template}.ts\`.
+- TypeScript intent sources exist in \`intents/\`.
 - Swift App Intent artifacts are emitted into \`ios/Intents/\`.
+- SwiftUI app shell files exist in \`ios/App/\`.
 - Validation completes without critical diagnostics.
 - If validation fails, the agent uses the Axint report as the repair contract.
 
@@ -519,8 +526,8 @@ create-axint-app ${name}
 cd ${name}
 \`\`\`
 
-Say: "This creates an Apple-native feature launchpad for AI agents, not a blank
-project."
+Say: "This creates a small Apple-native Day Agent app for AI agents, not a blank
+project and not a static screenshot."
 
 ## 10-25 seconds
 
@@ -538,138 +545,17 @@ npm install
 npm run proof
 \`\`\`
 
-Say: "The agent does not guess. It compiles, validates, and repairs against
-Apple-native rules."
+Say: "The agent does not guess. It compiles three intents, validates them, and
+repairs against Apple-native rules."
 
 ## 45-60 seconds
 
 Open \`share/built-with-axint.html\`.
 
-Say: "The result is a shareable proof card and real Swift artifacts for Xcode."
+Say: "The result is an interactive mini app preview, real SwiftUI files, generated
+App Intents, and an Axint proof packet for Xcode."
 
-Source contract: \`intents/${template}.ts\`
-`;
-}
-
-function dayAgentAppSwift(name: string): string {
-  const appName = escapeSwiftIdentifier(titleCase(name).replace(/\s+/g, ""));
-  return `import SwiftUI
-
-@main
-struct ${appName}App: App {
-    var body: some Scene {
-        WindowGroup {
-            DayDashboardView()
-        }
-    }
-}
-`;
-}
-
-function dayAgentModelsSwift(): string {
-  return `import Foundation
-
-struct DayAgentAction: Identifiable {
-    let id = UUID()
-    let title: String
-    let detail: String
-    let systemImage: String
-    let status: DayAgentStatus
-}
-
-enum DayAgentStatus: String {
-    case ready = "Ready"
-    case proof = "Proof"
-    case repair = "Repair"
-}
-`;
-}
-
-function dayDashboardViewSwift(name: string): string {
-  const title = escapeSwiftString(titleCase(name));
-  return `import SwiftUI
-
-struct DayDashboardView: View {
-    private let actions = [
-        DayAgentAction(
-            title: "Create calendar event",
-            detail: "Compiled from intents/create-event.ts into AppIntent Swift.",
-            systemImage: "calendar.badge.plus",
-            status: .ready
-        ),
-        DayAgentAction(
-            title: "Create reminder",
-            detail: "Second intent proves the starter is a multi-action agent surface.",
-            systemImage: "checklist",
-            status: .proof
-        ),
-        DayAgentAction(
-            title: "Check weather",
-            detail: "Third intent gives the agent enough context to coordinate a day.",
-            systemImage: "cloud.sun.fill",
-            status: .repair
-        ),
-    ]
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("${title}")
-                            .font(.largeTitle.bold())
-                        Text("A small Apple-native command center generated with Axint contracts, compiled Swift artifacts, and a repeatable proof loop.")
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 8)
-                }
-
-                Section("Agent actions") {
-                    ForEach(actions) { action in
-                        HStack(spacing: 14) {
-                            Image(systemName: action.systemImage)
-                                .frame(width: 28)
-                                .foregroundStyle(.orange)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(action.title)
-                                    .font(.headline)
-                                Text(action.detail)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text(action.status.rawValue)
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 5)
-                                .background(.orange.opacity(0.14), in: Capsule())
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Day Agent")
-        }
-    }
-}
-
-#Preview {
-    DayDashboardView()
-}
-`;
-}
-
-function dayAgentAppReadme(name: string): string {
-  return `# ${titleCase(name)} App Shell
-
-This folder is a lightweight SwiftUI companion surface for the generated App
-Intent contracts in \`intents/\`.
-
-- \`DayAgentApp.swift\` provides the SwiftUI app entry point.
-- \`DayAgentModels.swift\` contains small demo models.
-- \`DayDashboardView.swift\` shows the three generated intent contracts as one
-  Apple-native command center.
-
-Run \`npm run proof\` from the project root before opening these files in Xcode.
+Source contracts: \`intents/${template}.ts\`, \`intents/create-reminder.ts\`, \`intents/check-weather.ts\`
 `;
 }
 
@@ -746,6 +632,267 @@ private struct ProofRow: View {
 #Preview {
     CalendarCommandCenter()
 }
+`;
+}
+
+function dayAgentAppSwift(name: string): string {
+  const title = escapeSwiftString(titleCase(name));
+  const appIdentifier = escapeSwiftIdentifier(`${titleCase(name)}DayAgent`);
+  return `import SwiftUI
+
+@main
+struct ${appIdentifier}App: App {
+    var body: some Scene {
+        WindowGroup {
+            DayDashboardView(appName: "${title}")
+        }
+    }
+}
+`;
+}
+
+function dayAgentModelsSwift(): string {
+  return `import Foundation
+
+struct DayPlanItem: Identifiable {
+    enum Kind: String {
+        case calendar = "Calendar"
+        case reminder = "Reminder"
+        case weather = "Weather"
+    }
+
+    let id = UUID()
+    let kind: Kind
+    let title: String
+    let detail: String
+    let intentName: String
+    let status: String
+}
+
+let dayAgentPreviewItems: [DayPlanItem] = [
+    DayPlanItem(
+        kind: .calendar,
+        title: "Design Review",
+        detail: "Wed, May 6 at 10:00 AM for 30 minutes",
+        intentName: "CreateEventIntent",
+        status: "ready"
+    ),
+    DayPlanItem(
+        kind: .reminder,
+        title: "Send product brief",
+        detail: "Due before the meeting",
+        intentName: "CreateReminderIntent",
+        status: "ready"
+    ),
+    DayPlanItem(
+        kind: .weather,
+        title: "Cupertino",
+        detail: "72°, sunny, widget-ready",
+        intentName: "CheckWeatherIntent",
+        status: "ready"
+    ),
+]
+`;
+}
+
+function dayDashboardViewSwift(name: string): string {
+  const title = escapeSwiftString(titleCase(name));
+  return `import SwiftUI
+
+struct DayDashboardView: View {
+    let appName: String
+    @State private var eventTitle = "Design Review"
+    @State private var reminderTitle = "Send product brief"
+    @State private var selectedTab: DayTab = .today
+
+    init(appName: String = "${title}") {
+        self.appName = appName
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.05, green: 0.05, blue: 0.06),
+                        Color(red: 0.16, green: 0.08, blue: 0.06)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        header
+                        picker
+
+                        switch selectedTab {
+                        case .today:
+                            todayStack
+                        case .calendar:
+                            calendarComposer
+                        case .weather:
+                            weatherCard
+                        }
+                    }
+                    .padding(24)
+                }
+            }
+            .navigationTitle("Day Agent")
+            .toolbarBackground(.hidden, for: .navigationBar)
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Built with Axint")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.orange)
+                .textCase(.uppercase)
+
+            Text(appName)
+                .font(.system(size: 44, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+
+            Text("Three Apple capabilities generated from AI-friendly contracts, compiled into Swift, and backed by an Axint repair loop.")
+                .font(.body)
+                .foregroundStyle(.white.opacity(0.68))
+        }
+    }
+
+    private var picker: some View {
+        Picker("Surface", selection: $selectedTab) {
+            ForEach(DayTab.allCases) { tab in
+                Text(tab.rawValue).tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private var todayStack: some View {
+        VStack(spacing: 12) {
+            ForEach(dayAgentPreviewItems) { item in
+                CapabilityRow(item: item)
+            }
+        }
+    }
+
+    private var calendarComposer: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Calendar command")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.white)
+
+            TextField("Event title", text: $eventTitle)
+                .textFieldStyle(.roundedBorder)
+
+            Button {
+                // Call CreateEventIntent from your app target after adding generated intents.
+            } label: {
+                Label("Create event through Axint intent", systemImage: "calendar.badge.plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(18)
+        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24))
+    }
+
+    private var weatherCard: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Cupertino")
+                .font(.headline)
+                .foregroundStyle(.white.opacity(0.72))
+
+            Text("72°")
+                .font(.system(size: 76, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+
+            Text("Sunny · CheckWeatherIntent · widget-ready")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.68))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(22)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.18, green: 0.24, blue: 0.34),
+                    Color(red: 0.10, green: 0.11, blue: 0.14)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 28)
+        )
+    }
+}
+
+private enum DayTab: String, CaseIterable, Identifiable {
+    case today = "Today"
+    case calendar = "Calendar"
+    case weather = "Weather"
+
+    var id: String { rawValue }
+}
+
+private struct CapabilityRow: View {
+    let item: DayPlanItem
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Text(String(item.kind.rawValue.prefix(1)))
+                .font(.headline.weight(.black))
+                .frame(width: 42, height: 42)
+                .background(.orange.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
+                .foregroundStyle(.orange)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text(item.detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.62))
+                Text(item.intentName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.42))
+            }
+
+            Spacer()
+
+            Text(item.status)
+                .font(.caption.weight(.black))
+                .foregroundStyle(.green)
+        }
+        .padding(16)
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 22))
+    }
+}
+
+#Preview {
+    DayDashboardView()
+}
+`;
+}
+
+function dayAgentAppReadme(name: string): string {
+  return `# Day Agent SwiftUI shell
+
+This folder is the generated app-side companion for \`${name}\`.
+
+It is intentionally small enough to inspect and realistic enough to drop into an
+Xcode SwiftUI app target:
+
+- \`DayAgentApp.swift\` wires the app entry.
+- \`DayAgentModels.swift\` holds preview data for generated capabilities.
+- \`DayDashboardView.swift\` shows calendar, reminder, and weather surfaces.
+
+Add the generated files in \`ios/Intents/\` to the same target, then connect the
+button actions to \`CreateEventIntent\`, \`CreateReminderIntent\`, and
+\`CheckWeatherIntent\` when you want live device behavior.
 `;
 }
 
@@ -1417,11 +1564,12 @@ const html = \`<!doctype html>
       <aside class="panel what">
         <h2>What got built?</h2>
         <div class="built-list">
-          <div class="built-item"><strong>1. App Intent source contract</strong><span>The editable AI-friendly definition in TypeScript.</span></div>
-          <div class="built-item"><strong>2. Swift App Intent</strong><span>Apple-native Swift output for Siri and Shortcuts.</span></div>
-          <div class="built-item"><strong>3. Apple metadata</strong><span>Info.plist usage copy and Siri entitlement fragments.</span></div>
-          <div class="built-item"><strong>4. Agent repair prompt</strong><span>Codex/Claude/Cursor get the exact proof loop instead of guessing.</span></div>
-          <div class="built-item"><strong>5. Axint proof packet</strong><span>The durable verdict with diagnostics and next action.</span></div>
+          <div class="built-item"><strong>1. Three App Intent contracts</strong><span>Calendar, reminder, and weather capabilities in AI-friendly TypeScript.</span></div>
+          <div class="built-item"><strong>2. Generated Swift intents</strong><span>Apple-native Siri and Shortcuts output emitted into ios/Intents.</span></div>
+          <div class="built-item"><strong>3. SwiftUI app shell</strong><span>A Day Agent dashboard with capability cards, forms, and widget-style weather.</span></div>
+          <div class="built-item"><strong>4. Apple metadata</strong><span>Info.plist usage copy and entitlement fragments for Xcode handoff.</span></div>
+          <div class="built-item"><strong>5. Agent repair prompt</strong><span>Codex/Claude/Cursor get the exact proof loop instead of guessing.</span></div>
+          <div class="built-item"><strong>6. Axint proof packet</strong><span>The durable verdict with diagnostics and next action.</span></div>
         </div>
       </aside>
 

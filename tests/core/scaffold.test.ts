@@ -196,6 +196,9 @@ describe("scaffoldProject", () => {
     expect(result.shareFile).toBe("share/built-with-axint.html");
     expect(result.files).toContain(".axint/START_HERE.md");
     expect(result.files).toContain(".axint/agent-prompts/codex.md");
+    expect(result.files).toContain("intents/create-reminder.ts");
+    expect(result.files).toContain("intents/check-weather.ts");
+    expect(result.files).toContain("ios/App/DayDashboardView.swift");
     expect(result.files).toContain("ios/Preview/CalendarCommandCenter.swift");
     expect(result.files).toContain("scripts/render-demo.mjs");
     expect(result.files).toContain("share/built-with-axint.html");
@@ -211,6 +214,8 @@ describe("scaffoldProject", () => {
     expect(share).toContain("@axint/compiler 0.4.22");
 
     const pkg = JSON.parse(await readFile(join(workDir, "package.json"), "utf-8"));
+    expect(pkg.scripts.compile).toContain("create-reminder");
+    expect(pkg.scripts.validate).toContain("check-weather");
     expect(pkg.scripts.proof).toContain("render:demo");
     expect(pkg.scripts["render:demo"]).toBe("node scripts/render-demo.mjs");
   });
