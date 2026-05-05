@@ -307,6 +307,12 @@ export function renderAxintSessionStart(
     JSON.stringify(result.workflowCheckArgs, null, 2),
     "```",
     "",
+    "If MCP transport is closed, use this CLI-safe equivalent instead:",
+    "",
+    "```sh",
+    renderWorkflowCheckCliCommand(result.workflowCheckArgs),
+    "```",
+    "",
     "## Agent Tool Profile",
     "",
     "```text",
@@ -331,6 +337,41 @@ export function renderAxintSessionStart(
     "",
     result.docsContext,
   ].join("\n");
+}
+
+function renderWorkflowCheckCliCommand(args: Record<string, unknown>): string {
+  const parts = ["axint", "workflow", "check"];
+  const orderedKeys = [
+    "cwd",
+    "stage",
+    "agent",
+    "sessionStarted",
+    "sessionToken",
+    "readRehydrationContext",
+    "readAgentInstructions",
+    "readDocsContext",
+    "ranStatus",
+  ];
+  for (const key of orderedKeys) {
+    const value = args[key];
+    if (value === undefined || value === false || value === null) continue;
+    const flag = key === "cwd" ? "--dir" : `--${toKebabCase(key)}`;
+    if (value === true) {
+      parts.push(flag);
+    } else {
+      parts.push(flag, shellQuote(String(value)));
+    }
+  }
+  return parts.join(" ");
+}
+
+function toKebabCase(value: string): string {
+  return value.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
+}
+
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_./:=@+-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 function sessionFilePath(targetDir: string): string {
