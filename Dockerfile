@@ -9,6 +9,6 @@ RUN npm run build
 FROM node:22-slim
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 COPY --from=build /app/dist dist/
 ENTRYPOINT ["node", "dist/mcp/register.js"]
