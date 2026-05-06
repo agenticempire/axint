@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2026-05-06 — pnpm lockfile security parity
+
+This patch closes the remaining scanner gap after the MCP SDK and npm lockfile
+were already clean.
+
+### Fixed
+
+- `pnpm-lock.yaml` now resolves `ip-address` through the safe `10.2.x` line.
+- `package.json` includes a matching pnpm override so future lockfile refreshes do not reintroduce the stale vulnerable path.
+- Public truth advances to v0.4.25 with the same 35-tool MCP surface introduced in v0.4.24.
+
 ## 2026-05-06 — Project-pack version sync and MCP Marketplace hardening
 
 This release tightens the upgrade story. When Axint updates inside a long-running
