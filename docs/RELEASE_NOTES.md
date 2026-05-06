@@ -1,5 +1,18 @@
 # Release Notes
 
+## 2026-05-06 — Glama MCP entrypoint compatibility
+
+This patch fixes the container launch path used by Glama and other MCP
+marketplaces that execute the package MCP export file directly.
+
+### Fixed
+
+- `node dist/mcp/index.js` now starts the stdio MCP server when executed
+  directly, matching `mcp-proxy -- node dist/mcp/index.js` launch specs.
+- `@axint/compiler/mcp` remains import-safe for SDK consumers and tests.
+- Added a regression test so the direct entrypoint cannot silently become
+  export-only again.
+
 ## 2026-05-06 — pnpm lockfile security parity
 
 This patch closes the remaining scanner gap after the MCP SDK and npm lockfile

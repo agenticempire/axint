@@ -1,5 +1,5 @@
 {
-  "version": "0.4.25",
+  "version": "0.4.26",
   "mcpTools": 35,
   "mcpToolNames": [
     "axint.status",
@@ -85,7 +85,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 1192,
+    "typescript": 1193,
     "python": 114
   },
   "registryPackages": 58,
