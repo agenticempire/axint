@@ -24,7 +24,7 @@
 <p align="center">
   <a href="https://axint.ai">Website</a> ·
   <a href="https://axint.ai/#playground">Playground</a> ·
-  <a href="#create-a-wow-starter">Create App</a> ·
+  <a href="#create-the-apple-day-agent-starter">Create App</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#mcp-server">MCP Server</a> ·
   <a href="https://docs.axint.ai">Docs</a> ·
