@@ -1,5 +1,7 @@
 import { defineConfig } from "tsup";
 
+const bundledMcpDependencies = ["@modelcontextprotocol/sdk"];
+
 export default defineConfig([
   // Core and SDK packages (library — no shebang)
   {
@@ -24,6 +26,7 @@ export default defineConfig([
     splitting: false,
     sourcemap: true,
     target: "node22",
+    noExternal: bundledMcpDependencies,
     banner: {
       js: "#!/usr/bin/env node",
     },
@@ -38,6 +41,7 @@ export default defineConfig([
     splitting: false,
     sourcemap: true,
     target: "node22",
+    noExternal: bundledMcpDependencies,
   },
   // MCP stdio binary (side-effectful axint-mcp entrypoint)
   {
@@ -49,6 +53,7 @@ export default defineConfig([
     splitting: false,
     sourcemap: true,
     target: "node22",
+    noExternal: bundledMcpDependencies,
     banner: {
       js: "#!/usr/bin/env node",
     },
@@ -63,6 +68,7 @@ export default defineConfig([
     splitting: false,
     sourcemap: true,
     target: "node22",
+    noExternal: bundledMcpDependencies,
     banner: {
       js: "#!/usr/bin/env node",
     },

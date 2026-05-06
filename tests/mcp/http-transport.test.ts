@@ -112,10 +112,14 @@ describe("axint HTTP MCP transport", () => {
     expect(payload.result.tools.map((tool: { name: string }) => tool.name)).toEqual(
       TOOL_MANIFEST.map((tool) => tool.name)
     );
-    expect(JSON.stringify(payload.result.tools).length).toBeLessThan(
-      JSON.stringify(TOOL_MANIFEST).length
-    );
     expect(payload.result.tools).toEqual(compactManifest);
+    expect(
+      payload.result.tools.every((tool: { description?: string }) =>
+        Boolean(
+          tool.description?.includes("Use:") && tool.description.includes("Effects:")
+        )
+      )
+    ).toBe(true);
     expect(
       payload.result.tools.every((tool: { outputSchema?: unknown }) =>
         Boolean(tool.outputSchema)

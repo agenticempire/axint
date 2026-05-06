@@ -2254,9 +2254,9 @@ type CompactManifestOptions = {
   nestedDescriptionChars: number;
 };
 
-const DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS = 140;
-const DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS = 48;
-const DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS = 48;
+const DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS = 420;
+const DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS = 112;
+const DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS = 80;
 
 export function getRuntimeToolManifest(env: RuntimeManifestEnv = {}) {
   const mode = env.AXINT_MCP_MANIFEST_MODE?.trim().toLowerCase();
@@ -2284,11 +2284,185 @@ export function compactToolManifest(options: CompactManifestOptions) {
   return withOutputSchemas(
     TOOL_MANIFEST.map((tool) => ({
       ...tool,
-      description: compactDescription(tool.description, options.toolDescriptionChars),
+      description: compactToolDescription(tool, options.toolDescriptionChars),
       inputSchema: compactSchemaValue(tool.inputSchema, options, 0),
     }))
   ) as unknown as typeof TOOL_MANIFEST;
 }
+
+function compactToolDescription(
+  tool: (typeof TOOL_MANIFEST)[number],
+  maxChars: number
+): string {
+  const effects = RUNTIME_TOOL_EFFECTS[tool.name] ?? defaultEffectSummary(tool);
+  const guidance = RUNTIME_TOOL_GUIDANCE[tool.name];
+  const suffix = [guidance ? `Use: ${guidance}` : undefined, `Effects: ${effects}`]
+    .filter(Boolean)
+    .join(" ");
+  const suffixLength = suffix.length + 1;
+  const summaryChars = Math.max(96, maxChars - suffixLength);
+  return compactDescription(
+    `${compactDescription(tool.description, summaryChars)} ${suffix}`,
+    maxChars
+  );
+}
+
+function defaultEffectSummary(tool: (typeof TOOL_MANIFEST)[number]): string {
+  const annotations = tool.annotations;
+  if (annotations.destructiveHint) {
+    return annotations.openWorldHint
+      ? "can modify local state and may use network; no source is sent unless an explicit argument says so."
+      : "can modify local state; no network by default.";
+  }
+  if (annotations.readOnlyHint) {
+    return annotations.openWorldHint
+      ? "read-only result; may use network only for the documented remote mode."
+      : "read-only result; writes no files and uses no network.";
+  }
+  return annotations.openWorldHint
+    ? "may write local Axint artifacts and may use network for documented checks."
+    : "may write local Axint artifacts; no network by default.";
+}
+
+const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
+  "axint.status":
+    "call first or after an MCP reload to prove the connected server version; do not use as an npm/PyPI lookup.",
+  "axint.upgrade":
+    "call when axint.status shows a stale server; not for app dependency upgrades.",
+  "axint.doctor":
+    "call when MCP wiring, package paths, Xcode setup, or project memory may be stale.",
+  "axint.xcode.guard":
+    "call around long Xcode tasks, context recovery, broad Swift edits, or before claiming runtime proof.",
+  "axint.xcode.write":
+    "use only for guarded Xcode-project file writes; outside Xcode, patch normally and validate after.",
+  "axint.session.start":
+    "call at the start of a tool-enabled agent session or after context compaction.",
+  "axint.feature":
+    "use for new Apple-native surfaces; not for repairing existing app bugs.",
+  "axint.project.pack":
+    "use to bootstrap an Apple project with Axint instructions; not to inspect an existing project.",
+  "axint.project.index":
+    "use before project-aware repair, multi-file SwiftUI work, or interaction-risk analysis.",
+  "axint.project.syncVersion":
+    "use after package upgrades so local project-pack hints stop naming old Axint versions.",
+  "axint.context.memory":
+    "use after compaction or session restart when the agent needs compact operating rules.",
+  "axint.context.docs":
+    "use after compaction when the agent needs workflow docs without rereading the whole site.",
+  "axint.suggest":
+    "use before generation to choose Apple surfaces; not a substitute for registry search or validation.",
+  "axint.registry.search":
+    "use before generating code to find reusable packages; not for validating local Swift.",
+  "axint.workflow.check":
+    "use at stage gates to prove Axint workflow coverage; not a final build/test substitute.",
+  "axint.scaffold":
+    "use to create a small TypeScript intent starter; use templates for richer examples.",
+  "axint.compile":
+    "use when TypeScript DSL source should become Swift; use validate for cheaper preflight only.",
+  "axint.validate":
+    "use for TypeScript DSL diagnostics before Swift output; use swift.validate for existing Swift.",
+  "axint.fix-packet":
+    "use after a local compile/watch/check emitted a packet; not a new analysis pass.",
+  "axint.cloud.check":
+    "use for Apple-aware source review and repair prompts; provide evidence for UI/runtime claims.",
+  "axint.repair":
+    "use for existing app bugs with logs, UI symptoms, or runtime evidence; not for greenfield generation.",
+  "axint.feedback.create":
+    "use when Axint output was weak and you need a privacy-safe issue packet; not for sending source.",
+  "axint.agent.install":
+    "use once per project to create local multi-agent coordination; not needed for one-off compile.",
+  "axint.agent.advice":
+    "use when multiple tools or agents need the next safest move from local proof.",
+  "axint.agent.claim":
+    "use before editing shared files in parallel-agent work; release claims when done.",
+  "axint.agent.release":
+    "use after finishing or abandoning claimed files so other agents are unblocked.",
+  "axint.run":
+    "use when the agent must prove Swift validation, Cloud Check, Xcode build/test, and runtime evidence.",
+  "axint.run.status":
+    "use after MCP timeouts or long builds to resume without guessing whether xcodebuild is still active.",
+  "axint.run.cancel":
+    "use only to stop an active Axint run or stuck child process group.",
+  "axint.tokens.ingest":
+    "use before view/component generation when a design system should be preserved.",
+  "axint.schema.compile":
+    "use for token-light JSON-to-Swift generation; use compile for full TypeScript DSL control.",
+  "axint.swift.validate":
+    "use on generated or edited Swift before build; pair with swift.fix for mechanical repairs.",
+  "axint.swift.fix":
+    "use after swift.validate when errors are mechanical; inspect remaining diagnostics manually.",
+  "axint.templates.list": "use to discover valid template ids before templates.get.",
+  "axint.templates.get":
+    "use to fetch a complete reference template; edit before compiling into an app.",
+};
+
+const RUNTIME_TOOL_EFFECTS: Record<string, string> = {
+  "axint.status": "read-only; writes no files; no auth or network required.",
+  "axint.upgrade":
+    "destructive when apply=true: can run package installs, refresh Xcode wiring, and write .axint/upgrade; may use npm network.",
+  "axint.doctor": "read-only inspection; writes no files; no auth or network required.",
+  "axint.xcode.guard":
+    "writes .axint/guard proof and may start a session; does not edit app source or use network.",
+  "axint.xcode.write":
+    "writes the requested file inside cwd, may create dirs, validates Swift, and may write guard/check artifacts.",
+  "axint.session.start":
+    "writes .axint/session and rehydration artifacts; no auth or network required.",
+  "axint.feature": "read-only generated output; writes no files and uses no network.",
+  "axint.project.pack":
+    "read-only generated file pack; writes no files and uses no network.",
+  "axint.project.index":
+    "writes .axint/context unless dryRun=true; reads local project files only.",
+  "axint.project.syncVersion":
+    "updates Axint-owned project instruction files unless dryRun=true; no network.",
+  "axint.context.memory":
+    "read-only generated context; writes no files and uses no network.",
+  "axint.context.docs":
+    "read-only generated docs context; writes no files and uses no network.",
+  "axint.suggest":
+    "local mode is read-only; Pro mode may call Axint endpoint when credentials are configured.",
+  "axint.registry.search":
+    "read-only local registry search using AXINT_REGISTRY_PATH or sibling checkout; no network by default.",
+  "axint.workflow.check":
+    "read-only gate but may update tiny workflow freshness stamps; no network.",
+  "axint.scaffold":
+    "read-only generated TypeScript; writes no files and uses no network.",
+  "axint.compile":
+    "read-only generated Swift/diagnostics; writes no files and uses no network.",
+  "axint.validate": "read-only diagnostics; writes no files and uses no network.",
+  "axint.fix-packet":
+    "read-only local artifact read; writes no files and uses no network.",
+  "axint.cloud.check":
+    "read-only response from provided source/path; may use configured Cloud Check endpoint; no source is sent unless provided.",
+  "axint.repair":
+    "writes .axint/repair and privacy-safe .axint/feedback artifacts; reads local project files.",
+  "axint.feedback.create":
+    "writes or reads redacted .axint/feedback packets; never includes source by default.",
+  "axint.agent.install":
+    "writes .axint/agent, context, and coordination files; no network.",
+  "axint.agent.advice":
+    "reads local Axint context/proof and may refresh advice artifacts; no network.",
+  "axint.agent.claim":
+    "writes local coordination claims under .axint/coordination; no network.",
+  "axint.agent.release":
+    "updates local coordination claims under .axint/coordination; no network.",
+  "axint.run":
+    "starts child processes, writes .axint/run artifacts, may run xcodebuild/tests, and may call Cloud Check.",
+  "axint.run.status":
+    "read-only local run/job inspection; writes no files and uses no network.",
+  "axint.run.cancel": "destructive: kills active Axint child process groups; no network.",
+  "axint.tokens.ingest":
+    "read-only Swift token output; writes no files and uses no network.",
+  "axint.schema.compile":
+    "read-only Swift generation; writes no files and uses no network.",
+  "axint.swift.validate":
+    "read-only Swift diagnostics; writes no files and uses no network.",
+  "axint.swift.fix":
+    "read-only fixed-source output; writes no files and uses no network.",
+  "axint.templates.list":
+    "read-only template metadata; writes no files and uses no network.",
+  "axint.templates.get":
+    "read-only template source; writes no files and uses no network.",
+};
 
 function withOutputSchemas<T extends readonly Record<string, unknown>[]>(tools: T) {
   return tools.map((tool) => ({
