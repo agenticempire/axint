@@ -1,6 +1,6 @@
 {
   "name": "@axint/compiler",
-  "version": "0.4.24",
+  "version": "0.4.25",
   "mcpName": "io.github.agenticempire/axint",
   "publishConfig": {
     "access": "public"
@@ -117,5 +117,10 @@
   },
   "overrides": {
     "ip-address": "^10.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "ip-address": "^10.2.0"
+    }
   }
 }

@@ -6,6 +6,12 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.25] — 2026-05-06
+
+### Fixed
+
+- **GitHub security parity** — added the pnpm override and refreshed `pnpm-lock.yaml` so Dependabot, MCP Marketplace, and package scanners no longer see the stale `ip-address@10.1.0` path after the npm lock had already been hardened.
+
 ## [0.4.24] — 2026-05-06
 
 ### Added
