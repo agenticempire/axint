@@ -1,5 +1,5 @@
 # Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
-# Axint turns TypeScript and Python into validated Swift for Apple-native features.
+# Axint is the Apple-native execution layer for AI coding agents.
 
 startCommand:
   type: http

@@ -10,43 +10,50 @@ Thanks for considering a contribution to Axint. This guide will get you oriented
 
 ## Architecture Overview
 
-Understanding the project structure will save you time:
+Understanding the project structure will save you time. Axint is no longer only
+a TypeScript-to-Swift compiler; the repo also contains the repair loop, MCP
+surface, project memory, Xcode proof path, telemetry controls, and starter
+generation that make the compiler useful to agents.
 
 ```
 src/
 ├── core/
 │   ├── parser.ts        # Extracts defineIntent() calls → IR
-│   ├── generator.ts     # Transforms IR → Swift App Intent source
-│   ├── validator.ts     # Validates IR and generated Swift (AX001–AX202)
-│   ├── compiler.ts      # Orchestrates the full pipeline
+│   ├── view-parser.ts   # SwiftUI view parser
+│   ├── widget-parser.ts # WidgetKit parser
+│   ├── app-parser.ts    # SwiftUI app scaffold parser
+│   ├── generator.ts     # Transforms IR → Swift source
+│   ├── swift-validator.ts # Existing Swift repair/diagnostic rules
+│   ├── compiler.ts      # Orchestrates the full compile pipeline
 │   ├── types.ts         # IR types, Swift type mappings, diagnostics
 │   └── index.ts         # Barrel export
 ├── sdk/
 │   └── index.ts         # define*() APIs and helpers (exported from `@axint/compiler`)
 ├── mcp/
 │   ├── server.ts        # MCP server with axint.* tools and built-in prompts
-│   ├── index.ts         # Pure import surface for manifests + server helpers
-│   └── register.ts      # Side-effectful axint-mcp binary entry point
+│   ├── manifest.ts      # Runtime marketplace/tool description surface
+│   ├── index.ts         # Import surface and direct stdio entry point
+│   └── register.ts      # axint-mcp binary entry point
 ├── templates/
 │   └── index.ts         # Intent template registry (templates welcome!)
 └── cli/
-    └── index.ts         # CLI entry — init, compile, validate, watch, publish, xcode
+    └── index.ts         # CLI entry: create, compile, validate, repair, run, xcode
 ```
 
 **Key data flow:**
 
 ```
-TypeScript Intent Definition
+TypeScript / Python / JSON / .axint definition
         ↓
-   core/parser.ts      — extracts defineIntent() call → Intermediate Representation (IR)
+   parser or schema lowering → Intermediate Representation (IR)
         ↓
-   core/validator.ts   — checks IR against Apple API constraints
+   validator           → checks Apple API constraints
         ↓
-   core/generator.ts   — generates Swift App Intent source
+   generator           → emits Swift, plist, and entitlements
         ↓
-   core/validator.ts   — validates generated Swift (import, conformance, perform)
+   Swift validator     → catches build-time Apple and SwiftUI failures
         ↓
-   Swift App Intent
+   Fix Packet / Run proof / MCP response
 ```
 
 ## What We're Looking For
@@ -54,6 +61,7 @@ TypeScript Intent Definition
 ### Always Welcome (just open a PR)
 
 - **New intent templates** — Calendar, reminders, messaging, media playback, smart home, health, maps, payments. Each template in `src/templates/` follows a consistent pattern. Look at an existing one and add yours.
+- **Existing-product repair fixtures** — Small SwiftUI/Xcode examples where Axint should diagnose a real failure such as blocked taps, scroll regressions, missing imports, bad bindings, or concurrency issues.
 - **Documentation** — Better explanations, more examples, typo fixes.
 - **Bug fixes** — Especially with a failing test that demonstrates the issue.
 - **Test coverage** — We can always use more tests, particularly for edge cases in the compiler and validator.
@@ -61,7 +69,7 @@ TypeScript Intent Definition
 ### Welcome With Prior Discussion (open an issue first)
 
 - **New MCP tools** — Additional tools exposed through the MCP server.
-- **Compiler changes** — Modifications to the TypeScript → Swift transformation pipeline.
+- **Compiler changes** — Modifications to the TypeScript/Python/JSON/`.axint` → IR → Swift pipeline.
 - **New target surfaces** — Support for SiriKit, Shortcuts, or other Apple execution surfaces beyond App Intents.
 - **Dependency additions** — Any new runtime dependency needs justification.
 

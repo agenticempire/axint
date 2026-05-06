@@ -1,176 +1,135 @@
 # Axint Roadmap
 
-_Last updated: April 2026 · Current release: [v0.3.9](https://github.com/agenticempire/axint/releases) · ahead of WWDC 2026_
+_Last updated: May 2026 · Current release: [v0.4.27](https://github.com/agenticempire/axint/releases/tag/v0.4.27)_
 
-Axint is the open-source compiler that turns TypeScript definitions into native Apple platform code — App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds. This roadmap tracks what's shipped, what's next, and where we need help.
+Axint is the Apple-native execution layer for AI coding agents. The open-source package gives agents a smaller contract for Apple surfaces, emits ordinary Swift, validates Apple-specific rules, writes Fix Packets, and coordinates proof loops across CLI, MCP, Xcode, Registry, and Cloud-facing workflows.
 
-We ship small, tight releases. Everything on this page is open for contribution — see [CONTRIBUTING.md](CONTRIBUTING.md) to get involved.
-
----
-
-## Shipped
-
-### v0.3.4
-
-- **Remote MCP endpoint** — Cloudflare Worker serving the compiler over HTTP for Smithery and hosted MCP clients.
-- **MCP registry metadata** — `server.json`, Dockerfile, tool annotations, and dot-notation tool names for Glama/Smithery/Pulsemcp quality scores.
-
-### v0.3.3
-
-- **Python MCP server** (`axint-mcp-py`) — parity with the TS MCP server's core compile/validate/template flow over stdio.
-- **Smithery listing** — MCP HTTP transport for the Smithery registry.
-- **402 tests** — jumped from 249 to 402 with validator, diagnostics, and generator edge case coverage. The suite has continued to grow since then.
-- **Type safety overhaul** — replaced all unsafe `as` casts with narrowing type guards across the parser and generator.
-- **defineView() + defineWidget() + defineApp()** — three new compilation surfaces shipped end-to-end.
-- **Architecture docs** (`ARCHITECTURE.md`) and shared parser utilities extraction.
-
-### v0.3.0
-
-- **Xcode SPM build plugin** (`spm-plugin/`) — `AxintCompilePlugin` and `AxintValidatePlugin` for `swift build` and Xcode builds. Discovers `axint` via `npx` or `PATH`.
-- **`axint eject`** (`src/core/eject.ts`) — generates standalone Swift with zero Axint dependency. Strips regeneration markers, adds Apple documentation references. Optional XCTest scaffold generation. 12 tests.
-- **EntityQuery + DynamicOptionsProvider** — initial SDK support (`defineEntity()`, `param.entity()`, `param.dynamicOptions()`), IR types (`entityQuery`, `dynamicOptions`, `IREntity`), validator rules AX110–AX113, and two new templates (`search-tasks`, `dynamic-playlist`). Dynamic options inner type extraction and property-based entity query codegen shipped in v0.3.2.
-- **WWDC API adapter pipeline** (`scripts/wwdc-diff.ts`) — nightly CI scanning Apple SDK headers for API changes with priority-ranked adapter recommendations and auto GitHub issue creation on detected changes.
-### v0.2.2
-
-- **`axint init` scaffolder** — one command drops a complete Axint project with pinned deps, tsconfig, a starter intent, and an MCP config pre-wired for Cursor, Claude Code, and Windsurf.
-- **`--emit-info-plist` / `--emit-entitlements` CLI flags** — wired through to the generator, so the Quick Start in the README actually works.
-- **Stage 4 validator (`--sandbox`)** — builds generated Swift in an SPM sandbox on macOS. Gives every intent a "swift build passes" badge before it ever touches Xcode.
-- **`axint templates` command** — list and print bundled templates from the CLI without touching the MCP.
-- **Logo and brand assets** — official SVG mark in `docs/assets/`.
-
-### v0.2.1
-
-- **Package rename**: `axint` → `@axint/compiler` (originally `@axintai`, migrated April 2026) with npm provenance.
-- Vendored compiler in the website sync'd to the published package.
-
-### v0.2.0
-
-- Real TypeScript AST parser (replaced the v0.1.x regex walker).
-- Numeric type fidelity: `param.int`, `param.double`, `param.float` → `Int`, `Double`, `Float`.
-- Return-type inference — `perform()` bodies emit `some IntentResult & ReturnsValue<T>`.
-- `emitInfoPlist` / `emitEntitlements` options on `CompilerOptions` (wired to CLI in v0.2.2).
-- Legacy underscore MCP aliases alongside the current dotted tool names.
-- Ten reference templates: messaging, productivity, health, commerce, smart home.
-- Intent-level metadata (`entitlements`, `infoPlistKeys`, `isDiscoverable`).
-- New validator rules AX107–AX109; new parser diagnostics AX006–AX008.
-- `ios26` / `macos26` target options ready for WWDC.
-
-### v0.1.x
-
-- Core type system and IR, parser, generator, validator with 12 diagnostic codes.
-- CLI (`compile`, `validate`, `--json`), MCP server foundations, and the original parser/generator/validator loop.
-- 117 tests with snapshot + security coverage (98%+).
-- In-browser playground on [axint.ai](https://axint.ai).
+The thesis is simple: agents can write code, but Apple-native software needs proof. Axint turns agent output into validated, repairable, inspectable Apple work.
 
 ---
 
-## Priority — v0.3.x (Target: late May 2026)
+## Shipped Now
 
-Remaining v0.3.0-scope features and polish before the public launch.
+### Execution and repair loop
 
-### 1. Template registry with `axint init --template`
+- `axint run` coordinates session recovery, workflow checks, Swift validation, Cloud Check, `xcodebuild build`, focused tests, full test runs, runtime proof, and durable `.axint/run` artifacts.
+- `axint repair` indexes existing Apple projects, classifies build/UI/runtime evidence, ranks likely files, and returns the smallest patch/proof loop.
+- Fix Packets give agents a shared repair contract through `latest.check.*` for quick verdicts and `latest.*` for full repair instructions.
+- Passing focused UI tests are reconciled with Cloud Check so stale warnings do not override real proof.
+- Failing Xcode tests are extracted into compact failure summaries with test name, file, line, assertion, likely source area, and next repair direction.
 
-Expand beyond the current 10 templates to 25+. Pre-built intents for every common pattern: messaging, health, commerce, smart home, media playback, navigation, file management, search, journaling, RSS, fitness tracking, home automation scenes. `axint init --template messaging` should produce a working intent in 5 seconds.
+### Compiler and Apple coverage
 
-_Status: foundation shipped in v0.2.2 · Target: v0.3.0 · Impact: medium_
+- TypeScript, Python, JSON schema mode, and preview `.axint` inputs compile into Apple-native Swift.
+- Supported surfaces include App Intents, SwiftUI views, WidgetKit widgets, app scaffolds, plist fragments, entitlements, and Apple metadata.
+- The validator covers 204 diagnostic codes across compiler, intent, view, widget, app, Swift build, SwiftUI, accessibility, concurrency, and Live Activity rules.
+- The suite currently tracks 1308 tests across TypeScript and Python paths.
 
-### 7. swift-format integration
+### Agent distribution
 
-Pipe every generated Swift file through Apple's `swift-format` with the default style. Free credibility and alignment with Apple's own codebase.
+- 35 MCP tools and 5 prompts expose compile, validate, repair, suggest, feature generation, project packs, memory, docs context, workflow gates, run status, run cancel, telemetry controls, feedback packets, and template access.
+- MCP marketplace bundles now start directly through `node dist/mcp/index.js` and ship clearer runtime tool descriptions for security/quality scanners.
+- Agent lanes distinguish Xcode-hosted work from Codex, Claude, Cursor, Cowork, VS Code, Windsurf, and other clients so routine edits use the active client's native patch lane while Axint handles proof.
+- Same-thread upgrades let agents update Axint without losing the current project conversation.
 
-_Status: in flight · Target: v0.3.0 · Impact: medium_
+### First-use and templates
 
-### 8. Public docs site — docs.axint.ai
+- `create-axint-app` / `axint create` generates the Apple Day Agent starter: multiple App Intent contracts, generated Swift, plist and entitlement fragments, agent prompts, proof artifacts, and an interactive local proof preview.
+- 26 bundled templates and 58 live Registry packages give agents reusable starting points instead of asking them to hallucinate every Apple surface from scratch.
 
-Astro Starlight docs with one page per concept, live playground embeds, and a searchable API reference.
+### Privacy-safe learning and adoption proof
 
-_Status: scaffolding · Target: v0.3.0 · Impact: medium_
-
----
-
-## Shipped — v0.3.x
-
-### VS Code / Cursor extension
-
-MCP-backed extension (`extensions/vscode/`) exposes the Axint MCP server to VS Code's AI features. Works with GitHub Copilot in agent mode and any VS Code AI feature that supports MCP.
-
-_Status: shipped · v0.3.0_
-
-### `--watch` mode
-
-Long-lived compiler process with 150ms debounce, inline error reporting, optional `--swift-build` for live recompilation, and `--format` for swift-format integration.
-
-_Status: shipped · v0.3.0_
-
-### `defineView()` + `defineWidget()` + `defineApp()` compilation
-
-Full SwiftUI view, WidgetKit widget, and app scaffold compilation pipelines — parser, validator, generator, and MCP schema mode for all four surfaces. 91 diagnostic codes across five validators.
-
-_Status: shipped · v0.3.2_
-
-### Python SDK
-
-Python parity for all four surfaces with a dataclass-based IR, decorator API, and cross-language compilation via `compileFromIR()`. Python and TypeScript produce byte-identical Swift output.
-
-_Status: shipped · v0.3.2_
-
-### MCP registry presence
-
-Remote MCP endpoint on Cloudflare Workers, `server.json` metadata, Dockerfile for inspection, tool annotations, and dot-notation tool names. Listed on Smithery, Glama, and Pulsemcp.
-
-_Status: shipped · v0.3.4_
-
-### Audience positioning refresh
-
-README, landing page, and all copy rewritten to lead with the "compression layer for AI agents on Apple" positioning. Token proof section on axint.ai with real compression ratios.
-
-_Status: shipped · v0.3.2_
+- Source-free telemetry records command class, MCP tool name, version, coarse host hint, OS family, Node major, CI flag, and anonymous install ID so Axint can understand which install paths actually work.
+- Source-free feedback packets capture diagnostic codes, issue class, redacted evidence, and likely Axint ownership without sending source code, prompts, generated Swift, file names, file paths, credentials, or machine IDs.
+- Users can inspect or disable these paths with `axint telemetry status`, `axint telemetry opt-out`, `axint feedback status`, and `axint feedback opt-out`.
 
 ---
 
-## Planned — v0.4.0+
+## Current Priorities
 
-### Swift → TypeScript reverse compiler
+### 1. Make the first run undeniable
 
-Read an existing Swift App Intent and emit the equivalent Axint TypeScript. Solves the cold-start problem for teams with existing codebases — import what you have, then author new intents in TypeScript going forward.
+Goal: the first command should create a real, inspectable Apple-native capability with proof, not a generic scaffold.
 
-_Target: v0.4.0_
+- Improve `create-axint-app` templates with more realistic app shells and generated Swift examples.
+- Add a "Built with Axint" gallery that links each demo to source contract, generated Swift, proof packet, and install command.
+- Add more end-to-end example repos for App Intent, SwiftUI widget, menu bar app, and existing-project repair flows.
 
-### Type system expansion
+### 2. Make existing-product repair feel senior
 
-Full support for Apple's type hierarchy: `IntentParameter<Measurement<Unit>>`, `PersonEntity`, `FileEntity`, custom `AppEntity` subclasses with snapshot-based identity, and `IntentDialog` for conversational intents.
+Goal: Axint should act like a senior Apple engineer watching the loop.
 
-_Target: v0.4.0_
+- Expand UI repair classifiers for blocked taps, invisible overlays, scroll/hittability failures, state drift, navigation regressions, and accessibility identifier mismatches.
+- Improve `.xcresult` parsing and attach focused failure context directly to repair packets.
+- Keep agent-facing output compact by default while preserving full logs and source artifacts on disk.
 
-### GitHub template repo (`axint-starter`)
+### 3. Make MCP marketplaces score Axint correctly
 
-A template repository that new contributors can clone for a 30-second setup: TypeScript config, a starter intent, and CI wired up.
+Goal: every marketplace should understand Axint as a low-risk, useful, well-documented MCP server.
 
-_Target: v0.4.0_
+- Keep runtime dependencies minimal.
+- Keep tool descriptions explicit: behavior, purpose, inputs, effects, and usage guidance.
+- Maintain Glama, Smithery, MCP Registry, and other marketplace metadata from the same version truth.
+
+### 4. Expand Apple surface coverage
+
+Goal: cover the annoying Apple edges that make agents break.
+
+- Richer `IntentDialog` support.
+- More Apple parameter and entity types.
+- App Shortcuts catalog generation.
+- Control Widgets and Live Activities starter coverage.
+- Better Swift 6 actor isolation and concurrency repair rules.
+
+### 5. Improve Registry composition
+
+Goal: agents should compose from trusted Apple-native packages before writing everything from scratch.
+
+- Better Registry search and package selection inside `axint.registry.search`.
+- Higher-quality first-party packages with proof, generated Swift, and demo prompts.
+- Source-code ingestion and candidate package extraction for future Registry contribution workflows.
+
+### 6. Keep public truth synchronized
+
+Goal: README, docs, package metadata, MCP metadata, website, org profile, and marketplace listings should always agree.
+
+- Continue running `versions:check`, `metrics:check`, `docs:check`, and downstream public-truth sync before releases.
+- Keep npm, PyPI, GitHub Releases, `server.json`, docs, and websites on the same version.
+- Treat stale public numbers as release blockers.
+
+---
+
+## Contribution Areas
+
+The best open-source contributions right now are:
+
+- new Apple templates with tests
+- validator rules for real Swift/App Intent failures
+- smaller reproductions for existing-product repair bugs
+- docs that make agent setup easier
+- MCP marketplace metadata improvements
+- examples that prove one Apple capability end to end
+- issue reports with `.axint/run/latest.md` or source-free feedback packets
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, release gates, and PR expectations.
 
 ---
 
 ## Principles
 
-Every change on this roadmap is measured against four rules:
-
-1. **Sub-millisecond compile** — the browser playground compiles on every keystroke. If a feature breaks that, it doesn't ship.
-2. **Idiomatic Swift output** — the generated code has to look like what a senior Apple engineer would write by hand.
-3. **Zero telemetry** — no data leaves the user's device unless they explicitly invoke a remote service themselves.
-4. **Apache 2.0, no CLA** — every line stays forkable, vendorable, and shippable inside commercial products.
+1. **Ordinary Swift output** - generated code should be inspectable, ejectable, and shippable without runtime lock-in.
+2. **Proof beats vibes** - a clean static check is useful, but Xcode/build/test/runtime evidence decides whether work is done.
+3. **Small agent contracts** - agents should send compact definitions or schema payloads, not walls of fragile Swift.
+4. **Repair packets, not guessing** - when something fails, Axint should return a concrete repair contract.
+5. **Privacy by default** - telemetry and feedback are source-free, inspectable, and opt-out.
+6. **Apache-2.0 core** - the compiler, SDKs, CLI, MCP server, templates, tests, and editor integrations stay forkable and shippable.
 
 ---
 
 ## Release Cadence
 
-- **Patch** (0.x.y): bug fixes and diagnostic improvements — as needed, typically weekly.
-- **Minor** (0.y.0): new features from this roadmap — roughly every 4–6 weeks.
-- **Major** (x.0.0): breaking changes to the `defineIntent()` API — only when absolutely necessary, with a migration guide.
+- **Patch** (`0.x.y`): diagnostics, repair quality, templates, metadata, marketplace compatibility, and bug fixes.
+- **Minor** (`0.y.0`): new Apple surfaces, larger API additions, or major workflow improvements.
+- **Breaking changes**: only when required, with migration notes and compatibility guidance.
 
----
-
-## Get Involved
-
-- **GitHub Discussions** — [github.com/agenticempire/axint/discussions](https://github.com/agenticempire/axint/discussions) for architecture questions and feature ideas
-- **Issues** — [github.com/agenticempire/axint/issues](https://github.com/agenticempire/axint/issues) for bug reports and "help wanted" items
-Your name in the CHANGELOG, forever.
+Intentional releases should move npm and PyPI together, refresh MCP metadata, publish a GitHub Release, and sync public proof surfaces before launch or promotion.

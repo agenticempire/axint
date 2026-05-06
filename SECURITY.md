@@ -4,8 +4,9 @@
 
 | Version | Supported              |
 |---------|------------------------|
-| 0.3.x   | Yes                    |
-| 0.2.x   | Security fixes only    |
+| 0.4.x   | Yes                    |
+| 0.3.x   | Critical fixes only    |
+| 0.2.x   | No (deprecated)        |
 | 0.1.x   | No (deprecated)        |
 
 ## Reporting a Vulnerability
@@ -26,6 +27,21 @@ When using Axint in production:
 2. Validate all untrusted agent definitions before compilation
 3. Review generated App Intent code before deployment
 4. Use code signing for all compiled artifacts
+
+## Privacy-Safe Telemetry and Feedback
+
+Axint includes source-free adoption telemetry and source-free feedback packets so repeated Apple failure modes can be fixed without collecting user projects.
+
+These paths do not send source code, prompts, generated Swift bodies, file names, file paths, credentials, local machine identifiers, or secrets. Users can inspect and disable them with:
+
+```bash
+axint telemetry status
+axint telemetry opt-out
+axint feedback status
+axint feedback opt-out
+```
+
+Environment controls are also supported: `AXINT_TELEMETRY=off`, `AXINT_DISABLE_TELEMETRY=1`, `AXINT_FEEDBACK=off`, and `AXINT_DISABLE_FEEDBACK=1`.
 
 ## Dependency and audit policy
 

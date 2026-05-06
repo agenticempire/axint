@@ -29,10 +29,17 @@ body:
     attributes:
       label: Component
       options:
-        - Compiler (core)
+        - Create app / starter
+        - Compiler / IR
         - Validator
+        - Swift repair rules
+        - Fix Packet
+        - Axint Run / Xcode proof
         - MCP Server
         - CLI
+        - Cloud Check
+        - Registry package
+        - Telemetry / Feedback
         - Templates
         - Documentation
         - New component

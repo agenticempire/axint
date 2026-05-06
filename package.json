@@ -6,7 +6,7 @@
     "access": "public"
   },
   "type": "module",
-  "description": "Open-source compiler for Apple platforms. TypeScript/Python/JSON in, Swift out — App Intents, SwiftUI views, WidgetKit widgets.",
+  "description": "Apple-native execution layer for AI coding agents: compile, validate, repair, and prove Swift surfaces.",
   "author": "Axint contributors",
   "license": "Apache-2.0",
   "homepage": "https://axint.ai",

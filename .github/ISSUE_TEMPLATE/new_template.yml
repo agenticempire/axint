@@ -1,18 +1,18 @@
-name: New Intent Template
-description: Propose or contribute a new App Intent template
+name: New Apple Template
+description: Propose or contribute a new Apple-native template
 title: "[Template]: "
 labels: ["template", "good first issue"]
 body:
   - type: markdown
     attributes:
       value: |
-        Intent templates are the easiest way to contribute to Axint. Describe the template you'd like to add.
+        Templates are one of the easiest ways to contribute to Axint. Describe the Apple-native capability you would like to add.
 
   - type: input
     id: name
     attributes:
       label: Template Name
-      placeholder: "e.g., Smart Home Light Control"
+      placeholder: "e.g., Smart Home Light Control, Menu Bar Timer, Focus Widget"
     validations:
       required: true
 
@@ -28,6 +28,10 @@ body:
         - Health (workouts, health data)
         - Navigation (maps, directions)
         - Finance (payments, transactions)
+        - SwiftUI view
+        - WidgetKit widget
+        - App scaffold
+        - Xcode repair fixture
         - Other
     validations:
       required: true
