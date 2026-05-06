@@ -69,7 +69,7 @@ import type {
 } from "../../../src/core/types.js";
 import { isPrimitiveType, isSceneKind } from "../../../src/core/types.js";
 
-const VERSION = "0.4.25";
+const VERSION = "0.4.26";
 
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
 

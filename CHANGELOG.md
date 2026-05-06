@@ -6,6 +6,12 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.26] — 2026-05-06
+
+### Fixed
+
+- **MCP marketplace runtime entrypoint** — `node dist/mcp/index.js` now starts the stdio MCP server when executed directly, while remaining safe to import as `@axint/compiler/mcp`. This matches Glama-style container launch specs that run `mcp-proxy -- node dist/mcp/index.js`.
+
 ## [0.4.25] — 2026-05-06
 
 ### Fixed
