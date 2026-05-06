@@ -1,5 +1,27 @@
 # Release Notes
 
+## 2026-05-06 — MCP Marketplace scoring and packaged dependency hardening
+
+This patch improves the public MCP marketplace surface after Glama accepted the
+runtime container but scored individual tools too low on behavior, usage
+guidance, and parameter clarity.
+
+### Changed
+
+- Runtime MCP tool descriptions now include explicit `Use:` guidance and
+  `Effects:` behavior notes by default.
+- Compact parameter descriptions are longer so defaults, constraints, and
+  file/network side effects survive marketplace inspection.
+- The MCP SDK is bundled into Axint's compiled MCP and CLI entrypoints, keeping
+  the published package install tree small and scanner-clean.
+
+### Fixed
+
+- Fresh downstream npm installs no longer inherit the MCP SDK's vulnerable
+  `express-rate-limit -> ip-address@10.1.0` transitive scanner path.
+- `@axint/compiler/mcp` remains importable while `node dist/mcp/index.js`
+  continues to satisfy Glama-style `mcp-proxy` launch specs.
+
 ## 2026-05-06 — Glama MCP entrypoint compatibility
 
 This patch fixes the container launch path used by Glama and other MCP

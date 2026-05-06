@@ -6,6 +6,16 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.27] — 2026-05-06
+
+### Changed
+
+- **MCP Marketplace tool-card clarity** — compact runtime tool descriptions now include explicit `Use:` and `Effects:` clauses, with longer parameter descriptions by default. This gives Glama/MCP marketplace evaluators and agent clients clearer purpose, usage guidance, side-effect, auth/network, and parameter-default signals without requiring full verbose mode.
+
+### Fixed
+
+- **Published npm audit path** — bundled the MCP SDK into Axint's compiled MCP/CLI runtime and moved it out of production dependencies so fresh downstream installs no longer inherit the vulnerable `express-rate-limit → ip-address@10.1.0` scanner chain while preserving `@axint/compiler/mcp` import compatibility.
+
 ## [0.4.26] — 2026-05-06
 
 ### Fixed

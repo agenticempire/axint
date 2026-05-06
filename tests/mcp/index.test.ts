@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { readFileSync } from "node:fs";
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -46,9 +47,24 @@ describe("axint/mcp import surface", () => {
     expect(
       full.every((tool: { outputSchema?: unknown }) => Boolean(tool.outputSchema))
     ).toBe(true);
-    expect(JSON.stringify(compact).length).toBeLessThan(
-      JSON.stringify(full).length * 0.85
-    );
+    expect(JSON.stringify(compact).length).toBeLessThan(JSON.stringify(full).length);
+    expect(
+      compact.every((tool: { description?: string }) =>
+        Boolean(
+          tool.description?.includes("Use:") && tool.description.includes("Effects:")
+        )
+      )
+    ).toBe(true);
+  });
+
+  it("keeps the MCP SDK bundled out of published runtime dependencies", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf-8")) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(pkg.dependencies?.["@modelcontextprotocol/sdk"]).toBeUndefined();
+    expect(pkg.devDependencies?.["@modelcontextprotocol/sdk"]).toMatch(/^\^?\d+\./);
   });
 
   it("starts the stdio server when the package MCP entrypoint is executed directly", async () => {

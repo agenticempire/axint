@@ -1,6 +1,6 @@
 {
   "name": "@axint/compiler",
-  "version": "0.4.26",
+  "version": "0.4.27",
   "mcpName": "io.github.agenticempire/axint",
   "publishConfig": {
     "access": "public"
@@ -105,13 +105,13 @@
     "prettier": "^3.5.0",
     "tsup": "^8.5.0",
     "tsx": "^4.19.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@vitest/coverage-v8": "^4.1.4",
     "husky": "^9.0.0",
     "lint-staged": "^16.4.0",
     "vitest": "^4.1.4"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^14.0.3",
     "typescript": "^6.0.3"
   },

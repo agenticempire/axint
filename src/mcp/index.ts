@@ -1,9 +1,13 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createAxintServer, startMCPServer } from "./server.js";
+import { createAxintServer as createAxintServerImpl, startMCPServer } from "./server.js";
 
-export { createAxintServer, startMCPServer };
+export function createAxintServer(): unknown {
+  return createAxintServerImpl();
+}
+
+export { startMCPServer };
 export {
   TOOL_MANIFEST,
   compactToolManifest,
