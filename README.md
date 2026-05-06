@@ -5,12 +5,12 @@
 </p>
 
 <p align="center">
-  <strong>Axint is the compiler and repair loop for agent-built Apple-native software.</strong>
+  <strong>Axint is the Apple-native execution layer for AI coding agents.</strong>
 </p>
 
 <p align="center">
-  Author in TypeScript, Python, or the preview <code>.axint</code> surface.<br>
-  Emit ordinary Swift, validate Apple-specific rules, and hand agents a repair packet when something needs work.
+  Describe App Intents, SwiftUI views, widgets, and app shells in TypeScript, Python, JSON, or the preview <code>.axint</code> surface.<br>
+  Axint emits ordinary Swift, validates Apple-specific rules, and gives agents a repair packet when something needs work.
 </p>
 
 <p align="center">
@@ -44,8 +44,8 @@ capabilities: App Intents, Siri, Shortcuts, Spotlight, widgets, SwiftUI views,
 privacy copy, entitlements, and generated metadata.
 
 General coding agents can produce Swift. Axint makes them operate through a
-smaller contract, validates the Apple-specific parts, and writes a repair
-artifact the next agent run can use.
+smaller contract, validates the Apple-specific parts, coordinates the project
+proof loop, and writes a repair artifact the next agent run can use.
 
 ```
 feature definition
@@ -65,7 +65,7 @@ The compiler is useful on its own. Registry and Cloud extend the same workflow:
 - **Repair** — `axint repair` indexes the existing Apple project, ranks likely files, classifies build/UI/runtime evidence, and returns the smallest patch/proof loop.
 - **MCP** — agents call compile, validate, fix, schema compile, templates, and packet tools directly.
 - **Registry** — install reusable Apple capabilities with source, compiler metadata, and package details attached.
-- **Cloud Check + feedback** — free hosted validation for quick results; signed-in Pro checks add the AI-ready repair prompt, history, and a shareable report. Privacy-safe feedback packets help Axint learn repeated Apple failure modes without shipping source code.
+- **Cloud Check + feedback** — free hosted validation for quick results; signed-in Pro checks add the AI-ready repair prompt, history, and a shareable report. Privacy-safe feedback packets help Axint learn repeated Apple failure modes without sending source code.
 
 [Read the thesis](https://axint.ai/thesis) · [Open proof](https://axint.ai/proof) · [View Fix Packet](https://axint.ai/fix-packet)
 
@@ -115,7 +115,7 @@ the same facts.
 
 ## Quick start
 
-### Create a wow starter
+### Create the Apple Day Agent starter
 
 If you want the fastest shareable proof path, start here:
 
@@ -133,7 +133,7 @@ This creates a premium Apple-native mini app instead of a blank scaffold:
 - `.axint/agent-prompts/` gives Codex, Claude Code, and Cursor the exact proof loop.
 - `ios/App/DayDashboardView.swift` gives the starter a real SwiftUI app shell.
 - `.axint/run/latest.md` starts the durable proof trail.
-- `share/built-with-axint.html` gives you an interactive browser preview with the generated app shell, contracts, Swift, and proof.
+- `share/built-with-axint.html` gives you an interactive proof preview with the generated app shell, contracts, Swift, and proof.
 
 The point is to make the first run feel real: agent writes Apple-native
 contracts, Axint compiles multiple capabilities, validates them, renders a

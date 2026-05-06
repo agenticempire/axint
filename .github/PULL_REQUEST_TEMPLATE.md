@@ -16,6 +16,8 @@ Closes #
 - [ ] Documentation
 - [ ] Refactor
 - [ ] CI / tooling
+- [ ] MCP / marketplace metadata
+- [ ] Repair / Fix Packet / Xcode proof
 
 ## Checklist
 
@@ -23,4 +25,5 @@ Closes #
 - [ ] Lint and type checks pass (`npm run lint && npm run typecheck`)
 - [ ] Documentation updated (if applicable)
 - [ ] Boundary and metrics checks pass if public surfaces changed (`npm run boundary:check && npm run metrics:check`)
+- [ ] Docs checks pass if README/MCP/package surfaces changed (`npm run docs:check`)
 - [ ] Version parity and release notes checked if package/release surfaces changed

@@ -49,7 +49,7 @@ body:
     attributes:
       label: Axint Version
       description: Output of `axint --version`
-      placeholder: "0.1.0"
+      placeholder: "0.4.x"
     validations:
       required: true
 
@@ -58,10 +58,17 @@ body:
     attributes:
       label: Component
       options:
-        - Compiler (core)
+        - Create app / starter
+        - Compiler / IR
         - Validator
+        - Swift repair rules
+        - Fix Packet
+        - Axint Run / Xcode proof
         - MCP Server
         - CLI
+        - Cloud Check
+        - Registry package
+        - Telemetry / Feedback
         - Templates
         - Documentation
     validations:
@@ -71,4 +78,4 @@ body:
     id: context
     attributes:
       label: Additional Context
-      description: Any other context — OS, Node version, Xcode version, etc.
+      description: Any other context - OS, Node version, Xcode version, MCP host, `.axint/run/latest.md`, or source-free feedback packet ID.
