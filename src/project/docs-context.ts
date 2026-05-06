@@ -182,6 +182,7 @@ axint.tokens.ingest -> axint.suggest -> axint.feature with context -> axint.swif
 - \`axint.xcode.guard\`: Xcode-only drift guard that enforces fresh Axint evidence and writes \`.axint/guard/latest.json\` plus \`.axint/guard/latest.md\`.
 - \`axint.xcode.write\`: Xcode-only guarded write lane for files inside the project; Codex/Claude/Cursor/Cowork should use their native patch/edit lane unless they are actually running inside Xcode.
 - \`axint.project.pack\`: returns first-try project setup files without writing.
+- \`axint.project.syncVersion\`: updates Axint-owned project-pack version hints after an upgrade so stale local truth does not mislead agents.
 - \`axint.context.memory\`: returns compact operating memory for context recovery.
 - \`axint.context.docs\`: returns this docs context for context recovery.
 - \`axint.workflow.check\`: gates session-start, context-recovery, planning, before-write, pre-build, and pre-commit; requires the active session token by default.

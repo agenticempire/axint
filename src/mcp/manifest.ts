@@ -544,6 +544,44 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.project.syncVersion",
+    description:
+      "Update Axint-owned project-pack version hints after an upgrade. " +
+      "Use this after axint.upgrade or npm/pip upgrades so .axint/project.json, " +
+      "AGENTS.md, CLAUDE.md, and Axint rehydration docs stop pointing agents at an older package version.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        targetDir: {
+          type: "string",
+          description:
+            "Project directory to update. Defaults to the current working directory.",
+        },
+        version: {
+          type: "string",
+          description:
+            "Axint version to write. Defaults to the running MCP server version.",
+        },
+        dryRun: {
+          type: "boolean",
+          description:
+            "When true, reports the files that would change without writing them.",
+        },
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description: "Output format. Defaults to markdown.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.context.memory",
     description:
       "Return the compact Axint operating memory that agents should reload " +

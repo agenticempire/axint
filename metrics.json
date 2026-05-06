@@ -1,6 +1,6 @@
 {
-  "version": "0.4.23",
-  "mcpTools": 34,
+  "version": "0.4.24",
+  "mcpTools": 35,
   "mcpToolNames": [
     "axint.status",
     "axint.upgrade",
@@ -11,6 +11,7 @@
     "axint.feature",
     "axint.project.pack",
     "axint.project.index",
+    "axint.project.syncVersion",
     "axint.context.memory",
     "axint.context.docs",
     "axint.suggest",
@@ -84,7 +85,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 1191,
+    "typescript": 1192,
     "python": 114
   },
   "registryPackages": 58,

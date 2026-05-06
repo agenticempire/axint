@@ -36,6 +36,7 @@
  *   - axint.upgrade:          Check/apply Axint upgrades with same-thread recovery
  *   - axint.project.pack:     Generate first-try project-start files
  *   - axint.project.index:    Index the local Apple project into .axint/context
+ *   - axint.project.syncVersion: Sync stale project-pack version hints
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -115,6 +116,11 @@ import {
   writeProjectContextIndex,
   type ProjectContextIndexFormat,
 } from "../project/context-index.js";
+import {
+  renderProjectVersionSync,
+  syncProjectVersion,
+  type ProjectVersionSyncFormat,
+} from "../project/version-sync.js";
 import { buildAxintDocsContext } from "../project/docs-context.js";
 import { buildAxintOperatingMemory } from "../project/operating-memory.js";
 import {
@@ -227,6 +233,12 @@ type ProjectContextArgs = {
   includeGit?: boolean;
   dryRun?: boolean;
   format?: ProjectContextIndexFormat;
+};
+type ProjectVersionSyncArgs = {
+  targetDir?: string;
+  version?: string;
+  dryRun?: boolean;
+  format?: ProjectVersionSyncFormat;
 };
 
 // Read version from package.json so it stays in sync.
@@ -835,6 +847,18 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
         },
       ],
     };
+  }
+
+  if (name === "axint.project.syncVersion") {
+    const payload = (args ?? {}) as ProjectVersionSyncArgs;
+    const result = syncProjectVersion({
+      targetDir: payload.targetDir,
+      version: payload.version ?? pkg.version,
+      dryRun: payload.dryRun ?? false,
+    });
+    return diagnosticsText(
+      renderProjectVersionSync(result, payload.format ?? "markdown")
+    );
   }
 
   if (name === "axint.context.memory") {

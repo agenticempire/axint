@@ -1,5 +1,26 @@
 # Release Notes
 
+## 2026-05-06 — Project-pack version sync and MCP Marketplace hardening
+
+This release tightens the upgrade story. When Axint updates inside a long-running
+agent workflow, the package version, MCP server version, and local project-pack
+truth need to agree.
+
+### Added
+
+- `axint project sync-version`
+  - Updates Axint-owned project version hints after an upgrade.
+  - Refreshes `.axint/project.json`, `AGENTS.md`, `CLAUDE.md`, and the Axint-owned `.axint` memory/rehydration/docs files.
+  - Leaves unrelated user-authored notes alone unless they match a known Axint version marker.
+  - Supports `--dry-run`, `--version`, `--dir`, and `--format json`.
+- `axint.project.syncVersion`
+  - MCP equivalent for agents that need to refresh stale project-pack truth without leaving the active thread.
+
+### Fixed
+
+- MCP Marketplace package scanners now see the patched MCP SDK path and the safe `ip-address` resolution.
+- Same-thread upgrades no longer leave the local project pack telling agents to expect the previous Axint version.
+
 ## 2026-05-05 — Create Axint App Day Agent launchpad
 
 This release wave turns first use into something developers can demo, screenshot,
