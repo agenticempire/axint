@@ -6,6 +6,17 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.24] — 2026-05-06
+
+### Added
+
+- **Project-pack version sync** — `axint project sync-version` plus the `axint.project.syncVersion` MCP tool update Axint-owned project hints after an upgrade, including `.axint/project.json`, `AGENTS.md`, `CLAUDE.md`, `.axint/AXINT_MEMORY.md`, `.axint/AXINT_REHYDRATE.md`, `.axint/AXINT_DOCS_CONTEXT.md`, and `.axint/README.md`.
+
+### Fixed
+
+- **Same-thread upgrade drift** — project packs no longer keep telling agents to expect an older Axint version after `axint upgrade --apply`; users can run one command to refresh the local truth without overwriting unrelated notes.
+- **MCP Marketplace security scan** — updated the MCP SDK dependency path and pinned the transitive `ip-address` resolution so package scanners no longer report the old ReDoS / DNS rebinding vulnerability chain.
+
 ## [0.4.23] — 2026-05-05
 
 ### Added

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -9,6 +9,7 @@ import {
   writeProjectStartPack,
 } from "../../src/project/start-pack.js";
 import { startAxintSession } from "../../src/project/session.js";
+import { syncProjectVersion } from "../../src/project/version-sync.js";
 
 let tempDirs: string[] = [];
 
@@ -131,6 +132,56 @@ describe("Axint project machine", () => {
     expect(second.skipped).toContain("AGENTS.md");
   });
 
+  it("syncs Axint-owned project pack version hints without touching unrelated notes", () => {
+    const dir = tempDir();
+    writeProjectStartPack({
+      targetDir: dir,
+      projectName: "Swarm",
+      version: "0.4.21",
+    });
+
+    const agentsPath = join(dir, "AGENTS.md");
+    const originalAgents = readFileSync(agentsPath, "utf-8");
+    const customNote = "\nUser note: keep this sentence exactly as written.\n";
+    writeFileSync(agentsPath, originalAgents + customNote, "utf-8");
+
+    const dryRun = syncProjectVersion({
+      targetDir: dir,
+      version: "0.4.24",
+      dryRun: true,
+    });
+    expect(dryRun.updated).toContain(".axint/project.json");
+    expect(readFileSync(join(dir, ".axint/project.json"), "utf-8")).toContain(
+      '"axintVersion": "0.4.21"'
+    );
+
+    const result = syncProjectVersion({
+      targetDir: dir,
+      version: "0.4.24",
+    });
+
+    expect(result.updated).toEqual([
+      ".axint/project.json",
+      "AGENTS.md",
+      "CLAUDE.md",
+      ".axint/AXINT_MEMORY.md",
+      ".axint/AXINT_REHYDRATE.md",
+      ".axint/AXINT_DOCS_CONTEXT.md",
+      ".axint/README.md",
+    ]);
+    expect(readFileSync(join(dir, ".axint/project.json"), "utf-8")).toContain(
+      '"axintVersion": "0.4.24"'
+    );
+    expect(readFileSync(agentsPath, "utf-8")).toContain("Expected Axint version: 0.4.24");
+    expect(readFileSync(agentsPath, "utf-8")).toContain(
+      "Expected Axint package version from this project pack: 0.4.24."
+    );
+    expect(readFileSync(agentsPath, "utf-8")).toContain(customNote.trim());
+    expect(readFileSync(join(dir, ".axint/AXINT_DOCS_CONTEXT.md"), "utf-8")).toContain(
+      "Expected Axint version: 0.4.24"
+    );
+  });
+
   it("starts a durable Axint session for enforced workflow gates", () => {
     const dir = tempDir();
     const result = startAxintSession({
@@ -234,5 +285,22 @@ describe("Axint project machine", () => {
     const context = JSON.parse(contextResult.content[0].text);
     expect(context.schema).toBe("https://axint.ai/schemas/project-context-index.v1.json");
     expect(context.projectName).toBe("Swarm");
+
+    writeProjectStartPack({
+      targetDir: sessionDir,
+      projectName: "Swarm",
+      version: "0.4.21",
+      force: true,
+    });
+    const syncResult = await handleToolCall("axint.project.syncVersion", {
+      targetDir: sessionDir,
+      version: "0.4.24",
+      format: "json",
+    });
+    const sync = JSON.parse(syncResult.content[0].text);
+    expect(sync.updated).toContain(".axint/project.json");
+    expect(readFileSync(join(sessionDir, ".axint/project.json"), "utf-8")).toContain(
+      '"axintVersion": "0.4.24"'
+    );
   });
 });

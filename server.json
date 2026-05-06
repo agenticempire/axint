@@ -2,14 +2,14 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.agenticempire/axint",
   "title": "Axint",
-  "description": "Apple-native AI agent execution: 34 MCP tools, 5 prompts, compile, validate, repair, and prove.",
+  "description": "Apple-native AI agent execution: 35 MCP tools, 5 prompts, compile, validate, repair, and prove.",
   "repository": {
     "url": "https://github.com/agenticempire/axint",
     "source": "github"
   },
   "homepage": "https://axint.ai",
   "documentation": "https://docs.axint.ai",
-  "version": "0.4.23",
+  "version": "0.4.24",
   "remotes": [
     {
       "type": "streamable-http",
@@ -20,7 +20,7 @@
     {
       "registryType": "npm",
       "identifier": "@axint/compiler",
-      "version": "0.4.23",
+      "version": "0.4.24",
       "transport": {
         "type": "stdio"
       }
@@ -28,14 +28,14 @@
     {
       "registryType": "pypi",
       "identifier": "axint",
-      "version": "0.4.23",
+      "version": "0.4.24",
       "transport": {
         "type": "stdio"
       }
     }
   ],
   "capabilities": {
-    "tools": 34,
+    "tools": 35,
     "prompts": 5
   }
 }

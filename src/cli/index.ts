@@ -33,6 +33,7 @@
  *   axint doctor                  Audit version truth, MCP wiring, and project start files
  *   axint project init            Write Axint project-start files for agent workflows
  *   axint project index           Index the local Apple project into .axint/context
+ *   axint project sync-version    Refresh Axint-owned project-pack version hints after an upgrade
  *   axint session start           Start an enforced Axint agent session and refresh context
  *   axint workflow check          Run workflow gates from CLI when MCP is unavailable
  *   axint run                     Run Axint's enforced Apple build/test/runtime loop
@@ -154,6 +155,7 @@ program
   .description(
     "The open-source compiler that transforms AI agent definitions into native Apple App Intents."
   )
+  .enablePositionalOptions()
   .version(VERSION)
   .addHelpText(
     "after",

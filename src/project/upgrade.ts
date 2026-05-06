@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { syncProjectVersion, type ProjectVersionSyncResult } from "./version-sync.js";
 
 const AXINT_PACKAGE = "@axint/compiler";
 
@@ -67,6 +68,7 @@ export interface AxintUpgradeReport {
   restartRequiredAfterApply: boolean;
   commands: AxintUpgradeCommand[];
   sameThreadPrompt: string;
+  projectVersionSync?: ProjectVersionSyncResult;
   artifacts?: AxintUpgradeArtifacts;
   notes: string[];
   error?: string;
@@ -176,6 +178,16 @@ export function runAxintUpgrade(
 
   const executed = executeCommands(commands, cwd, runtime);
   const failed = executed.find((command) => command.status === "fail");
+  const projectVersionSync = failed
+    ? undefined
+    : syncProjectVersion({ targetDir: cwd, version: targetVersion });
+  if (projectVersionSync) {
+    const unavailable =
+      projectVersionSync.skipped.length + projectVersionSync.missing.length;
+    notes.push(
+      `Project version sync refreshed ${projectVersionSync.updated.length} Axint-owned file${projectVersionSync.updated.length === 1 ? "" : "s"} and skipped ${unavailable} unavailable/non-Axint-owned file${unavailable === 1 ? "" : "s"}.`
+    );
+  }
   const report = buildReport({
     cwd,
     generatedAt: now.toISOString(),
@@ -187,6 +199,7 @@ export function runAxintUpgrade(
     reinstallXcode,
     status: failed ? "fail" : "upgraded",
     commands: executed,
+    projectVersionSync,
     notes,
     error: failed?.error ?? failed?.stderr,
   });
@@ -239,6 +252,17 @@ export function renderAxintUpgradeReport(
     report.notes.length > 0
       ? ["", "## Notes", "", ...report.notes.map((note) => `- ${note}`)]
       : [];
+  const projectSync = report.projectVersionSync
+    ? [
+        "",
+        "## Project Version Sync",
+        "",
+        `- Updated: ${report.projectVersionSync.updated.length}`,
+        `- Unchanged: ${report.projectVersionSync.unchanged.length}`,
+        `- Missing: ${report.projectVersionSync.missing.length}`,
+        `- Skipped: ${report.projectVersionSync.skipped.length}`,
+      ]
+    : [];
 
   return [
     "# Axint Same-Thread Upgrade",
@@ -260,6 +284,7 @@ export function renderAxintUpgradeReport(
     "```text",
     report.sameThreadPrompt,
     "```",
+    ...projectSync,
     ...artifacts,
     ...notes,
   ].join("\n");
@@ -358,6 +383,7 @@ function buildReport(input: {
   reinstallXcode: boolean;
   status: AxintUpgradeStatus;
   commands: AxintUpgradeCommand[];
+  projectVersionSync?: ProjectVersionSyncResult;
   notes: string[];
   error?: string;
 }): AxintUpgradeReport {
@@ -377,6 +403,7 @@ function buildReport(input: {
     restartRequiredAfterApply: input.updateAvailable,
     commands: input.commands,
     sameThreadPrompt: buildSameThreadPrompt(input),
+    projectVersionSync: input.projectVersionSync,
     notes: input.notes,
     error: input.error,
   };
@@ -415,12 +442,17 @@ function buildSameThreadPrompt(input: {
     input.status === "current"
       ? "Before editing code, call axint.status if you need to prove the currently connected MCP version."
       : "After the MCP process reconnects, call axint.status and confirm the running version before editing code.";
+  const syncLine =
+    input.status === "upgraded"
+      ? `Axint already refreshed any Axint-owned project version hints it found. If another checkout still has stale hints, run: axint project sync-version --dir ${quoteShellArg(input.cwd)} --version ${input.targetVersion}`
+      : `If local project instructions still name an older Axint version, run: axint project sync-version --dir ${quoteShellArg(input.cwd)} --version ${input.targetVersion || input.currentVersion}`;
 
   return [
     action,
     "Keep this chat/thread. Do not restart from scratch.",
     reloadLine,
     statusLine,
+    syncLine,
     "Then call axint.session.start or axint.context.memory if the agent needs compact context recovery.",
     xcodeLine,
     `Project cwd: ${input.cwd}`,

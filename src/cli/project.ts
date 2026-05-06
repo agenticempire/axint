@@ -12,6 +12,11 @@ import {
   writeProjectContextIndex,
   type ProjectContextIndexFormat,
 } from "../project/context-index.js";
+import {
+  renderProjectVersionSync,
+  syncProjectVersion,
+  type ProjectVersionSyncFormat,
+} from "../project/version-sync.js";
 
 export function registerProject(program: Command, version: string) {
   const project = program
@@ -101,6 +106,36 @@ export function registerProject(program: Command, version: string) {
         console.log(renderProjectContextIndex(result.index, options.format));
       }
     );
+
+  project
+    .command("sync-version")
+    .description(
+      "Update Axint-owned project-pack version hints after upgrading the package"
+    )
+    .option("--dir <dir>", "Project directory to update", ".")
+    .option("--version <version>", "Axint version to write. Defaults to this CLI version")
+    .option("--dry-run", "Print what would change without writing files")
+    .option(
+      "--format <format>",
+      "Output format: markdown or json",
+      parseVersionSyncFormat,
+      "markdown" as ProjectVersionSyncFormat
+    )
+    .action(
+      (options: {
+        dir: string;
+        version?: string;
+        dryRun?: boolean;
+        format: ProjectVersionSyncFormat;
+      }) => {
+        const result = syncProjectVersion({
+          targetDir: options.dir,
+          version: options.version ?? version,
+          dryRun: options.dryRun ?? false,
+        });
+        console.log(renderProjectVersionSync(result, options.format));
+      }
+    );
 }
 
 function parseAgent(value: string): ProjectAgent {
@@ -122,4 +157,9 @@ function parseFormat(value: string): ProjectStartPackFormat {
 function parseContextIndexFormat(value: string): ProjectContextIndexFormat {
   if (value === "markdown" || value === "json") return value;
   throw new Error(`invalid context index format: ${value}`);
+}
+
+function parseVersionSyncFormat(value: string): ProjectVersionSyncFormat {
+  if (value === "markdown" || value === "json") return value;
+  throw new Error(`invalid project version sync format: ${value}`);
 }
