@@ -1,6 +1,6 @@
 # Axint — Claude Code Plugin
 
-Compile TypeScript intent definitions into native Apple App Intents. Define once in TypeScript, get production-ready Swift for Siri, Shortcuts, and Spotlight.
+Compile, validate, repair, and prove Apple-native Swift surfaces from Claude Code.
 
 ## Install
 
@@ -16,29 +16,23 @@ Or add the marketplace:
 
 ## What You Get
 
-Thirteen MCP tools available in Claude Code:
+Claude Code can use the current 35-tool Axint MCP surface plus five built-in prompts:
 
-- `axint.scaffold` — Generate a new intent from a description
-- `axint.compile` — Compile TypeScript → Swift
-- `axint.validate` — Check for issues before building
-- `axint.templates.list` — Browse 12+ pre-built intent patterns
-- `axint.templates.get` — Pull a specific template
-- `axint.feature` — Generate a complete feature package from a description
-- `axint.suggest` — Suggest Apple-native features for a domain
-- `axint.schema.compile` — Minimal JSON → Swift (token-saving mode)
-- `axint.swift.validate` — Validate existing Swift against build-time rules
-- `axint.swift.fix` — Auto-fix mechanical Swift errors
-- `axint.quick-start` — Quick-start guide
-- `axint.create-intent` — Create a new intent
-- `axint.create-widget` — Create a new widget
+- Project and session tools: `axint.status`, `axint.upgrade`, `axint.doctor`, `axint.session.start`, `axint.project.pack`, `axint.project.index`, `axint.project.syncVersion`
+- Apple generation tools: `axint.feature`, `axint.suggest`, `axint.scaffold`, `axint.compile`, `axint.schema.compile`
+- Proof and repair tools: `axint.validate`, `axint.swift.validate`, `axint.swift.fix`, `axint.fix-packet`, `axint.cloud.check`, `axint.repair`, `axint.run`
+- Xcode and workflow tools: `axint.xcode.guard`, `axint.xcode.write`, `axint.workflow.check`, `axint.run.status`, `axint.run.cancel`
+- Context and ecosystem tools: `axint.context.memory`, `axint.context.docs`, `axint.registry.search`, `axint.templates.list`, `axint.templates.get`, `axint.feedback.create`, `axint.tokens.ingest`
+
+Built-in prompts: `axint.quick-start`, `axint.project-start`, `axint.context-recovery`, `axint.create-intent`, `axint.create-widget`.
 
 ## Quick Start
 
-Ask Claude to create an intent:
+Ask Claude to create and prove an Apple-native feature:
 
-> "Create an App Intent that lets users log a workout with type, duration, and calories"
+> "Use Axint to create an App Intent that lets users log a workout with type, duration, and calories. Compile it, validate the Swift, and give me the Fix Packet or proof report."
 
-Claude will scaffold the TypeScript, compile it to Swift, and give you a file ready to drop into Xcode.
+Claude will scaffold the source contract, compile it to Swift, validate the Apple-specific surface, and hand you the proof loop to run in Xcode.
 
 ## Links
 

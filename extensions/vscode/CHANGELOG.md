@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.27] - 2026-05-07
+
+- Align marketplace copy with the current Apple-native execution layer positioning
+- Document the current Axint MCP surface: 35 tools + 5 built-in prompts
+- Keep the VS Code extension version aligned with `@axint/compiler` v0.4.27
+
 ## [0.3.9] - 2026-04-19
 
 - Align marketplace packaging with `@axint/compiler` v0.3.9
@@ -8,7 +14,7 @@
 ## [0.3.8] - 2026-04-16
 
 - Align marketplace packaging with `@axint/compiler` v0.3.8
-- Document the current Axint MCP surface: 11 tools + 3 built-in prompts
+- Documented the then-current Axint MCP surface: 11 tools + 3 built-in prompts
 - Package the extension for marketplace-ready installation via `agenticempire.axint`
 - Add command-palette workflows for Swift preview, validation, template browse, docs, and registry
 - Add `Open Current File in Cloud` so the active file can jump directly into Axint Cloud with a shareable report state

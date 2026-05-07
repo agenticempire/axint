@@ -1,6 +1,6 @@
 # Axint — Claude Desktop Extension
 
-Compile TypeScript into native Apple App Intents, directly from Claude Desktop.
+Run the Axint Apple-native execution layer directly from Claude Desktop.
 
 ## Install
 
@@ -8,28 +8,20 @@ Double-click the `.mcpb` file, or drag it onto Claude Desktop.
 
 ## What It Does
 
-Axint gives Claude 11 MCP tools plus three built-in prompts for working with Apple-native capabilities:
+Axint gives Claude the current 35-tool MCP surface plus five built-in prompts for Apple-native work:
 
-- **Scaffold** — Describe what you want, get a TypeScript intent file
-- **Compile** — Turn TypeScript into production-ready Swift
-- **Validate** — Catch issues before you touch Xcode
-- **Fix Packet** — Read the latest Fix Packet for an AI repair loop
-- **List Templates** — Browse bundled reference templates
-- **Get Template** — Pull a complete working example
-- **Feature** — Generate a complete feature package from a description
-- **Suggest** — Suggest Apple-native features for a domain
-- **Schema Compile** — Minimal JSON → Swift (token-saving mode)
-- **Swift Validate** — Validate existing Swift against build-time rules
-- **Swift Fix** — Auto-fix mechanical Swift errors
-- **Quick-Start** — Built-in quick-start prompt
-- **Create Intent** — Built-in prompt for creating a new intent
-- **Create Widget** — Built-in prompt for creating a new widget
+- **Generate** — create intents, SwiftUI views, widgets, templates, and full feature packages
+- **Compile** — turn TypeScript, Python, or compact schema input into production-ready Swift
+- **Validate** — catch Apple-specific issues before you touch Xcode
+- **Repair** — read Fix Packets and run agent-ready repair loops
+- **Prove** — run Cloud Check, Swift validation, Xcode guardrails, and project-aware checks
+- **Coordinate** — keep project packs, memory, docs context, run status, and feedback packets aligned
 
 ## Example
 
 > "Create an App Intent that lets users send a message to a contact"
 
-Claude scaffolds the TypeScript, compiles it to Swift, and hands you a file ready for your Xcode project.
+Claude scaffolds the contract, compiles it to Swift, validates the Apple-specific details, and hands you the next proof step for your Xcode project.
 
 ## Privacy
 

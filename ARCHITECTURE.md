@@ -69,7 +69,7 @@ Walks `defineWidget()` extracting widget family configuration, timeline provider
 **App** (`app-parser.ts` → `app-validator.ts` → `app-generator.ts`)
 Walks `defineApp()` extracting app metadata, scenes, navigation stacks, and app-level dependencies. Generates a SwiftUI `App` struct with scene definitions and top-level navigation. Validator checks app delegates are Codable, scene hierarchies are acyclic, and primary scene is defined.
 
-Each validator emits diagnostics with error codes (`AX100`–`AX202`) that point to source locations. The compiler collects all diagnostics and returns them to the CLI or MCP server.
+Each validator emits structured diagnostics from the shared diagnostic registry. The current public metrics snapshot tracks 204 diagnostic codes across parser, IR, Swift, Xcode, Cloud, Registry, and repair-loop checks. The compiler collects diagnostics and returns them through the CLI, MCP server, Fix Packet, and Xcode-facing paths.
 
 ## Cross-Language Bridge
 
