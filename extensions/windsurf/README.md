@@ -1,6 +1,6 @@
 # Axint — Windsurf Integration
 
-Compile TypeScript into native Apple capabilities from Windsurf.
+Compile, validate, repair, and prove Apple-native Swift surfaces from Windsurf.
 
 ## Install
 
@@ -28,21 +28,15 @@ Click the MCP icon in the Cascade panel and search for "Axint".
 
 ## What You Get
 
-Thirteen tools available in Windsurf's Cascade:
+Windsurf can use the current 35-tool Axint MCP surface plus five built-in prompts:
 
-- `axint.scaffold` — Generate a new intent from a description
-- `axint.compile` — Compile TypeScript to Swift
-- `axint.validate` — Check for issues
-- `axint.templates.list` — Browse pre-built patterns
-- `axint.templates.get` — Pull a complete working example
-- `axint.feature` — Generate a complete feature package from a description
-- `axint.suggest` — Suggest Apple-native features for a domain
-- `axint.schema.compile` — Minimal JSON → Swift (token-saving mode)
-- `axint.swift.validate` — Validate existing Swift against build-time rules
-- `axint.swift.fix` — Auto-fix mechanical Swift errors
-- `axint.quick-start` — Quick-start guide
-- `axint.create-intent` — Create a new intent
-- `axint.create-widget` — Create a new widget
+- Project and session tools: `axint.status`, `axint.upgrade`, `axint.doctor`, `axint.session.start`, `axint.project.pack`, `axint.project.index`, `axint.project.syncVersion`
+- Apple generation tools: `axint.feature`, `axint.suggest`, `axint.scaffold`, `axint.compile`, `axint.schema.compile`
+- Proof and repair tools: `axint.validate`, `axint.swift.validate`, `axint.swift.fix`, `axint.fix-packet`, `axint.cloud.check`, `axint.repair`, `axint.run`
+- Xcode and workflow tools: `axint.xcode.guard`, `axint.xcode.write`, `axint.workflow.check`, `axint.run.status`, `axint.run.cancel`
+- Context and ecosystem tools: `axint.context.memory`, `axint.context.docs`, `axint.registry.search`, `axint.templates.list`, `axint.templates.get`, `axint.feedback.create`, `axint.tokens.ingest`
+
+Built-in prompts: `axint.quick-start`, `axint.project-start`, `axint.context-recovery`, `axint.create-intent`, `axint.create-widget`.
 
 ## Requirements
 

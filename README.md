@@ -380,7 +380,7 @@ Agent sessions should not have to restart from scratch just because Axint shippe
 axint upgrade
 axint upgrade --apply
 axint upgrade --apply --xcode-install
-axint upgrade --target 0.4.12 --apply
+axint upgrade --target 0.4.27 --apply
 ```
 
 From MCP, call `axint.upgrade`. The tool returns the exact command plan plus a same-thread prompt that tells the agent to keep the current conversation, reload or reconnect only the Axint MCP server/tool process, then call `axint.status` to prove the running version before editing code.
@@ -474,7 +474,7 @@ Diagnostic codes across the validator surface with fix suggestions and color-cod
 | Range | Domain |
 | --- | --- |
 | `AX000`–`AX023` | Compiler / Parser |
-| `AX100`–`AX113` | Intent |
+| `AX100`–`AX118` | Intent |
 | `AX200`–`AX202` | Swift output |
 | `AX300`–`AX322` | View |
 | `AX400`–`AX422` | Widget |

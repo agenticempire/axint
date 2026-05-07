@@ -12,8 +12,8 @@ ext install agenticempire.axint
 
 ## What It Does
 
-Registers the Axint MCP server so VS Code agents can call the same ten tools
-and three built-in prompts available in the CLI integrations.
+Registers the Axint MCP server so VS Code agents can call the current 35-tool
+surface and five built-in prompts available in the CLI integrations.
 
 It also adds command-palette workflows for:
 

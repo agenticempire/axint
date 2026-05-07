@@ -1,10 +1,10 @@
 {
   "manifest_version": "0.3",
   "name": "axint",
-  "display_name": "Axint — Apple Compiler for AI",
-  "version": "0.3.9",
-  "description": "Compile TypeScript into native Swift for Apple platforms — App Intents, SwiftUI views, WidgetKit widgets, and full apps.",
-  "long_description": "Axint turns TypeScript and Python into validated Swift for Apple-native features. Compile App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds from Claude Desktop, then inspect and ship ordinary generated Swift.\n\nIncludes 26 bundled templates spanning messaging, productivity, health, commerce, media, navigation, smart home, and more.",
+  "display_name": "Axint — Apple-Native Execution Layer",
+  "version": "0.4.27",
+  "description": "Compile, validate, repair, and prove Apple-native Swift surfaces from Claude Desktop.",
+  "long_description": "Axint turns TypeScript, Python, and compact schema input into validated Swift for Apple-native features. Compile App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds from Claude Desktop, then use Fix Packets, Cloud Check, and Xcode-facing proof loops to repair and ship ordinary generated Swift.\n\nIncludes 35 MCP tools, five built-in prompts, and 26 bundled templates spanning messaging, productivity, health, commerce, media, navigation, smart home, and more.",
   "author": {
     "name": "Axint contributors",
     "url": "https://axint.ai"
@@ -25,74 +25,193 @@
   },
   "tools": [
     {
-      "name": "axint.scaffold",
-      "description": "Generate a new TypeScript intent file from a name, description, and parameter list",
+      "name": "axint.status",
+      "description": "Report the running MCP server version, package path, uptime, and reload guidance.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.upgrade",
+      "description": "Check or apply an Axint upgrade and return same-thread recovery steps.",
       "readOnlyHint": false,
       "destructiveHint": false
     },
     {
+      "name": "axint.doctor",
+      "description": "Audit version truth, local runtime paths, MCP wiring, and project start-pack files.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.xcode.guard",
+      "description": "Guard Xcode agent sessions and write durable proof artifacts.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.xcode.write",
+      "description": "Write a project file through Axint, then validate Swift and update guard proof.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.session.start",
+      "description": "Start an enforced agent session and write rehydration/session proof.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.feature",
+      "description": "Generate a complete Apple-native feature package from a description.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.project.pack",
+      "description": "Generate project MCP config, agent instructions, memory, docs, and workflow files.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.project.index",
+      "description": "Scan the local Apple project and write a compact context pack.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.project.syncVersion",
+      "description": "Refresh Axint-owned project-pack version hints after an upgrade.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.context.memory",
+      "description": "Return compact Axint operating memory for new chats and recovery.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.context.docs",
+      "description": "Return project-local Axint docs context for context-compaction recovery.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.suggest",
+      "description": "Suggest app-specific Apple-native features and repair-aware next moves.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.registry.search",
+      "description": "Search the Axint Registry before generating duplicated Apple-native packages.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.workflow.check",
+      "description": "Check that the agent followed the Axint session, planning, validation, Cloud, and proof loop.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.scaffold",
+      "description": "Generate a starter TypeScript intent from a description.",
+      "readOnlyHint": true
+    },
+    {
       "name": "axint.compile",
-      "description": "Compile a TypeScript intent definition into native Swift code",
+      "description": "Compile TypeScript intent definitions into Swift, plist, and entitlement output.",
       "readOnlyHint": true
     },
     {
       "name": "axint.validate",
-      "description": "Validate a TypeScript intent definition and return diagnostics",
+      "description": "Dry-run TypeScript intent validation with diagnostics.",
       "readOnlyHint": true
     },
     {
-      "name": "axint.templates.list",
-      "description": "List all available pre-built intent templates, optionally filtered by category",
+      "name": "axint.fix-packet",
+      "description": "Read the latest AI-ready repair packet from a local compile or watch run.",
       "readOnlyHint": true
     },
     {
-      "name": "axint.templates.get",
-      "description": "Get the full TypeScript source of a specific intent template",
+      "name": "axint.cloud.check",
+      "description": "Run an agent-callable Cloud Check report against Swift or TypeScript source.",
       "readOnlyHint": true
     },
     {
-      "name": "axint.feature",
-      "description": "Generate a complete feature package from a description",
+      "name": "axint.repair",
+      "description": "Plan a project-aware Apple repair loop for existing app bugs.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.feedback.create",
+      "description": "Create or read a privacy-safe, source-free feedback packet.",
       "readOnlyHint": false,
       "destructiveHint": false
     },
     {
-      "name": "axint.suggest",
-      "description": "Suggest Apple-native features for a domain",
+      "name": "axint.agent.install",
+      "description": "Install the local multi-agent project brain and shared .axint truth layer.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.agent.advice",
+      "description": "Return host-specific next moves from context, claims, proof, and repair artifacts.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.agent.claim",
+      "description": "Claim files before an agent edits them so other agents avoid conflicts.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.agent.release",
+      "description": "Release local file claims after an agent finishes or abandons a task.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.run",
+      "description": "Run the enforced Apple build loop with validation, Cloud Check, Xcode build/test proof, and artifacts.",
+      "readOnlyHint": false,
+      "destructiveHint": false
+    },
+    {
+      "name": "axint.run.status",
+      "description": "Read the latest or selected Axint run job, including active child processes.",
+      "readOnlyHint": true
+    },
+    {
+      "name": "axint.run.cancel",
+      "description": "Cancel the latest or selected active Axint run by stopping child process groups.",
+      "readOnlyHint": false,
+      "destructiveHint": true
+    },
+    {
+      "name": "axint.tokens.ingest",
+      "description": "Convert design tokens into SwiftUI token enums for generated views.",
       "readOnlyHint": true
     },
     {
       "name": "axint.schema.compile",
-      "description": "Minimal JSON → Swift (token-saving mode)",
+      "description": "Compile minimal JSON directly to Swift for token-saving agent workflows.",
       "readOnlyHint": true
     },
     {
       "name": "axint.swift.validate",
-      "description": "Validate existing Swift against build-time rules",
+      "description": "Validate existing Swift against Axint build-time and Apple-specific rules.",
       "readOnlyHint": true
     },
     {
       "name": "axint.swift.fix",
-      "description": "Auto-fix mechanical Swift errors",
+      "description": "Auto-fix mechanical Swift validator errors.",
       "readOnlyHint": false,
       "destructiveHint": false
     },
     {
-      "name": "axint.quick-start",
-      "description": "Quick-start guide",
+      "name": "axint.templates.list",
+      "description": "List bundled reference templates.",
       "readOnlyHint": true
     },
     {
-      "name": "axint.create-intent",
-      "description": "Create a new intent",
-      "readOnlyHint": false,
-      "destructiveHint": false
-    },
-    {
-      "name": "axint.create-widget",
-      "description": "Create a new widget",
-      "readOnlyHint": false,
-      "destructiveHint": false
+      "name": "axint.templates.get",
+      "description": "Return the source of a specific bundled template.",
+      "readOnlyHint": true
     }
   ],
   "privacy_policies": [

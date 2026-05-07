@@ -73,21 +73,13 @@ codex mcp add axint -- npx -y -p @axint/compiler axint-mcp
 
 ## Tools Available
 
-Once connected, agents gain 11 specialized tools plus 3 built-in prompts:
+Once connected, agents gain the current 35-tool Axint MCP surface plus five built-in prompts:
 
-| Tool                   | What it does                                                        |
-| ---------------------- | ------------------------------------------------------------------- |
-| `axint.feature`        | Generate a complete Apple-native feature package from a description |
-| `axint.suggest`        | Suggest Apple-native features for an app domain                     |
-| `axint.scaffold`       | Generate a starter TypeScript intent file                           |
-| `axint.compile`        | Compile TypeScript → validated Swift                                |
-| `axint.validate`       | Validate without code generation                                    |
-| `axint.fix-packet`     | Fetch the latest repair packet for AI and Xcode workflows           |
-| `axint.schema.compile` | Compile minimal JSON → Swift (token-optimized)                      |
-| `axint.swift.validate` | Validate existing Swift against Axint's build-time rules            |
-| `axint.swift.fix`      | Auto-fix mechanical Swift validator errors                          |
-| `axint.templates.list` | List bundled reference templates                                    |
-| `axint.templates.get`  | Get a specific template's source                                    |
+- Project and session tools: `axint.status`, `axint.upgrade`, `axint.doctor`, `axint.session.start`, `axint.project.pack`, `axint.project.index`, `axint.project.syncVersion`
+- Apple generation tools: `axint.feature`, `axint.suggest`, `axint.scaffold`, `axint.compile`, `axint.schema.compile`
+- Proof and repair tools: `axint.validate`, `axint.swift.validate`, `axint.swift.fix`, `axint.fix-packet`, `axint.cloud.check`, `axint.repair`, `axint.run`
+- Xcode and workflow tools: `axint.xcode.guard`, `axint.xcode.write`, `axint.workflow.check`, `axint.run.status`, `axint.run.cancel`
+- Context and ecosystem tools: `axint.context.memory`, `axint.context.docs`, `axint.registry.search`, `axint.templates.list`, `axint.templates.get`, `axint.feedback.create`, `axint.tokens.ingest`
 
 Built-in prompts:
 
@@ -101,11 +93,11 @@ Built-in prompts:
 
 The recommended workflow for agents:
 
-1. Call `axint.suggest` to discover what features to add
-2. Call `axint.feature` to generate the complete feature package
-3. Use Xcode's `XcodeWrite` to place each file in the project
-4. Use Xcode's `BuildProject` to verify the build passes
-5. Use Xcode's `RenderPreview` to check the UI
+1. Call `axint.session.start`, then `axint.status`, so the agent proves the running version before editing.
+2. Call `axint.project.index` or `axint.context.memory` when working inside an existing app.
+3. Use `axint.suggest` or `axint.repair` to choose a generation or patch-first plan.
+4. Generate or patch through the host-appropriate tool lane, then run `axint.swift.validate` and `axint.cloud.check`.
+5. Finish with `axint.run`, focused Xcode build/test proof, and the latest Fix Packet if anything fails.
 
 ## SPM Build Plugin (compile-time)
 
@@ -113,7 +105,7 @@ Add Axint to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/agenticempire/axint", from: "0.3.9"),
+    .package(url: "https://github.com/agenticempire/axint", from: "0.4.27"),
 ],
 targets: [
     .target(

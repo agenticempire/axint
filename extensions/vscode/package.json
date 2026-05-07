@@ -1,6 +1,6 @@
 {
   "name": "axint",
-  "displayName": "Axint — App Intents Compiler",
+  "displayName": "Axint — Apple-Native Execution Layer",
   "version": "0.4.27",
   "publisher": "agenticempire",
   "description": "Preview, validate, browse templates, and open shareable Axint Cloud reports from VS Code. Compile TypeScript or Python into Apple-native surfaces from your editor.",
@@ -86,7 +86,7 @@
     "mcpServerDefinitionProviders": [
       {
         "id": "axint.mcpServer",
-        "label": "Axint App Intents Compiler"
+        "label": "Axint Apple-Native Execution Layer"
       }
     ],
     "menus": {

@@ -34,22 +34,20 @@ Any tool that speaks MCP over stdio can connect to Axint:
 
 ## Tools Provided
 
-All integrations expose the same 11 MCP tools plus three built-in prompts:
+All integrations expose the current Axint MCP surface: 35 tools plus five built-in prompts.
 
-- `axint.feature` — generate a complete feature package from a description
-- `axint.suggest` — suggest Apple-native features for a domain
-- `axint.scaffold` — generate a TypeScript intent from a description
-- `axint.compile` — compile TypeScript → Swift
-- `axint.validate` — validate and return diagnostics
-- `axint.fix-packet` — read the latest Fix Packet for an AI repair loop
-- `axint.schema.compile` — minimal JSON → Swift (token-saving mode)
-- `axint.swift.validate` — validate existing Swift against build-time rules
-- `axint.swift.fix` — auto-fix mechanical Swift errors
-- `axint.templates.list` — list pre-built templates
-- `axint.templates.get` — get a template's full source
+Core tool groups:
+
+- Project and session tools: `axint.status`, `axint.upgrade`, `axint.doctor`, `axint.session.start`, `axint.project.pack`, `axint.project.index`, `axint.project.syncVersion`
+- Apple generation tools: `axint.feature`, `axint.suggest`, `axint.scaffold`, `axint.compile`, `axint.schema.compile`
+- Proof and repair tools: `axint.validate`, `axint.swift.validate`, `axint.swift.fix`, `axint.fix-packet`, `axint.cloud.check`, `axint.repair`, `axint.run`
+- Xcode and workflow tools: `axint.xcode.guard`, `axint.xcode.write`, `axint.workflow.check`, `axint.run.status`, `axint.run.cancel`
+- Context and ecosystem tools: `axint.context.memory`, `axint.context.docs`, `axint.registry.search`, `axint.templates.list`, `axint.templates.get`, `axint.feedback.create`, `axint.tokens.ingest`
 
 Built-in prompts:
 
 - `axint.quick-start` — quick-start guide
+- `axint.project-start` — start a project-aware Axint loop
+- `axint.context-recovery` — recover after context compaction
 - `axint.create-intent` — create a new intent
 - `axint.create-widget` — create a new widget
