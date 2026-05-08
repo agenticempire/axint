@@ -178,7 +178,7 @@ export function getPromptMessages(
               xcodeStep +
               "4. Read `.axint/AXINT_REHYDRATE.md`, `.axint/AXINT_MEMORY.md`, `.axint/AXINT_DOCS_CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, or `.axint/project.json` if present.\n" +
               serverStep +
-              "6. Call `axint.status` and report the running MCP server version before editing code. If the version is older than expected, call `axint.upgrade` or tell me to run `axint upgrade --apply`, then reload only the Axint MCP server/tool process.\n" +
+              "6. Call `axint.status`, then `axint.activate`, and report the running MCP version plus activation result before editing code. If the version is older than expected, call `axint.upgrade` or tell me to run `axint upgrade --apply`, then reload only the Axint MCP server/tool process and activate again.\n" +
               "7. If axint is missing in Xcode, tell me to run `axint xcode install --project .`, reload the Xcode MCP server/tool process, and ask again for available MCP servers.\n" +
               `8. Call \`axint.workflow.check\` with agent=\`${profile.agent}\`, stage \`context-recovery\`, sessionToken, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.\n` +
               "9. Call `axint.workflow.check` with `sessionToken` at planning, before-write, and pre-build checkpoints so you do not skip the Axint loop by accident.\n" +
@@ -221,7 +221,7 @@ export function getPromptMessages(
               "3. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json if they exist.\n" +
               "4. If those files are missing, call axint.context.memory and axint.context.docs, then use them as the compact Axint operating memory and docs context.\n" +
               "5. List the available MCP servers/tools and confirm axint is present.\n" +
-              "6. Call axint.status and report the running Axint MCP version.\n" +
+              "6. Call axint.status, then axint.activate, and report the running Axint MCP version plus activation result.\n" +
               `7. Call axint.workflow.check with agent=\`${profile.agent}\`, stage \`context-recovery\`, sessionToken, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.\n` +
               "8. If Axint is missing or stale, stop and give the exact setup/restart command instead of continuing by hand.\n" +
               "9. Name the next Axint tool you will use before editing code.\n" +

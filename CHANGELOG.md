@@ -6,6 +6,19 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.28] — 2026-05-08
+
+### Added
+
+- **Activation proof** — `axint activate` and the `axint.activate` MCP tool run a source-free compiler smoke test, return `axint_activated`, and tell agents to leave the activation result in the current thread before editing code.
+- **Install/activation telemetry split** — first-run telemetry now separates setup initialization and server-start signals from activation/value-proof events, so Pulse can tell whether people actually used Axint after install.
+- **Fresh install gauntlet** — `npm run install:gauntlet` packs the current build, installs it into a temporary clean project, verifies `axint activate`, and checks the no-install `create-axint-app` launchpad path.
+
+### Changed
+
+- Status, doctor, upgrade, Xcode setup, MCP prompts, project start packs, rehydration files, and README copy now tell agents to run `axint.activate` after setup instead of stopping at "MCP server started."
+- npm package keywords now include MCP, SwiftUI, WidgetKit, Xcode, iOS, and macOS discovery terms.
+
 ## [0.4.27] — 2026-05-06
 
 ### Changed

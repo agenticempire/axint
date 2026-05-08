@@ -69,8 +69,9 @@ Models lose memory when chats compact. The project does not. When context is mis
 4. If the docs context file is missing, call \`axint.context.docs\`.
 5. List MCP servers/tools and confirm \`axint\` is present.
 6. Call \`axint.status\` and compare the running MCP version with the expected version above.
-7. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
-8. Name the next Axint tool before editing code.
+7. Call \`axint.activate\` and report \`Status: ok\` so the session proves first real Axint use, not just server start.
+8. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
+9. Name the next Axint tool before editing code.
 
 If Axint is missing or stale, stop. Do not continue by hand. Run \`axint.upgrade\` or tell the user to run \`axint upgrade --apply\`, then reload or reconnect only the Axint MCP server/tool process. Keep the current Codex or Claude thread when the client supports MCP reload.
 
@@ -79,6 +80,7 @@ If Axint is missing or stale, stop. Do not continue by hand. Run \`axint.upgrade
 Do not spend more than 10 minutes or make broad multi-file Swift changes without an Axint checkpoint. A checkpoint means one of:
 
 - \`axint.workflow.check\`
+- \`axint.activate\`
 - \`axint.upgrade\`
 - \`axint.xcode.guard\`
 - \`axint.xcode.write\`
@@ -121,7 +123,7 @@ ${profile.xcodeToolsAllowed ? "For Xcode work, prefer `axint.xcode.guard` as the
 ## Recovery Prompt
 
 \`\`\`text
-Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If docs context is missing, call axint.context.docs. Then list MCP servers, call axint.status, call axint.workflow.check with agent="${profile.agent}", stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true. Use this write lane: ${profile.defaultWriteAction}. For build/test/runtime proof, use axint.run instead of manually remembering every Axint gate.
+Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If docs context is missing, call axint.context.docs. Then list MCP servers, call axint.status, call axint.activate, call axint.workflow.check with agent="${profile.agent}", stage=context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true. Use this write lane: ${profile.defaultWriteAction}. For build/test/runtime proof, use axint.run instead of manually remembering every Axint gate.
 \`\`\`
 `;
 }

@@ -7,6 +7,7 @@ describe("axint status", () => {
 
     expect(output).toContain("@axint/compiler@9.9.9");
     expect(output).toContain("Call axint.status");
+    expect(output).toContain("axint.activate");
     expect(output).toContain("axint upgrade --apply");
     expect(output).toContain("Keep the current Codex or Claude thread");
   });
@@ -15,6 +16,7 @@ describe("axint status", () => {
     const output = renderCliStatus("9.9.9", "prompt");
 
     expect(output).toContain("Call axint.status");
+    expect(output).toContain("axint.activate");
     expect(output).toContain("Expected local package version: 9.9.9");
     expect(output).toContain("axint.upgrade");
     expect(output).toContain("axint.cloud.check");

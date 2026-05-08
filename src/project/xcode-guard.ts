@@ -730,7 +730,7 @@ function buildGuardRecoveryPrompt(cwd: string, projectName: string): string {
     `We are working in ${projectName}. Do not continue from memory.`,
     `Project path: ${cwd}`,
     "Call axint.xcode.guard with stage=context-recovery.",
-    "Then call axint.status and report the running Axint MCP version.",
+    "Then call axint.status, call axint.activate, and report the running Axint MCP version plus activation result.",
     "Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json.",
     "For build/test/runtime proof, call axint.run so Axint owns the full loop.",
   ].join("\n");

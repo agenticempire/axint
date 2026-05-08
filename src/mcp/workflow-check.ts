@@ -142,7 +142,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
   if (looksLikeContextDrift(input.notes)) {
     if (!input.readRehydrationContext || !input.ranStatus) {
       required.push(
-        "Notes look like a new chat, compaction, stale MCP, or Axint drift. Run context recovery: call axint.session.start, read .axint/AXINT_REHYDRATE.md, call axint.status, then call axint.workflow.check with stage context-recovery before continuing."
+        "Notes look like a new chat, compaction, stale MCP, or Axint drift. Run context recovery: call axint.session.start, read .axint/AXINT_REHYDRATE.md, call axint.status, call axint.activate, then call axint.workflow.check with stage context-recovery before continuing."
       );
     }
   }
@@ -165,7 +165,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
     }
     if (!input.ranStatus) {
       required.push(
-        "Call axint.status and report the running MCP server version before planning or editing."
+        "Call axint.status, then axint.activate, and report the running MCP server version plus activation result before planning or editing."
       );
     }
   }

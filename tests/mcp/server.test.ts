@@ -71,6 +71,26 @@ describe("axint.status tool", () => {
   });
 });
 
+describe("axint.activate tool", () => {
+  it("proves first real use with a source-free compiler smoke test", async () => {
+    const result = await handleToolCall("axint.activate", { format: "json" });
+
+    expect(result.isError).not.toBe(true);
+    const payload = JSON.parse(result.content[0].text) as {
+      status: string;
+      signal: string;
+      intentName: string;
+      swiftFile: string;
+      swiftLines: number;
+    };
+    expect(payload.status).toBe("ok");
+    expect(payload.signal).toBe("axint_activated");
+    expect(payload.intentName).toBe("AxintActivationProbe");
+    expect(payload.swiftFile).toBe("AxintActivationProbeIntent.swift");
+    expect(payload.swiftLines).toBeGreaterThan(0);
+  });
+});
+
 describe("axint.run tool", () => {
   it("returns a structured Axint Run report for a dry-run Xcode project", async () => {
     const dir = mkdtempSync(join(tmpdir(), "axint-mcp-run-"));

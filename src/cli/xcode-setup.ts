@@ -35,8 +35,8 @@ const START_PROMPT = [
   "",
   "Then list MCP servers and confirm both xcode-tools and axint are available.",
   "Call axint.xcode.guard with stage=context-recovery so the project writes .axint/guard/latest.* proof before any long task.",
-  "Call axint.status and report the running MCP server version before editing code.",
-  "If the version is older than expected, stop and call `axint.upgrade` or tell me to run `axint upgrade --apply`, then reload only the Axint MCP server/tool process.",
+  "Call axint.status, then axint.activate, and report the running MCP server version plus activation result before editing code.",
+  "If the version is older than expected, stop and call `axint.upgrade` or tell me to run `axint upgrade --apply`, then reload only the Axint MCP server/tool process and activate again.",
   "Use Axint before guessing App Intents, widgets, SwiftUI scaffolds, entitlements, Info.plist keys, or repair prompts.",
   "Work in short checkpoints. Do not spend 20+ minutes on a task without running Axint and Xcode validation.",
   "For long build/debug work, prefer axint.run or axint.xcode.guard over raw Xcode actions so Axint proof survives context compaction.",
@@ -256,9 +256,14 @@ export async function verifyXcode(): Promise<void> {
       throw result.error;
     }
 
-    if (output.includes("axint.feature") && output.includes("axint.status")) {
+    if (
+      output.includes("axint.feature") &&
+      output.includes("axint.status") &&
+      output.includes("axint.activate")
+    ) {
       console.log(`  ${GREEN}✓${RESET} MCP server responds`);
       console.log(`  ${GREEN}✓${RESET} axint.status tool available`);
+      console.log(`  ${GREEN}✓${RESET} axint.activate tool available`);
       console.log(`  ${GREEN}✓${RESET} axint.feature tool available`);
 
       const toolCount = (output.match(/"name":\s*"axint\./g) || []).length;
@@ -266,7 +271,9 @@ export async function verifyXcode(): Promise<void> {
       console.log();
       console.log(`  ${GREEN}All checks passed.${RESET} Axint is ready for Xcode.`);
     } else if (output.includes("axint.feature")) {
-      console.log(`  ${RED}✗${RESET} MCP server is old: axint.status not found`);
+      console.log(
+        `  ${RED}✗${RESET} MCP server is old: axint.status or axint.activate not found`
+      );
       console.log(
         `  ${DIM}  Run: axint upgrade --apply, then reload the Axint MCP server/tool process${RESET}`
       );

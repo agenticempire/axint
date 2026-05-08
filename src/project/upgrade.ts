@@ -430,7 +430,7 @@ function buildSameThreadPrompt(input: {
 
   const reloadLine =
     input.status === "current"
-      ? "No package upgrade is needed. If the client is still connected to a stale or confused MCP process, reload or reconnect only the Axint MCP server/tool process and call axint.status again."
+      ? "No package upgrade is needed. If the client is still connected to a stale or confused MCP process, reload or reconnect only the Axint MCP server/tool process, then call axint.status and axint.activate again."
       : "Reload or reconnect only the Axint MCP server/tool process so this same conversation can see the new package.";
   const xcodeLine =
     input.status === "current"
@@ -440,8 +440,8 @@ function buildSameThreadPrompt(input: {
         : "Xcode MCP wiring was intentionally skipped for this upgrade flow.";
   const statusLine =
     input.status === "current"
-      ? "Before editing code, call axint.status if you need to prove the currently connected MCP version."
-      : "After the MCP process reconnects, call axint.status and confirm the running version before editing code.";
+      ? "Before editing code, call axint.status and axint.activate if you need to prove the currently connected MCP version and first value."
+      : "After the MCP process reconnects, call axint.status and axint.activate before editing code.";
   const syncLine =
     input.status === "upgraded"
       ? `Axint already refreshed any Axint-owned project version hints it found. If another checkout still has stale hints, run: axint project sync-version --dir ${quoteShellArg(input.cwd)} --version ${input.targetVersion}`

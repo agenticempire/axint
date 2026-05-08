@@ -53,8 +53,9 @@ When a chat is new, compacted, summarized, or confused, reload context in this o
 6. \`axint.session.start\`: writes \`.axint/session/current.json\` and returns the session token.
 7. ${xcodeGuardStep}
 8. \`axint.status\`: current MCP version and same-thread reload/setup guidance.
-9. \`axint.upgrade\`: use this if the running MCP version is stale so the agent can keep the current thread and reload only the MCP process.
-10. \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
+9. \`axint.activate\`: source-free compiler smoke test that proves first real Axint use after install or MCP reconnect.
+10. \`axint.upgrade\`: use this if the running MCP version is stale so the agent can keep the current thread and reload only the MCP process.
+11. \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
 
 If any local context file is missing, call \`axint.context.memory\` and \`axint.context.docs\`, then continue from those returned documents.
 
@@ -97,25 +98,26 @@ Use Axint for:
 Use this loop before ordinary hand-written Swift:
 
 1. \`axint.status\` confirms the running MCP version.
-2. \`axint.upgrade\` checks for a newer package when the running MCP version is stale and returns same-thread reload instructions.
-3. \`axint.session.start\` creates a durable token for the current agent pass.
-4. ${guardLoopStep}
-5. \`axint.context.memory\` reloads compact operating memory when local files are missing.
-6. \`axint.context.docs\` reloads this docs context when local files are missing.
-7. \`axint.workflow.check\` verifies the agent is at the right gate and has the active token.
-8. \`axint.suggest\` proposes relevant Apple-native surfaces from the app description.
-9. \`axint.feature\` generates a package of surfaces: intent, view, widget, component, app, store, tests, plist, and entitlements.
-10. ${writeStep}
-11. \`axint.scaffold\` creates TypeScript \`defineIntent(...)\` source for an App Intent.
-12. \`axint.compile\` compiles TypeScript intent source to Swift + Info.plist + entitlements.
-13. \`axint.schema.compile\` compiles low-token JSON directly to Swift.
-14. \`axint.tokens.ingest\` converts design tokens into SwiftUI token enums.
-15. \`axint.swift.validate\` checks changed Swift before Xcode build.
-16. \`axint.swift.fix\` applies mechanical Swift repairs when safe.
-17. \`axint.cloud.check\` runs coverage-aware Cloud Check with source plus build/test/runtime evidence.
-18. \`axint.fix-packet\` reads the latest AI-ready repair packet.
-19. \`axint.agent.advice\` and \`axint memory index\` reload the project-local brain after compaction or multi-agent handoff.
-20. Xcode build and tests provide runtime proof.
+2. \`axint.activate\` proves Axint returned first value instead of only starting a server.
+3. \`axint.upgrade\` checks for a newer package when the running MCP version is stale and returns same-thread reload instructions.
+4. \`axint.session.start\` creates a durable token for the current agent pass.
+5. ${guardLoopStep}
+6. \`axint.context.memory\` reloads compact operating memory when local files are missing.
+7. \`axint.context.docs\` reloads this docs context when local files are missing.
+8. \`axint.workflow.check\` verifies the agent is at the right gate and has the active token.
+9. \`axint.suggest\` proposes relevant Apple-native surfaces from the app description.
+10. \`axint.feature\` generates a package of surfaces: intent, view, widget, component, app, store, tests, plist, and entitlements.
+11. ${writeStep}
+12. \`axint.scaffold\` creates TypeScript \`defineIntent(...)\` source for an App Intent.
+13. \`axint.compile\` compiles TypeScript intent source to Swift + Info.plist + entitlements.
+14. \`axint.schema.compile\` compiles low-token JSON directly to Swift.
+15. \`axint.tokens.ingest\` converts design tokens into SwiftUI token enums.
+16. \`axint.swift.validate\` checks changed Swift before Xcode build.
+17. \`axint.swift.fix\` applies mechanical Swift repairs when safe.
+18. \`axint.cloud.check\` runs coverage-aware Cloud Check with source plus build/test/runtime evidence.
+19. \`axint.fix-packet\` reads the latest AI-ready repair packet.
+20. \`axint.agent.advice\` and \`axint memory index\` reload the project-local brain after compaction or multi-agent handoff.
+21. Xcode build and tests provide runtime proof.
 
 ## Axint Language And Input Surfaces
 
@@ -176,6 +178,7 @@ axint.tokens.ingest -> axint.suggest -> axint.feature with context -> axint.swif
 ## MCP Tool Map
 
 - \`axint.status\`: running version, uptime, package path, same-thread reload/update help.
+- \`axint.activate\`: source-free compiler smoke test; call after install or first MCP connection so setup proves first use.
 - \`axint.upgrade\`: checks or applies a package upgrade, writes \`.axint/upgrade/latest.*\`, and returns a same-thread continuation prompt.
 - \`axint.doctor\`: checks version truth, Node/npm/npx paths, MCP config, Xcode Claude config, and project memory files.
 - \`axint.session.start\`: starts the enforced session, writes \`.axint/session/current.json\`, and returns the token required by workflow gates.
@@ -232,7 +235,7 @@ Inside Xcode Claude or another Xcode agent:
 1. Confirm both \`xcode-tools\` and \`axint\` MCP servers are available.
 2. If Axint is missing, run the setup command in a normal terminal, then reload or reconnect the Axint MCP server/tool process.
 3. If npm/npx is missing in Xcode's restricted PATH, use the durable Homebrew path in \`.mcp.json\`.
-4. Always call \`axint.status\` after reload to verify the active version.
+4. Always call \`axint.status\` and \`axint.activate\` after reload to verify the active version and first real Axint output.
 5. Xcode build/test failures are Axint feedback if Axint passed the same code.
 
 ## Setup Commands
@@ -241,6 +244,7 @@ Typical project setup:
 
 \`\`\`bash
 npm install -g @axint/compiler
+axint activate
 axint xcode install --project .
 axint project init --dir /path/to/App --name AppName --agent claude --force
 \`\`\`
@@ -250,7 +254,7 @@ If Xcode cannot find \`npx\`, configure the project MCP file with an absolute co
 ## Context Recovery Prompt
 
 \`\`\`text
-Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If any are missing, call axint.context.memory and axint.context.docs. Then list MCP servers, call axint.status, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true, and tell me the next Axint tool you will use before editing code.
+Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If any are missing, call axint.context.memory and axint.context.docs. Then list MCP servers, call axint.status, call axint.activate, call axint.workflow.check with stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true, and tell me the next Axint tool you will use before editing code.
 \`\`\`
 
 ## Runtime Freeze Prompt

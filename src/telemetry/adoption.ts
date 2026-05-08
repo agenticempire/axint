@@ -12,6 +12,8 @@ type TelemetryConfig = {
   optedOut?: boolean;
   createdAt: string;
   updatedAt: string;
+  initializedAt?: string;
+  activatedAt?: string;
 };
 
 type RecordAdoptionEventInput = {
@@ -54,10 +56,23 @@ const SENDS = [
   "Axint version",
   "command class, such as cloud check or run",
   "MCP tool name",
+  "first install and first activation lifecycle markers",
   "coarse host hint, such as terminal, Codex, Claude, Cursor, or Xcode when detectable",
   "operating system family, architecture, Node major version, and CI flag",
   "anonymous random install id that can be reset or disabled",
 ];
+
+const SETUP_ONLY_CLI_COMMANDS = new Set([
+  "status",
+  "doctor",
+  "upgrade",
+  "mcp",
+  "mcp status",
+  "mcp recover",
+  "telemetry",
+]);
+
+const SETUP_ONLY_MCP_TOOLS = new Set(["axint.status", "axint.doctor", "axint.upgrade"]);
 
 function envFlagOff(value: string | undefined): boolean {
   if (!value) return false;
@@ -106,17 +121,12 @@ function writeTelemetryConfig(config: TelemetryConfig): void {
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
 }
 
-function getOrCreateTelemetryConfig(): TelemetryConfig {
-  const existing = readTelemetryConfig();
-  if (existing) return existing;
-  const now = new Date().toISOString();
-  const created: TelemetryConfig = {
+function createTelemetryConfig(now = new Date().toISOString()): TelemetryConfig {
+  return {
     anonymousId: `axa_${randomUUID()}`,
     createdAt: now,
     updatedAt: now,
   };
-  writeTelemetryConfig(created);
-  return created;
 }
 
 function telemetryDisabledReason(config?: TelemetryConfig | null): string | null {
@@ -142,6 +152,8 @@ export function setAdoptionTelemetryOptOut(optedOut: boolean): TelemetryConfig {
     anonymousId: current?.anonymousId ?? `axa_${randomUUID()}`,
     createdAt: current?.createdAt ?? now,
     updatedAt: now,
+    initializedAt: current?.initializedAt ?? now,
+    activatedAt: current?.activatedAt,
     optedOut,
   };
   writeTelemetryConfig(next);
@@ -217,6 +229,43 @@ function metadataFor(input: RecordAdoptionEventInput): Record<string, string | b
   };
 }
 
+function isActivationProofEvent(input: RecordAdoptionEventInput): boolean {
+  if (input.result && input.result !== "ok") return false;
+
+  if (input.eventName === "mcp_tool_completed") {
+    return Boolean(input.toolName && !SETUP_ONLY_MCP_TOOLS.has(input.toolName));
+  }
+
+  if (input.eventName === "cli_command_completed") {
+    const command = input.command?.trim();
+    if (!command) return true;
+    return !SETUP_ONLY_CLI_COMMANDS.has(command);
+  }
+
+  return [
+    "axint_first_value",
+    "cloud_first_check_completed",
+    "cloud_repeat_check_completed",
+    "cloud_report_saved",
+  ].includes(input.eventName);
+}
+
+function adoptionEventPayload(
+  input: RecordAdoptionEventInput,
+  config: TelemetryConfig,
+  eventName: string
+) {
+  return {
+    schema: "https://axint.ai/schemas/adoption-telemetry.v1.json",
+    source: input.source,
+    event_name: eventName,
+    event_type: "adoption",
+    anonymous_id: config.anonymousId,
+    session_id: processSessionId,
+    metadata: metadataFor(input),
+  };
+}
+
 export async function recordAdoptionEvent(
   input: RecordAdoptionEventInput
 ): Promise<{ sent: boolean; reason?: string }> {
@@ -224,7 +273,24 @@ export async function recordAdoptionEvent(
   const disabled = telemetryDisabledReason(existing);
   if (disabled) return { sent: false, reason: disabled };
 
-  const config = getOrCreateTelemetryConfig();
+  const createdNow = !existing;
+  const config = existing ?? createTelemetryConfig();
+  if (createdNow) writeTelemetryConfig(config);
+
+  const shouldMarkInitialized = !config.initializedAt;
+  const shouldMarkActivated =
+    !config.activatedAt &&
+    input.eventName !== "axint_activated" &&
+    isActivationProofEvent(input);
+  const events = [
+    ...(shouldMarkInitialized
+      ? [adoptionEventPayload(input, config, "axint_install_initialized")]
+      : []),
+    adoptionEventPayload(input, config, input.eventName),
+    ...(shouldMarkActivated
+      ? [adoptionEventPayload(input, config, "axint_activated")]
+      : []),
+  ];
   const endpoint = adoptionTelemetryEndpoint();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 450);
@@ -238,19 +304,20 @@ export async function recordAdoptionEvent(
         "X-Axint-Version": safeValue(input.version, 32) ?? "unknown",
       },
       signal: controller.signal,
-      body: JSON.stringify({
-        schema: "https://axint.ai/schemas/adoption-telemetry.v1.json",
-        source: input.source,
-        event_name: input.eventName,
-        event_type: "adoption",
-        anonymous_id: config.anonymousId,
-        session_id: processSessionId,
-        metadata: metadataFor(input),
-      }),
+      body: JSON.stringify(events.length === 1 ? events[0] : { events }),
     });
 
     if (!response.ok) {
       return { sent: false, reason: `telemetry endpoint returned ${response.status}` };
+    }
+    if (shouldMarkInitialized || shouldMarkActivated) {
+      const now = new Date().toISOString();
+      writeTelemetryConfig({
+        ...config,
+        initializedAt: config.initializedAt ?? now,
+        activatedAt: shouldMarkActivated ? now : config.activatedAt,
+        updatedAt: now,
+      });
     }
     return { sent: true };
   } catch (error) {

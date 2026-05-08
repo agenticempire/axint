@@ -37,6 +37,7 @@
  *   - axint.project.pack:     Generate first-try project-start files
  *   - axint.project.index:    Index the local Apple project into .axint/context
  *   - axint.project.syncVersion: Sync stale project-pack version hints
+ *   - axint.activate:         Run source-free activation smoke test
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -56,6 +57,11 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileAnySource } from "../core/compiler.js";
 import { formatSwift } from "../core/format.js";
+import {
+  renderActivationSmokeReport,
+  runActivationSmokeTest,
+  type ActivationSmokeFormat,
+} from "../activation/smoke-test.js";
 import { scaffoldIntent } from "./scaffold.js";
 import { generateFeature, type FeatureInput, type Surface } from "./feature.js";
 import { suggestFeaturesSmart, type SuggestInput } from "./suggest.js";
@@ -511,6 +517,8 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     promptsRegistered: PROMPT_MANIFEST.length,
     restartRequiredAfterUpdate: true,
     updateCommand: "npm install -g @axint/compiler@latest",
+    activationCommand: "axint activate",
+    activationTool: "axint.activate",
     upgradeCommand: "axint upgrade --apply",
     xcodeSetupCommand: "axint xcode install --project .",
     doctorCommand: "axint doctor",
@@ -524,8 +532,9 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
   if (format === "prompt") {
     return [
       `The running Axint MCP server is v${status.version}.`,
+      "Next call axint.activate and report Status: ok so this connection proves first real Axint use.",
       "If this is older than the version the user expects, stop before editing code.",
-      "Call axint.upgrade first. If apply is needed, update Axint, reload only the MCP server/tool process, then call axint.status again in the same thread.",
+      "Call axint.upgrade first. If apply is needed, update Axint, reload only the MCP server/tool process, then call axint.status and axint.activate again in the same thread.",
     ].join("\n");
   }
 
@@ -561,7 +570,9 @@ function renderStatus(format: StatusArgs["format"] = "markdown"): string {
     "",
     "3. Reload or reconnect the Axint MCP server/tool process. Keep the same Codex or Claude thread when the client supports MCP reload.",
     "",
-    "4. Ask: `Call axint.status and tell me the running version.`",
+    "4. Ask: `Call axint.status, then axint.activate, and tell me the running version plus activation result.`",
+    "",
+    "A server start alone is setup proof. `axint.activate` must return `Status: ok` before the agent treats Axint as actually used.",
     "",
     "For Xcode, `axint upgrade --apply` can also refresh the optional Xcode MCP wiring. For a brand-new Apple project, run `axint xcode install --project .`, then `axint doctor` to confirm the machine is wired.",
   ].join("\n");
@@ -580,6 +591,20 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
   if (name === "axint.status") {
     const a = args as StatusArgs | undefined;
     return diagnosticsText(renderStatus(a?.format ?? "markdown"));
+  }
+
+  if (name === "axint.activate") {
+    const a = args as { format?: ActivationSmokeFormat } | undefined;
+    const report = runActivationSmokeTest();
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: renderActivationSmokeReport(report, a?.format ?? "markdown"),
+        },
+      ],
+      isError: report.status !== "ok",
+    };
   }
 
   if (name === "axint.upgrade") {
@@ -1336,8 +1361,27 @@ export function createAxintServer(): Server {
     });
 
     try {
-      return withStructuredText(await handleToolCall(name, args));
+      const result = withStructuredText(await handleToolCall(name, args));
+      recordAdoptionEventSoon({
+        source: "mcp",
+        eventName: "mcp_tool_completed",
+        version: pkg.version,
+        toolName: name,
+        transport: process.env.AXINT_MCP_TRANSPORT ?? "stdio",
+        host: inferAxintHost(),
+        result: result.isError ? "error" : "ok",
+      });
+      return result;
     } catch (err: unknown) {
+      recordAdoptionEventSoon({
+        source: "mcp",
+        eventName: "mcp_tool_failed",
+        version: pkg.version,
+        toolName: name,
+        transport: process.env.AXINT_MCP_TRANSPORT ?? "stdio",
+        host: inferAxintHost(),
+        result: "exception",
+      });
       return withStructuredText({
         content: [
           {

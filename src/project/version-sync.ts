@@ -117,7 +117,7 @@ export function renderProjectVersionSync(
   if (result.updated.length > 0 && !result.dryRun) {
     lines.push(
       "",
-      "Next: call `axint.status`, then `axint.workflow.check` so the active agent proves it is using the refreshed project truth."
+      "Next: call `axint.status`, then `axint.activate`, then `axint.workflow.check` so the active agent proves it is using the refreshed project truth and real Axint output."
     );
   }
 

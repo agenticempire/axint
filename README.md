@@ -141,6 +141,7 @@ usable app preview, and hands the agent a repair path when something breaks.
 
 ```bash
 npm install -g @axint/compiler
+axint activate
 
 # initialize Axint inside an existing Apple/Xcode project
 axint init --apple-project /path/to/MyApp --agent codex
@@ -296,7 +297,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.27 · 35 MCP tools + 5 prompts · 204 diagnostic codes · 1308 tests · 58 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.28 · 36 MCP tools + 5 prompts · 204 diagnostic codes · 1311 tests · 58 live packages · 26 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -380,10 +381,10 @@ Agent sessions should not have to restart from scratch just because Axint shippe
 axint upgrade
 axint upgrade --apply
 axint upgrade --apply --xcode-install
-axint upgrade --target 0.4.27 --apply
+axint upgrade --target 0.4.28 --apply
 ```
 
-From MCP, call `axint.upgrade`. The tool returns the exact command plan plus a same-thread prompt that tells the agent to keep the current conversation, reload or reconnect only the Axint MCP server/tool process, then call `axint.status` to prove the running version before editing code.
+From MCP, call `axint.upgrade`. The tool returns the exact command plan plus a same-thread prompt that tells the agent to keep the current conversation, reload or reconnect only the Axint MCP server/tool process, then call `axint.status` and `axint.activate` to prove the running version and first real Axint output before editing code.
 
 ---
 
@@ -412,6 +413,7 @@ MCP tools and built-in prompts:
 | Tool | What it does |
 | --- | --- |
 | `axint.status` | Report the running MCP server version, package path, uptime, and same-thread reload/update instructions |
+| `axint.activate` | Run a source-free compiler smoke test so a fresh install proves first real Axint use |
 | `axint.upgrade` | Check or apply an Axint upgrade, refresh optional Xcode wiring, and return a same-thread continuation prompt |
 | `axint.doctor` | Audit version truth, Node/npm/npx paths, project MCP wiring, and agent start-pack files |
 | `axint.xcode.guard` | Guard Xcode agent sessions against context compaction and Axint drift, then write `.axint/guard/latest.*` proof artifacts |
