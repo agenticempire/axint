@@ -57,7 +57,8 @@ The model's memory is not the source of truth. These project files are. If the a
 3. Read \`.axint/AXINT_REHYDRATE.md\`, \`.axint/AXINT_MEMORY.md\`, and \`.axint/AXINT_DOCS_CONTEXT.md\`.
 4. Read \`AGENTS.md\`, \`CLAUDE.md\`, or \`.axint/project.json\` if present.
 5. Call \`axint.status\` and report the running MCP version. If it is stale, call \`axint.upgrade\` or ask the user to run \`axint upgrade --apply\`, then reload only the Axint MCP server/tool process.
-6. Call \`axint.workflow.check\` with:
+6. Call \`axint.activate\` and report \`Status: ok\` before editing so this session proves first real Axint use.
+7. Call \`axint.workflow.check\` with:
 
 \`\`\`json
 {
@@ -72,7 +73,7 @@ The model's memory is not the source of truth. These project files are. If the a
 }
 \`\`\`
 
-7. State the next Axint tool before editing code.
+8. State the next Axint tool before editing code.
 
 ## Required Checkpoints
 

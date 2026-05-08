@@ -156,6 +156,7 @@ export function buildProjectStartPack(
               "read .axint/AXINT_DOCS_CONTEXT.md or call axint.context.docs",
               "read AGENTS.md, CLAUDE.md, or .axint/project.json",
               "call axint.status",
+              "call axint.activate",
               `call axint.workflow.check with agent=${profile.agent}, stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readDocsContext=true, readAgentInstructions=true, and ranStatus=true`,
               "state the next Axint tool that will be used, or call axint.run for the full validation/build loop",
             ],
@@ -304,10 +305,10 @@ function buildStartPrompt(input: {
     "3. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, or .axint/project.json if present.",
     "4. If those files are missing, call axint.context.memory and axint.context.docs, then use those as the compact Axint operating memory and docs context.",
     mcpServerStep,
-    "6. Call axint.status and report the running MCP server version.",
+    "6. Call axint.status, then axint.activate, and report the running MCP version plus activation result.",
     `7. Call axint.workflow.check with agent=${profile.agent}, stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, and ranStatus=true.`,
     `8. Expected Axint package version from this project pack: ${input.version}.`,
-    "9. If the running MCP version is stale, stop and call axint.upgrade or tell me to run axint upgrade --apply, then reload only the Axint MCP server/tool process.",
+    "9. If the running MCP version is stale, stop and call axint.upgrade or tell me to run axint upgrade --apply, then reload only the Axint MCP server/tool process and activate again.",
     profile.xcodeToolsAllowed
       ? "10. Call axint.xcode.guard before long tasks, before broad Swift edits, and after any context recovery."
       : "10. Use axint.workflow.check as the long-task guard, plus validate/Cloud Check/build evidence. Do not fake Xcode guard packets outside Xcode.",
@@ -398,8 +399,9 @@ If the chat was restarted, compacted, summarized, or has drifted into ordinary X
 3. Read \`.axint/AXINT_REHYDRATE.md\`, \`.axint/AXINT_MEMORY.md\`, \`.axint/AXINT_DOCS_CONTEXT.md\`, \`AGENTS.md\`, \`CLAUDE.md\`, or \`.axint/project.json\`.
 4. If either Axint context file is missing, call \`axint.context.memory\` and \`axint.context.docs\`.
 5. Call \`axint.status\` and compare it with the expected version above.
-6. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
-7. State the next Axint tool to use before editing code. For proof passes, prefer \`axint.run\`.
+6. Call \`axint.activate\` and report \`Status: ok\` so the session proves Axint returned first value.
+7. Call \`axint.workflow.check\` with \`stage: "context-recovery"\`, \`sessionToken\`, \`readRehydrationContext: true\`, \`readAgentInstructions: true\`, \`readDocsContext: true\`, and \`ranStatus: true\`.
+8. State the next Axint tool to use before editing code. For proof passes, prefer \`axint.run\`.
 
 Do not rely on model memory alone. Rehydrate the workflow from the files.
 
@@ -409,11 +411,12 @@ Do not rely on model memory alone. Rehydrate the workflow from the files.
 2. ${longTaskGuardLine}
 3. Read the Axint docs listed in the start prompt.
 4. Call \`axint.status\`.
-5. Call \`axint.workflow.check\` with \`sessionToken\` at session start, after context recovery, before planning, before writing, before building, and before committing.
-6. If \`axint.workflow.check\` returns \`ready\`, call the report's \`Next Axint Action\` before broad Apple-native work.
-7. Use \`axint.suggest\` for feature planning. If MCP transport is unavailable, use \`axint suggest <app-description>\` and then pass \`--ran-suggest\` to the workflow check.
-8. Use \`axint.feature\`, \`axint.scaffold\`, \`axint.compile\`, or \`axint.schema.compile\` for Apple-native surfaces.
-9. ${writeLine}
+5. Call \`axint.activate\` after install, MCP reload, or any uncertainty about whether Axint was actually used.
+6. Call \`axint.workflow.check\` with \`sessionToken\` at session start, after context recovery, before planning, before writing, before building, and before committing.
+7. If \`axint.workflow.check\` returns \`ready\`, call the report's \`Next Axint Action\` before broad Apple-native work.
+8. Use \`axint.suggest\` for feature planning. If MCP transport is unavailable, use \`axint suggest <app-description>\` and then pass \`--ran-suggest\` to the workflow check.
+9. Use \`axint.feature\`, \`axint.scaffold\`, \`axint.compile\`, or \`axint.schema.compile\` for Apple-native surfaces.
+10. ${writeLine}
 10. Run \`axint.swift.validate\` on modified Swift.
 11. Run \`axint.cloud.check\` with Xcode build, test, runtime, or behavior evidence when available.
 12. Prefer \`axint.run\` when moving toward build/test/runtime proof so Axint owns the loop instead of relying on memory.
@@ -470,7 +473,7 @@ ${input.startPrompt}
 Ask it to run the Axint context recovery loop:
 
 \`\`\`text
-Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If either Axint context file is missing, call axint.context.memory and axint.context.docs. Then call axint.status and axint.workflow.check with agent=${input.profile.agent}, stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, ranStatus=true. Use this write lane: ${input.profile.defaultWriteAction}. For build/test/runtime proof, call axint.run so Axint owns the full loop.
+Call axint.session.start for this project and keep the returned sessionToken. Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json. If either Axint context file is missing, call axint.context.memory and axint.context.docs. Then call axint.status, call axint.activate, and call axint.workflow.check with agent=${input.profile.agent}, stage context-recovery, sessionToken=<token>, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, ranStatus=true. Use this write lane: ${input.profile.defaultWriteAction}. For build/test/runtime proof, call axint.run so Axint owns the full loop.
 \`\`\`
 
 ## CLI Session Start

@@ -87,6 +87,7 @@ describe("xcode CLI smoke coverage", () => {
       stdout: JSON.stringify({
         tools: [
           { name: "axint.status" },
+          { name: "axint.activate" },
           { name: "axint.feature" },
           { name: "axint.compile" },
           { name: "axint.validate" },
@@ -249,6 +250,7 @@ describe("xcode CLI smoke coverage", () => {
       stdout: JSON.stringify({
         tools: [
           { name: "axint.status" },
+          { name: "axint.activate" },
           { name: "axint.feature" },
           { name: "axint.project.index" },
         ],

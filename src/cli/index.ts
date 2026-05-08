@@ -5,6 +5,7 @@
  *
  *   axint init [dir]              Scaffold a new Axint project
  *   axint compile <file>          Compile TS intent → Swift App Intent
+ *   axint activate                Run a source-free compiler smoke test after install
  *   axint create [dir]            Create a premium Apple-native agent launchpad
  *   axint validate <file>         Validate a compiled intent
  *   axint validate-swift <path...> Validate existing Swift sources against Axint's build-time rules
@@ -64,6 +65,7 @@ import type { XcodeCheckOutput } from "./xcode-check.js";
 import type { XcodePacketKind, XcodePacketOutput } from "./xcode-packet.js";
 import { scaffoldProject } from "./scaffold.js";
 import { registerCreate } from "./create.js";
+import { registerActivate } from "./activate.js";
 import { registerCompile } from "./compile.js";
 import { registerValidate } from "./validate.js";
 import { registerValidateSwift } from "./validate-swift.js";
@@ -183,6 +185,25 @@ program.hook("preAction", async (_thisCommand, actionCommand) => {
     version: VERSION,
     command,
     host: inferAxintHost(actionCommand.opts?.() as Record<string, unknown>),
+  });
+});
+
+program.hook("postAction", async (_thisCommand, actionCommand) => {
+  const command = commandPathFor(actionCommand);
+  if (!command || command === "telemetry" || command.startsWith("telemetry ")) {
+    return;
+  }
+
+  await recordAdoptionEvent({
+    source: "cli",
+    eventName: "cli_command_completed",
+    version: VERSION,
+    command,
+    host: inferAxintHost(actionCommand.opts?.() as Record<string, unknown>),
+    result:
+      typeof process.exitCode === "number" && process.exitCode !== 0
+        ? "nonzero_exit"
+        : "ok",
   });
 });
 
@@ -313,6 +334,7 @@ program
 // ─── subcommands ──────────────────────────────────────────────────────
 
 registerCompile(program);
+registerActivate(program);
 registerValidate(program);
 registerValidateSwift(program);
 registerEject(program);

@@ -43,7 +43,7 @@ export function renderCliStatus(
     doctorCommand: "axint doctor",
     projectInitCommand: "axint project init",
     verificationPrompt:
-      "Call axint.status and tell me the running Axint MCP version before editing code.",
+      "Call axint.status, then call axint.activate and tell me the activation result before editing code.",
     restartInstruction:
       "After updating, reload or reconnect the Axint MCP server/tool process. Keep the current Codex or Claude thread when your client supports MCP reload; if it does not, use the generated same-thread resume prompt instead of starting blind.",
   };
@@ -56,7 +56,7 @@ export function renderCliStatus(
       status.verificationPrompt,
       "Use the active agent lane: Codex/Claude/Cursor/Cowork should patch natively, while Xcode can use axint.xcode.guard for durable guard proof.",
       `Expected local package version: ${status.version}.`,
-      "If axint.status reports an older version, run axint.upgrade or axint upgrade --apply, then reload only the MCP server/tool process.",
+      "If axint.status reports an older version, run axint.upgrade or axint upgrade --apply, then reload only the MCP server/tool process. After reload, call axint.activate so this install proves first use.",
       "After each generated Swift surface, run axint.cloud.check or axint cloud check --source <file> with build/test evidence when available.",
     ].join("\n");
   }
@@ -77,6 +77,7 @@ export function renderCliStatus(
     "",
     "```text",
     status.verificationPrompt,
+    "A server start alone is not enough; activation must return Status: ok.",
     "Use axint workflow check as the portable guard. In Xcode-hosted sessions, axint.xcode.guard can also write .axint/guard/latest.* proof.",
     "If MCP tools are visible but calls fail after a reload or transport close, run the CLI fallback: axint workflow check --dir . --stage context-recovery --agent <host> --session-token <token>.",
     "If Axint is not available, inspect the project .mcp.json or client MCP settings, make sure npx uses a durable full path, then reload the Axint MCP server/tool process.",

@@ -34,6 +34,30 @@ export const TOOL_MANIFEST = [
     },
   },
   {
+    name: "axint.activate",
+    description:
+      "Run a source-free compiler smoke test through the real Axint pipeline. " +
+      "Use immediately after installing or connecting Axint so the current agent proves " +
+      "it did more than start the MCP server.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        format: {
+          type: "string",
+          enum: ["markdown", "json"],
+          description:
+            "Output format. markdown is human-readable, json is structured for automation.",
+        },
+      },
+    },
+  },
+  {
     name: "axint.upgrade",
     description:
       "Check the latest Axint package and optionally apply the upgrade while preserving " +
@@ -462,7 +486,7 @@ export const TOOL_MANIFEST = [
       "Generate the Axint project-start pack for a new Apple app without writing files. " +
       "Returns .mcp.json, AGENTS.md, CLAUDE.md, .axint/AXINT_MEMORY.md, .axint/project.json, and .axint/README.md " +
       "so an Xcode/Codex/Claude agent can install the exact first-try workflow: read docs, " +
-      "call axint.status, run workflow gates, validate Swift, run Cloud Check with evidence, " +
+      "call axint.status, call axint.activate, run workflow gates, validate Swift, run Cloud Check with evidence, " +
       "and avoid static-only bug claims.",
     annotations: {
       readOnlyHint: true,
@@ -2327,6 +2351,8 @@ function defaultEffectSummary(tool: (typeof TOOL_MANIFEST)[number]): string {
 const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
   "axint.status":
     "call first or after an MCP reload to prove the connected server version; do not use as an npm/PyPI lookup.",
+  "axint.activate":
+    "call immediately after install or first MCP connection so the agent proves real Axint use beyond server start.",
   "axint.upgrade":
     "call when axint.status shows a stale server; not for app dependency upgrades.",
   "axint.doctor":
@@ -2398,6 +2424,8 @@ const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
 
 const RUNTIME_TOOL_EFFECTS: Record<string, string> = {
   "axint.status": "read-only; writes no files; no auth or network required.",
+  "axint.activate":
+    "read-only built-in compiler smoke test; writes no files and uses no network.",
   "axint.upgrade":
     "destructive when apply=true: can run package installs, refresh Xcode wiring, and write .axint/upgrade; may use npm network.",
   "axint.doctor": "read-only inspection; writes no files; no auth or network required.",

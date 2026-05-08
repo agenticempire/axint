@@ -1,5 +1,44 @@
 # Release Notes
 
+## 2026-05-08 — Activation proof and first-use funnel
+
+This release closes the biggest dogfooding ambiguity: a server-start event proves
+that an MCP host launched Axint, but it does not prove the user got value from
+Axint.
+
+### Added
+
+- `axint activate`
+  - Runs a source-free compiler smoke test.
+  - Returns `status: ok` and `signal: axint_activated` when the package can
+    produce real Axint output.
+  - Gives terminal users a one-command proof path immediately after install.
+- `axint.activate`
+  - MCP equivalent for Claude, Cursor, Codex, VS Code, Xcode, and other MCP
+    hosts.
+  - Lets an agent prove the server is not merely running, but actually useful.
+- Activation telemetry
+  - Emits setup initialization separately from activation.
+  - Treats activation and completed CLI/MCP work as first-value proof.
+- `npm run install:gauntlet`
+  - Packs the current build into the same tarball shape npm will publish.
+  - Installs that tarball into a fresh temporary project.
+  - Verifies `axint activate` through both local dist and packed install.
+  - Checks that `create-axint-app --no-install` writes the launchpad proof files.
+
+### Changed
+
+- Status, doctor, upgrade, Xcode setup, MCP prompts, rehydration files, project
+  start packs, README, and website install prompts now point agents to
+  `axint activate` / `axint.activate` after setup.
+- Public truth advances to v0.4.28 with 36 MCP tools, 5 prompts, 204 diagnostic
+  codes, 1311 tests, and 26 bundled templates.
+
+### Why it matters
+
+Pulse can now answer the question that promotion raised: did someone just start
+the server, or did Axint return first value?
+
 ## 2026-05-06 — MCP Marketplace scoring and packaged dependency hardening
 
 This patch improves the public MCP marketplace surface after Glama accepted the

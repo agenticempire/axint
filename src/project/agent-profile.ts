@@ -94,7 +94,7 @@ export function buildAgentToolProfile(
     finishAction:
       "Summarize validation, Cloud Check, build/test proof, and do not call Xcode-only guard tools unless the active host is Xcode.",
     contextRecoveryAction:
-      "Call axint.session.start, read local Axint context files, call axint.status, then axint.workflow.check.",
+      "Call axint.session.start, read local Axint context files, call axint.status, call axint.activate, then axint.workflow.check.",
     proofAction:
       "Use axint.swift.validate, axint.cloud.check, and axint.run or shell build/test evidence that the active agent can actually run.",
     avoid: [
@@ -131,7 +131,7 @@ function patchFirstProfile(input: {
     finishAction:
       "Summarize Axint validation, Cloud Check, and build/test proof. Do not call axint.xcode.guard unless this chat is actually running inside Xcode.",
     contextRecoveryAction:
-      "Call axint.session.start, read .axint context files, call axint.status, then axint.workflow.check.",
+      "Call axint.session.start, read .axint context files, call axint.status, call axint.activate, then axint.workflow.check.",
     proofAction:
       "Use axint.swift.validate, axint.cloud.check, and axint.run or shell xcodebuild evidence when available.",
     avoid: [

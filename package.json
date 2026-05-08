@@ -1,6 +1,6 @@
 {
   "name": "@axint/compiler",
-  "version": "0.4.27",
+  "version": "0.4.28",
   "mcpName": "io.github.agenticempire/axint",
   "publishConfig": {
     "access": "public"
@@ -27,6 +27,13 @@
     "ai-agents",
     "mcp",
     "code-generation",
+    "model-context-protocol",
+    "mcp-server",
+    "swiftui",
+    "widgetkit",
+    "xcode",
+    "ios",
+    "macos",
     "typescript",
     "developer-tools"
   ],
@@ -79,6 +86,7 @@
     "versions:sync": "node scripts/sync-versions.mjs",
     "versions:check": "node scripts/check-versions.mjs",
     "release:check": "node scripts/check-release-parity.mjs",
+    "install:gauntlet": "node scripts/install-gauntlet.mjs",
     "metrics:emit": "node scripts/emit-metrics.mjs",
     "metrics:check": "node scripts/check-metrics.mjs",
     "boundary:check": "node scripts/check-public-boundary.mjs",

@@ -1,6 +1,6 @@
 # Axint Roadmap
 
-_Last updated: May 2026 · Current release: [v0.4.27](https://github.com/agenticempire/axint/releases/tag/v0.4.27)_
+_Last updated: May 2026 · Current release: [v0.4.28](https://github.com/agenticempire/axint/releases/tag/v0.4.28)_
 
 Axint is the Apple-native execution layer for AI coding agents. The open-source package gives agents a smaller contract for Apple surfaces, emits ordinary Swift, validates Apple-specific rules, writes Fix Packets, and coordinates proof loops across CLI, MCP, Xcode, Registry, and Cloud-facing workflows.
 
@@ -23,11 +23,11 @@ The thesis is simple: agents can write code, but Apple-native software needs pro
 - TypeScript, Python, JSON schema mode, and preview `.axint` inputs compile into Apple-native Swift.
 - Supported surfaces include App Intents, SwiftUI views, WidgetKit widgets, app scaffolds, plist fragments, entitlements, and Apple metadata.
 - The validator covers 204 diagnostic codes across compiler, intent, view, widget, app, Swift build, SwiftUI, accessibility, concurrency, and Live Activity rules.
-- The suite currently tracks 1308 tests across TypeScript and Python paths.
+- The suite currently tracks 1311 tests across TypeScript and Python paths.
 
 ### Agent distribution
 
-- 35 MCP tools and 5 prompts expose compile, validate, repair, suggest, feature generation, project packs, memory, docs context, workflow gates, run status, run cancel, telemetry controls, feedback packets, and template access.
+- 36 MCP tools and 5 prompts expose compile, validate, activate, repair, suggest, feature generation, project packs, memory, docs context, workflow gates, run status, run cancel, telemetry controls, feedback packets, and template access.
 - MCP marketplace bundles now start directly through `node dist/mcp/index.js` and ship clearer runtime tool descriptions for security/quality scanners.
 - Agent lanes distinguish Xcode-hosted work from Codex, Claude, Cursor, Cowork, VS Code, Windsurf, and other clients so routine edits use the active client's native patch lane while Axint handles proof.
 - Same-thread upgrades let agents update Axint without losing the current project conversation.
@@ -42,6 +42,7 @@ The thesis is simple: agents can write code, but Apple-native software needs pro
 - Source-free telemetry records command class, MCP tool name, version, coarse host hint, OS family, Node major, CI flag, and anonymous install ID so Axint can understand which install paths actually work.
 - Source-free feedback packets capture diagnostic codes, issue class, redacted evidence, and likely Axint ownership without sending source code, prompts, generated Swift, file names, file paths, credentials, or machine IDs.
 - Users can inspect or disable these paths with `axint telemetry status`, `axint telemetry opt-out`, `axint feedback status`, and `axint feedback opt-out`.
+- Fresh installs can prove first real value with `axint activate` or the `axint.activate` MCP tool, so Pulse can separate setup/server-start events from activation.
 
 ---
 
@@ -54,6 +55,7 @@ Goal: the first command should create a real, inspectable Apple-native capabilit
 - Improve `create-axint-app` templates with more realistic app shells and generated Swift examples.
 - Add a "Built with Axint" gallery that links each demo to source contract, generated Swift, proof packet, and install command.
 - Add more end-to-end example repos for App Intent, SwiftUI widget, menu bar app, and existing-project repair flows.
+- Keep `npm run install:gauntlet` green before release: local dist activation, packed fresh install activation, and create-axint-app launchpad creation.
 
 ### 2. Make existing-product repair feel senior
 

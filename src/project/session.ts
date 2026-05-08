@@ -475,7 +475,7 @@ function buildSessionRecoveryPrompt(session: AxintSessionRecord): string {
     "",
     "Read .axint/AXINT_REHYDRATE.md, .axint/AXINT_MEMORY.md, .axint/AXINT_DOCS_CONTEXT.md, AGENTS.md, CLAUDE.md, and .axint/project.json.",
     "If either Axint context file is missing, call axint.context.memory and axint.context.docs.",
-    `Then call axint.status and axint.workflow.check with agent=${session.agent}, stage context-recovery, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, ranStatus=true, and this sessionToken.`,
+    `Then call axint.status, call axint.activate, and call axint.workflow.check with agent=${session.agent}, stage context-recovery, readRehydrationContext=true, readAgentInstructions=true, readDocsContext=true, ranStatus=true, and this sessionToken.`,
     "Do not edit Apple-native code until that workflow check is ready.",
   ].join("\n");
 }
