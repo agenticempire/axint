@@ -50,6 +50,42 @@ export default defineView({
 });
 `;
 
+const DASHBOARD_CARD = `
+import { defineView, prop, state, view } from "@axint/sdk";
+
+export default defineView({
+  name: "DashboardCard",
+  props: {
+    title: prop.string("Card title", { default: "Untitled" }),
+    subtitle: prop.string("Optional subtitle", { required: false, default: "Draft" }),
+  },
+  state: {
+    isExpanded: state.boolean("Expanded state", { default: true }),
+    tapCount: state.int("Number of taps", { default: 0 }),
+  },
+  body: [
+    view.vstack([
+      view.hstack([
+        view.text("\\\\(title)"),
+        view.spacer(),
+      ], { spacing: 4 }),
+      view.conditional("isExpanded", [
+        view.vstack([
+          view.text("\\\\(subtitle ?? \\"No subtitle\\")"),
+          view.conditional("tapCount > 0", [
+            view.text("Tapped \\\\(tapCount) times"),
+          ], [
+            view.text("Not tapped"),
+          ]),
+        ], { spacing: 6 }),
+      ], [
+        view.text("Collapsed"),
+      ]),
+    ], { spacing: 10 }),
+  ],
+});
+`;
+
 const MINIMAL_VIEW = `
 import { defineView, view } from "@axint/sdk";
 
@@ -91,6 +127,26 @@ describe("compileViewSource", () => {
     expect(swift).toContain('Image(systemName: "person.circle.fill")');
     expect(swift).toContain("if isExpanded");
     expect(swift).toContain("Spacer()");
+  });
+
+  it("compiles optional props and nested conditionals with stable Swift output", () => {
+    const result = compileViewSource(DASHBOARD_CARD);
+    expect(result.success).toBe(true);
+
+    const swift = result.output!.swiftCode;
+    expect(swift).toContain("struct DashboardCard: View");
+    expect(swift).toContain('var title: String = "Untitled"');
+    expect(swift).toContain('var subtitle: String? = "Draft"');
+    expect(swift).toContain("@State private var isExpanded: Bool = true");
+    expect(swift).toContain("@State private var tapCount: Int = 0");
+    expect(swift).toContain("VStack(spacing: 10)");
+    expect(swift).toContain("HStack(spacing: 4)");
+    expect(swift).toContain("VStack(spacing: 6)");
+    expect(swift).toContain("if isExpanded");
+    expect(swift).toContain("if tapCount > 0");
+    expect(swift).toContain('Text("Collapsed")');
+    expect(swift).toContain("DashboardCard()");
+    expect(swift).not.toContain("DashboardCard(title:");
   });
 
   it("compiles a minimal view with no props or state", () => {

@@ -30,8 +30,7 @@ export function generateSwiftUIView(view: IRView): string {
 
   // Props (let bindings from parent)
   for (const p of view.props) {
-    const swift = irTypeToSwift(p.type);
-    const decl = p.isOptional ? `${swift}?` : swift;
+    const decl = irTypeToSwift(p.type);
     if (p.defaultValue !== undefined) {
       lines.push(`    var ${p.name}: ${decl} = ${formatLiteral(p.defaultValue, p.type)}`);
     } else {
