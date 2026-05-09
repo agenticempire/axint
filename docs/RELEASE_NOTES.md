@@ -32,7 +32,7 @@ Axint.
   start packs, README, and website install prompts now point agents to
   `axint activate` / `axint.activate` after setup.
 - Public truth advances to v0.4.28 with 36 MCP tools, 5 prompts, 204 diagnostic
-  codes, 1311 tests, and 26 bundled templates.
+  codes, 1312 tests, and 26 bundled templates.
 
 ### Why it matters
 
