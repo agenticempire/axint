@@ -554,10 +554,30 @@ describe("runAxintProject", () => {
       expect(report.nextSteps.join("\n")).toContain(
         "testBuilderProfileOpensWithStableActionControls"
       );
+      expect(report.failureIntelligence).toMatchObject({
+        status: "ready",
+        category: "xcode-test-failure",
+        confidence: "high",
+        likelyCause:
+          "The UI element is missing from the accessibility tree or has a stale identifier/query.",
+      });
+      expect(report.failureIntelligence?.primaryFailure?.line).toBe(793);
+      expect(report.failureIntelligence?.patchDirection).toContain(
+        "accessibilityIdentifier"
+      );
+      expect(report.failureIntelligence?.nextProofCommand).toContain("axint run");
+      expect(
+        report.failureIntelligence?.filesToInspect.some((file) =>
+          file.path.endsWith("SwarmUITests/SwarmUITests.swift")
+        )
+      ).toBe(true);
       expect(report.repairPrompt).toContain("Xcode test failures");
+      expect(report.repairPrompt).toContain("Failure intelligence");
       expect(report.repairPrompt).toContain("builder-profile-scroll should exist");
       expect(report.repairPrompt).toContain("Verify the accessibilityIdentifier");
       expect(rendered).toContain("## Xcode Test Failures");
+      expect(rendered).toContain("## Failure Intelligence");
+      expect(rendered).toContain("Next proof command");
       expect(rendered).toContain("SwarmUITests.swift:793");
       expect(rendered).toContain("builder-profile-scroll should exist");
       expect(cloudCodes).toContain("AXCLOUD-XCTEST-FAILURE");
@@ -610,6 +630,10 @@ describe("runAxintProject", () => {
         likelyCause:
           "The control exists, but another layer, disabled state, hit-testing override, transition, or offscreen layout is preventing interaction.",
       });
+      expect(report.failureIntelligence?.category).toBe("xcode-test-failure");
+      expect(report.failureIntelligence?.patchDirection).toContain(
+        "ZStack/overlay/contentShape"
+      );
       expect(report.xcodeTestFailures[0]?.repairHint).toContain(
         "ZStack/overlay/contentShape"
       );

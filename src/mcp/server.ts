@@ -57,6 +57,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileAnySource } from "../core/compiler.js";
 import { formatSwift } from "../core/format.js";
+import { buildToolContract } from "../core/tool-contract.js";
 import {
   renderActivationSmokeReport,
   runActivationSmokeTest,
@@ -248,7 +249,7 @@ type ProjectVersionSyncArgs = {
 };
 
 // Read version from package.json so it stays in sync.
-let pkg: PackageInfo = { version: "0.4.27" };
+let pkg: PackageInfo = { version: "0.4.28" };
 let packageJsonPath = "<bundled>";
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -422,6 +423,71 @@ function errorText(text: string): ToolResult {
     content: [{ type: "text" as const, text }],
     isError: true,
   });
+}
+
+function toolReportText(
+  text: string,
+  toolContract: unknown,
+  isError?: boolean
+): ToolResult {
+  return {
+    content: [{ type: "text" as const, text }],
+    isError,
+    structuredContent: {
+      text,
+      isError: Boolean(isError),
+      ...(toolContract ? { toolContract } : {}),
+    },
+  };
+}
+
+export function buildMcpToolExceptionResult(
+  toolName: string,
+  err: unknown
+): ToolResult {
+  const message = err instanceof Error ? err.message : String(err);
+  const safeCommand = "axint mcp recover --dir . --agent all";
+  return toolReportText(
+    [
+      `Tool error: ${message}`,
+      "",
+      "Axint returned a recovery contract so the agent can fall back instead of guessing.",
+      `Safe next command: \`${safeCommand}\``,
+    ].join("\n"),
+    buildToolContract({
+      tool: toolName,
+      status: "fail",
+      verdict: "blocked",
+      confidence: "high",
+      summary: `${toolName} failed before it could return a normal report.`,
+      evidenceMissing: ["Successful MCP tool response"],
+      evidenceChecked: ["MCP exception boundary"],
+      diagnostics: [
+        {
+          severity: "error",
+          message,
+          suggestion:
+            "Use the CLI fallback or reload only the Axint MCP server/tool process, then rerun axint.status and axint.activate in the same thread.",
+        },
+      ],
+      nextActionLabel:
+        "Recover the MCP lane without abandoning the current agent thread.",
+      nextActionCommand: safeCommand,
+      nextActionReason:
+        "Tool exceptions are transport/runtime failures, not proof that the Apple-native task is complete.",
+      safeCommand,
+      sourceIncluded: false,
+      sourceOptIn: "not available for MCP exception reports",
+      feedbackSignal: {
+        status: "recommended",
+        reason:
+          "An MCP tool threw before returning its normal Axint report. Capture this as a transport/runtime quality signal if it repeats.",
+        kind: "mcp-tool-exception",
+        priority: "p1",
+      },
+    }),
+    true
+  );
 }
 
 function withStructuredText(result: ToolResult): ToolResult {
@@ -836,10 +902,11 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
   if (name === "axint.workflow.check") {
     const a = args as WorkflowCheckInput;
     const report = runWorkflowCheck(a);
-    return diagnosticsText(
+    return toolReportText(
       a.format === "json"
         ? JSON.stringify(report, null, 2)
-        : renderWorkflowCheckReport(report)
+        : renderWorkflowCheckReport(report),
+      report.toolContract
     );
   }
 
@@ -993,13 +1060,11 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       projectContextPath: a.projectContextPath,
     });
     return {
-      content: [
-        {
-          type: "text" as const,
-          text: renderCloudCheckReport(report, a.format ?? "markdown"),
-        },
-      ],
-      isError: report.status === "fail",
+      ...toolReportText(
+        renderCloudCheckReport(report, a.format ?? "markdown"),
+        report.toolContract,
+        report.status === "fail"
+      ),
     };
   }
 
@@ -1026,15 +1091,11 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       writeReport: a.writeReport,
       writeFeedback: a.writeFeedback,
     });
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: renderAxintRepairReport(report, a.format ?? "markdown"),
-        },
-      ],
-      isError: report.status === "fix_required",
-    };
+    return toolReportText(
+      renderAxintRepairReport(report, a.format ?? "markdown"),
+      report.toolContract,
+      report.status === "fix_required"
+    );
   }
 
   if (name === "axint.agent.install") {
@@ -1197,17 +1258,13 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
     }
 
     const report = await runAxintProject(runInput);
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: renderAxintRunReport(report, a.format ?? "markdown", {
-            includeSource: a.includeSource,
-          }),
-        },
-      ],
-      isError: report.status === "fail",
-    };
+    return toolReportText(
+      renderAxintRunReport(report, a.format ?? "markdown", {
+        includeSource: a.includeSource,
+      }),
+      report.toolContract,
+      report.status === "fail"
+    );
   }
 
   if (name === "axint.run.status") {
@@ -1382,15 +1439,7 @@ export function createAxintServer(): Server {
         host: inferAxintHost(),
         result: "exception",
       });
-      return withStructuredText({
-        content: [
-          {
-            type: "text" as const,
-            text: `Tool error: ${err instanceof Error ? err.message : String(err)}`,
-          },
-        ],
-        isError: true,
-      });
+      return buildMcpToolExceptionResult(name, err);
     }
   });
 

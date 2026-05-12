@@ -44,6 +44,14 @@ export {
 } from "./diagnostics.js";
 export type { DiagnosticInfo } from "./diagnostics.js";
 export { ejectIntent } from "./eject.js";
+export { buildToolContract, renderToolContractMarkdown } from "./tool-contract.js";
+export type {
+  AxintToolContract,
+  AxintToolContractConfidence,
+  AxintToolContractDiagnostic,
+  AxintToolContractStatus,
+  AxintToolContractVerdict,
+} from "./tool-contract.js";
 export {
   irTypeToSwift,
   SWIFT_TYPE_MAP,

@@ -4,7 +4,7 @@ You have the Axint MCP server connected. Use the axint tools to help users creat
 
 ## Available Tools
 
-Axint exposes 35 MCP tools and five prompts. Use the current project-aware loop:
+Axint exposes 36 MCP tools and five prompts. Use the current project-aware loop:
 
 - Project and session tools: **axint.status**, **axint.upgrade**, **axint.doctor**, **axint.session.start**, **axint.project.pack**, **axint.project.index**, **axint.project.syncVersion**
 - Apple generation tools: **axint.feature**, **axint.suggest**, **axint.scaffold**, **axint.compile**, **axint.schema.compile**

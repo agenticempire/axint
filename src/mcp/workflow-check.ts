@@ -7,6 +7,13 @@ import {
   type AxintAgentProfileName,
 } from "../project/agent-profile.js";
 import { validateAxintSessionToken } from "../project/session.js";
+import {
+  buildToolContract,
+  renderToolContractMarkdown,
+  type AxintToolContract,
+  type AxintToolContractConfidence,
+  type AxintToolContractStatus,
+} from "../core/tool-contract.js";
 
 export type WorkflowStage =
   | "session-start"
@@ -45,6 +52,7 @@ export interface WorkflowCheckInput {
 export interface WorkflowCheckReport {
   status: "ready" | "needs_action";
   stage: WorkflowStage;
+  toolContract?: AxintToolContract;
   summary: string;
   score: number;
   required: string[];
@@ -306,7 +314,7 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
     100 - required.length * 30 - recommended.length * 10 - (checked.length === 0 ? 10 : 0)
   );
 
-  return {
+  const report: WorkflowCheckReport = {
     status,
     stage,
     summary:
@@ -322,6 +330,8 @@ export function runWorkflowCheck(input: WorkflowCheckInput): WorkflowCheckReport
     checked,
     driftAge: drift,
   };
+  report.toolContract = buildWorkflowToolContract(report);
+  return report;
 }
 
 const DRIFT_AGE_THRESHOLD_MINUTES = 10;
@@ -388,6 +398,8 @@ export function renderWorkflowCheckReport(report: WorkflowCheckReport): string {
     `- Score: ${report.score}/100`,
     `- Summary: ${report.summary}`,
     "",
+    renderToolContractMarkdown(report.toolContract ?? buildWorkflowToolContract(report)),
+    "",
     "## Required",
     ...(report.required.length > 0
       ? report.required.map((item) => `- ${item}`)
@@ -424,6 +436,81 @@ export function renderWorkflowCheckReport(report: WorkflowCheckReport): string {
   }
 
   return lines.join("\n");
+}
+
+function buildWorkflowToolContract(report: WorkflowCheckReport): AxintToolContract {
+  const safeCommand = workflowSafeCommand(report.nextTool);
+  return buildToolContract({
+    tool: "axint.workflow.check",
+    status: workflowContractStatus(report),
+    verdict: report.status === "ready" ? "ready" : "needs_action",
+    confidence: workflowContractConfidence(report),
+    summary: report.summary,
+    evidenceProvided: report.checked,
+    evidenceMissing: report.required,
+    evidenceChecked: [
+      `Stage: ${report.stage}`,
+      `Score: ${report.score}/100`,
+      ...(report.driftAge
+        ? [
+            `Drift age: ${report.driftAge.minutesSinceLastCheck} minutes since ${report.driftAge.previousStage ?? "unknown"}`,
+          ]
+        : []),
+    ],
+    diagnostics: [
+      ...report.required.map((item) => ({
+        code: "AXWORKFLOW-REQUIRED",
+        severity: "error",
+        message: item,
+      })),
+      ...report.recommended.map((item) => ({
+        code: "AXWORKFLOW-RECOMMENDED",
+        severity: "warning",
+        message: item,
+      })),
+    ],
+    nextActionLabel:
+      report.nextTool ??
+      (report.status === "ready"
+        ? "Continue with the host-native edit/proof lane."
+        : "Complete the required workflow evidence before continuing."),
+    nextActionCommand: safeCommand,
+    nextActionReason:
+      report.status === "ready"
+        ? "Workflow gate is satisfied for this stage."
+        : "Workflow gate needs action before broad work continues.",
+    safeCommand,
+    sourceIncluded: false,
+    sourceOptIn: "not applicable",
+  });
+}
+
+function workflowContractStatus(report: WorkflowCheckReport): AxintToolContractStatus {
+  if (report.status === "needs_action") return "needs_action";
+  return report.recommended.length > 0 ? "warn" : "pass";
+}
+
+function workflowContractConfidence(
+  report: WorkflowCheckReport
+): AxintToolContractConfidence {
+  if (report.score >= 90) return "high";
+  if (report.score >= 70) return "medium";
+  return "low";
+}
+
+function workflowSafeCommand(nextTool: string | undefined): string | undefined {
+  if (!nextTool) return undefined;
+  const tool = baseAxintTool(nextTool);
+  if (tool === "axint.session.start") return "axint session start";
+  if (tool === "axint.context.docs") return "axint context docs";
+  if (tool === "axint.suggest") return "axint suggest <app-description>";
+  if (tool === "axint.status") return "axint status";
+  if (tool === "axint.feature") return "axint feature <description>";
+  if (tool === "axint.swift.validate") return "axint swift validate <file>";
+  if (tool === "axint.cloud.check") return "axint cloud check --source-path <file>";
+  if (tool === "axint.run") return "axint run --dir . --changed <files>";
+  if (nextTool.startsWith("axint workflow check")) return nextTool;
+  return undefined;
 }
 
 function inferSurfaces(files: string[]): Surface[] {
