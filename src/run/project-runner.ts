@@ -17,7 +17,10 @@ import {
   type AxintAgentProfileName,
   type AxintAgentToolProfile,
 } from "../project/agent-profile.js";
-import { writeProjectContextIndex } from "../project/context-index.js";
+import {
+  writeProjectContextIndex,
+  type ProjectContextIndex,
+} from "../project/context-index.js";
 import {
   buildAxintAgentAdvice,
   type AxintAgentAdviceReport,
@@ -25,6 +28,15 @@ import {
 import { startAxintSession } from "../project/session.js";
 import { validateSwiftSources } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
+import {
+  buildToolContract,
+  renderToolContractMarkdown,
+  toolDiagnosticsFromDiagnostics,
+  type AxintToolContract,
+  type AxintToolContractConfidence,
+  type AxintToolContractDiagnostic,
+  type AxintToolContractStatus,
+} from "../core/tool-contract.js";
 import {
   renderWorkflowCheckReport,
   runWorkflowCheck,
@@ -123,6 +135,36 @@ export interface AxintRunRunnerIssue {
   command?: string;
 }
 
+export interface AxintRunFailureIntelligence {
+  status: "none" | "ready";
+  confidence: "high" | "medium" | "low";
+  summary: string;
+  category:
+    | "xcode-test-failure"
+    | "runner-infrastructure"
+    | "swift-validation"
+    | "cloud-check"
+    | "xcode-command"
+    | "evidence-missing";
+  primaryFailure?: {
+    testName?: string;
+    suiteName?: string;
+    file?: string;
+    line?: number;
+    message: string;
+    identifier?: string;
+    source?: AxintRunXcodeTestFailure["source"];
+  };
+  likelyCause: string;
+  patchDirection: string;
+  filesToInspect: Array<{
+    path: string;
+    reason: string;
+  }>;
+  nextProofCommand: string;
+  evidence: string[];
+}
+
 export interface AxintRunStep {
   name: string;
   state: AxintRunStepState;
@@ -135,6 +177,7 @@ export interface AxintRunReport {
   id: string;
   kind: AxintRunKind;
   status: "pass" | "needs_review" | "fail";
+  toolContract?: AxintToolContract;
   gate: {
     decision: "ready_to_ship" | "fix_required" | "evidence_required";
     reason: string;
@@ -171,6 +214,7 @@ export interface AxintRunReport {
   };
   xcodeTestFailures: AxintRunXcodeTestFailure[];
   runnerHealth: AxintRunRunnerIssue[];
+  failureIntelligence?: AxintRunFailureIntelligence;
   steps: AxintRunStep[];
   artifacts: {
     json?: string;
@@ -441,6 +485,17 @@ export async function runAxintProject(
     cloudChecks,
     proofReconciliation
   );
+  const failureIntelligence = buildRunFailureIntelligence({
+    cwd,
+    status,
+    plan,
+    projectContext: projectContext.index,
+    validationDiagnostics,
+    cloudChecks,
+    commands,
+    xcodeTestFailures,
+    runnerHealth,
+  });
   const feedbackSignals = writeRunFeedbackSignals(cwd, cloudChecks);
   let report: AxintRunReport = {
     id: runId,
@@ -472,6 +527,7 @@ export async function runAxintProject(
     cloudChecks,
     xcodeTestFailures,
     runnerHealth,
+    failureIntelligence,
     commands,
     steps: steps.map((step) =>
       step.durationMs === undefined && step.name === "Axint session"
@@ -489,7 +545,8 @@ export async function runAxintProject(
       workflow,
       cloudChecks,
       xcodeTestFailures,
-      runnerHealth
+      runnerHealth,
+      failureIntelligence
     ),
     repairPrompt: buildRunRepairPrompt({
       status,
@@ -499,6 +556,7 @@ export async function runAxintProject(
       commands,
       xcodeTestFailures,
       runnerHealth,
+      failureIntelligence,
       agent: agentProfile,
     }),
   };
@@ -530,6 +588,7 @@ export async function runAxintProject(
       cloudChecks,
       xcodeTestFailures,
       runnerHealth,
+      failureIntelligence,
       agentAdvice
     ),
   };
@@ -541,9 +600,11 @@ export async function runAxintProject(
     commands,
     xcodeTestFailures,
     runnerHealth,
+    failureIntelligence,
     agent: agentProfile,
     agentAdvice,
   });
+  report.toolContract = buildRunToolContract(report);
 
   if (input.writeReport !== false) {
     const artifacts = writeRunArtifacts(report);
@@ -585,6 +646,13 @@ export function renderAxintRunReport(
     `- Job: ${report.job.id}`,
     `- Status command: \`${report.job.statusCommand}\``,
     `- Cancel command: \`${report.job.cancelCommand}\``,
+    "",
+    renderToolContractMarkdown(report.toolContract ?? buildRunToolContract(report)),
+    "",
+    "## Failure Intelligence",
+    ...(report.failureIntelligence && report.failureIntelligence.status === "ready"
+      ? renderRunFailureIntelligenceLines(report.failureIntelligence)
+      : ["- No concrete failure intelligence was needed for this run."]),
     "",
     "## Steps",
     ...report.steps.map(
@@ -680,6 +748,406 @@ export function renderAxintRunReport(
   }
 
   return lines.join("\n");
+}
+
+function buildRunToolContract(report: AxintRunReport): AxintToolContract {
+  const firstNextStep = report.nextSteps[0];
+  const repairCommand = `axint repair 'Axint run proof loop' --dir ${shellQuote(
+    report.cwd
+  )} --agent ${report.agent.agent}`;
+  const failureNext = report.failureIntelligence?.nextProofCommand;
+  const diagnostics = buildRunToolDiagnostics(report);
+  const safeCommand =
+    failureNext ??
+    firstNextStep?.match(/`([^`]+)`/)?.[1] ??
+    (report.status === "fail"
+      ? repairCommand
+      : report.status === "pass"
+        ? report.job.statusCommand
+        : `axint run --dir ${shellQuote(report.cwd)} --changed <files>`);
+
+  return buildToolContract({
+    tool: "axint.run",
+    status: runContractStatus(report.status),
+    verdict: report.gate.decision,
+    confidence: runContractConfidence(report),
+    summary: `${report.projectName}: ${report.gate.reason}`,
+    evidenceProvided: [
+      ...(report.failureIntelligence
+        ? [`Failure intelligence: ${report.failureIntelligence.summary}`]
+        : []),
+      ...report.steps
+        .filter((step) => step.state === "pass")
+        .map((step) => `${step.name}: ${step.detail}`),
+      ...report.cloudChecks.flatMap((check) => check.evidence.summary),
+    ],
+    evidenceMissing: [
+      ...report.workflow.required,
+      ...report.cloudChecks.flatMap((check) => check.gate.requiredEvidence),
+      ...(report.commands.build && commandPassed(report.commands.build)
+        ? []
+        : ["Xcode build evidence"]),
+      ...(report.commands.test && commandPassed(report.commands.test)
+        ? []
+        : ["Focused unit/UI test evidence when behavior changed"]),
+    ],
+    evidenceChecked: [
+      ...report.steps.map((step) => `${step.name}: ${step.state}`),
+      ...report.workflow.checked,
+    ],
+    diagnostics,
+    nextActionLabel:
+      (report.failureIntelligence
+        ? `${report.failureIntelligence.patchDirection} Then rerun proof.`
+        : undefined) ??
+      firstNextStep ??
+      (report.status === "pass"
+        ? "Summarize the proof artifacts and keep the run report attached to the pass."
+        : "Repair the failing Axint run before broad new work."),
+    nextActionCommand: safeCommand,
+    nextActionReason: report.gate.reason,
+    safeCommand,
+    artifactPaths: [
+      report.artifacts.json,
+      report.artifacts.markdown,
+      report.artifacts.projectContextJson,
+      report.artifacts.projectContextMarkdown,
+      ...(report.artifacts.feedbackSignals ?? []),
+    ],
+    feedbackSignal: report.artifacts.feedbackSignals?.length
+      ? {
+          status: "available",
+          reason: "Axint wrote source-free feedback signals from Cloud Check misses.",
+          path: report.artifacts.feedbackSignals[0],
+        }
+      : undefined,
+    sourceIncluded: false,
+    sourceOptIn: "--include-source",
+  });
+}
+
+function buildRunToolDiagnostics(report: AxintRunReport): AxintToolContractDiagnostic[] {
+  return [
+    ...(report.failureIntelligence
+      ? [
+          {
+            code: "AXRUN-FAILURE-INTELLIGENCE",
+            severity: report.failureIntelligence.confidence,
+            file: report.failureIntelligence.primaryFailure?.file,
+            line: report.failureIntelligence.primaryFailure?.line,
+            message: report.failureIntelligence.summary,
+            suggestion: report.failureIntelligence.patchDirection,
+          },
+        ]
+      : []),
+    ...toolDiagnosticsFromDiagnostics(report.swiftValidation.diagnostics, 5),
+    ...report.cloudChecks.flatMap((check) =>
+      toolDiagnosticsFromDiagnostics(check.diagnostics, 5)
+    ),
+    ...report.xcodeTestFailures.slice(0, 5).map((failure) => ({
+      code: "AXRUN-XCODE-TEST",
+      severity: "error",
+      file: failure.file,
+      line: failure.line,
+      message: `${failure.testName ?? "Xcode test"}: ${failure.message}`,
+      suggestion:
+        failure.repairHint ??
+        failure.likelyCause ??
+        "Inspect the focused Xcode failure before guessing at a patch.",
+    })),
+    ...report.runnerHealth.slice(0, 3).map((issue) => ({
+      code: "AXRUN-RUNNER-HEALTH",
+      severity: "error",
+      message: issue.message,
+      suggestion: issue.remediation,
+    })),
+  ];
+}
+
+function buildRunFailureIntelligence(input: {
+  cwd: string;
+  status: AxintRunReport["status"];
+  plan?: XcodePlan;
+  projectContext: ProjectContextIndex;
+  validationDiagnostics: Diagnostic[];
+  cloudChecks: CloudCheckReport[];
+  commands: AxintRunReport["commands"];
+  xcodeTestFailures: AxintRunXcodeTestFailure[];
+  runnerHealth: AxintRunRunnerIssue[];
+}): AxintRunFailureIntelligence | undefined {
+  if (input.status === "pass") return undefined;
+
+  const primaryRunnerIssue = input.runnerHealth[0];
+  if (primaryRunnerIssue) {
+    return {
+      status: "ready",
+      confidence: "high",
+      category: "runner-infrastructure",
+      summary: primaryRunnerIssue.message,
+      likelyCause: primaryRunnerIssue.likelyCause,
+      patchDirection: primaryRunnerIssue.remediation,
+      filesToInspect: [],
+      nextProofCommand:
+        primaryRunnerIssue.command ?? buildRunProofCommand(input.cwd, input.plan),
+      evidence: compactStrings([
+        primaryRunnerIssue.evidence,
+        ...(input.plan?.onlyTesting ?? []).map(
+          (selector) => `Focused selector: ${selector}`
+        ),
+      ]),
+    };
+  }
+
+  const primaryFailure = input.xcodeTestFailures[0];
+  if (primaryFailure) {
+    const filesToInspect = rankFailureFiles(primaryFailure, input.projectContext);
+    return {
+      status: "ready",
+      confidence: primaryFailure.file || primaryFailure.identifier ? "high" : "medium",
+      category: "xcode-test-failure",
+      summary: formatXcodeFailureOneLine(primaryFailure),
+      primaryFailure: {
+        testName: primaryFailure.testName,
+        suiteName: primaryFailure.suiteName,
+        file: primaryFailure.file,
+        line: primaryFailure.line,
+        message: primaryFailure.message,
+        identifier: primaryFailure.identifier,
+        source: primaryFailure.source,
+      },
+      likelyCause:
+        primaryFailure.likelyCause ??
+        "Xcode produced a failing assertion that needs product-level inspection.",
+      patchDirection:
+        primaryFailure.repairHint ??
+        "Patch the product code around the failing screen/control, not the test, unless the identifier/query is proven stale.",
+      filesToInspect,
+      nextProofCommand: buildRunProofCommand(input.cwd, input.plan, primaryFailure),
+      evidence: compactStrings([
+        primaryFailure.file
+          ? `Failure location: ${primaryFailure.file}${primaryFailure.line ? `:${primaryFailure.line}` : ""}`
+          : undefined,
+        primaryFailure.identifier
+          ? `Identifier: ${primaryFailure.identifier}`
+          : undefined,
+        `Source: ${primaryFailure.source}`,
+      ]),
+    };
+  }
+
+  const swiftError = input.validationDiagnostics.find(
+    (diagnostic) => diagnostic.severity === "error"
+  );
+  if (swiftError) {
+    return {
+      status: "ready",
+      confidence: "high",
+      category: "swift-validation",
+      summary: `${swiftError.code}: ${swiftError.message}`,
+      likelyCause:
+        "Axint Swift validation found a concrete static error before Xcode proof.",
+      patchDirection:
+        swiftError.suggestion ??
+        "Patch the reported Swift source, then rerun Swift validation before Xcode.",
+      filesToInspect: swiftError.file
+        ? [{ path: swiftError.file, reason: `Swift diagnostic ${swiftError.code}` }]
+        : [],
+      nextProofCommand: swiftError.file
+        ? `axint swift validate ${shellQuote(swiftError.file)}`
+        : "axint swift validate <file>",
+      evidence: [`Severity: ${swiftError.severity}`],
+    };
+  }
+
+  const cloudDiagnostic = input.cloudChecks
+    .flatMap((check) => check.diagnostics.map((diagnostic) => ({ check, diagnostic })))
+    .find(({ diagnostic }) => diagnostic.severity !== "info");
+  if (cloudDiagnostic) {
+    return {
+      status: "ready",
+      confidence: cloudDiagnostic.diagnostic.severity === "error" ? "high" : "medium",
+      category: "cloud-check",
+      summary: `${cloudDiagnostic.diagnostic.code}: ${cloudDiagnostic.diagnostic.message}`,
+      likelyCause: cloudDiagnostic.check.gate.reason,
+      patchDirection:
+        cloudDiagnostic.diagnostic.suggestion ??
+        cloudDiagnostic.check.nextSteps[0] ??
+        "Patch the Cloud Check finding, then rerun Cloud Check with build/test evidence.",
+      filesToInspect: [
+        {
+          path: cloudDiagnostic.diagnostic.file ?? cloudDiagnostic.check.fileName,
+          reason: `Cloud Check ${cloudDiagnostic.diagnostic.code}`,
+        },
+      ],
+      nextProofCommand:
+        cloudDiagnostic.check.repairPlan.find((step) => step.command)?.command ??
+        `axint cloud check --source-path ${shellQuote(cloudDiagnostic.check.fileName)}`,
+      evidence: [`Gate: ${cloudDiagnostic.check.gate.decision}`],
+    };
+  }
+
+  const failedCommand = Object.entries(input.commands).find(
+    ([, result]) => result && result.exitCode !== 0
+  );
+  if (failedCommand?.[1]) {
+    const [label, result] = failedCommand;
+    return {
+      status: "ready",
+      confidence: "medium",
+      category: "xcode-command",
+      summary: `${label} command exited with ${result.exitCode ?? result.signal ?? "unknown"}.`,
+      likelyCause:
+        "The command failed before Axint could classify a more specific test or Cloud Check issue.",
+      patchDirection:
+        "Inspect the command log tail and rerun with focused selectors so Axint can extract a concrete failure.",
+      filesToInspect: [],
+      nextProofCommand: [result.command, ...result.args].map(shellQuote).join(" "),
+      evidence: compactStrings([
+        result.logPath ? `Command log: ${result.logPath}` : undefined,
+        result.stderr ? tailText(result.stderr, 240) : undefined,
+      ]),
+    };
+  }
+
+  return {
+    status: "ready",
+    confidence: "low",
+    category: "evidence-missing",
+    summary: "Axint needs build, test, or runtime evidence before naming a root cause.",
+    likelyCause:
+      "The run did not produce a concrete Swift, Cloud, Xcode, or runner failure.",
+    patchDirection:
+      "Collect the smallest proof artifact: changed Swift file, focused xcodebuild output, UI test failure, runtime log, or .xcresult.",
+    filesToInspect: [],
+    nextProofCommand: buildRunProofCommand(input.cwd, input.plan),
+    evidence: [],
+  };
+}
+
+function renderRunFailureIntelligenceLines(
+  intelligence: AxintRunFailureIntelligence
+): string[] {
+  return [
+    `- Category: ${intelligence.category}`,
+    `- Confidence: ${intelligence.confidence}`,
+    `- Summary: ${intelligence.summary}`,
+    `- Likely cause: ${intelligence.likelyCause}`,
+    `- Patch direction: ${intelligence.patchDirection}`,
+    `- Next proof command: \`${intelligence.nextProofCommand}\``,
+    ...(intelligence.filesToInspect.length > 0
+      ? [
+          "- Files to inspect:",
+          ...intelligence.filesToInspect
+            .slice(0, 6)
+            .map((file) => `  - ${file.path}: ${file.reason}`),
+        ]
+      : ["- Files to inspect: none identified yet"]),
+    ...(intelligence.evidence.length > 0
+      ? ["- Evidence:", ...intelligence.evidence.slice(0, 6).map((item) => `  - ${item}`)]
+      : []),
+  ];
+}
+
+function compactStrings(values: Array<string | undefined>): string[] {
+  return values.filter((value): value is string => Boolean(value && value.trim()));
+}
+
+function rankFailureFiles(
+  failure: AxintRunXcodeTestFailure,
+  projectContext: ProjectContextIndex
+): AxintRunFailureIntelligence["filesToInspect"] {
+  const targets: AxintRunFailureIntelligence["filesToInspect"] = [];
+  const add = (path: string | undefined, reason: string) => {
+    if (!path || targets.some((target) => target.path === path)) return;
+    targets.push({ path, reason });
+  };
+
+  add(failure.file, "Xcode reported the assertion location.");
+
+  if (failure.identifier) {
+    const matchingIdentifier = projectContext.files.catalog.filter((file) =>
+      file.accessibilityIdentifiers.includes(failure.identifier!)
+    );
+    for (const file of matchingIdentifier.slice(0, 4)) {
+      add(file.path, `Contains accessibility identifier ${failure.identifier}.`);
+    }
+  }
+
+  if (/hittable|tap|type|keyboard|focus|foreground|background/i.test(failure.message)) {
+    for (const file of projectContext.topInteractionRiskFiles.slice(0, 4)) {
+      add(file.path, `High interaction-risk file: ${file.reasons.join(", ")}.`);
+    }
+  }
+
+  const testNameParts = splitCamelAndWords(failure.testName);
+  if (testNameParts.length > 0) {
+    for (const file of projectContext.files.catalog) {
+      const haystack =
+        `${file.path} ${file.accessibilityIdentifiers.join(" ")}`.toLowerCase();
+      if (testNameParts.some((part) => part.length > 3 && haystack.includes(part))) {
+        add(file.path, `Matches failing test vocabulary: ${failure.testName}.`);
+      }
+      if (targets.length >= 8) break;
+    }
+  }
+
+  return targets.slice(0, 8);
+}
+
+function splitCamelAndWords(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function buildRunProofCommand(
+  cwd: string,
+  plan?: XcodePlan,
+  failure?: AxintRunXcodeTestFailure
+): string {
+  const container = plan
+    ? `${plan.containerKind === "workspace" ? "--workspace" : "--project"} ${shellQuote(
+        plan.containerPath
+      )}`
+    : "";
+  const scheme = plan?.scheme ? `--scheme ${shellQuote(plan.scheme)}` : "";
+  const selectors = plan?.onlyTesting.length
+    ? plan.onlyTesting
+    : failure?.suiteName && failure?.testName
+      ? [`${failure.suiteName}/${failure.suiteName}/${failure.testName}`]
+      : [];
+  const onlyTesting =
+    selectors.length > 0
+      ? selectors.map((selector) => `--only-testing ${shellQuote(selector)}`).join(" ")
+      : "--only-testing <focused-selector>";
+  return `axint run --dir ${shellQuote(cwd)} ${container} ${scheme} --changed <files> ${onlyTesting}`.replace(
+    /\s+/g,
+    " "
+  );
+}
+
+function runContractStatus(status: AxintRunReport["status"]): AxintToolContractStatus {
+  if (status === "pass") return "pass";
+  if (status === "fail") return "fail";
+  return "warn";
+}
+
+function runContractConfidence(report: AxintRunReport): AxintToolContractConfidence {
+  if (report.gate.decision === "ready_to_ship") return "high";
+  if (report.xcodeTestFailures.length > 0 || report.runnerHealth.length > 0) {
+    return "high";
+  }
+  if (report.gate.decision === "evidence_required") return "medium";
+  if (
+    report.swiftValidation.diagnostics.length > 0 ||
+    report.cloudChecks.some((check) => check.diagnostics.length > 0)
+  ) {
+    return "medium";
+  }
+  return report.status === "pass" ? "medium" : "low";
 }
 
 function writeRunFeedbackSignals(cwd: string, cloudChecks: CloudCheckReport[]): string[] {
@@ -2154,6 +2622,7 @@ function buildNextSteps(
   cloudChecks: CloudCheckReport[],
   xcodeTestFailures: AxintRunXcodeTestFailure[] = [],
   runnerHealth: AxintRunRunnerIssue[] = [],
+  failureIntelligence?: AxintRunFailureIntelligence,
   agentAdvice?: AxintAgentAdviceReport
 ): string[] {
   if (status === "pass") {
@@ -2179,6 +2648,11 @@ function buildNextSteps(
   if (agentAdvice?.status === "blocked") {
     next.add(
       "Resolve the active Axint file claim before editing, or wait for the claim to expire."
+    );
+  }
+  if (failureIntelligence && failureIntelligence.status === "ready") {
+    next.add(
+      `${failureIntelligence.patchDirection} Rerun proof: ${failureIntelligence.nextProofCommand}`
     );
   }
   for (const failure of xcodeTestFailures.slice(0, 3)) {
@@ -2225,6 +2699,7 @@ function buildRunRepairPrompt(input: {
   commands: AxintRunReport["commands"];
   xcodeTestFailures?: AxintRunXcodeTestFailure[];
   runnerHealth?: AxintRunRunnerIssue[];
+  failureIntelligence?: AxintRunFailureIntelligence;
   agent?: AxintAgentToolProfile;
   agentAdvice?: AxintAgentAdviceReport;
 }) {
@@ -2275,6 +2750,20 @@ function buildRunRepairPrompt(input: {
     "Workflow gate:",
     ...input.workflow.required.map((item) => `- REQUIRED: ${item}`),
     ...input.workflow.recommended.map((item) => `- RECOMMENDED: ${item}`),
+    ...(input.failureIntelligence
+      ? [
+          "",
+          "Failure intelligence:",
+          `- Category: ${input.failureIntelligence.category}`,
+          `- Summary: ${input.failureIntelligence.summary}`,
+          `- Likely cause: ${input.failureIntelligence.likelyCause}`,
+          `- Patch direction: ${input.failureIntelligence.patchDirection}`,
+          `- Next proof: ${input.failureIntelligence.nextProofCommand}`,
+          ...input.failureIntelligence.filesToInspect
+            .slice(0, 6)
+            .map((file) => `- Inspect ${file.path}: ${file.reason}`),
+        ]
+      : []),
     "",
     "Swift diagnostics:",
     ...(input.validationDiagnostics.length > 0

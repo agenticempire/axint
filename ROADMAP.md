@@ -23,7 +23,7 @@ The thesis is simple: agents can write code, but Apple-native software needs pro
 - TypeScript, Python, JSON schema mode, and preview `.axint` inputs compile into Apple-native Swift.
 - Supported surfaces include App Intents, SwiftUI views, WidgetKit widgets, app scaffolds, plist fragments, entitlements, and Apple metadata.
 - The validator covers 204 diagnostic codes across compiler, intent, view, widget, app, Swift build, SwiftUI, accessibility, concurrency, and Live Activity rules.
-- The suite currently tracks 1311 tests across TypeScript and Python paths.
+- The suite currently tracks 1319 tests across TypeScript and Python paths.
 
 ### Agent distribution
 

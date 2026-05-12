@@ -34,7 +34,7 @@ Any tool that speaks MCP over stdio can connect to Axint:
 
 ## Tools Provided
 
-All integrations expose the current Axint MCP surface: 35 tools plus five built-in prompts.
+All integrations expose the current Axint MCP surface: 36 tools plus five built-in prompts.
 
 Core tool groups:
 

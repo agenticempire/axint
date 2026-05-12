@@ -25,6 +25,13 @@ import {
   formatAppleRepairRead,
   type AppleRepairIntelligence,
 } from "../repair/intelligence.js";
+import {
+  buildToolContract,
+  renderToolContractMarkdown,
+  toolDiagnosticsFromDiagnostics,
+  type AxintToolContract,
+  type AxintToolContractStatus,
+} from "../core/tool-contract.js";
 
 export type CloudCheckFormat = "markdown" | "json" | "prompt" | "feedback";
 export type CloudCheckLanguage = "swift" | "typescript" | "unknown";
@@ -110,6 +117,7 @@ export interface CloudCheckInput {
 export interface CloudCheckReport {
   id: string;
   status: CloudCheckStatus;
+  toolContract?: AxintToolContract;
   label: string;
   confidence: {
     level: CloudCheckConfidenceLevel;
@@ -626,6 +634,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
 
   report.repairPrompt = buildCloudRepairPrompt(report);
   report.learningSignal = buildCloudLearningSignal(report);
+  report.toolContract = buildCloudCheckToolContract(report);
   return report;
 }
 
@@ -660,6 +669,10 @@ export function renderCloudCheckReport(
     `- Confidence: ${report.confidence.level} — ${report.confidence.detail}`,
     `- Gate: ${report.gate.decision} — ${report.gate.reason}`,
     `- Diagnostics: ${report.errors} errors, ${report.warnings} warnings, ${report.infos} info`,
+    "",
+    renderToolContractMarkdown(
+      report.toolContract ?? buildCloudCheckToolContract(report)
+    ),
     "",
     "## Checks",
     ...report.checks.map((check) => `- ${check.label}: ${check.detail}`),
@@ -768,6 +781,53 @@ export function renderCloudCheckReport(
     );
   }
   return lines.join("\n");
+}
+
+function buildCloudCheckToolContract(report: CloudCheckReport): AxintToolContract {
+  const command = report.repairPlan.find((step) => step.command)?.command;
+  return buildToolContract({
+    tool: "axint.cloud.check",
+    status: cloudCheckContractStatus(report.status),
+    verdict: report.gate.decision,
+    confidence: report.confidence.level,
+    summary: `${report.fileName}: ${report.gate.reason}`,
+    evidenceProvided:
+      report.evidence.summary.length > 0
+        ? report.evidence.summary
+        : report.evidence.provided,
+    evidenceMissing: [
+      ...report.confidence.missingEvidence,
+      ...report.gate.requiredEvidence,
+    ],
+    evidenceChecked: [
+      ...report.checks.map((check) => `${check.label}: ${check.state}`),
+      ...report.coverage.map((item) => `${item.label}: ${item.state.replace("_", " ")}`),
+    ],
+    diagnostics: toolDiagnosticsFromDiagnostics(report.diagnostics),
+    nextActionLabel: report.nextSteps[0] ?? "No Cloud Check action is required.",
+    nextActionCommand: command,
+    nextActionReason: report.gate.reason,
+    safeCommand: command,
+    artifactPaths: [report.outputPath],
+    feedbackSignal: report.learningSignal
+      ? {
+          status: report.status === "pass" ? "available" : "recommended",
+          reason:
+            "Cloud Check generated a privacy-safe learning signal for repeated product improvement.",
+          fingerprint: report.learningSignal.fingerprint,
+          kind: report.learningSignal.kind,
+          priority: report.learningSignal.priority,
+        }
+      : undefined,
+    sourceIncluded: false,
+    sourceOptIn: "--format prompt for the full repair prompt; source stays local",
+  });
+}
+
+function cloudCheckContractStatus(status: CloudCheckStatus): AxintToolContractStatus {
+  if (status === "pass") return "pass";
+  if (status === "fail") return "fail";
+  return "warn";
 }
 
 /**

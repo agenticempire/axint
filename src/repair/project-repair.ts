@@ -17,6 +17,15 @@ import {
   formatAppleRepairRead,
   type AppleRepairIntelligence,
 } from "./intelligence.js";
+import {
+  buildToolContract,
+  renderToolContractMarkdown,
+  toolDiagnosticsFromDiagnostics,
+  type AxintToolContract,
+  type AxintToolContractConfidence,
+  type AxintToolContractStatus,
+  type AxintToolContractVerdict,
+} from "../core/tool-contract.js";
 import { queueAutomaticFeedback } from "../feedback/auto.js";
 import {
   readProjectContextIndex,
@@ -112,6 +121,7 @@ export interface AxintRepairFeedbackPacket {
 export interface AxintRepairReport {
   id: string;
   status: AxintRepairStatus;
+  toolContract?: AxintToolContract;
   priority: AxintRepairPriority;
   compilerVersion: string;
   createdAt: string;
@@ -295,6 +305,7 @@ export function runAxintRepair(input: AxintRepairInput): AxintRepairReport {
   };
 
   report.repairPrompt = buildRepairPrompt(report);
+  report.toolContract = buildRepairToolContract(report);
 
   if (input.writeReport !== false) {
     writeRepairArtifacts(report);
@@ -322,6 +333,8 @@ export function renderAxintRepairReport(
     `- Confidence: ${report.confidence.level} — ${report.confidence.detail}`,
     `- Agent lane: ${report.agent.label} (${report.agent.editingMode})`,
     `- Project: ${report.projectContext.swiftFiles} Swift files, ${report.projectContext.swiftUIFiles} SwiftUI files, ${report.projectContext.inputCapableFiles} input-capable files`,
+    "",
+    renderToolContractMarkdown(report.toolContract ?? buildRepairToolContract(report)),
     "",
     "## Senior Repair Read",
     ...formatAppleRepairOverview(report.repairIntelligence).map((item) => `- ${item}`),
@@ -391,6 +404,98 @@ export function renderAxintRepairReport(
   }
 
   return `${lines.join("\n")}\n`;
+}
+
+function buildRepairToolContract(report: AxintRepairReport): AxintToolContract {
+  const proofCommand =
+    report.commands.find((command) => command.startsWith("axint run")) ??
+    report.commands.find((command) => command.startsWith("axint cloud check")) ??
+    report.commands[0];
+  return buildToolContract({
+    tool: "axint.repair",
+    status: repairContractStatus(report.status),
+    verdict: repairContractVerdict(report.status),
+    confidence: repairContractConfidence(report),
+    summary: `${report.issueClass}: ${report.confidence.detail}`,
+    evidenceProvided: [
+      ...report.repairIntelligence.signals.map((signal) => `Signal: ${signal}`),
+      ...report.hypotheses
+        .slice(0, 4)
+        .map((hypothesis) => `Hypothesis: ${hypothesis.title}`),
+      ...(report.cloudCheck ? report.cloudCheck.evidence.summary : []),
+    ],
+    evidenceMissing: report.evidenceToCollect,
+    evidenceChecked: [
+      `Project context: ${report.projectContext.swiftFiles} Swift files`,
+      `Files ranked: ${report.filesToInspect.length}`,
+      `Issue class: ${report.issueClass}`,
+      ...(report.cloudCheck ? [`Cloud Check: ${report.cloudCheck.gate.decision}`] : []),
+    ],
+    diagnostics: [
+      ...(report.cloudCheck
+        ? toolDiagnosticsFromDiagnostics(report.cloudCheck.diagnostics, 8)
+        : []),
+      ...report.hypotheses.slice(0, 4).map((hypothesis) => ({
+        code: "AXREPAIR-HYPOTHESIS",
+        severity: hypothesis.confidence,
+        message: hypothesis.title,
+        suggestion: hypothesis.suggestedPatch,
+      })),
+    ],
+    nextActionLabel:
+      (proofCommand
+        ? `Patch surgically, then run \`${proofCommand}\` to prove the repair.`
+        : undefined) ??
+      report.proofPlan[0] ??
+      "Collect the missing evidence, patch surgically, then rerun proof.",
+    nextActionCommand: proofCommand,
+    nextActionReason: report.status,
+    safeCommand: proofCommand,
+    artifactPaths: [
+      report.artifacts.json,
+      report.artifacts.markdown,
+      report.artifacts.feedback,
+    ],
+    feedbackSignal: report.artifacts.feedback
+      ? {
+          status: "available",
+          reason: "Axint wrote a source-free repair feedback packet.",
+          path: report.artifacts.feedback,
+          priority: report.priority,
+          kind: report.issueClass,
+        }
+      : {
+          status: "recommended",
+          reason:
+            "The repair report includes a privacy-safe feedback packet that can be written or submitted if Axint missed this case.",
+          priority: report.priority,
+          kind: report.issueClass,
+        },
+    sourceIncluded: false,
+    sourceOptIn: "--source-path or explicit source input",
+  });
+}
+
+function repairContractStatus(status: AxintRepairStatus): AxintToolContractStatus {
+  if (status === "fix_required") return "fail";
+  if (status === "needs_context") return "needs_action";
+  return "warn";
+}
+
+function repairContractVerdict(status: AxintRepairStatus): AxintToolContractVerdict {
+  if (status === "fix_required") return "fix_required";
+  if (status === "needs_context") return "needs_context";
+  return "ready_to_prove";
+}
+
+function repairContractConfidence(
+  report: AxintRepairReport
+): AxintToolContractConfidence {
+  if (report.confidence.level === "high") return "high";
+  if (report.hypotheses.length > 0 || report.filesToInspect.length > 0) {
+    return "medium";
+  }
+  return "low";
 }
 
 export function renderRepairFeedbackPacket(

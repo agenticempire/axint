@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.28] - 2026-05-12
+
+- Align marketplace copy with `@axint/compiler` v0.4.28
+- Document the current Axint MCP surface: 36 tools + 5 built-in prompts
+- Keep extension metadata in sync with the public-truth release counters
+
 ## [0.4.27] - 2026-05-07
 
 - Align marketplace copy with the current Apple-native execution layer positioning

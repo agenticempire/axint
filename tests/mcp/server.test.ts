@@ -6,7 +6,10 @@ import {
   compileWidgetFromIR,
   compileAppFromIR,
 } from "../../src/core/compiler.js";
-import { handleToolCall } from "../../src/mcp/server.js";
+import {
+  buildMcpToolExceptionResult,
+  handleToolCall,
+} from "../../src/mcp/server.js";
 import { scaffoldIntent } from "../../src/mcp/scaffold.js";
 import { TEMPLATES, getTemplate } from "../../src/templates/index.js";
 import { validateSwiftSource } from "../../src/core/swift-validator.js";
@@ -25,6 +28,28 @@ import { writeProjectStartPack } from "../../src/project/start-pack.js";
 import { startAxintSession } from "../../src/project/session.js";
 
 describe("axint.status tool", () => {
+  it("returns a recovery contract when an MCP tool throws", () => {
+    const result = buildMcpToolExceptionResult(
+      "axint.run",
+      new Error("transport closed")
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Tool error: transport closed");
+    expect(result.structuredContent?.toolContract).toMatchObject({
+      tool: "axint.run",
+      status: "fail",
+      verdict: "blocked",
+      nextAction: {
+        command: "axint mcp recover --dir . --agent all",
+      },
+      feedbackSignal: {
+        status: "recommended",
+        kind: "mcp-tool-exception",
+      },
+    });
+  });
+
   it("reports the running MCP server version and restart instructions", async () => {
     const result = await handleToolCall("axint.status", { format: "json" });
 
