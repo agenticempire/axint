@@ -16,6 +16,14 @@ type TelemetryConfig = {
   activatedAt?: string;
 };
 
+type ProjectTelemetryConfig = {
+  projectId: string;
+  createdAt: string;
+  updatedAt: string;
+  firstValueAt?: string;
+  lastValueAt?: string;
+};
+
 type RecordAdoptionEventInput = {
   source: AdoptionTelemetrySource;
   eventName: string;
@@ -25,7 +33,22 @@ type RecordAdoptionEventInput = {
   host?: string;
   transport?: string;
   result?: string;
+  failureEvent?: string;
 };
+
+type ProjectTelemetryState = {
+  config: ProjectTelemetryConfig;
+  createdNow: boolean;
+};
+
+type AdoptionValueStage =
+  | "setup"
+  | "value"
+  | "repeat"
+  | "rehydration"
+  | "repair"
+  | "health"
+  | "error";
 
 export type AdoptionTelemetryStatus = {
   enabled: boolean;
@@ -33,6 +56,8 @@ export type AdoptionTelemetryStatus = {
   endpoint: string;
   configPath: string;
   anonymousIdSuffix: string | null;
+  projectConfigPath: string;
+  projectIdSuffix: string | null;
   sends: string[];
   neverSends: string[];
 };
@@ -57,6 +82,8 @@ const SENDS = [
   "command class, such as cloud check or run",
   "MCP tool name",
   "first install and first activation lifecycle markers",
+  "anonymous per-project id plus first-value, repeat-value, and remembered-agent markers",
+  "source-free failure markers when a command or MCP tool returns an error",
   "coarse host hint, such as terminal, Codex, Claude, Cursor, or Xcode when detectable",
   "operating system family, architecture, Node major version, and CI flag",
   "anonymous random install id that can be reset or disabled",
@@ -73,6 +100,40 @@ const SETUP_ONLY_CLI_COMMANDS = new Set([
 ]);
 
 const SETUP_ONLY_MCP_TOOLS = new Set(["axint.status", "axint.doctor", "axint.upgrade"]);
+
+const REHYDRATION_CLI_COMMANDS = new Set([
+  "activate",
+  "context docs",
+  "context memory",
+  "session start",
+  "workflow check",
+]);
+
+const REHYDRATION_MCP_TOOLS = new Set([
+  "axint.activate",
+  "axint.context.docs",
+  "axint.context.memory",
+  "axint.session.start",
+  "axint.status",
+  "axint.workflow.check",
+]);
+
+const REPAIR_LOOP_CLI_COMMANDS = new Set([
+  "cloud check",
+  "repair",
+  "run",
+  "validate",
+  "validate-swift",
+]);
+
+const REPAIR_LOOP_MCP_TOOLS = new Set([
+  "axint.cloud.check",
+  "axint.repair",
+  "axint.run",
+  "axint.swift.fix",
+  "axint.swift.validate",
+  "axint.validate",
+]);
 
 function envFlagOff(value: string | undefined): boolean {
   if (!value) return false;
@@ -101,6 +162,13 @@ function telemetryConfigPath(): string {
   return join(homedir(), ".axint", "telemetry.json");
 }
 
+function projectTelemetryConfigPath(): string {
+  if (process.env.AXINT_PROJECT_TELEMETRY_CONFIG) {
+    return process.env.AXINT_PROJECT_TELEMETRY_CONFIG;
+  }
+  return join(process.cwd(), ".axint", "telemetry-project.json");
+}
+
 function readTelemetryConfig(): TelemetryConfig | null {
   const path = telemetryConfigPath();
   if (!existsSync(path)) return null;
@@ -119,6 +187,45 @@ function writeTelemetryConfig(config: TelemetryConfig): void {
   const path = telemetryConfigPath();
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+}
+
+function readProjectTelemetryConfig(): ProjectTelemetryConfig | null {
+  const path = projectTelemetryConfigPath();
+  if (!existsSync(path)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf-8")) as ProjectTelemetryConfig;
+    if (typeof parsed.projectId === "string" && parsed.projectId.startsWith("axp_")) {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function writeProjectTelemetryConfig(config: ProjectTelemetryConfig): void {
+  const path = projectTelemetryConfigPath();
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+}
+
+function readOrCreateProjectTelemetry(
+  now = new Date().toISOString()
+): ProjectTelemetryState | null {
+  try {
+    const existing = readProjectTelemetryConfig();
+    if (existing) return { config: existing, createdNow: false };
+
+    const created: ProjectTelemetryConfig = {
+      projectId: `axp_${randomUUID()}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeProjectTelemetryConfig(created);
+    return { config: created, createdNow: true };
+  } catch {
+    return null;
+  }
 }
 
 function createTelemetryConfig(now = new Date().toISOString()): TelemetryConfig {
@@ -211,7 +318,28 @@ function packageManagerHint(): string {
   return "unknown";
 }
 
-function metadataFor(input: RecordAdoptionEventInput): Record<string, string | boolean> {
+function projectAgeBucket(
+  project: ProjectTelemetryConfig | null,
+  now: string
+): string | undefined {
+  if (!project?.createdAt) return undefined;
+  const created = Date.parse(project.createdAt);
+  const current = Date.parse(now);
+  if (!Number.isFinite(created) || !Number.isFinite(current)) return undefined;
+  const ageHours = Math.max(0, (current - created) / 3_600_000);
+  if (ageHours < 1) return "new";
+  if (ageHours < 24) return "same-day";
+  if (ageHours < 24 * 7) return "week-one";
+  if (ageHours < 24 * 30) return "month-one";
+  return "retained";
+}
+
+function metadataFor(
+  input: RecordAdoptionEventInput,
+  project: ProjectTelemetryConfig | null,
+  now: string,
+  valueStage?: AdoptionValueStage
+): Record<string, string | boolean> {
   return {
     version: safeValue(input.version, 32) ?? "unknown",
     ...(input.command ? { command: safeValue(input.command, 96) ?? "unknown" } : {}),
@@ -221,12 +349,66 @@ function metadataFor(input: RecordAdoptionEventInput): Record<string, string | b
       ? { transport: safeValue(input.transport, 32) ?? "unknown" }
       : {}),
     ...(input.result ? { result: safeValue(input.result, 32) ?? "unknown" } : {}),
+    ...(input.failureEvent
+      ? { failure_event: safeValue(input.failureEvent, 96) ?? "unknown" }
+      : {}),
+    ...(project?.projectId
+      ? {
+          project_id: project.projectId,
+          project_age_bucket: projectAgeBucket(project, now) ?? "unknown",
+          project_repeat: Boolean(project.firstValueAt || project.lastValueAt),
+        }
+      : {}),
+    ...(valueStage ? { value_stage: valueStage } : {}),
     os: platform(),
     arch: arch(),
     node: process.versions.node.split(".")[0] ?? "unknown",
     package_manager: packageManagerHint(),
     ci: Boolean(process.env.CI),
   };
+}
+
+function isAgentRehydrationEvent(input: RecordAdoptionEventInput): boolean {
+  if (input.result && input.result !== "ok") return false;
+  if (
+    input.eventName !== "cli_command_completed" &&
+    input.eventName !== "mcp_tool_completed"
+  ) {
+    return false;
+  }
+  if (input.command) return REHYDRATION_CLI_COMMANDS.has(input.command.trim());
+  if (input.toolName) return REHYDRATION_MCP_TOOLS.has(input.toolName.trim());
+  return false;
+}
+
+function isRepairLoopEvent(input: RecordAdoptionEventInput): boolean {
+  if (input.result && input.result !== "ok") return false;
+  if (
+    input.eventName !== "cli_command_completed" &&
+    input.eventName !== "mcp_tool_completed"
+  ) {
+    return false;
+  }
+  if (input.command) return REPAIR_LOOP_CLI_COMMANDS.has(input.command.trim());
+  if (input.toolName) return REPAIR_LOOP_MCP_TOOLS.has(input.toolName.trim());
+  return false;
+}
+
+function shouldMarkRepeatValue(
+  project: ProjectTelemetryConfig | null,
+  now: string
+): boolean {
+  if (!project?.firstValueAt) return false;
+  const previous = Date.parse(project.lastValueAt ?? project.firstValueAt);
+  const current = Date.parse(now);
+  if (!Number.isFinite(previous) || !Number.isFinite(current)) return false;
+  return current - previous >= 60 * 60 * 1000;
+}
+
+function shouldRecordFailureEvent(input: RecordAdoptionEventInput): boolean {
+  if (input.eventName === "axint_error_observed") return false;
+  if (input.result && input.result !== "ok") return true;
+  return ["cli_command_failed", "mcp_tool_failed"].includes(input.eventName);
 }
 
 function isActivationProofEvent(input: RecordAdoptionEventInput): boolean {
@@ -253,7 +435,10 @@ function isActivationProofEvent(input: RecordAdoptionEventInput): boolean {
 function adoptionEventPayload(
   input: RecordAdoptionEventInput,
   config: TelemetryConfig,
-  eventName: string
+  eventName: string,
+  project: ProjectTelemetryConfig | null,
+  now: string,
+  valueStage?: AdoptionValueStage
 ) {
   return {
     schema: "https://axint.ai/schemas/adoption-telemetry.v1.json",
@@ -262,7 +447,7 @@ function adoptionEventPayload(
     event_type: "adoption",
     anonymous_id: config.anonymousId,
     session_id: processSessionId,
-    metadata: metadataFor(input),
+    metadata: metadataFor(input, project, now, valueStage),
   };
 }
 
@@ -277,18 +462,100 @@ export async function recordAdoptionEvent(
   const config = existing ?? createTelemetryConfig();
   if (createdNow) writeTelemetryConfig(config);
 
+  const now = new Date().toISOString();
+  const projectState = readOrCreateProjectTelemetry(now);
+  const project = projectState?.config ?? null;
   const shouldMarkInitialized = !config.initializedAt;
   const shouldMarkActivated =
     !config.activatedAt &&
     input.eventName !== "axint_activated" &&
     isActivationProofEvent(input);
+  const shouldMarkFailure = shouldRecordFailureEvent(input);
+  const shouldMarkValue = isActivationProofEvent(input);
+  const shouldMarkProjectFirstValue = shouldMarkValue && !project?.firstValueAt;
+  const shouldMarkProjectRepeatValue =
+    shouldMarkValue && shouldMarkRepeatValue(project, now);
+  const shouldMarkRehydration = isAgentRehydrationEvent(input);
+  const shouldMarkRepair = isRepairLoopEvent(input);
   const events = [
-    ...(shouldMarkInitialized
-      ? [adoptionEventPayload(input, config, "axint_install_initialized")]
+    ...(projectState?.createdNow
+      ? [
+          adoptionEventPayload(
+            input,
+            config,
+            "axint_project_initialized",
+            project,
+            now,
+            "setup"
+          ),
+        ]
       : []),
-    adoptionEventPayload(input, config, input.eventName),
+    ...(shouldMarkInitialized
+      ? [
+          adoptionEventPayload(
+            input,
+            config,
+            "axint_install_initialized",
+            project,
+            now,
+            "setup"
+          ),
+        ]
+      : []),
+    adoptionEventPayload(input, config, input.eventName, project, now),
+    ...(shouldMarkFailure
+      ? [
+          adoptionEventPayload(
+            { ...input, failureEvent: input.failureEvent ?? input.eventName },
+            config,
+            "axint_error_observed",
+            project,
+            now,
+            "error"
+          ),
+        ]
+      : []),
+    ...(shouldMarkProjectFirstValue
+      ? [adoptionEventPayload(input, config, "axint_first_value", project, now, "value")]
+      : []),
+    ...(shouldMarkProjectRepeatValue
+      ? [
+          adoptionEventPayload(
+            input,
+            config,
+            "axint_repeat_value",
+            project,
+            now,
+            "repeat"
+          ),
+        ]
+      : []),
+    ...(shouldMarkRehydration
+      ? [
+          adoptionEventPayload(
+            input,
+            config,
+            "axint_agent_rehydrated",
+            project,
+            now,
+            "rehydration"
+          ),
+        ]
+      : []),
+    ...(shouldMarkRepair
+      ? [
+          adoptionEventPayload(
+            input,
+            config,
+            "axint_repair_loop_completed",
+            project,
+            now,
+            "repair"
+          ),
+        ]
+      : []),
     ...(shouldMarkActivated
-      ? [adoptionEventPayload(input, config, "axint_activated")]
+      ? [adoptionEventPayload(input, config, "axint_activated", project, now, "value")]
       : []),
   ];
   const endpoint = adoptionTelemetryEndpoint();
@@ -311,11 +578,18 @@ export async function recordAdoptionEvent(
       return { sent: false, reason: `telemetry endpoint returned ${response.status}` };
     }
     if (shouldMarkInitialized || shouldMarkActivated) {
-      const now = new Date().toISOString();
       writeTelemetryConfig({
         ...config,
         initializedAt: config.initializedAt ?? now,
         activatedAt: shouldMarkActivated ? now : config.activatedAt,
+        updatedAt: now,
+      });
+    }
+    if (project && shouldMarkValue) {
+      writeProjectTelemetryConfig({
+        ...project,
+        firstValueAt: project.firstValueAt ?? now,
+        lastValueAt: now,
         updatedAt: now,
       });
     }
@@ -336,6 +610,7 @@ export function recordAdoptionEventSoon(input: RecordAdoptionEventInput): void {
 
 export function getAdoptionTelemetryStatus(): AdoptionTelemetryStatus {
   const config = readTelemetryConfig();
+  const project = readProjectTelemetryConfig();
   const disabled = telemetryDisabledReason(config);
   return {
     enabled: !disabled,
@@ -343,6 +618,8 @@ export function getAdoptionTelemetryStatus(): AdoptionTelemetryStatus {
     endpoint: adoptionTelemetryEndpoint(),
     configPath: telemetryConfigPath(),
     anonymousIdSuffix: config?.anonymousId ? config.anonymousId.slice(-8) : null,
+    projectConfigPath: projectTelemetryConfigPath(),
+    projectIdSuffix: project?.projectId ? project.projectId.slice(-8) : null,
     sends: SENDS,
     neverSends: NEVER_SENDS,
   };
@@ -364,6 +641,8 @@ export function renderAdoptionTelemetryStatus(
     `Endpoint: ${status.endpoint}`,
     `Config: ${status.configPath}`,
     `Anonymous install id: ${status.anonymousIdSuffix ? `...${status.anonymousIdSuffix}` : "not created yet"}`,
+    `Project config: ${status.projectConfigPath}`,
+    `Anonymous project id: ${status.projectIdSuffix ? `...${status.projectIdSuffix}` : "not created yet"}`,
     ``,
     `## Sent`,
     ...status.sends.map((item) => `- ${item}`),
