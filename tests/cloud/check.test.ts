@@ -573,6 +573,36 @@ struct BrokenIntent: AppIntent {
     expect(report.learningSignal?.signals).toContain("runtime-evidence-supplied");
   });
 
+  it("classifies codesign resource fork and FinderInfo build logs", () => {
+    const report = runCloudCheck({
+      fileName: "CadabraApp.swift",
+      source: `
+import SwiftUI
+
+@main
+struct CadabraApp: App {
+    var body: some Scene {
+        WindowGroup { Text("Cadabra") }
+    }
+}
+`,
+      xcodeBuildLog: [
+        "CodeSign /Users/nimanejat/Documents/Cadabra/build/Build/Products/Debug-iphoneos/Cadabra.app",
+        "resource fork, Finder information, or similar detritus not allowed",
+        "com.apple.FinderInfo",
+      ].join("\n"),
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.gate.decision).toBe("fix_required");
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-CODESIGN-RESOURCE-FORK"
+    );
+    expect(report.repairPrompt).toContain("COPYFILE_DISABLE");
+    expect(report.repairPrompt).toContain("/tmp");
+    expect(report.learningSignal?.signals).toContain("runtime-evidence-supplied");
+  });
+
   it("classifies common hallucinated-symbol Xcode build logs", () => {
     const report = runCloudCheck({
       fileName: "ProjectImportProgressView.swift",

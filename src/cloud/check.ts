@@ -1368,6 +1368,22 @@ function diagnosticsFromBuildLog(buildLog: string, file: string): Diagnostic[] {
   const text = normalizeTextForEvidence(buildLog);
   const diagnostics: Diagnostic[] = [];
 
+  if (
+    /\bresource fork, finder information, or similar detritus not allowed\b/.test(text) ||
+    /\bcom\.apple\.finderinfo\b/.test(text) ||
+    (/\bcodesign\b/.test(text) && /\bfileprovider\b/.test(text))
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-CODESIGN-RESOURCE-FORK",
+      severity: "error",
+      file,
+      message:
+        "Xcode code signing evidence reports resource fork, FinderInfo, or FileProvider metadata inside the app bundle.",
+      suggestion:
+        "Clean extended attributes with `xattr -cr <BuiltApp.app>`, run builds with `COPYFILE_DISABLE=1`, and place DerivedData/archive output under `/tmp` or another non-synced, non-FileProvider path before rerunning codesign.",
+    });
+  }
+
   if (/\binvalid redeclaration\b|\balready declared\b|\bduplicate\b/.test(text)) {
     diagnostics.push({
       code: "AXCLOUD-BUILD-REDECLARATION",
