@@ -91,6 +91,29 @@ describe("axint.suggest", () => {
     expect(suggestions.map((suggestion) => suggestion.domain)).not.toContain("repair");
   });
 
+  it("routes viral product hierarchy passes away from generic Magic Pass controls", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Viral-product hierarchy pass after product notes: rename the installed app display name back to Cadabra, make 'The photo they would actually post.' the launch promise, reorganize presets into Better, Outfit, and Wild lanes, make Better the default surface, simplify Magic Pass into public Magic Level, hide advanced dogfood controls behind the version triple-tap, add result feedback buttons Love, Not me, Too fake, and Worse, and rewrite the Gemini Nano Banana prompt contract around identity lock, visible portrait cleanup, outfit-only transformations, and Wild-only scene replacement.",
+      platform: "iOS",
+      limit: 4,
+    });
+
+    expect(suggestions[0]?.domain).toBe("product-hierarchy");
+    expect(suggestions[0]?.name).toContain("Public Hierarchy");
+    expect(suggestions[0]?.featurePrompt).toContain("launch promise");
+    expect(suggestions[0]?.featurePrompt).toContain("Better");
+    expect(suggestions[0]?.featurePrompt).toContain("Outfit");
+    expect(suggestions[0]?.featurePrompt).toContain("Wild");
+    expect(suggestions[0]?.featurePrompt).toContain("Magic Level");
+    expect(suggestions.map((suggestion) => suggestion.name).join("\n")).toContain(
+      "Result Feedback Loop"
+    );
+    expect(suggestions.map((suggestion) => suggestion.domain)).not.toContain(
+      "additive-feature"
+    );
+  });
+
   it("classifies image-provider identity drift as provider repair instead of runtime freeze", () => {
     const suggestions = suggestFeatures({
       appDescription:

@@ -913,6 +913,7 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   const explicitDomain = normalizeDomain(input.domain);
   const freshProductMode = detectFreshProductMode(input, text);
   const greenfieldAppMode = detectGreenfieldAppMode(input, text);
+  const productHierarchyMode = detectProductHierarchyMode(input, text);
   const additiveFeatureMode = detectAdditiveFeatureMode(input, text);
   const releasePreflightMode = detectReleasePreflightMode(input, text);
 
@@ -924,6 +925,9 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   }
   if (greenfieldAppMode) {
     return greenfieldAppSuggestions(input, text, limit, greenfieldAppMode.trace);
+  }
+  if (productHierarchyMode) {
+    return productHierarchySuggestions(input, text, limit, productHierarchyMode.trace);
   }
   if (additiveFeatureMode) {
     return additiveFeatureSuggestions(input, text, limit, additiveFeatureMode.trace);
@@ -1031,6 +1035,12 @@ type FreshProductMode =
   | undefined;
 
 type GreenfieldAppMode =
+  | {
+      trace: string;
+    }
+  | undefined;
+
+type ProductHierarchyMode =
   | {
       trace: string;
     }
@@ -1156,6 +1166,57 @@ function detectFreshProductMode(
   }
 
   return undefined;
+}
+
+function detectProductHierarchyMode(
+  input: SuggestInput,
+  normalizedAppDescription: string
+): ProductHierarchyMode {
+  const goalsText = normalizeText((input.goals ?? []).join(" "));
+  const constraintsText = normalizeText((input.constraints ?? []).join(" "));
+  const combined = [normalizedAppDescription, goalsText, constraintsText]
+    .filter(Boolean)
+    .join(" ");
+
+  const hierarchyCues = [
+    "app display name",
+    "better outfit wild",
+    "better / outfit / wild",
+    "default lane",
+    "default surface",
+    "display name",
+    "dogfood controls",
+    "feedback buttons",
+    "hide advanced",
+    "installed app display name",
+    "launch promise",
+    "magic level",
+    "preset lanes",
+    "product hierarchy",
+    "public vocabulary",
+    "result feedback",
+    "the photo they would actually post",
+    "version triple-tap",
+    "viral-product hierarchy",
+  ].filter((cue) => hasKeyword(combined, cue));
+
+  const hierarchyIntent = [
+    "add",
+    "hide",
+    "make",
+    "rename",
+    "reorganize",
+    "rewrite",
+    "simplify",
+    "turn into",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  if (hierarchyCues.length < 3 || !hierarchyIntent) return undefined;
+
+  const cueList = hierarchyCues.slice(0, 6).join(", ");
+  return {
+    trace: `Current prompt won as product hierarchy work (${cueList}); Axint is planning public vocabulary, default lanes, feedback signals, and provider semantics instead of narrowing the task to Magic Pass controls or stale repair.`,
+  };
 }
 
 function detectAdditiveFeatureMode(
@@ -1448,6 +1509,81 @@ function greenfieldAppSuggestions(
       loop: "Render -> tap -> assert -> record proof",
       nextStep:
         "Run axint.run with the generated app files and attach simulator/build evidence when available.",
+      modeTrace,
+    },
+  ];
+
+  return suggestions.slice(0, limit);
+}
+
+function productHierarchySuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  limit: number,
+  modeTrace: string
+): FeatureSuggestion[] {
+  const labels = semanticLabels(normalizedAppDescription, 5);
+  const productLabel =
+    (hasKeyword(normalizedAppDescription, "cadabra") ? "Cadabra" : undefined) ??
+    labels.find((label) => /cadabra|photo|camera|preset|product/i.test(label)) ??
+    "Product";
+  const lowerProduct = productLabel.toLowerCase();
+  const platform = input.platform ? `${input.platform} ` : "";
+  const rationale = `Mode trace: ${modeTrace} Product hierarchy prompts need public-facing language, default paths, hidden advanced controls, feedback capture, and provider semantics before isolated feature scaffolds.`;
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `${productLabel} Public Hierarchy`,
+      description:
+        "Restructure the live product around the promise, default lane, public controls, and simplified vocabulary users will actually understand.",
+      surfaces: ["view", "store", "component"],
+      complexity: "medium",
+      featurePrompt: `Create the ${platform}${productLabel} product hierarchy pass: set the launch promise, organize presets into Better, Outfit, and Wild lanes, make Better the default surface, rename internal Magic Pass copy into public Magic Level language, keep the installed display name aligned with the product, and hide advanced dogfood controls behind an intentional debug affordance. Do not replace this with Fast/Pro/Perfect provider controls unless those remain advanced-only.`,
+      domain: "product-hierarchy",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Turns raw capability into a product a normal user can understand in the first session.",
+      loop: "Promise -> default lane -> public controls -> hidden advanced -> proof",
+      nextStep:
+        "Patch the real launch/review/settings surfaces together so labels, defaults, and hidden controls agree.",
+      modeTrace,
+    },
+    {
+      name: `${productLabel} Result Feedback Loop`,
+      description:
+        "Add simple feedback buttons that teach the product which outputs are good, identity-breaking, too fake, or worse than the original.",
+      surfaces: ["view", "store"],
+      complexity: "medium",
+      featurePrompt: `Add a focused ${platform}result feedback loop with Love, Not me, Too fake, and Worse actions. Persist the feedback on each generated artifact, connect it to provider-output diagnostics, and make it available for prompt-quality repair without exposing private image data or hidden dogfood controls.`,
+      domain: "product-hierarchy",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Makes dogfood feedback actionable and investor-grade instead of anecdotal.",
+      loop: "Generate -> react -> persist -> improve prompt contract",
+      nextStep:
+        "Add state and analytics-safe metadata first, then verify feedback survives history/share routing.",
+      modeTrace,
+    },
+    {
+      name: `${productLabel} Provider Semantics Contract`,
+      description:
+        "Translate the simplified public lanes into strict provider instructions for identity lock, portrait cleanup, outfit edits, and scene replacement.",
+      surfaces: ["store", "component"],
+      complexity: "medium",
+      featurePrompt: `Create the ${platform}${lowerProduct} provider semantics contract: Better means visible identity-safe portrait cleanup, Outfit changes clothing/style without changing face or scene, and Wild is the only lane allowed to replace the scene. Preserve identity lock, face shape, age, expression, hairline, beard, body structure, and clothing intent unless the public lane explicitly allows the change.`,
+      domain: "product-hierarchy",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Keeps simplified product lanes connected to real provider behavior rather than cosmetic labels.",
+      loop: "Public lane -> prompt contract -> generated artifact metadata -> feedback",
+      nextStep:
+        "Run provider prompt/request proof and attach a before/after dogfood sample when available.",
       modeTrace,
     },
   ];
