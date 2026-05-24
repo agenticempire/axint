@@ -335,7 +335,7 @@ async function setupCodex(remote: boolean): Promise<void> {
   console.log(`  ${BOLD}Configuring Codex CLI...${RESET}`);
 
   if (remote) {
-    const cmd = `codex mcp add axint --transport http ${REMOTE_URL}`;
+    const cmd = `codex mcp add axint --url ${REMOTE_URL}`;
     console.log(`  ${DIM}$ ${cmd}${RESET}`);
     try {
       execSync(cmd, { stdio: "inherit", timeout: 10000 });
@@ -345,7 +345,8 @@ async function setupCodex(remote: boolean): Promise<void> {
       printManualCodex(remote);
     }
   } else {
-    const cmd = `codex mcp add axint -- npx -y -p ${AXINT_NPM_PACKAGE} ${AXINT_MCP_BIN}`;
+    const npxPath = detectNpxPath() ?? "npx";
+    const cmd = `codex mcp add axint --env PATH=${buildDurablePath(npxPath)} -- ${npxPath} -y -p ${AXINT_NPM_PACKAGE} ${AXINT_MCP_BIN}`;
     console.log(`  ${DIM}$ ${cmd}${RESET}`);
     try {
       execSync(cmd, { stdio: "inherit", timeout: 10000 });
@@ -535,6 +536,10 @@ function detectNpxPath(): string | null {
 }
 
 function buildMcpEnv(commandPath: string): Record<string, string> | undefined {
+  return { PATH: buildDurablePath(commandPath) };
+}
+
+function buildDurablePath(commandPath: string): string {
   const commandDir = dirname(commandPath);
   const pathEntries = [
     commandDir,
@@ -543,8 +548,7 @@ function buildMcpEnv(commandPath: string): Record<string, string> | undefined {
     "/usr/bin",
     "/bin",
   ];
-  const path = Array.from(new Set(pathEntries)).join(":");
-  return { PATH: path };
+  return Array.from(new Set(pathEntries)).join(":");
 }
 
 function detectNodePath(): string | null {

@@ -168,4 +168,47 @@ describe("project repair", () => {
     expect(report.evidenceToCollect.join("\n")).toContain("source");
     expect(report.feedbackPacket.privacy.localPaths).toBe("project_relative_only");
   });
+
+  it("routes provider prompt identity drift away from runtime-freeze repair", () => {
+    const dir = tempProject();
+    writeFileSync(
+      join(dir, "CadabraProvider.swift"),
+      [
+        "import Foundation",
+        "",
+        "struct CadabraProvider {",
+        "    func prompt(style: String) -> String {",
+        '        "Make a polished portrait with \\(style)."',
+        "    }",
+        "}",
+        "",
+      ].join("\n")
+    );
+
+    const report = runAxintRepair({
+      cwd: dir,
+      issue:
+        "Cadabra provider prompt-quality repair: Gemini/Nano Banana changes identity, face shape, head shape, hairline, beard, and clothing when glow-up or background replacement is strong. This is provider behavior semantics, not a runtime freeze.",
+      sourcePath: "CadabraProvider.swift",
+      platform: "iOS",
+      expectedBehavior:
+        "The generated portrait should preserve the same person's identity while applying selected Magic Pass settings.",
+      actualBehavior:
+        "The provider output preserves vibe but drifts identity and changes facial details.",
+      writeReport: false,
+      writeFeedback: false,
+    });
+
+    expect(report.issueClass).toBe("provider-behavior");
+    expect(report.repairIntelligence.summary).toContain("provider behavior repair");
+    expect(report.repairIntelligence.summary).not.toContain("runtime freeze");
+    expect(report.hypotheses.map((item) => item.title).join("\n")).toContain(
+      "Provider prompt contract"
+    );
+    expect(report.evidenceToCollect.join("\n")).toContain(
+      "provider prompt/routing proof"
+    );
+    expect(report.repairPrompt).toContain("identity preservation");
+    expect(report.repairPrompt).not.toContain("sample <AppProcessName>");
+  });
 });

@@ -43,6 +43,32 @@ export function usesSettingsBlueprint(description: string): boolean {
   );
 }
 
+export function usesMagicPassBlueprint(description: string): boolean {
+  const lower = description.toLowerCase();
+  const creativeControls = [
+    "magic pass",
+    "model tier",
+    "quality tier",
+    "fast/pro/perfect",
+    "fast pro perfect",
+    "glow-up",
+    "glow up",
+    "beautify",
+    "backdrop",
+    "background replacement",
+    "creative direction",
+    "prompt builder",
+    "nano banana",
+    "image generation",
+    "generation controls",
+  ].filter((cue) => lower.includes(cue));
+  const controlIntent =
+    /\b(add|build|create|enable|expose|let users choose|make|route|select|tune|wire)\b/.test(
+      lower
+    ) || /\b(control surface|controls|picker|toggle|choice|settings)\b/.test(lower);
+  return controlIntent && creativeControls.length >= 2;
+}
+
 export function usesInboxBlueprint(description: string): boolean {
   const lower = description.toLowerCase();
   return (
@@ -84,6 +110,7 @@ export function buildSmartViewBody(input: ViewBlueprintInput): string | null {
   const description = input.description ?? "";
   const semanticHaystack = `${input.name} ${description}`;
   const explicitKind = normalizeKind(input.componentKind);
+  if (usesMagicPassBlueprint(semanticHaystack)) return buildMagicPassBody(input);
   if (explicitKind === "settingsView") return buildComponentBody(explicitKind, input);
   if (usesTrustPostureBlueprint(semanticHaystack)) return buildTrustPostureBody(input);
   if (usesEmptyStateBlueprint(semanticHaystack))
@@ -161,6 +188,93 @@ function inferComponentKind(name: string, description: string): string | undefin
   if (haystack.includes("profile card") || haystack.includes("profilecard"))
     return "profileCard";
   return undefined;
+}
+
+function buildMagicPassBody(input: ViewBlueprintInput): string {
+  const modelTiers = swiftStringArray(["Fast", "Pro", "Perfect"]);
+  const strengths = swiftStringArray(["Natural", "Strong", "Extreme"]);
+  return `VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Magic Pass")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                Text("Tune the generated image before it leaves the app: model tier, strength, glow-up, backdrop, and creative direction all stay explicit.")
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Model tier")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                Picker("Model tier", selection: $modelTier) {
+                    ForEach(${modelTiers}, id: \\.self) { tier in
+                        Text(tier).tag(tier)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(modelTier == "Fast" ? "Quick draft for iteration." : modelTier == "Pro" ? "Balanced polish for normal shots." : "Highest fidelity pass for hero images.")
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Magic strength")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                Picker("Magic strength", selection: $magicStrength) {
+                    ForEach(${strengths}, id: \\.self) { strength in
+                        Text(strength).tag(strength)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Toggle("Glow-up pass", isOn: $glowUpEnabled)
+                Toggle("Backdrop pass", isOn: $backdropEnabled)
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Creative direction")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                TextEditor(text: $creativeDirection)
+                    .frame(minHeight: 92)
+                    .padding(10)
+                    .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "row", "12")}, style: .continuous))
+
+                Label(promptPreview, systemImage: "wand.and.stars")
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            Button {
+                let glowState = glowUpEnabled ? "on" : "off"
+                let backdropState = backdropEnabled ? "on" : "off"
+                promptPreview = "Ready: \\(modelTier) / \\(magicStrength) / glow-up \\(glowState) / backdrop \\(backdropState)"
+            } label: {
+                Label("Apply Magic Pass", systemImage: "sparkles")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+
+            Spacer()
+        }
+        .padding(20)
+        .frame(maxWidth: 620, maxHeight: .infinity, alignment: .topLeading)`;
 }
 
 function normalizeKind(kind: string | undefined): string | undefined {

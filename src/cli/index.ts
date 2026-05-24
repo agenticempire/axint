@@ -14,6 +14,7 @@
  *   axint templates               List bundled intent templates
  *   axint login                   Authenticate with the Axint Registry and unlock fuller repair reports
  *   axint cloud check --source    Run an agent-callable Cloud Check on a file
+ *   axint cloud preview --repo    Create an Axint Cloud Preview room for an Apple app
  *   axint cloud status            Show Cloud sign-in and Pro repair-check allowance
  *   axint tokens ingest --source  Convert design tokens into SwiftUI token enums
  *   axint schema compile <file>   Compile compact JSON schemas into Swift
@@ -129,6 +130,9 @@ const INIT_AGENT_CHOICES = [
   "xcode",
 ] as const;
 const INIT_MCP_MODE_CHOICES = ["local", "remote"] as const;
+const activeTelemetryCommand: {
+  current: { command: string; host: string } | null;
+} = { current: null };
 
 if (
   basename(process.argv[1] ?? "") === "create-axint-app" &&
@@ -178,13 +182,15 @@ program.hook("preAction", async (_thisCommand, actionCommand) => {
   if (!command || command === "telemetry" || command.startsWith("telemetry ")) {
     return;
   }
+  const host = inferAxintHost(actionCommand.opts?.() as Record<string, unknown>);
+  activeTelemetryCommand.current = { command, host };
 
   await recordAdoptionEvent({
     source: "cli",
     eventName: "cli_command_started",
     version: VERSION,
     command,
-    host: inferAxintHost(actionCommand.opts?.() as Record<string, unknown>),
+    host,
   });
 });
 
@@ -193,18 +199,20 @@ program.hook("postAction", async (_thisCommand, actionCommand) => {
   if (!command || command === "telemetry" || command.startsWith("telemetry ")) {
     return;
   }
+  const host = inferAxintHost(actionCommand.opts?.() as Record<string, unknown>);
 
   await recordAdoptionEvent({
     source: "cli",
     eventName: "cli_command_completed",
     version: VERSION,
     command,
-    host: inferAxintHost(actionCommand.opts?.() as Record<string, unknown>),
+    host,
     result:
       typeof process.exitCode === "number" && process.exitCode !== 0
         ? "nonzero_exit"
         : "ok",
   });
+  activeTelemetryCommand.current = null;
 });
 
 // ─── init ────────────────────────────────────────────────────────────
@@ -384,6 +392,38 @@ mcp
   .action((options: { format?: "markdown" | "json" | "prompt" }) => {
     console.log(renderCliStatus(VERSION, options.format ?? "markdown"));
   });
+
+mcp
+  .command("install")
+  .description(
+    "Install Axint into a host-level MCP config so agents do not fall back to CLI"
+  )
+  .option("--agent <agent>", "Agent host to configure: codex, claude, or all", "codex")
+  .option("--remote", "Use the hosted remote MCP endpoint instead of local stdio")
+  .option("--force", "Replace an existing axint MCP server entry for the selected host")
+  .option("--dry-run", "Print the install plan without changing host config")
+  .option("--format <format>", "Output format: markdown or json", "markdown")
+  .action(
+    async (options: {
+      agent?: string;
+      remote?: boolean;
+      force?: boolean;
+      dryRun?: boolean;
+      format?: string;
+    }) => {
+      const { installMcpHosts, parseMcpInstallFormat, renderMcpInstallReport } =
+        await import("./mcp-install.js");
+      const format = parseMcpInstallFormat(options.format ?? "markdown");
+      const report = installMcpHosts({
+        agent: options.agent,
+        remote: options.remote ?? false,
+        force: options.force ?? false,
+        dryRun: options.dryRun ?? false,
+      });
+      console.log(renderMcpInstallReport(report, format));
+      if (report.status === "fail") process.exitCode = 1;
+    }
+  );
 
 mcp
   .command("recover")
@@ -634,4 +674,19 @@ export function __axintExistsSync(p: string) {
   return existsSync(p);
 }
 
-await program.parseAsync();
+try {
+  await program.parseAsync();
+} catch (error) {
+  const failedCommand = activeTelemetryCommand.current;
+  if (failedCommand) {
+    await recordAdoptionEvent({
+      source: "cli",
+      eventName: "cli_command_failed",
+      version: VERSION,
+      command: failedCommand.command,
+      host: failedCommand.host,
+      result: "exception",
+    });
+  }
+  throw error;
+}

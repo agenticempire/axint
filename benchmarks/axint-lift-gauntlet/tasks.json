@@ -1,0 +1,156 @@
+{
+  "version": "0.1.0",
+  "name": "Axint Lift Gauntlet",
+  "description": "A/B benchmark for measuring Apple-native agent lift with Axint versus a normal no-Axint control lane.",
+  "timeoutMinutesPerLane": 45,
+  "lanes": [
+    {
+      "id": "control",
+      "label": "Without Axint",
+      "allowed": [
+        "normal coding agent",
+        "repo source",
+        "shell",
+        "Xcode/xcodebuild when available",
+        "public Apple documentation"
+      ],
+      "blocked": [
+        "Axint CLI",
+        "Axint MCP",
+        "Axint docs",
+        "Axint Registry",
+        "Fix Packets"
+      ]
+    },
+    {
+      "id": "axint",
+      "label": "With Axint",
+      "allowed": [
+        "everything in the control lane",
+        "Axint CLI",
+        "Axint MCP when available",
+        "Axint workflow checks",
+        "Axint compile/validate/repair/run",
+        "Fix Packets",
+        "Axint Registry packages"
+      ],
+      "blocked": [
+        "hidden human hints",
+        "manual patches outside the transcript"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "A1",
+      "name": "Calendar App Intent",
+      "bucket": "authoring",
+      "prompt": "Add a calendar App Intent to the sample SwiftUI notes app. The intent should create a calendar event from title, date, and optional duration. Make it appear correctly in Shortcuts and include required plist, entitlement, and privacy copy.",
+      "successCriteria": [
+        "Xcode build passes",
+        "App Intent Swift compiles",
+        "Shortcuts-visible metadata is present",
+        "calendar entitlement or capability need is classified",
+        "NSCalendarsUsageDescription copy is present when needed"
+      ]
+    },
+    {
+      "id": "A2",
+      "name": "App Entity Search Intent",
+      "bucket": "authoring",
+      "prompt": "Add an App Entity-backed search intent to the sample app. Users should be able to search existing notes by title and pick a note entity as an intent parameter.",
+      "successCriteria": [
+        "Xcode build passes",
+        "App Entity compiles",
+        "Entity query compiles",
+        "display representation is valid",
+        "parameter summary is valid"
+      ]
+    },
+    {
+      "id": "A3",
+      "name": "SwiftUI Widget",
+      "bucket": "authoring",
+      "prompt": "Add a small SwiftUI widget that shows the latest note and a count of notes. Include sample data and preview support.",
+      "successCriteria": [
+        "Xcode build passes",
+        "widget extension compiles",
+        "timeline provider compiles",
+        "preview or sample data exists",
+        "generated code does not require unavailable app runtime state"
+      ]
+    },
+    {
+      "id": "R1",
+      "name": "Broken App Intent Repair",
+      "bucket": "repair",
+      "prompt": "Repair the broken App Intent project. Find the Apple-specific failure, patch it, and rerun proof until the project is green.",
+      "successCriteria": [
+        "root cause is identified",
+        "minimal patch is applied",
+        "Xcode build passes",
+        "final report includes the failed evidence and the fixed evidence"
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "Masked Control UI Test Repair",
+      "bucket": "repair",
+      "prompt": "Repair a failing UI test where a visible control is not hittable because another overlay or state is masking it. Use evidence, not guessing.",
+      "successCriteria": [
+        "failing test, file, line, and assertion are identified",
+        "masked/non-hittable cause is classified",
+        "focused UI test passes",
+        "final proof distinguishes static validation from runtime proof"
+      ]
+    },
+    {
+      "id": "P1",
+      "name": "TestFlight Readiness Proof",
+      "bucket": "proof",
+      "prompt": "Prepare the existing sample app for TestFlight-style proof. Identify build, metadata, privacy, plist, entitlement, and distribution readiness issues.",
+      "successCriteria": [
+        "Xcode build passes",
+        "distribution issues are classified",
+        "privacy/plist/entitlement issues are listed",
+        "report is exportable and agent-readable"
+      ]
+    },
+    {
+      "id": "W1",
+      "name": "Cloud Preview Walkthrough",
+      "bucket": "wow",
+      "prompt": "From a GitHub repo, create a browser-shareable proof room and walkthrough with build evidence, app map, screenshots or video, logs, and a Fix Packet if anything breaks.",
+      "successCriteria": [
+        "preview room exists",
+        "build evidence is attached",
+        "walkthrough/app map exists",
+        "logs are attached",
+        "Fix Packet exists when failures occur"
+      ],
+      "optional": true
+    }
+  ],
+  "metrics": [
+    "firstPassBuildRate",
+    "finalGreenRate",
+    "timeToGreenMinutes",
+    "turnsToGreen",
+    "humanInterventions",
+    "appleSpecificDefects",
+    "falseShipClaims",
+    "proofCompleteness",
+    "tokenCost",
+    "repairPrecision"
+  ],
+  "amazingThresholds": {
+    "finalGreenRateAxintMinimum": 0.8,
+    "finalGreenRateLiftMinimum": 2,
+    "timeToGreenReductionMinimum": 0.3,
+    "turnsToGreenReductionMinimum": 0.4,
+    "humanInterventionReductionMinimum": 0.5,
+    "falseShipClaimsMaximum": 0,
+    "proofCompletenessMinimum": 4.5,
+    "unresolvedAppleDefectReductionMinimum": 0.5
+  }
+}

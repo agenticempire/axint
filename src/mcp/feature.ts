@@ -39,6 +39,7 @@ import { validateWidget, validateSwiftWidgetSource } from "../core/widget-valida
 import {
   buildSmartViewBody,
   reservedViewPropertyName,
+  usesMagicPassBlueprint,
   usesSettingsBlueprint,
   usesOperatingModelSettings,
   usesProfileCardBlueprint,
@@ -541,6 +542,7 @@ function buildView(
     kind: "state" as const,
     defaultValue: defaultForType(typeStr),
   }));
+  const usesMagicPassControls = usesMagicPassBlueprint(`${name} ${description}`);
 
   if (usesProfileCardBlueprint(description)) {
     ensureState(state, "photoURL", "url", "https://example.com/profile.jpg");
@@ -574,7 +576,21 @@ function buildView(
     );
   }
 
-  if (usesSettingsBlueprint(description)) {
+  if (usesMagicPassControls) {
+    ensureState(state, "modelTier", "string", "Pro");
+    ensureState(state, "magicStrength", "string", "Strong");
+    ensureState(state, "glowUpEnabled", "boolean", true);
+    ensureState(state, "backdropEnabled", "boolean", true);
+    ensureState(
+      state,
+      "creativeDirection",
+      "string",
+      "Make the shot cinematic, whimsical, and polished while preserving identity."
+    );
+    ensureState(state, "promptPreview", "string", "Ready to apply Magic Pass.");
+  }
+
+  if (!usesMagicPassControls && usesSettingsBlueprint(description)) {
     ensureState(state, "appearanceMode", "string", "System");
     ensureState(state, "accentColor", "string", "Blue");
     ensureState(state, "transcriptionEngine", "string", "Apple Speech");
@@ -796,6 +812,7 @@ function ensureBlueprintState(
   const haystack = `${componentKind ?? ""} ${name} ${description}`
     .replace(/[\s_-]+/g, "")
     .toLowerCase();
+  const usesMagicPassControls = usesMagicPassBlueprint(`${name} ${description}`);
   const matchesKind = (...kinds: string[]) =>
     explicitKind
       ? kinds.includes(explicitKind)
@@ -863,7 +880,7 @@ function ensureBlueprintState(
     ensureState(state, "status", "string", "awake");
   }
 
-  if (matchesKind("settingsview", "settings", "preferences")) {
+  if (!usesMagicPassControls && matchesKind("settingsview", "settings", "preferences")) {
     ensureState(state, "appearanceMode", "string", "System");
     ensureState(state, "accentColor", "string", "Blue");
     ensureState(state, "transcriptionEngine", "string", "Apple Speech");
@@ -1280,6 +1297,7 @@ function usesDescriptionDrivenViewBlueprint(description: string): boolean {
   const lower = description.toLowerCase();
   return (
     usesSettingsBlueprint(description) ||
+    usesMagicPassBlueprint(description) ||
     usesProfileCardBlueprint(description) ||
     usesInboxBlueprint(description) ||
     usesSemanticLayout(description) ||

@@ -73,4 +73,54 @@ describe("axint.suggest", () => {
       "collaboration"
     );
   });
+
+  it("keeps additive Magic Pass controls out of stale repair mode", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Add a new Magic Pass control surface to Cadabra with model tier Fast/Pro/Perfect, magic strength Natural/Strong/Extreme, glow-up pass, backdrop pass, and creative direction. This is new additive product work, not a scroll or layout repair.",
+      platform: "iOS",
+      goals: ["new generation controls", "provider routing"],
+      limit: 3,
+    });
+
+    expect(suggestions[0]?.domain).toBe("additive-feature");
+    expect(suggestions[0]?.name).toContain("Magic Pass");
+    expect(suggestions[0]?.featurePrompt).toContain("Fast, Pro, Perfect");
+    expect(suggestions[0]?.featurePrompt).toContain("glow-up");
+    expect(suggestions[0]?.featurePrompt).not.toContain("Live/Events");
+    expect(suggestions.map((suggestion) => suggestion.domain)).not.toContain("repair");
+  });
+
+  it("classifies image-provider identity drift as provider repair instead of runtime freeze", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Cadabra provider prompt-quality repair: Gemini/Nano Banana changes identity, face shape, head shape, hairline, beard, and clothing when glow-up or background replacement is strong. This is provider behavior semantics, not a runtime freeze.",
+      platform: "iOS",
+      constraints: ["preserve identity", "do not collect a freeze sample"],
+      limit: 3,
+    });
+
+    expect(suggestions[0]?.domain).toBe("repair");
+    expect(suggestions[0]?.rationale).toContain("provider-behavior");
+    expect(suggestions[0]?.featurePrompt).toContain("provider behavior");
+    expect(suggestions[0]?.featurePrompt).toContain("provider prompt");
+    expect(suggestions[0]?.featurePrompt).not.toContain("sample <AppProcessName>");
+  });
+
+  it("routes TestFlight metadata failures into release preflight instead of new command surfaces", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "TestFlight prep failed because App Store Connect has no app record for bundle ID cam.cadabra.Cadabra. Repair exportOptions-testflight.plist and release metadata preflight. This is not a new command surface.",
+      platform: "iOS",
+      constraints: ["do not generate Siri commands", "use archive/export evidence"],
+      limit: 3,
+    });
+
+    expect(suggestions[0]?.domain).toBe("release-preflight");
+    expect(suggestions[0]?.name).toContain("Preflight");
+    expect(suggestions[0]?.featurePrompt).toContain("App Store Connect app record");
+    expect(suggestions[0]?.featurePrompt).toContain("exportOptions plist");
+    expect(suggestions[0]?.featurePrompt).not.toContain("Capture Testflight");
+    expect(suggestions.map((suggestion) => suggestion.domain)).not.toContain("custom");
+  });
 });

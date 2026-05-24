@@ -138,6 +138,47 @@ describe("project context index", () => {
     expect(tests?.testCases).toContain("testProjectManageButtonIsHittable");
   });
 
+  it("discovers nested Xcode projects and schemes for ios/ app folders", () => {
+    const dir = tempProject();
+    mkdirSync(join(dir, "ios", "Cadabra.xcodeproj", "xcshareddata", "xcschemes"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(
+        dir,
+        "ios",
+        "Cadabra.xcodeproj",
+        "xcshareddata",
+        "xcschemes",
+        "Cadabra.xcscheme"
+      ),
+      "<Scheme></Scheme>\n"
+    );
+    mkdirSync(join(dir, "ios", "Cadabra", "Screens"), { recursive: true });
+    writeFileSync(
+      join(dir, "ios", "Cadabra", "Screens", "ComposerView.swift"),
+      [
+        "import SwiftUI",
+        "struct ComposerView: View {",
+        '    @State private var draft = ""',
+        "    var body: some View {",
+        '        TextField("Draft", text: $draft)',
+        "    }",
+        "}",
+        "",
+      ].join("\n")
+    );
+
+    const index = buildProjectContextIndex({ targetDir: dir, projectName: "Cadabra" });
+
+    expect(index.xcode.project).toBe("ios/Cadabra.xcodeproj");
+    expect(index.xcode.schemes).toContain("Cadabra");
+    expect(index.xcode.inferredScheme).toBe("Cadabra");
+    expect(index.files.catalog.map((file) => file.path)).toContain(
+      "ios/Cadabra/Screens/ComposerView.swift"
+    );
+  });
+
   it("builds related-file hints for input interaction failures", () => {
     const dir = tempProject();
     writeFileSync(

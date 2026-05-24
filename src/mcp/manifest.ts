@@ -399,14 +399,25 @@ export const TOOL_MANIFEST = [
           type: "array",
           items: {
             type: "string",
-            enum: ["intent", "view", "widget", "component", "app", "store"],
+            enum: [
+              "intent",
+              "view",
+              "widget",
+              "component",
+              "app",
+              "store",
+              "model",
+              "models",
+              "state",
+              "data",
+            ],
           },
           description:
             "Which Apple surfaces to generate. 'intent' produces an App Intent " +
             "struct for Siri/Shortcuts/Spotlight. 'widget' produces a WidgetKit " +
             "widget with timeline provider. 'view' produces a SwiftUI view. " +
             "'component' produces a reusable SwiftUI component under Sources/Components. " +
-            "'store' produces a shared Observable data store. 'app' produces a SwiftUI @main app shell. " +
+            "'store' produces a shared Observable data store. 'model', 'models', 'state', and 'data' are accepted aliases for 'store'. 'app' produces a SwiftUI @main app shell. " +
             "Defaults to ['intent'] if omitted. Combine surfaces to scaffold " +
             "a multi-surface feature: ['store', 'view', 'intent', 'widget'] for an integrated Apple-native loop.",
         },

@@ -104,7 +104,9 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
 export function registerCompile(program: Command) {
   program
     .command("compile")
-    .description("Compile a TypeScript surface (intent, view, widget, or app) into Swift")
+    .description(
+      "Compile a TypeScript surface (intent, entity, view, widget, or app) into Swift"
+    )
     .argument("<file>", "Path to the TypeScript surface definition")
     .option("-o, --out <dir>", "Output directory for generated Swift", ".")
     .option("--no-validate", "Skip validation of generated Swift")
@@ -166,6 +168,7 @@ export function registerCompile(program: Command) {
         try {
           let surface:
             | "intent"
+            | "entity"
             | "view"
             | "widget"
             | "app"
@@ -270,7 +273,8 @@ export function registerCompile(program: Command) {
             surface !== "liveActivity" &&
             surface !== "appEnum" &&
             surface !== "appShortcut" &&
-            surface !== "extension"
+            surface !== "extension" &&
+            surface !== "entity"
           ) {
             const resolvedOutputPath =
               success && output && !options.stdout

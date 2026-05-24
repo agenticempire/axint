@@ -912,12 +912,24 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   const excludedText = normalizeText((input.exclude ?? []).join(" "));
   const explicitDomain = normalizeDomain(input.domain);
   const freshProductMode = detectFreshProductMode(input, text);
+  const greenfieldAppMode = detectGreenfieldAppMode(input, text);
+  const additiveFeatureMode = detectAdditiveFeatureMode(input, text);
+  const releasePreflightMode = detectReleasePreflightMode(input, text);
 
   if (freshProductMode?.kind === "public-page") {
     return publicLanderSuggestions(input, text, limit, freshProductMode.trace);
   }
   if (freshProductMode?.kind === "brand-polish") {
     return brandPolishSuggestions(input, text, limit, freshProductMode.trace);
+  }
+  if (greenfieldAppMode) {
+    return greenfieldAppSuggestions(input, text, limit, greenfieldAppMode.trace);
+  }
+  if (additiveFeatureMode) {
+    return additiveFeatureSuggestions(input, text, limit, additiveFeatureMode.trace);
+  }
+  if (releasePreflightMode) {
+    return releasePreflightSuggestions(input, text, limit, releasePreflightMode.trace);
   }
 
   if (looksLikeExistingProductRepair(input, text)) {
@@ -1014,6 +1026,24 @@ type FreshProductMode =
     }
   | {
       kind: "brand-polish";
+      trace: string;
+    }
+  | undefined;
+
+type GreenfieldAppMode =
+  | {
+      trace: string;
+    }
+  | undefined;
+
+type AdditiveFeatureMode =
+  | {
+      trace: string;
+    }
+  | undefined;
+
+type ReleasePreflightMode =
+  | {
       trace: string;
     }
   | undefined;
@@ -1126,6 +1156,452 @@ function detectFreshProductMode(
   }
 
   return undefined;
+}
+
+function detectAdditiveFeatureMode(
+  input: SuggestInput,
+  normalizedAppDescription: string
+): AdditiveFeatureMode {
+  const goalsText = normalizeText((input.goals ?? []).join(" "));
+  const constraintsText = normalizeText((input.constraints ?? []).join(" "));
+  const combined = [normalizedAppDescription, goalsText, constraintsText]
+    .filter(Boolean)
+    .join(" ");
+
+  const additiveIntent = [
+    "add",
+    "build",
+    "create",
+    "enable",
+    "expose",
+    "introduce",
+    "let users choose",
+    "make",
+    "route",
+    "select",
+    "surface",
+    "wire",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  const controlCues = [
+    "new control surface",
+    "control surface",
+    "controls",
+    "picker",
+    "toggle",
+    "model tier",
+    "quality tier",
+    "fast",
+    "pro",
+    "perfect",
+    "magic pass",
+    "magic strength",
+    "glow-up",
+    "glow up",
+    "backdrop",
+    "background",
+    "creative direction",
+    "prompt builder",
+    "provider routing",
+    "settings captured",
+    "nano banana",
+    "image generation",
+  ].filter((cue) => hasKeyword(combined, cue));
+
+  const explicitRepair = [
+    "bug",
+    "broken",
+    "crash",
+    "failed",
+    "failing",
+    "fix",
+    "not working",
+    "regression",
+    "repair",
+    "runtime freeze",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  const negatedRepairCue =
+    /\bnot\s+(?:a|an|the)?\s*(?:stale\s+|swiftui\s+|scroll\s+|layout\s+|runtime\s+|existing\s+|generic\s+)*(?:or\s+)?(?:stale\s+|swiftui\s+|scroll\s+|layout\s+|runtime\s+|existing\s+|generic\s+)*repair\b/.test(
+      combined
+    ) || /\bnot\s+.*\brepair\b/.test(combined);
+  const explicitAdditiveOverride =
+    negatedRepairCue ||
+    [
+      "not a repair",
+      "new control surface",
+      "new controls",
+      "add controls",
+      "add a control",
+    ].some((cue) => hasKeyword(combined, cue));
+
+  if (!additiveIntent) return undefined;
+  if (explicitRepair && !explicitAdditiveOverride) return undefined;
+  if (controlCues.length < 2) return undefined;
+
+  const cueList = controlCues.slice(0, 6).join(", ");
+  return {
+    trace: `Current prompt won as additive feature work (${cueList}); Axint is planning a new control surface and provider contract instead of treating the request as a stale SwiftUI repair.`,
+  };
+}
+
+function detectReleasePreflightMode(
+  input: SuggestInput,
+  normalizedAppDescription: string
+): ReleasePreflightMode {
+  const goalsText = normalizeText((input.goals ?? []).join(" "));
+  const constraintsText = normalizeText((input.constraints ?? []).join(" "));
+  const combined = [normalizedAppDescription, goalsText, constraintsText]
+    .filter(Boolean)
+    .join(" ");
+
+  const releaseCues = [
+    "app store connect",
+    "asc",
+    "testflight",
+    "test flight",
+    "app record",
+    "missing app",
+    "bundle id",
+    "bundle identifier",
+    "archive",
+    "xcarchive",
+    "exportoptions",
+    "export options",
+    "exportoptions-testflight.plist",
+    "export-options",
+    "upload",
+    "distribution",
+    "release metadata",
+    "release preflight",
+    "deployment metadata",
+    "build number",
+    "version number",
+    "signing",
+    "provisioning",
+  ].filter((cue) => hasKeyword(combined, cue));
+
+  const releaseIntent = [
+    "blocked",
+    "cannot upload",
+    "failed",
+    "failing",
+    "fix",
+    "missing",
+    "preflight",
+    "prep",
+    "repair",
+    "ship",
+    "upload",
+    "validate",
+    "verify",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  const explicitFreshFeature =
+    /\b(create|generate|scaffold|build)\s+(?:a|an|new)\s+(?:app|screen|view|intent|widget|feature)\b/.test(
+      combined
+    );
+
+  if (releaseCues.length < 2 || !releaseIntent || explicitFreshFeature) {
+    return undefined;
+  }
+
+  const cueList = releaseCues.slice(0, 6).join(", ");
+  return {
+    trace: `Current prompt won as release-preflight work (${cueList}); Axint is planning App Store/TestFlight proof and metadata repair instead of inventing new Siri/widget surfaces.`,
+  };
+}
+
+function detectGreenfieldAppMode(
+  input: SuggestInput,
+  normalizedAppDescription: string
+): GreenfieldAppMode {
+  const goalsText = normalizeText((input.goals ?? []).join(" "));
+  const constraintsText = normalizeText((input.constraints ?? []).join(" "));
+  const combined = [normalizedAppDescription, goalsText, constraintsText]
+    .filter(Boolean)
+    .join(" ");
+
+  const strongGreenfieldCues = [
+    "from scratch",
+    "greenfield",
+    "mvp",
+    "minimum viable",
+    "native mvp",
+    "new app",
+    "new native app",
+    "first version",
+    "full app",
+    "starter app",
+    "three page app",
+    "3 page app",
+  ].filter((cue) => hasKeyword(combined, cue));
+
+  const buildIntent = [
+    "build",
+    "create",
+    "generate",
+    "make",
+    "scaffold",
+    "ship",
+    "start",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  const appleAppCues = [
+    "apple app",
+    "ios app",
+    "iphone app",
+    "mac app",
+    "macos app",
+    "native app",
+    "swiftui",
+    "xcode",
+  ].filter((cue) => hasKeyword(combined, cue));
+
+  const stageSupportsGreenfield =
+    input.stage === "idea" || input.stage === "prototype" || input.stage === "mvp";
+
+  const explicitRepair = [
+    "bug",
+    "broken",
+    "failed",
+    "failing",
+    "fix",
+    "not working",
+    "regression",
+    "repair",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  const strongGreenfield = strongGreenfieldCues.length > 0;
+  const appish = appleAppCues.length > 0 || hasKeyword(combined, "app");
+
+  if (!buildIntent) return undefined;
+  if (explicitRepair && !strongGreenfield) return undefined;
+  if (!strongGreenfield && !(stageSupportsGreenfield && appish)) return undefined;
+
+  const cueList = [...strongGreenfieldCues, ...appleAppCues].slice(0, 5).join(", ");
+  return {
+    trace: `Current prompt won as a greenfield app build${cueList ? ` (${cueList})` : ""}; Axint is planning an app spine, state model, preview flow, and proof harness instead of reusing stale repair context.`,
+  };
+}
+
+function greenfieldAppSuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  limit: number,
+  modeTrace: string
+): FeatureSuggestion[] {
+  const labels = semanticLabels(normalizedAppDescription, 4);
+  const productLabel =
+    labels.find((label) => !/app|native|mvp|build/i.test(label)) ?? "Native App";
+  const lowerProduct = productLabel.toLowerCase();
+  const platform = input.platform ? `${input.platform} ` : "";
+  const rationale = `Mode trace: ${modeTrace} Greenfield app prompts need a coherent build plan before isolated intents or widgets.`;
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `${productLabel} App Spine`,
+      description:
+        "Create the app shell, shared store, first navigation stack, and starter screens as one coherent product path.",
+      surfaces: ["app", "store", "view"],
+      complexity: "medium",
+      featurePrompt: `Create the ${platform}${lowerProduct} app spine with a SwiftUI @main shell, shared Observable store, three useful screens, navigation, empty states, and sample data. Keep it demoable immediately and preserve a clean path for real persistence later.`,
+      domain: "greenfield-app",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact: "Prevents new apps from becoming disconnected one-off Swift files.",
+      loop: "App shell -> store -> screens -> focused proof",
+      nextStep:
+        "Generate app, store, and view surfaces together, then run project index and a focused build proof.",
+      modeTrace,
+    },
+    {
+      name: `${productLabel} Core Flow`,
+      description:
+        "Turn the main user action into a real clickable flow with forms, buttons, and success state instead of a static mock.",
+      surfaces: ["view", "component", "store"],
+      complexity: "medium",
+      featurePrompt: `Create the first useful ${platform}${lowerProduct} flow with input controls, primary action, validation state, saved-result list, and reusable row/card components. Make the flow clickable enough for a browser or simulator demo.`,
+      domain: "greenfield-app",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact: "Makes the first demo show actual app behavior, not just layout.",
+      loop: "Input -> validate -> save -> review",
+      nextStep:
+        "Add stable accessibility identifiers so Axint Cloud Preview and UI tests can drive the flow.",
+      modeTrace,
+    },
+    {
+      name: `${productLabel} Agent-Ready Proof Harness`,
+      description:
+        "Add the focused test and Axint proof loop agents need before claiming the generated app works.",
+      surfaces: ["view"],
+      complexity: "low",
+      featurePrompt: `Add focused proof for the ${platform}${lowerProduct} starter app: app launches, first screen renders, primary button is hittable, one item can be created, and navigation returns to the home screen. Include accessibility identifiers and expected Xcode/UI-test evidence.`,
+      domain: "greenfield-app",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact: "Turns greenfield generation into investor-grade evidence.",
+      loop: "Render -> tap -> assert -> record proof",
+      nextStep:
+        "Run axint.run with the generated app files and attach simulator/build evidence when available.",
+      modeTrace,
+    },
+  ];
+
+  return suggestions.slice(0, limit);
+}
+
+function additiveFeatureSuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  limit: number,
+  modeTrace: string
+): FeatureSuggestion[] {
+  const labels = semanticLabels(normalizedAppDescription, 5);
+  const featureLabel = hasKeyword(normalizedAppDescription, "magic pass")
+    ? "Magic Pass"
+    : (labels.find((label) => /generation|control|nano|image/i.test(label)) ??
+      "Feature Controls");
+  const platform = input.platform ? `${input.platform} ` : "";
+  const rationale = `Mode trace: ${modeTrace} Additive feature prompts need a usable product-control surface, state capture, provider routing, and proof instead of generic settings or repair scaffolds.`;
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `${featureLabel} Control Surface`,
+      description:
+        "Create the visible controls users actually asked for, including state, pickers, toggles, and preview copy tied to the product vocabulary.",
+      surfaces: ["view", "store", "component"],
+      complexity: "medium",
+      featurePrompt: `Create the ${platform}${featureLabel} control surface with explicit model tier choices (Fast, Pro, Perfect), magic strength choices (Natural, Strong, Extreme), glow-up and backdrop toggles, creative direction text input, saved settings state, and no generic appearance, keyboard shortcut, or transcription settings copy.`,
+      domain: "additive-feature",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Turns a new product capability into real controls instead of a decorative settings scaffold.",
+      loop: "Controls -> store -> apply action -> proof",
+      nextStep:
+        "Generate view/store/component together, then patch the real provider path to consume the saved settings.",
+      modeTrace,
+    },
+    {
+      name: `${featureLabel} Provider Routing Contract`,
+      description:
+        "Wire the selected controls into the backend/provider prompt builder so UI choices affect the generated result.",
+      surfaces: ["store", "intent"],
+      complexity: "medium",
+      featurePrompt: `Create the ${platform}${featureLabel} provider routing contract: persist selected model tier, route Fast/Pro/Perfect to the right provider model, pass magic strength, glow-up, backdrop, and creative direction into the prompt builder, and keep hard model overrides available only for explicit debugging.`,
+      domain: "additive-feature",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Prevents the UI from becoming fake by forcing provider behavior to reflect the selected controls.",
+      loop: "Persist settings -> route provider -> attach evidence",
+      nextStep:
+        "Run Cloud Check with source plus a provider-routing test or build log showing the settings are consumed.",
+      modeTrace,
+    },
+    {
+      name: `${featureLabel} Proof Harness`,
+      description:
+        "Add focused evidence that every user-facing option survives selection, persistence, provider routing, and generated artifact metadata.",
+      surfaces: ["view"],
+      complexity: "low",
+      featurePrompt: `Add focused proof for the ${platform}${featureLabel} feature: selecting each model tier updates saved state, glow-up and backdrop toggles persist, creative direction appears in the provider prompt, each generated shot records the selected settings, and no stale generic settings copy is present.`,
+      domain: "additive-feature",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Makes the additive feature investor-grade by tying UX controls to durable runtime evidence.",
+      loop: "Select -> persist -> generate -> inspect metadata",
+      nextStep:
+        "Run axint.run or a focused UI/state test and attach provider prompt evidence where available.",
+      modeTrace,
+    },
+  ];
+
+  return suggestions.slice(0, limit);
+}
+
+function releasePreflightSuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  limit: number,
+  modeTrace: string
+): FeatureSuggestion[] {
+  const labels = semanticLabels(normalizedAppDescription, 4);
+  const releaseLabel =
+    labels.find((label) => /testflight|release|app store|archive|upload/i.test(label)) ??
+    "Release";
+  const platform = input.platform ? `${input.platform} ` : "";
+  const rationale = `Mode trace: ${modeTrace} Release and deployment prompts need App Store Connect, signing, archive/export, and metadata proof before any generated Apple surface.`;
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `${releaseLabel} Preflight Repair`,
+      description:
+        "Verify the release path in order: bundle ID, App Store Connect app record, signing, archive, export options, and upload target.",
+      surfaces: ["store", "view"],
+      complexity: "medium",
+      featurePrompt: `Repair the ${platform}TestFlight/App Store release preflight without generating a new command surface. Check bundle identifier, App Store Connect app record existence, version/build number, signing identity, provisioning profile, archive path, exportOptions plist, and upload/export logs. Return the smallest metadata or portal action needed before another archive/export attempt.`,
+      domain: "release-preflight",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Stops agents from treating release metadata failures as product feature generation.",
+      loop: "Metadata -> archive -> export -> upload evidence",
+      nextStep:
+        "Run the release preflight or archive/export command and attach the shortest failing App Store Connect or xcodebuild log.",
+      modeTrace,
+    },
+    {
+      name: "Export Options Proof Surface",
+      description:
+        "Treat exportOptions.plist and upload logs as deployment artifacts with their own proof, not as Axint DSL or Swift source.",
+      surfaces: ["store"],
+      complexity: "low",
+      featurePrompt:
+        "Add proof handling for deployment artifacts: validate exportOptions plist shape, confirm method/team/signingStyle/destination, py-compile or script-smoke any release helper scripts, and run Cloud Check only against related Swift/Axint source when Apple behavior changed.",
+      domain: "release-preflight",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Keeps Cloud Check honest for non-source deployment artifacts and avoids fake AX001 diagnostics.",
+      loop: "Artifact proof -> related source check -> archive/export retry",
+      nextStep:
+        "Use plist/script proof first; use Cloud Check for the Swift or Axint files that actually implement app behavior.",
+      modeTrace,
+    },
+    {
+      name: "Release Evidence Packet",
+      description:
+        "Collect the exact evidence an agent or founder needs to know whether the release blocker is code, metadata, signing, or missing portal setup.",
+      surfaces: ["view", "component"],
+      complexity: "medium",
+      featurePrompt:
+        "Create a release evidence packet with app record status, bundle ID, version/build, signing/provisioning status, archive result, export result, upload result, relevant log paths, and the next safe owner action. Do not call the app ready for TestFlight until archive/export/upload evidence passes.",
+      domain: "release-preflight",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Turns release failures into investor-grade proof instead of mystery Xcode/App Store Connect churn.",
+      loop: "Collect logs -> classify blocker -> patch metadata or portal -> rerun",
+      nextStep:
+        "Attach the generated evidence packet to the next Axint run or release checklist.",
+      modeTrace,
+    },
+  ];
+
+  return suggestions.slice(0, limit);
 }
 
 function publicLanderSuggestions(
@@ -1549,8 +2025,18 @@ function looksLikeExistingProductRepair(
     "gesture",
     "hittable",
     "input",
+    "identity",
+    "image generation",
+    "image provider",
     "layout",
+    "magic pass",
+    "model routing",
+    "nano banana",
     "project room",
+    "provider",
+    "provider prompt",
+    "prompt builder",
+    "prompt quality",
     "route",
     "screen",
     "scroll",
@@ -1602,6 +2088,22 @@ function existingProductRepairSuggestions(
       ? ` Keep these prompt-specific cues in scope: ${promptCues.join(", ")}.`
       : "";
   const platform = input.platform ? `${input.platform} ` : "";
+  const isProviderRepair = repairRead.issueClass === "provider-behavior";
+  const mainRepairTarget = isProviderRepair
+    ? `existing ${platform}${concept} provider behavior`
+    : `existing ${platform}${concept} SwiftUI flow`;
+  const mainRepairPrompt = isProviderRepair
+    ? `Repair the ${mainRepairTarget} without treating it as launch/responsiveness evidence or replacing the surrounding app. ${repairRead.summary} Preserve the user's product vocabulary, selected settings, provider route, and generated artifact metadata.${cueSentence} Inspect first: ${checklist || "provider prompt builder, model routing, local overrides, request payload, and generated output metadata."} Patch the smallest prompt/routing contract and prove the selected controls reach the provider request.`
+    : `Repair the ${mainRepairTarget} without replacing the surrounding app. ${repairRead.summary} Preserve store state, existing tab routing, first-viewport hierarchy, primary buttons, accessibility identifiers, and the user's current product vocabulary.${cueSentence} Inspect first: ${checklist || "related SwiftUI parent shell, shared stores, and focused proof evidence."} Identify the touched files, reproduce the behavior, patch the smallest view/state/hit-testing/routing change, and keep existing components intact.`;
+  const proofPrompt = isProviderRepair
+    ? `Add focused ${platform}provider behavior proof for the existing ${focus} repair. The proof should verify selected settings enter the provider prompt/request, identity-preservation constraints are present, generated artifact metadata records the chosen controls, and no launch-hang assumptions are used.${cueSentence}`
+    : `Add a focused ${platform}Xcode unit or UI test for the existing ${focus} bug. The proof should exercise the exact tap, scroll, focus, layout, route, or state behavior that regressed and should not depend on unrelated screens.${cueSentence}`;
+  const routingPrompt = isProviderRepair
+    ? `Audit the existing ${platform}${concept} provider routing and model-selection path. Confirm Fast/Pro/Perfect, style strength, glow-up, backdrop, and creative direction route to the provider request and are recorded on the generated artifact.${cueSentence}`
+    : `Audit the existing ${platform}${concept} routes and primary actions. Confirm buttons such as capture, run agent, launch check, open vault, decisions, missions, agents, and project context route to real existing tabs or sheets.${cueSentence} Add accessibility identifiers and a focused UI test for each primary command-center action that must be hittable and route correctly.`;
+  const contextPrompt = isProviderRepair
+    ? `Index the project context for the existing ${focus} repair, then inspect provider services, prompt builders, model routing, local secret overrides, shot metadata, and any generated-output comparison before patching.${cueSentence} Axint senior read: ${repairRead.summary}`
+    : `Index the project context for the existing ${focus} bug, then inspect related SwiftUI views, stores, modifiers, overlays, disabled states, gestures, accessibility identifiers, route containers, and recently changed files before patching.${cueSentence} Axint senior read: ${repairRead.summary}`;
   const rationale = `Detected an existing-product repair request (${repairRead.issueClass}), so Axint is returning a proof-first repair loop instead of new feature ideas. ${repairRead.summary}`;
 
   const suggestions: FeatureSuggestion[] = [
@@ -1610,7 +2112,7 @@ function existingProductRepairSuggestions(
       description: `Patch the current ${concept} in place, preserve the surrounding product, and avoid replacing working screens with a fresh scaffold. ${leadCause ? `Likely first read: ${leadCause.title}.` : ""}`,
       surfaces: ["view", "component"],
       complexity: "medium",
-      featurePrompt: `Repair the existing ${platform}${concept} SwiftUI flow without replacing the surrounding app. ${repairRead.summary} Preserve store state, existing tab routing, first-viewport hierarchy, primary buttons, accessibility identifiers, and the user's current product vocabulary.${cueSentence} Inspect first: ${checklist || "related SwiftUI parent shell, shared stores, and focused proof evidence."} Identify the touched files, reproduce the behavior, patch the smallest view/state/hit-testing/routing change, and keep existing components intact.`,
+      featurePrompt: mainRepairPrompt,
       domain: "repair",
       rationale,
       confidence: "high",
@@ -1653,7 +2155,7 @@ function existingProductRepairSuggestions(
         "Create or run the smallest unit/UI proof that can fail before the patch and pass after it.",
       surfaces: ["view"],
       complexity: "low",
-      featurePrompt: `Add a focused ${platform}Xcode unit or UI test for the existing ${focus} bug. The proof should exercise the exact tap, scroll, focus, layout, route, or state behavior that regressed and should not depend on unrelated screens.${cueSentence}`,
+      featurePrompt: proofPrompt,
       domain: "repair",
       rationale,
       confidence: "high",
@@ -1669,7 +2171,7 @@ function existingProductRepairSuggestions(
         "Verify the upgraded screen still routes primary actions to the real existing destinations instead of decorative placeholder states.",
       surfaces: ["view", "store"],
       complexity: "medium",
-      featurePrompt: `Audit the existing ${platform}${concept} routes and primary actions. Confirm buttons such as capture, run agent, launch check, open vault, decisions, missions, agents, and project context route to real existing tabs or sheets.${cueSentence} Add accessibility identifiers and a focused UI test for each primary command-center action that must be hittable and route correctly.`,
+      featurePrompt: routingPrompt,
       domain: "repair",
       rationale,
       confidence: "high",
@@ -1686,7 +2188,7 @@ function existingProductRepairSuggestions(
         "Look beyond the current file for the overlay, disabled state, gesture, z-index, route, or shared state that may be blocking the behavior.",
       surfaces: ["view", "store"],
       complexity: "medium",
-      featurePrompt: `Index the project context for the existing ${focus} bug, then inspect related SwiftUI views, stores, modifiers, overlays, disabled states, gestures, accessibility identifiers, route containers, and recently changed files before patching.${cueSentence} Axint senior read: ${repairRead.summary}`,
+      featurePrompt: contextPrompt,
       domain: "repair",
       rationale,
       confidence: "medium",
@@ -1709,6 +2211,13 @@ function repairNeedsInteractionMap(normalizedAppDescription: string): boolean {
 }
 
 function repairProblemFocus(normalizedAppDescription: string): string {
+  if (
+    /\b(provider|prompt builder|provider prompt|model routing|gemini|nano banana|image generation|identity|identity drift|face shape|head shape|hairline|beard|background|backdrop|glow-up|glow up)\b/.test(
+      normalizedAppDescription
+    )
+  ) {
+    return "provider output";
+  }
   if (
     /\b(command center|command-center|hero|first viewport|first-viewport|primary action|primary actions)\b/.test(
       normalizedAppDescription
@@ -1745,6 +2254,13 @@ function repairProblemFocus(normalizedAppDescription: string): string {
 }
 
 function repairScreenConcept(normalizedAppDescription: string): string {
+  if (
+    /\b(cadabra|gemini|nano banana|image generation|image provider|magic pass)\b/.test(
+      normalizedAppDescription
+    )
+  ) {
+    return "image provider";
+  }
   if (/\bproject room\b/.test(normalizedAppDescription)) return "project room";
   if (/\bcommand center|command-center\b/.test(normalizedAppDescription)) {
     return "command center";
@@ -1780,6 +2296,11 @@ function repairPromptCues(normalizedAppDescription: string): string[] {
     [/\bclick targets?\b|\bhittable\b|\bprimary action/, "real click targets"],
     [/\breduced motion\b|\bmotion\b/, "reduced motion"],
     [/\bscroll\b|\btop\b/, "scroll-to-top behavior"],
+    [/\bidentity\b|\bface shape\b|\bhead shape\b/, "identity preservation"],
+    [/\bgemini\b|\bnano banana\b/, "image provider"],
+    [/\bprovider prompt\b|\bprompt builder\b/, "provider prompt"],
+    [/\bmodel routing\b|\bfast\/pro\/perfect\b/, "model routing"],
+    [/\bmagic pass\b/, "Magic Pass"],
   ];
 
   return unique(

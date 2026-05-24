@@ -287,7 +287,7 @@ function buildStartPrompt(input: {
     : "2. Stay in this host's tool lane. Do not call axint.xcode.guard or axint.xcode.write unless this chat is actually running inside Xcode.";
   const mcpServerStep = profile.xcodeToolsAllowed
     ? "5. List MCP servers/tools and confirm xcode-tools and axint are available."
-    : "5. List MCP servers/tools when the client supports it, and confirm axint is available. If MCP is stale or closed, use the CLI fallback commands instead of pretending the tool call worked.";
+    : `5. List MCP servers/tools when the client supports it, and confirm axint is available. If axint is missing, run \`axint mcp install --agent ${profile.agent}\`, reload only the MCP tool process, then call axint.status and axint.activate. Use CLI fallback only until the host reloads the MCP server.`;
   const writeStep = profile.xcodeToolsAllowed
     ? "15. When writing new Swift files from MCP, prefer axint.xcode.write so validation, Cloud Check, and guard proof happen with the write."
     : `15. Write through this host's native lane: ${profile.defaultWriteAction}. Do not route normal Codex/Claude/Cowork/Cursor edits through axint.xcode.write.`;
@@ -455,6 +455,21 @@ This folder stores Axint project metadata for ${input.projectName}.
 - Active session token: \`.axint/session/current.json\`
 - MCP config: \`.mcp.json\`
 - Agent instructions: \`AGENTS.md\` and \`CLAUDE.md\`
+
+## Host MCP Install
+
+\`.mcp.json\` is the project-local MCP recipe, but some hosts do not auto-load it
+into the active tool surface. If the agent cannot see \`axint.*\` MCP tools, install
+Axint into the host-level MCP config and reload the tool process:
+
+\`\`\`bash
+axint mcp install --agent ${input.profile.agent}
+axint mcp status
+\`\`\`
+
+After reload, the first two tool calls should be \`axint.status\` and
+\`axint.activate\`. CLI fallback is only a bridge while MCP is unavailable; it should
+not become the steady-state workflow.
 
 ## Agent Tool Lane
 

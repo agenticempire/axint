@@ -794,7 +794,7 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
     }
     const result = generateFeature({
       description: a.description,
-      surfaces: a.surfaces as Surface[] | undefined,
+      surfaces: normalizeFeatureSurfaces(a.surfaces),
       name: a.name,
       appName: a.appName,
       domain: a.domain,
@@ -1389,6 +1389,29 @@ function summarizeSuggestionDomains(
   const domains = [...new Set(suggestions.map((s) => s.domain))];
   const confidence = suggestions[0]?.confidence ?? "unknown";
   return `Read: ${domains.join(", ")} workflow${domains.length === 1 ? "" : "s"} - top confidence: ${confidence}`;
+}
+
+function normalizeFeatureSurfaces(value: unknown): Surface[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const aliases: Record<string, Surface> = {
+    data: "store",
+    model: "store",
+    models: "store",
+    state: "store",
+  };
+  const allowed = new Set<Surface>([
+    "intent",
+    "view",
+    "widget",
+    "component",
+    "app",
+    "store",
+  ]);
+  const surfaces = value
+    .filter((surface): surface is string => typeof surface === "string")
+    .map((surface) => aliases[surface.toLowerCase()] ?? surface)
+    .filter((surface): surface is Surface => allowed.has(surface as Surface));
+  return surfaces.length > 0 ? Array.from(new Set(surfaces)) : undefined;
 }
 
 /**

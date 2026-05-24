@@ -11,7 +11,7 @@
  * This is the main entry point for the compilation process.
  */
 
-import { parseIntentSource } from "./parser.js";
+import { parseEntitySource, parseIntentSource } from "./parser.js";
 import { parseViewSource } from "./view-parser.js";
 import { parseWidgetSource } from "./widget-parser.js";
 import { parseAppSource } from "./app-parser.js";
@@ -27,6 +27,9 @@ import {
 } from "./compile-pipeline.js";
 import {
   generateSwift,
+  generateEntity,
+  generateEntityQuery,
+  generatedFileHeader,
   generateInfoPlistFragment,
   generateEntitlementsFragment,
 } from "./generator.js";
@@ -40,7 +43,7 @@ import {
   generateSwiftExtension,
   generateExtensionInfoPlistAll,
 } from "./extension-generator.js";
-import { validateIntent, validateSwiftSource } from "./validator.js";
+import { validateEntity, validateIntent, validateSwiftSource } from "./validator.js";
 import { validateView, validateSwiftUISource } from "./view-validator.js";
 import { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
 import { validateApp, validateSwiftAppSource } from "./app-validator.js";
@@ -57,6 +60,7 @@ import {
   validateExtension,
   validateSwiftExtensionSource,
 } from "./extension-validator.js";
+import { validateSwiftSource as validateAppleSwiftSource } from "./swift-validator.js";
 import type {
   CompilerOutput,
   CompilerOptions,
@@ -79,6 +83,22 @@ import type {
 export interface CompileResult {
   success: boolean;
   output?: CompilerOutput;
+  diagnostics: Diagnostic[];
+}
+
+export interface EntityCompileOutput {
+  outputPath: string;
+  swiftCode: string;
+  ir: {
+    name: string;
+    entities: IREntity[];
+  };
+  diagnostics: Diagnostic[];
+}
+
+export interface EntityCompileResult {
+  success: boolean;
+  output?: EntityCompileOutput;
   diagnostics: Diagnostic[];
 }
 
@@ -115,6 +135,47 @@ export function compileSource(
     options,
     parse: parseIntentSource,
     compileFromIR,
+  });
+}
+
+/**
+ * Compile standalone AppEntity definitions into Swift.
+ */
+export function compileEntitySource(
+  source: string,
+  fileName: string = "<stdin>",
+  options: Partial<CompilerOptions> = {}
+): EntityCompileResult {
+  return compileSourceWithParser({
+    source,
+    fileName,
+    options,
+    parse: parseEntitySource,
+    compileFromIR: compileEntitiesFromIR,
+  });
+}
+
+export function compileEntitiesFromIR(
+  entities: IREntity[],
+  options: Partial<CompilerOptions> = {}
+): EntityCompileResult {
+  return runCompilePipeline({
+    ir: entities,
+    options,
+    validateIR: (all) => all.flatMap((entity) => validateEntity(entity, "<entity>")),
+    generateSwift: generateStandaloneEntitiesSwift,
+    validateGeneratedSwift: (swiftCode) =>
+      validateAppleSwiftSource(swiftCode, "Entities.swift").diagnostics,
+    outputFileName: standaloneEntitiesOutputFileName,
+    buildOutput: ({ outputPath, swiftCode, ir, diagnostics }) => ({
+      outputPath,
+      swiftCode,
+      ir: {
+        name: ir.length === 1 ? ir[0]!.name : "Entities",
+        entities: ir,
+      },
+      diagnostics,
+    }),
   });
 }
 
@@ -543,6 +604,7 @@ export function compileExtensionFromIR(
  */
 export type AnyCompileResult =
   | ({ surface: "intent" } & CompileResult)
+  | ({ surface: "entity" } & EntityCompileResult)
   | ({ surface: "view" } & ViewCompileResult)
   | ({ surface: "widget" } & WidgetCompileResult)
   | ({ surface: "app" } & AppCompileResult)
@@ -571,10 +633,10 @@ export function compileAnySource(
         {
           code: "AX001",
           severity: "error",
-          message: `No defineIntent, defineView, defineWidget, defineApp, defineLiveActivity, defineAppEnum, defineAppShortcut, or defineExtension call found in ${fileName}`,
+          message: `No defineIntent, defineEntity, defineView, defineWidget, defineApp, defineLiveActivity, defineAppEnum, defineAppShortcut, or defineExtension call found in ${fileName}`,
           file: fileName,
           suggestion:
-            "Add a top-level `defineIntent({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, `defineApp({ ... })`, `defineLiveActivity({ ... })`, `defineAppEnum({ ... })`, `defineAppShortcut({ ... })`, or `defineExtension({ ... })` call.",
+            "Add a top-level `defineIntent({ ... })`, `defineEntity({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, `defineApp({ ... })`, `defineLiveActivity({ ... })`, `defineAppEnum({ ... })`, `defineAppShortcut({ ... })`, or `defineExtension({ ... })` call.",
         },
       ],
     };
@@ -611,6 +673,8 @@ function dispatchCompile(
   switch (surface) {
     case "intent":
       return { surface, ...compileSource(source, fileName, options) };
+    case "entity":
+      return { surface, ...compileEntitySource(source, fileName, options) };
     case "view":
       return { surface, ...compileViewSource(source, fileName, options) };
     case "widget":
@@ -626,6 +690,30 @@ function dispatchCompile(
     case "extension":
       return { surface, ...compileExtensionSource(source, fileName, options) };
   }
+}
+
+function generateStandaloneEntitiesSwift(entities: IREntity[]): string {
+  const outputName = standaloneEntitiesOutputFileName(entities);
+  const lines = [
+    ...generatedFileHeader(outputName),
+    "",
+    "import AppIntents",
+    "import Foundation",
+    "",
+  ];
+
+  for (const entity of entities) {
+    lines.push(generateEntity(entity));
+    lines.push("");
+    lines.push(generateEntityQuery(entity));
+    lines.push("");
+  }
+
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function standaloneEntitiesOutputFileName(entities: IREntity[]): string {
+  return entities.length === 1 ? `${entities[0]!.name}Entity.swift` : "Entities.swift";
 }
 
 // ─── Cross-Language IR Bridge ───────────────────────────────────────

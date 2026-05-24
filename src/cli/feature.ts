@@ -9,6 +9,12 @@ import {
 } from "../mcp/feature.js";
 
 const SURFACES = ["intent", "view", "widget", "component", "app", "store"] as const;
+const SURFACE_ALIASES: Record<string, Surface> = {
+  data: "store",
+  model: "store",
+  models: "store",
+  state: "store",
+};
 const PLATFORMS = ["iOS", "macOS", "visionOS", "all"] as const;
 
 export function registerFeature(program: Command) {
@@ -18,7 +24,7 @@ export function registerFeature(program: Command) {
     .argument("<description...>", "Feature description")
     .option(
       "--surface <surfaces>",
-      "Comma-separated surfaces: intent,view,widget,component,app,store"
+      "Comma-separated surfaces: intent,view,widget,component,app,store (aliases: model,state,data -> store)"
     )
     .option("--name <name>", "Base Swift type name")
     .option("--app-name <name>", "App name for generated metadata")
@@ -124,15 +130,18 @@ function parseSurfaces(value: string | undefined): Surface[] | undefined {
   const surfaces = value
     .split(",")
     .map((part) => part.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((surface) => SURFACE_ALIASES[surface.toLowerCase()] ?? surface);
 
   for (const surface of surfaces) {
     if (!(SURFACES as readonly string[]).includes(surface)) {
-      throw new Error(`invalid surface: ${surface}`);
+      throw new Error(
+        `invalid surface: ${surface}. Valid surfaces: ${SURFACES.join(", ")}. Aliases: model/state/data -> store.`
+      );
     }
   }
 
-  return surfaces as Surface[];
+  return Array.from(new Set(surfaces)) as Surface[];
 }
 
 function parseParams(entries: string[]): Record<string, string> | undefined {

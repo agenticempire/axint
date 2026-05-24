@@ -820,6 +820,11 @@ function buildEvidencePlan(input: {
       "Run one focused UI test or manual smoke proof for the exact failing interaction."
     );
   }
+  if (input.issueClass === "provider-behavior") {
+    evidence.push(
+      "Run a provider prompt/routing proof that captures selected settings, request payload, and generated artifact metadata."
+    );
+  }
   if (!input.input.expectedBehavior) {
     evidence.push(
       "State the expected behavior in one sentence so Axint can tell contradiction from intentional absence."
@@ -856,6 +861,11 @@ function buildProofPlan(input: {
   if (input.issueClass.includes("ui") || input.issueClass.includes("swiftui")) {
     steps.push(
       "Run a focused UI test that taps/types/asserts the exact element or proves the intentional absence."
+    );
+  }
+  if (input.issueClass === "provider-behavior") {
+    steps.push(
+      "Run a focused provider-routing or prompt-snapshot proof instead of a runtime-freeze sample."
     );
   }
   steps.push(
@@ -1175,6 +1185,7 @@ function suggestOwner(
   if (issueClass.includes("swiftui") || issueClass.includes("ui-test")) {
     return "project-repair-intelligence";
   }
+  if (issueClass === "provider-behavior") return "provider-repair-intelligence";
   if (issueClass.includes("build")) return "swift-validator";
   return "repair-workflow";
 }
@@ -1191,6 +1202,9 @@ function suggestProductAction(
   }
   if (issueClass === "swiftui-hit-testing") {
     return "Add more macOS UI-test hit-testing phrases and foreground/window-state repair recipes.";
+  }
+  if (issueClass === "provider-behavior") {
+    return "Add more provider-behavior fixtures for identity preservation, prompt quality, model routing, and generated artifact metadata.";
   }
   return "Cluster repeated feedback packets into a new diagnostic or repair-pack rule.";
 }

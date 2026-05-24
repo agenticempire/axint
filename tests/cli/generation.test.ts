@@ -82,6 +82,29 @@ describe("agent-facing generation CLI commands", () => {
     expect(output).not.toContain("Domain: messaging");
   });
 
+  it("accepts model as a store surface alias for app-state generation", async () => {
+    const outDir = join(tempRoot, "model-generated");
+    const program = new Command();
+    registerFeature(program);
+    await run(program, [
+      "feature",
+      "A native note-taking app with notebooks, drafts, saved notes, and a focused writing screen",
+      "--surface",
+      "model,view",
+      "--name",
+      "Notebook",
+      "--platform",
+      "iOS",
+      "--write",
+      outDir,
+    ]);
+
+    expect(existsSync(join(outDir, "Sources/Stores/NotebookStore.swift"))).toBe(true);
+    expect(existsSync(join(outDir, "Sources/Views/NotebookView.swift"))).toBe(true);
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("Surfaces: store, view");
+  });
+
   it("suggests Swarm features from the CLI when MCP suggest is unavailable", async () => {
     const program = new Command();
     registerSuggest(program);
@@ -108,5 +131,34 @@ describe("agent-facing generation CLI commands", () => {
       .map((suggestion) => suggestion.featurePrompt)
       .join("\n");
     expect(generatedPlan).not.toMatch(/dating|swolemate|swipe/i);
+  });
+
+  it("keeps greenfield native MVP prompts out of stale repair mode", async () => {
+    const program = new Command();
+    registerSuggest(program);
+    await run(program, [
+      "suggest",
+      "Build a native MVP iOS app from scratch for Cadabra with camera capture, AI generation, notes, history, and a real three-screen demo flow.",
+      "--platform",
+      "iOS",
+      "--stage",
+      "mvp",
+      "--constraint",
+      "Ignore stale repair notes about Live Events from an older product.",
+      "--json",
+    ]);
+
+    const output = logSpy.mock.calls.flat().join("\n");
+    const payload = JSON.parse(output) as {
+      suggestions: Array<{ domain: string; modeTrace?: string; featurePrompt: string }>;
+    };
+    expect(payload.suggestions[0]?.domain).toBe("greenfield-app");
+    expect(payload.suggestions[0]?.modeTrace).toContain("greenfield app build");
+    expect(payload.suggestions.map((suggestion) => suggestion.domain)).not.toContain(
+      "repair"
+    );
+    expect(
+      payload.suggestions.map((suggestion) => suggestion.featurePrompt).join("\n")
+    ).not.toMatch(/live events/i);
   });
 });

@@ -109,8 +109,8 @@ export function buildProjectContextIndex(
 ): ProjectContextIndex {
   const targetDir = resolve(input.targetDir ?? process.cwd());
   const projectName = input.projectName ?? basename(targetDir) ?? "AppleApp";
-  const workspace = findFirstChildWithExtension(targetDir, ".xcworkspace");
-  const project = findFirstChildWithExtension(targetDir, ".xcodeproj");
+  const workspace = findFirstDescendantWithExtension(targetDir, ".xcworkspace");
+  const project = findFirstDescendantWithExtension(targetDir, ".xcodeproj");
   const schemes = uniqueStrings([
     ...listSchemes(workspace ? join(targetDir, workspace) : undefined),
     ...listSchemes(project ? join(targetDir, project) : undefined),
@@ -540,15 +540,50 @@ function summarizeSwiftFile(
   };
 }
 
-function findFirstChildWithExtension(
+function findFirstDescendantWithExtension(
   root: string,
   extension: string
 ): string | undefined {
-  const entries = readdirSync(root, { withFileTypes: true });
-  const match = entries.find(
-    (entry) => entry.isDirectory() && extname(entry.name) === extension
-  );
-  return match?.name;
+  const matches: string[] = [];
+
+  function visit(currentDir: string, depth: number) {
+    if (depth > 4) return;
+
+    const entries = readdirSync(currentDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const entry of entries) {
+      if (shouldSkipProjectDiscoveryDirectory(entry.name)) continue;
+      const fullPath = join(currentDir, entry.name);
+      if (extname(entry.name) === extension) {
+        matches.push(normalizeRelativePath(root, fullPath));
+      }
+    }
+
+    for (const entry of entries) {
+      if (shouldSkipProjectDiscoveryDirectory(entry.name)) continue;
+      if (
+        extname(entry.name) === ".xcodeproj" ||
+        extname(entry.name) === ".xcworkspace"
+      ) {
+        continue;
+      }
+      visit(join(currentDir, entry.name), depth + 1);
+    }
+  }
+
+  visit(root, 1);
+  return matches.sort((a, b) => pathDepth(a) - pathDepth(b) || a.localeCompare(b))[0];
+}
+
+function shouldSkipProjectDiscoveryDirectory(name: string): boolean {
+  if (EXCLUDED_DIRS.has(name)) return true;
+  return name.startsWith(".") && name !== ".xcode.env";
+}
+
+function pathDepth(path: string): number {
+  return path.split("/").filter(Boolean).length;
 }
 
 function listSchemes(containerPath?: string): string[] {
@@ -562,7 +597,7 @@ function listSchemes(containerPath?: string): string[] {
 
 function stripXcodeExtension(value?: string): string | undefined {
   if (!value) return undefined;
-  return value.replace(/\.(xcworkspace|xcodeproj)$/i, "");
+  return basename(value).replace(/\.(xcworkspace|xcodeproj)$/i, "");
 }
 
 function resolveChangedFiles(

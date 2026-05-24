@@ -65,7 +65,7 @@ describe("xcode CLI smoke coverage", () => {
       if (command.startsWith("which axint")) {
         return "/usr/local/bin/axint\n";
       }
-      if (command.startsWith("codex mcp add axint --transport http")) {
+      if (command.startsWith("codex mcp add axint --url")) {
         return "";
       }
       throw new Error(`Unexpected command: ${command}`);
@@ -74,9 +74,7 @@ describe("xcode CLI smoke coverage", () => {
     await setupXcode({ agent: "codex", remote: true });
 
     expect(execSyncMock).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "codex mcp add axint --transport http https://mcp.axint.ai/mcp"
-      ),
+      expect.stringContaining("codex mcp add axint --url https://mcp.axint.ai/mcp"),
       expect.objectContaining({ stdio: "inherit", timeout: 10000 })
     );
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Setup complete"));
