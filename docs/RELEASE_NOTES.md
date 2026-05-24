@@ -1,5 +1,27 @@
 # Release Notes
 
+## 2026-05-24 — Dogfood routing and release-readiness patch
+
+This patch ships the Cadabra dogfood fixes needed before the next large build
+run.
+
+### Fixed
+
+- `axint.suggest` now routes product hierarchy prompts into a dedicated
+  `product-hierarchy` plan instead of collapsing launch promise, public
+  vocabulary, default lanes, feedback buttons, and hidden advanced controls
+  into generic Magic Pass controls.
+- `axint.suggest` now treats provider-output quality rescue prompts as
+  proof-first provider repair work, not fake new feature generation.
+- Cloud Check now classifies Xcode code-signing failures caused by resource
+  forks, FinderInfo, or FileProvider metadata and points the repair to `/tmp`
+  DerivedData, `xattr -cr`, and `COPYFILE_DISABLE=1`.
+
+### Changed
+
+- Public truth advances to v0.4.29 with 36 MCP tools, 5 prompts, 204 diagnostic
+  codes, 1341 tests, and 26 bundled templates.
+
 ## 2026-05-08 — Activation proof and first-use funnel
 
 This release closes the biggest dogfooding ambiguity: a server-start event proves
