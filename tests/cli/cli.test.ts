@@ -84,6 +84,25 @@ export default defineApp({
 });
 `;
 
+const ENTITY_SOURCE = `
+import { defineEntity, param } from "@axint/sdk";
+
+defineEntity({
+  name: "Trail",
+  display: {
+    title: "name",
+    subtitle: "region",
+    image: "figure.hiking",
+  },
+  properties: {
+    id: param.string("Trail ID"),
+    name: param.string("Trail name"),
+    region: param.string("Trail region"),
+  },
+  query: "string",
+});
+`;
+
 describe("detectSurface", () => {
   it("recognizes defineIntent", () => {
     expect(detectSurface(INTENT_SOURCE)).toBe("intent");
@@ -99,6 +118,14 @@ describe("detectSurface", () => {
 
   it("recognizes defineApp", () => {
     expect(detectSurface(APP_SOURCE)).toBe("app");
+  });
+
+  it("recognizes standalone defineEntity", () => {
+    expect(detectSurface(ENTITY_SOURCE)).toBe("entity");
+  });
+
+  it("keeps entity-plus-intent files on the intent surface", () => {
+    expect(detectSurface(`${ENTITY_SOURCE}\n${INTENT_SOURCE}`)).toBe("intent");
   });
 
   it("returns null when no define call is present", () => {
@@ -152,6 +179,17 @@ describe("compileAnySource dispatches by surface", () => {
     expect(result.output!.outputPath).toBe("MyAppApp.swift");
   });
 
+  it("compiles a standalone entity into AppEntity Swift", () => {
+    const result = compileAnySource(ENTITY_SOURCE, "trail.entity.ts");
+
+    expect(result.surface).toBe("entity");
+    expect(result.success).toBe(true);
+    expect(result.output).toBeDefined();
+    expect(result.output!.swiftCode).toContain("struct Trail: AppEntity");
+    expect(result.output!.swiftCode).toContain("struct TrailQuery: EntityStringQuery");
+    expect(result.output!.outputPath).toBe("TrailEntity.swift");
+  });
+
   it("returns AX001 when the source defines no surface", () => {
     const result = compileAnySource("const x = 42;", "bad.ts");
 
@@ -164,10 +202,12 @@ describe("compileAnySource dispatches by surface", () => {
     const view = compileAnySource(VIEW_SOURCE, "v.ts", { outDir: "Generated" });
     const widget = compileAnySource(WIDGET_SOURCE, "w.ts", { outDir: "Generated" });
     const app = compileAnySource(APP_SOURCE, "a.ts", { outDir: "Generated" });
+    const entity = compileAnySource(ENTITY_SOURCE, "e.ts", { outDir: "Generated" });
 
     expect(intent.output!.outputPath).toBe("Generated/SendMessageIntent.swift");
     expect(view.output!.outputPath).toBe("Generated/Greeting.swift");
     expect(widget.output!.outputPath).toBe("Generated/StepCounterWidget.swift");
     expect(app.output!.outputPath).toBe("Generated/MyAppApp.swift");
+    expect(entity.output!.outputPath).toBe("Generated/TrailEntity.swift");
   });
 });

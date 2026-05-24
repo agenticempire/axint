@@ -16,7 +16,8 @@ export type Surface =
   | "liveActivity"
   | "appEnum"
   | "appShortcut"
-  | "extension";
+  | "extension"
+  | "entity";
 
 const DEFINE_TO_SURFACE: Readonly<Record<string, Surface>> = {
   defineIntent: "intent",
@@ -42,10 +43,14 @@ export function detectSurface(
   );
 
   let surface: Surface | null = null;
+  let hasStandaloneEntity = false;
 
   const visit = (node: ts.Node): void => {
     if (surface) return;
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (node.expression.text === "defineEntity") {
+        hasStandaloneEntity = true;
+      }
       const match = DEFINE_TO_SURFACE[node.expression.text];
       if (match) {
         surface = match;
@@ -56,5 +61,5 @@ export function detectSurface(
   };
 
   visit(sourceFile);
-  return surface;
+  return surface ?? (hasStandaloneEntity ? "entity" : null);
 }

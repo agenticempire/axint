@@ -5,6 +5,7 @@ export type AppleRepairIssueClass =
   | "swiftui-layout-regression"
   | "ui-test-accessibility"
   | "runtime-freeze"
+  | "provider-behavior"
   | "xcode-build-repair"
   | "apple-project-repair";
 
@@ -106,6 +107,49 @@ function classifyAppleRepairIssue(
   text: string,
   sourceText: string
 ): AppleRepairIssueClass {
+  const providerBehaviorCues = hasAny(text, [
+    "gemini",
+    "nano banana",
+    "image generation",
+    "image provider",
+    "provider prompt",
+    "prompt builder",
+    "model routing",
+    "magic pass",
+    "beautify",
+    "glow-up",
+    "glow up",
+    "background replacement",
+    "backdrop",
+  ]);
+  const providerFailureCues = hasAny(text, [
+    "identity",
+    "identity drift",
+    "drift",
+    "face",
+    "face shape",
+    "head shape",
+    "hairline",
+    "bald",
+    "beard",
+    "clothing",
+    "wrong person",
+    "looks different",
+    "changes the person",
+    "does not preserve",
+    "doesn't preserve",
+    "not preserving",
+    "too strong",
+    "ignores",
+    "wrong output",
+    "prompt quality",
+    "provider behavior",
+    "semantic",
+  ]);
+  if (providerBehaviorCues && providerFailureCues) {
+    return "provider-behavior";
+  }
+
   if (
     hasAny(text, [
       "comment box",
@@ -249,6 +293,7 @@ function classifyAppleRepairIssue(
 
 function inferRepairSignals(text: string, sourceText: string): string[] {
   const signals: string[] = [];
+  const negatedRuntimeFreeze = /\bnot\s+(?:a\s+)?(?:runtime\s+)?freeze\b/.test(text);
   const add = (condition: boolean, signal: string) => {
     if (condition && !signals.includes(signal)) signals.push(signal);
   };
@@ -294,8 +339,41 @@ function inferRepairSignals(text: string, sourceText: string): string[] {
   );
   add(hasAny(text, ["build", "xcodebuild", "compiler", "error:"]), "xcode-build-proof");
   add(
-    hasAny(text, ["freeze", "hang", "unresponsive", "beachball", "launch timeout"]),
+    !negatedRuntimeFreeze &&
+      hasAny(text, ["freeze", "hang", "unresponsive", "beachball", "launch timeout"]),
     "runtime-proof"
+  );
+  add(
+    hasAny(text, [
+      "gemini",
+      "nano banana",
+      "image generation",
+      "provider prompt",
+      "prompt builder",
+      "model routing",
+      "magic pass",
+    ]),
+    "provider-behavior"
+  );
+  add(
+    hasAny(text, [
+      "identity",
+      "identity drift",
+      "face shape",
+      "head shape",
+      "hairline",
+      "bald",
+      "beard",
+      "wrong person",
+      "does not preserve",
+      "doesn't preserve",
+      "not preserving",
+    ]),
+    "identity-preservation"
+  );
+  add(
+    hasAny(text, ["prompt quality", "creative direction", "glow-up", "glow up"]),
+    "prompt-quality"
   );
   add(
     hasAny(sourceText, [".overlay", "zstack", ".zindex", ".allowshittesting"]),
@@ -362,6 +440,9 @@ function looksLikeExistingAppleRepair(text: string, signals: string[]): boolean 
         "xcode-ui-proof",
         "xcode-build-proof",
         "runtime-proof",
+        "provider-behavior",
+        "identity-preservation",
+        "prompt-quality",
       ].includes(signal)
     );
 
@@ -519,6 +600,62 @@ function buildRootCauses(input: {
     });
   }
 
+  if (input.issueClass === "provider-behavior") {
+    causes.push({
+      title: "Provider prompt contract is underspecified for identity preservation",
+      confidence: "high",
+      detail:
+        "Image-generation repairs can look like runtime bugs in natural language, but the real failure is often that the provider prompt does not rank identity preservation above style, backdrop, or beautify instructions.",
+      inspect: [
+        "provider prompt builder",
+        "identity preservation instructions",
+        "style/glow-up strength",
+        "background/backdrop clause",
+        "negative constraints",
+      ],
+      suggestedPatch:
+        "Make identity preservation the top provider instruction, explicitly lock face/head/hair/beard/clothing intent, and only then apply optional style or backdrop changes.",
+    });
+    causes.push({
+      title: "Model routing or override bypasses user-selected generation controls",
+      confidence: hasAny(input.sourceText, [
+        "model",
+        "provider",
+        "gemini",
+        "nano",
+        "prompt",
+      ])
+        ? "high"
+        : "medium",
+      detail:
+        "A hard model override, stale local secret, or route fallback can make Fast/Pro/Perfect or Magic Pass settings appear wired while the provider still receives old behavior.",
+      inspect: [
+        "model routing",
+        "local secret overrides",
+        "quality tier mapping",
+        "request payload",
+        "generated artifact metadata",
+      ],
+      suggestedPatch:
+        "Route through selected quality/settings by default, reserve hard overrides for explicit debug mode, and record selected settings on the generated artifact.",
+    });
+    causes.push({
+      title: "No focused provider proof verifies the output contract",
+      confidence: "medium",
+      detail:
+        "Static Swift validation cannot prove that an image provider preserves identity, respects creative direction, or records Magic Pass settings.",
+      inspect: [
+        "provider unit test",
+        "prompt snapshot",
+        "request payload snapshot",
+        "shot metadata",
+        "dogfood output comparison",
+      ],
+      suggestedPatch:
+        "Add a provider-routing or prompt-snapshot proof that asserts selected settings enter the provider request and generated shots retain those settings.",
+    });
+  }
+
   if (input.issueClass === "xcode-build-repair") {
     causes.push({
       title: "Generated code drifted from real project symbols",
@@ -609,6 +746,9 @@ function buildRepairSummary(input: {
 }): string {
   const platform = input.platform ? `${input.platform} ` : "";
   if (input.isExistingProductRepair) {
+    if (input.issueClass === "provider-behavior") {
+      return `Treat this as an existing ${platform}provider behavior repair, not a launch/responsiveness failure or new scaffold. Start with provider prompt/routing evidence, patch the smallest prompt or routing contract, then prove selected settings reach the provider.`;
+    }
     const lead = input.rootCauses[0]?.title.toLowerCase() ?? "project context";
     return `Treat this as an existing ${platform}Apple repair, not a new scaffold. Start with ${lead}, patch the smallest surface, then prove it with focused Xcode evidence.`;
   }
@@ -658,6 +798,22 @@ function buildInspectionChecklist(
       "Lifecycle code: View.body/init/onAppear/.task/App startup/shared stores for blocking work."
     );
   }
+  if (
+    issueClass === "provider-behavior" ||
+    signals.includes("provider-behavior") ||
+    signals.includes("identity-preservation") ||
+    signals.includes("prompt-quality")
+  ) {
+    add(
+      "Provider contract: prompt builder, model routing, local overrides, request payload, and generated artifact metadata."
+    );
+    add(
+      "Output semantics: identity preservation, selected style strength, backdrop/background instructions, and negative constraints."
+    );
+    add(
+      "Proof: prompt/request snapshot or provider-routing test plus dogfood output comparison when available."
+    );
+  }
   if (issueClass === "xcode-build-repair" || signals.includes("xcode-build-proof")) {
     add(
       "Build line: missing member/symbol/label/type and the real declaration or target membership."
@@ -699,6 +855,11 @@ function buildProofPlan(issueClass: AppleRepairIssueClass, fileName?: string): s
   if (issueClass === "runtime-freeze") {
     steps.push(
       "Run launch/runtime proof and attach a short sample if the app still freezes."
+    );
+  }
+  if (issueClass === "provider-behavior") {
+    steps.push(
+      "Run a provider prompt/routing proof that confirms selected settings reach the request payload and generated artifact metadata."
     );
   }
   if (issueClass === "xcode-build-repair") {

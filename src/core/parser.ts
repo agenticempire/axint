@@ -66,9 +66,7 @@ export function parseIntentSource(
   );
 
   // Parse all entity definitions first, so they can be referenced by intents
-  const entities = findAllCallExpressions(sourceFile, "defineEntity").map((call) =>
-    parseEntityDefinition(call, filePath, sourceFile)
-  );
+  const entities = parseEntityDefinitions(sourceFile, filePath);
 
   const defineIntentCall = findCallExpression(sourceFile, "defineIntent");
   if (!defineIntentCall) {
@@ -183,6 +181,41 @@ export function parseIntentSource(
     donateOnPerform: donateOnPerform ?? undefined,
     customResultType: customResultType ?? undefined,
   };
+}
+
+/**
+ * Parse a TypeScript source file containing one or more standalone
+ * defineEntity() calls. This supports entity-only files used by agents
+ * before they wire the entity into an intent.
+ */
+export function parseEntitySource(
+  source: string,
+  filePath: string = "<stdin>"
+): IREntity[] {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const entities = parseEntityDefinitions(sourceFile, filePath);
+  if (entities.length === 0) {
+    throw new ParserError(
+      "AX001",
+      `No defineEntity() call found in ${filePath}`,
+      filePath,
+      undefined,
+      "Add a top-level `defineEntity({ name, display, properties, query })` call, or compile an intent file that references the entity."
+    );
+  }
+  return entities;
+}
+
+function parseEntityDefinitions(sourceFile: ts.SourceFile, filePath: string): IREntity[] {
+  return findAllCallExpressions(sourceFile, "defineEntity").map((call) =>
+    parseEntityDefinition(call, filePath, sourceFile)
+  );
 }
 
 // ─── Entity Definition Parsing (kept from AST Walkers section) ───────────────────────────────────────

@@ -550,6 +550,36 @@ struct MessengerCornerPill: View {}
     expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
   });
 
+  it("generates Magic Pass controls instead of generic settings copy", () => {
+    const result = generateFeature({
+      description:
+        "Add a Magic Pass control surface for Cadabra image generation with model tier Fast/Pro/Perfect, magic strength Natural/Strong/Extreme, glow-up pass, backdrop pass, creative direction, prompt builder, and provider routing.",
+      surfaces: ["view"],
+      name: "MagicPassControls",
+      platform: "iOS",
+      tokenNamespace: "CadabraTokens",
+    });
+
+    expect(result.success).toBe(true);
+    const view = result.files.find(
+      (f) => f.path === "Sources/Views/MagicPassControlsView.swift"
+    );
+    expect(view).toBeDefined();
+    expect(view!.content).toContain('Text("Magic Pass")');
+    expect(view!.content).toContain('Picker("Model tier"');
+    expect(view!.content).toContain('["Fast", "Pro", "Perfect"]');
+    expect(view!.content).toContain('Picker("Magic strength"');
+    expect(view!.content).toContain('Toggle("Glow-up pass"');
+    expect(view!.content).toContain('Toggle("Backdrop pass"');
+    expect(view!.content).toContain("TextEditor(text: $creativeDirection)");
+    expect(view!.content).toContain("@State private var modelTier");
+    expect(view!.content).toContain("@State private var promptPreview");
+    expect(view!.content).not.toContain('Picker("Appearance"');
+    expect(view!.content).not.toContain("Transcription Engine");
+    expect(view!.content).not.toContain("Keyboard Shortcuts");
+    expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
+  });
+
   it("keeps operating-model settings prompts out of generic feed-card output", () => {
     const result = generateFeature({
       description:

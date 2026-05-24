@@ -1,7 +1,11 @@
 export {
   compileFile,
   compileSource,
+  compileEntitySource,
+  compileEntitiesFromIR,
   compileFromIR,
+  compileAnyFile,
+  compileAnySource,
   compileViewSource,
   compileViewFromIR,
   compileWidgetSource,
@@ -11,11 +15,14 @@ export {
   irFromJSON,
 } from "./compiler.js";
 export type {
+  AnyCompileResult,
+  EntityCompileResult,
+  EntityCompileOutput,
   ViewCompileResult,
   WidgetCompileResult,
   AppCompileResult,
 } from "./compiler.js";
-export { parseIntentSource, ParserError } from "./parser.js";
+export { parseEntitySource, parseIntentSource, ParserError } from "./parser.js";
 export { parseViewSource } from "./view-parser.js";
 export { parseWidgetSource } from "./widget-parser.js";
 export { parseAppSource } from "./app-parser.js";

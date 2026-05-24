@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { InvalidArgumentError, type Command } from "commander";
 import { readFileSync } from "node:fs";
 import { loadAxintCredentials, resolveCredentialsPath } from "../core/credentials.js";
 import { registryBaseUrl } from "../core/env.js";
@@ -20,6 +20,30 @@ type CloudUsagePayload = {
     remaining: number;
     resetAt: string | null;
   };
+};
+
+type CloudPreviewRuntime = "fast" | "smooth" | "demo";
+type CloudPreviewTarget = "ios" | "ipad" | "macos";
+
+type CloudPreviewJob = {
+  id: string;
+  appName: string;
+  repoUrl: string;
+  branch: string;
+  scheme: string;
+  simulator: string;
+  targetPlatform: CloudPreviewTarget;
+  runtimeMode: CloudPreviewRuntime;
+  status: string;
+  statusLabel: string;
+  viewerPath: string;
+  runnerCommand?: string;
+};
+
+type CloudPreviewPayload = {
+  job?: CloudPreviewJob;
+  error?: string;
+  message?: string;
 };
 
 function formatDate(value: string | null | undefined): string {
@@ -170,6 +194,99 @@ export function registerCloud(program: Command) {
     );
 
   cloud
+    .command("preview")
+    .description("Create a browser preview room for a Mac-backed Apple app build")
+    .requiredOption("--repo <url>", "GitHub repository URL to build")
+    .option("--branch <branch>", "Git branch to build", "main")
+    .option("--scheme <scheme>", "Xcode scheme to build (defaults to App)", "App")
+    .option("--app-name <name>", "Human label for the preview room")
+    .option(
+      "--target <target>",
+      "Preview target (ios, ipad, macos)",
+      (value) => parsePreviewTarget(value),
+      "ios" as CloudPreviewTarget
+    )
+    .option("--device <name>", "Simulator device name")
+    .option(
+      "--runtime <mode>",
+      "Runtime mode (fast, smooth, demo)",
+      (value) => parsePreviewRuntime(value),
+      "fast" as CloudPreviewRuntime
+    )
+    .option(
+      "--base-url <url>",
+      "Axint Cloud base URL",
+      process.env.AXINT_CLOUD_BASE_URL ?? "https://axint.ai"
+    )
+    .option("--json", "Print machine-readable JSON")
+    .action(
+      async (options: {
+        repo: string;
+        branch: string;
+        scheme: string;
+        appName?: string;
+        target: CloudPreviewTarget;
+        device?: string;
+        runtime: CloudPreviewRuntime;
+        baseUrl: string;
+        json?: boolean;
+      }) => {
+        try {
+          const baseUrl = normalizeBaseUrl(options.baseUrl);
+          const payload = {
+            appName: options.appName ?? inferAppName(options.repo),
+            repoUrl: options.repo,
+            branch: options.branch,
+            scheme: options.scheme,
+            targetPlatform: options.target,
+            simulator:
+              options.device ??
+              (options.target === "macos"
+                ? "Local Mac"
+                : options.target === "ipad"
+                  ? "iPad Pro 13-inch (M5)"
+                  : "iPhone 17 Pro"),
+            runtimeMode: options.runtime,
+            mode: "github",
+          };
+
+          const response = await fetch(`${baseUrl}/api/cloud/preview/jobs`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              origin: baseUrl,
+            },
+            body: JSON.stringify(payload),
+          });
+          const result = (await response.json()) as CloudPreviewPayload;
+          if (!response.ok || !result.job) {
+            throw new Error(
+              result.message ??
+                result.error ??
+                `Cloud Preview failed with HTTP ${response.status}`
+            );
+          }
+
+          if (options.json) {
+            console.log(
+              JSON.stringify(
+                { ...result, roomUrl: `${baseUrl}${result.job.viewerPath}` },
+                null,
+                2
+              )
+            );
+            return;
+          }
+
+          renderPreviewCreated(result.job, baseUrl);
+        } catch (err: unknown) {
+          console.error(`\x1b[31merror:\x1b[0m ${(err as Error).message ?? err}`);
+          process.exit(1);
+        }
+      }
+    );
+
+  cloud
     .command("login")
     .description("Sign in with the same GitHub-backed flow used by `axint login`")
     .action(runAxintLogin);
@@ -263,4 +380,76 @@ function parseCloudCheckFormat(value: string): CloudCheckFormat {
     return value;
   }
   throw new Error(`invalid Cloud Check format: ${value}`);
+}
+
+function parsePreviewRuntime(value: string): CloudPreviewRuntime {
+  if (value === "fast" || value === "smooth" || value === "demo") {
+    return value;
+  }
+  throw new InvalidArgumentError(`invalid Cloud Preview runtime: ${value}`);
+}
+
+function parsePreviewTarget(value: string): CloudPreviewTarget {
+  const normalized = value.toLowerCase();
+  if (normalized === "ios" || normalized === "iphone") return "ios";
+  if (normalized === "ipad" || normalized === "ipados") return "ipad";
+  if (normalized === "macos" || normalized === "mac" || normalized === "osx")
+    return "macos";
+  throw new InvalidArgumentError(`invalid Cloud Preview target: ${value}`);
+}
+
+function normalizeBaseUrl(value: string): string {
+  const url = new URL(value);
+  return `${url.protocol}//${url.host}`;
+}
+
+function inferAppName(repoUrl: string): string {
+  const slug = repoUrl
+    .replace(/\.git$/i, "")
+    .split("/")
+    .filter(Boolean)
+    .pop();
+  if (!slug) return "My Apple App";
+  return slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function renderPreviewCreated(job: CloudPreviewJob, baseUrl: string) {
+  const roomUrl = `${baseUrl}${job.viewerPath}`;
+  console.log();
+  console.log(
+    `  \x1b[38;5;208m◆\x1b[0m \x1b[1mAxint Cloud Preview\x1b[0m · room created`
+  );
+  console.log();
+  console.log(`  Room:     \x1b[4m${roomUrl}\x1b[0m`);
+  console.log(`  App:      ${job.appName}`);
+  console.log(`  Repo:     ${job.repoUrl}`);
+  console.log(`  Branch:   ${job.branch}`);
+  console.log(`  Scheme:   ${job.scheme}`);
+  console.log(`  Target:   ${job.targetPlatform}`);
+  console.log(
+    `  ${job.targetPlatform === "macos" ? "Runner" : "Device"}:   ${job.simulator}`
+  );
+  console.log(`  Runtime:  ${job.runtimeMode}`);
+  console.log(`  Status:   ${job.statusLabel}`);
+  console.log();
+
+  if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) {
+    console.log(
+      "  Localhost detected. The local Mac runner starts automatically when the room is created."
+    );
+  } else if (job.runnerCommand) {
+    console.log("  Mac runner fallback:");
+    console.log();
+    console.log(indentBlock(job.runnerCommand, "    "));
+  } else {
+    console.log("  Open the room and attach hosted Mac capacity to start Xcode proof.");
+  }
+  console.log();
+}
+
+function indentBlock(value: string, prefix: string) {
+  return value
+    .split("\n")
+    .map((line) => `${prefix}${line}`)
+    .join("\n");
 }
