@@ -906,7 +906,12 @@ function resolveCloudProjectContext(input: {
 
 function inferLanguage(fileName: string, source: string): CloudCheckLanguage {
   if (/\.swift$/i.test(fileName)) return "swift";
-  if (/\.(ts|tsx|mts|cts)$/i.test(fileName)) return "typescript";
+  if (
+    /\.(ts|tsx|mts|cts)$/i.test(fileName) &&
+    isAxintTypeScriptCandidate(fileName, source)
+  ) {
+    return "typescript";
+  }
   if (
     /\b(import\s+SwiftUI|import\s+AppIntents|:\s*AppIntent\b|:\s*View\b)/.test(source)
   ) {
@@ -922,9 +927,23 @@ function inferLanguage(fileName: string, source: string): CloudCheckLanguage {
   return "unknown";
 }
 
+function isAxintTypeScriptCandidate(fileName: string, source: string): boolean {
+  if (
+    /\.(intent|view|widget|app|extension|live-activity|app-enum|app-shortcut)\.(ts|tsx|mts|cts)$/i.test(
+      fileName
+    )
+  ) {
+    return true;
+  }
+  if (/\bfrom\s+["']@axint\/(?:compiler|sdk)["']/.test(source)) return true;
+  return /\bdefine(Intent|View|Widget|App|LiveActivity|AppEnum|AppShortcut|Extension)\s*\(/.test(
+    source
+  );
+}
+
 function isNonAppleArtifact(fileName: string, source: string): boolean {
   if (
-    /\.(html?|md|mdx|txt|pdf|sql|sqlite|db|yaml|yml|toml|env|css|scss|sass|png|jpe?g|gif|webp|svg)$/i.test(
+    /\.(html?|md|mdx|txt|pdf|sql|sqlite|db|yaml|yml|toml|env|plist|ts|tsx|mts|cts|py|rb|sh|bash|zsh|css|scss|sass|png|jpe?g|gif|webp|svg)$/i.test(
       fileName
     )
   ) {
@@ -948,6 +967,9 @@ function isNonAppleArtifact(fileName: string, source: string): boolean {
 }
 
 function inferNonAppleArtifactSurface(fileName: string, source: string): string {
+  if (/\.(plist)$/i.test(fileName)) return "deployment-artifact";
+  if (/\.(ts|tsx|mts|cts)$/i.test(fileName)) return "typescript-implementation";
+  if (/\.(py|rb|sh|bash|zsh)$/i.test(fileName)) return "script-artifact";
   if (/\.(sql|sqlite|db)$/i.test(fileName)) return "database-artifact";
   if (/\.(html?|mdx?)$/i.test(fileName) || /\b<html[\s>]/i.test(source)) {
     return "document";
@@ -1256,12 +1278,12 @@ function buildCloudRepairPlan(input: {
       {
         title: "Use the right proof surface",
         detail:
-          "This is a document or web artifact, so browser rendering, link checks, screenshots, and console output are the useful proof instead of Swift compiler diagnostics.",
+          "This is a document, deployment, script, TypeScript implementation, or other non-source artifact, so its matching proof surface is useful instead of Swift compiler diagnostics.",
       },
       {
         title: "Check related Apple source only if needed",
         detail:
-          "If the artifact describes Swift, App Intents, Xcode, or runtime behavior changes, run Cloud Check against the related Swift or Axint source file, not the HTML/Markdown report.",
+          "If the artifact describes Swift, App Intents, Xcode, or runtime behavior changes, run Cloud Check against the related Swift or Axint source file, not the artifact itself.",
       },
     ];
   }
@@ -2395,10 +2417,10 @@ function buildCloudConfidence(input: {
     return {
       level: "medium",
       detail:
-        "Cloud Check correctly identified this as a non-Apple artifact, not an Apple-native compiler target.",
+        "Cloud Check correctly identified this as a non-source artifact, not an Apple-native compiler target.",
       missingEvidence: [
         "Matching proof surface for this artifact type",
-        "Browser/render smoke test when this artifact affects UI",
+        "Browser/render smoke test for UI documents, plist/script proof for deployment helpers, or link/log proof for release artifacts",
         "Cloud Check on the related Swift or Axint source if Apple behavior changed",
       ],
     };

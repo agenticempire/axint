@@ -106,4 +106,21 @@ describe("axint.suggest", () => {
     expect(suggestions[0]?.featurePrompt).toContain("provider prompt");
     expect(suggestions[0]?.featurePrompt).not.toContain("sample <AppProcessName>");
   });
+
+  it("routes TestFlight metadata failures into release preflight instead of new command surfaces", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "TestFlight prep failed because App Store Connect has no app record for bundle ID cam.cadabra.Cadabra. Repair exportOptions-testflight.plist and release metadata preflight. This is not a new command surface.",
+      platform: "iOS",
+      constraints: ["do not generate Siri commands", "use archive/export evidence"],
+      limit: 3,
+    });
+
+    expect(suggestions[0]?.domain).toBe("release-preflight");
+    expect(suggestions[0]?.name).toContain("Preflight");
+    expect(suggestions[0]?.featurePrompt).toContain("App Store Connect app record");
+    expect(suggestions[0]?.featurePrompt).toContain("exportOptions plist");
+    expect(suggestions[0]?.featurePrompt).not.toContain("Capture Testflight");
+    expect(suggestions.map((suggestion) => suggestion.domain)).not.toContain("custom");
+  });
 });

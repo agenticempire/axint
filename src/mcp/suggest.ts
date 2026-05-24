@@ -914,6 +914,7 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   const freshProductMode = detectFreshProductMode(input, text);
   const greenfieldAppMode = detectGreenfieldAppMode(input, text);
   const additiveFeatureMode = detectAdditiveFeatureMode(input, text);
+  const releasePreflightMode = detectReleasePreflightMode(input, text);
 
   if (freshProductMode?.kind === "public-page") {
     return publicLanderSuggestions(input, text, limit, freshProductMode.trace);
@@ -926,6 +927,9 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   }
   if (additiveFeatureMode) {
     return additiveFeatureSuggestions(input, text, limit, additiveFeatureMode.trace);
+  }
+  if (releasePreflightMode) {
+    return releasePreflightSuggestions(input, text, limit, releasePreflightMode.trace);
   }
 
   if (looksLikeExistingProductRepair(input, text)) {
@@ -1033,6 +1037,12 @@ type GreenfieldAppMode =
   | undefined;
 
 type AdditiveFeatureMode =
+  | {
+      trace: string;
+    }
+  | undefined;
+
+type ReleasePreflightMode =
   | {
       trace: string;
     }
@@ -1232,6 +1242,73 @@ function detectAdditiveFeatureMode(
   const cueList = controlCues.slice(0, 6).join(", ");
   return {
     trace: `Current prompt won as additive feature work (${cueList}); Axint is planning a new control surface and provider contract instead of treating the request as a stale SwiftUI repair.`,
+  };
+}
+
+function detectReleasePreflightMode(
+  input: SuggestInput,
+  normalizedAppDescription: string
+): ReleasePreflightMode {
+  const goalsText = normalizeText((input.goals ?? []).join(" "));
+  const constraintsText = normalizeText((input.constraints ?? []).join(" "));
+  const combined = [normalizedAppDescription, goalsText, constraintsText]
+    .filter(Boolean)
+    .join(" ");
+
+  const releaseCues = [
+    "app store connect",
+    "asc",
+    "testflight",
+    "test flight",
+    "app record",
+    "missing app",
+    "bundle id",
+    "bundle identifier",
+    "archive",
+    "xcarchive",
+    "exportoptions",
+    "export options",
+    "exportoptions-testflight.plist",
+    "export-options",
+    "upload",
+    "distribution",
+    "release metadata",
+    "release preflight",
+    "deployment metadata",
+    "build number",
+    "version number",
+    "signing",
+    "provisioning",
+  ].filter((cue) => hasKeyword(combined, cue));
+
+  const releaseIntent = [
+    "blocked",
+    "cannot upload",
+    "failed",
+    "failing",
+    "fix",
+    "missing",
+    "preflight",
+    "prep",
+    "repair",
+    "ship",
+    "upload",
+    "validate",
+    "verify",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  const explicitFreshFeature =
+    /\b(create|generate|scaffold|build)\s+(?:a|an|new)\s+(?:app|screen|view|intent|widget|feature)\b/.test(
+      combined
+    );
+
+  if (releaseCues.length < 2 || !releaseIntent || explicitFreshFeature) {
+    return undefined;
+  }
+
+  const cueList = releaseCues.slice(0, 6).join(", ");
+  return {
+    trace: `Current prompt won as release-preflight work (${cueList}); Axint is planning App Store/TestFlight proof and metadata repair instead of inventing new Siri/widget surfaces.`,
   };
 }
 
@@ -1445,6 +1522,81 @@ function additiveFeatureSuggestions(
       loop: "Select -> persist -> generate -> inspect metadata",
       nextStep:
         "Run axint.run or a focused UI/state test and attach provider prompt evidence where available.",
+      modeTrace,
+    },
+  ];
+
+  return suggestions.slice(0, limit);
+}
+
+function releasePreflightSuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  limit: number,
+  modeTrace: string
+): FeatureSuggestion[] {
+  const labels = semanticLabels(normalizedAppDescription, 4);
+  const releaseLabel =
+    labels.find((label) => /testflight|release|app store|archive|upload/i.test(label)) ??
+    "Release";
+  const platform = input.platform ? `${input.platform} ` : "";
+  const rationale = `Mode trace: ${modeTrace} Release and deployment prompts need App Store Connect, signing, archive/export, and metadata proof before any generated Apple surface.`;
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `${releaseLabel} Preflight Repair`,
+      description:
+        "Verify the release path in order: bundle ID, App Store Connect app record, signing, archive, export options, and upload target.",
+      surfaces: ["store", "view"],
+      complexity: "medium",
+      featurePrompt: `Repair the ${platform}TestFlight/App Store release preflight without generating a new command surface. Check bundle identifier, App Store Connect app record existence, version/build number, signing identity, provisioning profile, archive path, exportOptions plist, and upload/export logs. Return the smallest metadata or portal action needed before another archive/export attempt.`,
+      domain: "release-preflight",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Stops agents from treating release metadata failures as product feature generation.",
+      loop: "Metadata -> archive -> export -> upload evidence",
+      nextStep:
+        "Run the release preflight or archive/export command and attach the shortest failing App Store Connect or xcodebuild log.",
+      modeTrace,
+    },
+    {
+      name: "Export Options Proof Surface",
+      description:
+        "Treat exportOptions.plist and upload logs as deployment artifacts with their own proof, not as Axint DSL or Swift source.",
+      surfaces: ["store"],
+      complexity: "low",
+      featurePrompt:
+        "Add proof handling for deployment artifacts: validate exportOptions plist shape, confirm method/team/signingStyle/destination, py-compile or script-smoke any release helper scripts, and run Cloud Check only against related Swift/Axint source when Apple behavior changed.",
+      domain: "release-preflight",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Keeps Cloud Check honest for non-source deployment artifacts and avoids fake AX001 diagnostics.",
+      loop: "Artifact proof -> related source check -> archive/export retry",
+      nextStep:
+        "Use plist/script proof first; use Cloud Check for the Swift or Axint files that actually implement app behavior.",
+      modeTrace,
+    },
+    {
+      name: "Release Evidence Packet",
+      description:
+        "Collect the exact evidence an agent or founder needs to know whether the release blocker is code, metadata, signing, or missing portal setup.",
+      surfaces: ["view", "component"],
+      complexity: "medium",
+      featurePrompt:
+        "Create a release evidence packet with app record status, bundle ID, version/build, signing/provisioning status, archive result, export result, upload result, relevant log paths, and the next safe owner action. Do not call the app ready for TestFlight until archive/export/upload evidence passes.",
+      domain: "release-preflight",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Turns release failures into investor-grade proof instead of mystery Xcode/App Store Connect churn.",
+      loop: "Collect logs -> classify blocker -> patch metadata or portal -> rerun",
+      nextStep:
+        "Attach the generated evidence packet to the next Axint run or release checklist.",
       modeTrace,
     },
   ];

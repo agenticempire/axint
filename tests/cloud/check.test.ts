@@ -752,6 +752,94 @@ struct CommandPaletteShell: View {
     );
   });
 
+  it("routes deployment plist artifacts away from Axint DSL diagnostics", () => {
+    const report = runCloudCheck({
+      fileName: "build/exportOptions-testflight.plist",
+      platform: "iOS",
+      source: `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+  <key>method</key>
+  <string>app-store-connect</string>
+</dict>
+</plist>
+`,
+    });
+
+    expect(report.status).toBe("needs_review");
+    expect(report.surface).toBe("deployment-artifact");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-NON-APPLE-ARTIFACT");
+    expect(report.diagnostics.map((d) => d.code)).not.toContain("AX001");
+    expect(report.gate.decision).toBe("evidence_required");
+    expect(report.confidence.missingEvidence.join("\n")).toContain("plist/script proof");
+    expect(report.repairPrompt).toContain("document, deployment, script");
+  });
+
+  it("routes release helper scripts away from Axint DSL diagnostics", () => {
+    const report = runCloudCheck({
+      fileName: "ios/Scripts/generate_local_secrets.py",
+      platform: "iOS",
+      source: `#!/usr/bin/env python3
+import os
+from pathlib import Path
+
+Path("Generated.plist").write_text(os.environ.get("GEMINI_API_KEY", ""))
+`,
+    });
+
+    expect(report.status).toBe("needs_review");
+    expect(report.surface).toBe("script-artifact");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-NON-APPLE-ARTIFACT");
+    expect(report.diagnostics.map((d) => d.code)).not.toContain("AX001");
+    expect(report.repairPlan.map((step) => step.title)).toContain(
+      "Use the right proof surface"
+    );
+    expect(report.repairPrompt).toContain("non-source artifact");
+  });
+
+  it("routes internal TypeScript implementation files away from Axint DSL diagnostics", () => {
+    const report = runCloudCheck({
+      fileName: "src/mcp/suggest.ts",
+      platform: "iOS",
+      source: `
+export interface Suggestion {
+  name: string;
+  prompt: string;
+}
+
+export function suggestFeatures(input: string): Suggestion[] {
+  return [{ name: "Release Preflight", prompt: input }];
+}
+`,
+    });
+
+    expect(report.status).toBe("needs_review");
+    expect(report.language).toBe("unknown");
+    expect(report.surface).toBe("typescript-implementation");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-NON-APPLE-ARTIFACT");
+    expect(report.diagnostics.map((d) => d.code)).not.toContain("AX001");
+    expect(report.repairPlan.map((step) => step.title)).toContain(
+      "Use the right proof surface"
+    );
+    expect(report.repairPrompt).toContain("TypeScript implementation");
+  });
+
+  it("still sends Axint TypeScript contracts through the compiler", () => {
+    const report = runCloudCheck({
+      fileName: "CreateEvent.intent.ts",
+      platform: "iOS",
+      source: `
+import { param } from "@axint/sdk";
+
+export const title = param.string("Title");
+`,
+    });
+
+    expect(report.language).toBe("typescript");
+    expect(report.surface).toBe("intent");
+    expect(report.diagnostics.map((d) => d.code)).toContain("AX001");
+  });
+
   it("classifies app freeze runtime evidence and likely main-thread blockers", () => {
     const report = runCloudCheck({
       fileName: "SwarmApp.swift",
