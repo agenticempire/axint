@@ -1995,22 +1995,28 @@ function looksLikeExistingProductRepair(
     "broken",
     "can't",
     "cannot",
+    "cleanup",
     "does not",
     "doesn't",
     "fails",
     "failing",
     "fix",
     "improve",
+    "no near-duplicate",
     "no longer",
     "polish",
     "premium",
     "not working",
+    "output quality",
     "regression",
     "repair",
+    "rescue pass",
     "restore",
+    "stronger",
     "stopped",
     "turning",
     "upgrade",
+    "weak",
     "won't",
   ].some((keyword) => hasKeyword(combined, keyword));
 
@@ -2032,9 +2038,13 @@ function looksLikeExistingProductRepair(
     "magic pass",
     "model routing",
     "nano banana",
+    "near-duplicate",
+    "output quality",
     "project room",
     "provider",
+    "provider output",
     "provider prompt",
+    "provider quality",
     "prompt builder",
     "prompt quality",
     "route",
@@ -2051,6 +2061,48 @@ function looksLikeExistingProductRepair(
     "zindex",
   ].some((keyword) => hasKeyword(combined, keyword));
 
+  const providerOutputCues = [
+    "background",
+    "cosmic",
+    "face",
+    "fantasy",
+    "fine-line",
+    "gemini",
+    "generated output",
+    "glow-up",
+    "glow up",
+    "identity",
+    "image generation",
+    "image provider",
+    "magic pass",
+    "nano banana",
+    "near-duplicate",
+    "output quality",
+    "provider",
+    "provider output",
+    "provider prompt",
+    "prompt contract",
+    "skin cleanup",
+    "under-eye",
+  ].filter((keyword) => hasKeyword(combined, keyword));
+
+  const providerQualityIntent =
+    providerOutputCues.length >= 2 &&
+    [
+      "contract",
+      "cleanup",
+      "friend testing",
+      "identity-safe",
+      "leaves unchanged",
+      "no near-duplicate",
+      "output quality",
+      "quality semantics",
+      "rescue pass",
+      "semantics",
+      "stronger",
+      "weak",
+    ].some((keyword) => hasKeyword(combined, keyword));
+
   if (
     /\b(create|generate|scaffold|build)\s+(?:a|an|new)\b/.test(combined) &&
     /\b(bug report|issue tracker|support ticket)\b/.test(combined)
@@ -2058,7 +2110,7 @@ function looksLikeExistingProductRepair(
     return false;
   }
 
-  return repairIntent && existingSurface;
+  return providerQualityIntent || (repairIntent && existingSurface);
 }
 
 function existingProductRepairSuggestions(
@@ -2212,7 +2264,7 @@ function repairNeedsInteractionMap(normalizedAppDescription: string): boolean {
 
 function repairProblemFocus(normalizedAppDescription: string): string {
   if (
-    /\b(provider|prompt builder|provider prompt|model routing|gemini|nano banana|image generation|identity|identity drift|face shape|head shape|hairline|beard|background|backdrop|glow-up|glow up)\b/.test(
+    /\b(provider|provider output|generated output|output quality|prompt builder|provider prompt|model routing|gemini|nano banana|image generation|identity|identity drift|identity-safe|face|face shape|head shape|hairline|beard|background|backdrop|fantasy|cosmic|skin cleanup|fine-line|under-eye|near-duplicate|10\/10|unchanged|glow-up|glow up)\b/.test(
       normalizedAppDescription
     )
   ) {
@@ -2255,7 +2307,7 @@ function repairProblemFocus(normalizedAppDescription: string): string {
 
 function repairScreenConcept(normalizedAppDescription: string): string {
   if (
-    /\b(cadabra|gemini|nano banana|image generation|image provider|magic pass)\b/.test(
+    /\b(cadabra|gemini|nano banana|image generation|image provider|provider output|output quality|magic pass)\b/.test(
       normalizedAppDescription
     )
   ) {
@@ -2288,7 +2340,7 @@ function repairPromptCues(normalizedAppDescription: string): string[] {
     [/\bdecisions?\b/, "Decisions"],
     [/\bproject context\b/, "project context"],
     [/\bdiscover\b/, "Discover"],
-    [/\blive\b|\bevents?\b/, "Live/Events"],
+    [/\blive\s+(?:activit(?:y|ies)|events?|feed|status)\b|\bevents?\b/, "Live/Events"],
     [/\bbuilders?\b/, "Builders"],
     [/\bmarketplace\b|\bmarket\b/, "Marketplace"],
     [/\btab(?:s)?\b|\btab routing\b/, "tab routing"],
@@ -2298,9 +2350,16 @@ function repairPromptCues(normalizedAppDescription: string): string[] {
     [/\bscroll\b|\btop\b/, "scroll-to-top behavior"],
     [/\bidentity\b|\bface shape\b|\bhead shape\b/, "identity preservation"],
     [/\bgemini\b|\bnano banana\b/, "image provider"],
-    [/\bprovider prompt\b|\bprompt builder\b/, "provider prompt"],
+    [
+      /\bprovider output\b|\boutput quality\b|\bgenerated output\b/,
+      "provider output quality",
+    ],
+    [/\bprovider prompt\b|\bprompt builder\b|\bprompt contract\b/, "provider prompt"],
     [/\bmodel routing\b|\bfast\/pro\/perfect\b/, "model routing"],
     [/\bmagic pass\b/, "Magic Pass"],
+    [/\bskin cleanup\b|\bfine-line\b|\bunder-eye\b/, "portrait cleanup"],
+    [/\bnear-duplicate\b|\bleaves unchanged\b|\bunchanged\b/, "near-duplicate avoidance"],
+    [/\bfantasy\b|\bcosmic\b|\bbackground\b/, "background preservation"],
   ];
 
   return unique(

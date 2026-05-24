@@ -107,6 +107,38 @@ describe("axint.suggest", () => {
     expect(suggestions[0]?.featurePrompt).not.toContain("sample <AppProcessName>");
   });
 
+  it("routes provider-output rescue passes into provider repair mode", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Rescue pass after live friend testing: stronger Gemini Nano Banana prompt contract, identity-safe skin cleanup, fine-line cleanup, under-eye cleanup, no near-duplicate output, history/share routing, share-card export typography, and provider-output quality semantics for Cadabra.",
+      platform: "iOS",
+      limit: 4,
+    });
+
+    expect(suggestions[0]?.domain).toBe("repair");
+    expect(suggestions[0]?.rationale).toContain("provider-behavior");
+    expect(suggestions[0]?.featurePrompt).toContain("provider behavior");
+    expect(suggestions[0]?.featurePrompt).toContain("provider prompt");
+    expect(suggestions[0]?.featurePrompt).toContain("provider output quality");
+    expect(suggestions[0]?.featurePrompt).not.toContain("Capture Rescue");
+    expect(suggestions.map((suggestion) => suggestion.domain)).not.toContain("custom");
+  });
+
+  it("keeps weak glow-up output repair out of new app-surface mode", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Cadabra 10/10 Glow-Up leaves the face mostly unchanged and sometimes turns the real background into fantasy or cosmic scenes. Fix the provider output quality semantics and provider prompt contract; do not create a new Siri command.",
+      platform: "iOS",
+      limit: 3,
+    });
+
+    expect(suggestions[0]?.domain).toBe("repair");
+    expect(suggestions[0]?.rationale).toContain("provider-behavior");
+    expect(suggestions[0]?.featurePrompt).toContain("background preservation");
+    expect(suggestions[0]?.featurePrompt).not.toContain("Siri");
+    expect(suggestions.map((suggestion) => suggestion.domain)).not.toContain("custom");
+  });
+
   it("routes TestFlight metadata failures into release preflight instead of new command surfaces", () => {
     const suggestions = suggestFeatures({
       appDescription:
