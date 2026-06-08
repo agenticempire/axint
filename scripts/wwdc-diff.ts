@@ -9,7 +9,7 @@
  *   4. Generates an adapter report with recommendations for Axint updates
  *   5. Optionally opens a GitHub issue / PR with the changes
  *
- * Goal: Ship a v0.3.x release within 72 hours of WWDC 2026 keynote
+ * Goal: Ship a v0.4.x release within 72 hours of WWDC 2026 keynote
  * with every new surface area adapted.
  *
  * Usage:
@@ -64,30 +64,87 @@ const REPORT_FILE = join(SNAPSHOT_DIR, "diff-report.json");
 /** Frameworks to scan for App Intents surface area */
 const TARGET_FRAMEWORKS = [
   "AppIntents",
+  "FoundationModels",
   "Intents",
   "IntentsUI",
   "SiriKit",
+  "SwiftUI",
+  "WidgetKit",
 ];
 
 /** Known App Intents protocols we track for new conformance requirements */
 const TRACKED_PROTOCOLS = [
+  "AssistantIntent",
+  "AssistantSchemaIntent",
   "AppIntent",
+  "AppShortcutsProvider",
   "AppEntity",
   "EntityQuery",
   "EntityStringQuery",
   "EntityPropertyQuery",
   "EnumerableEntityQuery",
   "DynamicOptionsProvider",
+  "IndexedEntity",
+  "IntentValueQuery",
   "IntentResult",
+  "SnippetIntent",
   "ReturnsValue",
   "ProvidesDialog",
+  "ShowsSnippetIntent",
   "ShowsSnippetView",
   "IntentParameter",
   "DisplayRepresentation",
   "TypeDisplayRepresentation",
-  "AppShortcutsProvider",
   "EntityIdentifierConvertible",
+  "SystemIntent",
+  "TargetContentProvidingIntent",
+  "Transferable",
+  "UniqueAppEntity",
+  "URLRepresentableIntent",
+  "WidgetConfigurationIntent",
+  "ControlConfigurationIntent",
+  "LiveActivityStartingIntent",
 ];
+
+/** WWDC26 watchlist: symbols that map directly to Axint compiler/validator work. */
+const TRACKED_SYMBOL_KEYWORDS = [
+  "appEntityIdentifier",
+  "AssistantSchema",
+  "FoundationModel",
+  "GenerationSchema",
+  "GuidedGeneration",
+  "ImageCreator",
+  "ImagePlayground",
+  "IntentDialog",
+  "IntentFile",
+  "IntentValueQuery",
+  "LanguageModelSession",
+  "NSUserActivity",
+  "PrivateCloudCompute",
+  "SnippetIntent",
+  "SystemLanguageModel",
+  "Tool",
+  "Transferable",
+  "UseModel",
+  "VisualIntelligence",
+  "contextSize",
+  "tokenCount",
+];
+
+function isTrackedProtocolName(name: string): boolean {
+  return TRACKED_PROTOCOLS.some((protocolName) => name.includes(protocolName));
+}
+
+function isWatchlistedSymbol(sym: HeaderSymbol): boolean {
+  const haystack = [
+    sym.name,
+    sym.parent ?? "",
+    sym.signature ?? "",
+    basename(sym.file),
+  ].join(" ");
+
+  return TRACKED_SYMBOL_KEYWORDS.some((keyword) => haystack.includes(keyword));
+}
 
 // ─── SDK Discovery ──────────────────────────────────────────────────
 
@@ -376,6 +433,17 @@ function generateRecommendations(diff: DiffResult): AdapterRecommendation[] {
   const recs: AdapterRecommendation[] = [];
 
   for (const sym of diff.added) {
+    const onWatchlist = isWatchlistedSymbol(sym);
+
+    if (onWatchlist) {
+      recs.push({
+        symbol: sym,
+        action: "update-generator",
+        description: `WWDC26 watchlist symbol ${sym.parent ? `${sym.parent}.` : ""}${sym.name} — evaluate compiler, validator, docs, and examples`,
+        priority: "high",
+      });
+    }
+
     // New protocols that extend the App Intents surface
     if (sym.kind === "protocol") {
       const isTracked = TRACKED_PROTOCOLS.some(
@@ -391,12 +459,18 @@ function generateRecommendations(diff: DiffResult): AdapterRecommendation[] {
 
     // New struct types that could be parameter types
     if (sym.kind === "struct" && sym.parent === undefined) {
-      if (sym.name.includes("Parameter") || sym.name.includes("Entity") || sym.name.includes("Intent")) {
+      if (
+        sym.name.includes("Parameter") ||
+        sym.name.includes("Entity") ||
+        sym.name.includes("Intent") ||
+        sym.name.includes("Model") ||
+        sym.name.includes("Tool")
+      ) {
         recs.push({
           symbol: sym,
           action: "add-type",
-          description: `New type ${sym.name} — may need IR and Swift type mapping`,
-          priority: "high",
+          description: `New type ${sym.name} — may need IR, Swift type mapping, validator support, or docs examples`,
+          priority: onWatchlist ? "critical" : "high",
         });
       }
     }
@@ -412,19 +486,23 @@ function generateRecommendations(diff: DiffResult): AdapterRecommendation[] {
     }
 
     // New properties on tracked types
-    if (sym.kind === "property" && sym.parent && TRACKED_PROTOCOLS.includes(sym.parent)) {
+    if (
+      sym.kind === "property" &&
+      sym.parent &&
+      (isTrackedProtocolName(sym.parent) || onWatchlist)
+    ) {
       recs.push({
         symbol: sym,
         action: "update-generator",
         description: `New property ${sym.parent}.${sym.name} — update generated code`,
-        priority: "critical",
+        priority: onWatchlist ? "critical" : "high",
       });
     }
   }
 
   // Removed symbols might require deprecation handling
   for (const sym of diff.removed) {
-    if (TRACKED_PROTOCOLS.includes(sym.name)) {
+    if (isTrackedProtocolName(sym.name) || isWatchlistedSymbol(sym)) {
       recs.push({
         symbol: sym,
         action: "update-generator",
