@@ -829,6 +829,97 @@ export default defineIntent({
 `,
 };
 
+const foundationModelSession: IntentTemplate = {
+  id: "foundation-model-session",
+  name: "foundation-model-session",
+  title: "Foundation Model Session",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold an App Intent that hands work to Apple's Foundation Models framework.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "SummarizeWithModel",
+  title: "Summarize With Model",
+  description: "Summarizes text with an Apple Foundation Models session.",
+  schemaDomain: "assistant",
+  params: {
+    sourceText: param.string("Text to summarize"),
+    audience: param.string("Who the summary is for", { required: false }),
+  },
+  perform: async ({ sourceText }) => {
+    // Swift implementation hint:
+    // import FoundationModels
+    // let session = LanguageModelSession()
+    // let response = try await session.respond(to: Prompt("Summarize: ..."))
+    return { summary: "Replace with Foundation Models output" };
+  },
+});
+`,
+};
+
+const foundationModelTool: IntentTemplate = {
+  id: "foundation-model-tool",
+  name: "foundation-model-tool",
+  title: "Foundation Model Tool",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold a model-backed App Intent with a place to wire a FoundationModels Tool.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "PlanWithTool",
+  title: "Plan With Tool",
+  description: "Uses a model tool to produce a structured app-side plan.",
+  schemaDomain: "assistant",
+  params: {
+    request: param.string("User request"),
+    context: param.string("Relevant app context", { required: false }),
+  },
+  perform: async ({ request }) => {
+    // Swift implementation hint:
+    // import FoundationModels
+    // Define a Tool that reads app data or performs safe side effects,
+    // then pass it into LanguageModelSession for tool-calling.
+    return { plan: "Replace with Foundation Models tool output" };
+  },
+});
+`,
+};
+
+const privateCloudModelIntent: IntentTemplate = {
+  id: "private-cloud-model-intent",
+  name: "private-cloud-model-intent",
+  title: "Private Cloud Model Intent",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold an intent that can move from on-device models to Private Cloud Compute.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "ReasonWithPrivateCloud",
+  title: "Reason With Private Cloud",
+  description: "Runs a higher-context model workflow for app-specific reasoning.",
+  schemaDomain: "assistant",
+  supportedModes: "[.foreground, .background]",
+  params: {
+    task: param.string("Reasoning task"),
+    constraints: param.string("Constraints to respect", { required: false }),
+  },
+  perform: async ({ task }) => {
+    // Swift implementation hint:
+    // import FoundationModels
+    // Use SystemLanguageModel first, then adopt PrivateCloudComputeLanguageModel
+    // when the task needs larger context or deeper reasoning.
+    return { result: "Replace with Private Cloud Compute model output" };
+  },
+});
+`,
+};
+
 // ─── Registry ────────────────────────────────────────────────────────
 
 export const TEMPLATES: IntentTemplate[] = [
@@ -858,6 +949,9 @@ export const TEMPLATES: IntentTemplate[] = [
   addToCart,
   bookAppointment,
   runShortcut,
+  foundationModelSession,
+  foundationModelTool,
+  privateCloudModelIntent,
 ];
 
 /** @deprecated Use TEMPLATES. Kept for v0.1.x import compatibility. */

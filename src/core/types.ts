@@ -52,6 +52,39 @@ export interface DisplayRepresentation {
   image?: string;
 }
 
+export type IRAppSchemaDomain =
+  | "assistant"
+  | "audio"
+  | "books"
+  | "browser"
+  | "calendar"
+  | "camera"
+  | "clock"
+  | "files"
+  | "journaling"
+  | "mail"
+  | "maps"
+  | "messages"
+  | "notes"
+  | "phone"
+  | "photos"
+  | "presentation"
+  | "reader"
+  | "reminders"
+  | "spreadsheet"
+  | "system-search"
+  | "visual-intelligence"
+  | "whiteboard"
+  | "word-processor";
+
+export type IRIntentConformance =
+  | "LongRunningIntent"
+  | "CancellableIntent"
+  | "UndoableIntent"
+  | "RunSystemShortcutIntent";
+
+export type IREntityOwnership = "unknown" | "shared" | "public";
+
 /**
  * An App Entity definition for complex, domain-specific data types.
  * Entities can be queried and used as parameter types in intents.
@@ -61,6 +94,20 @@ export interface IREntity {
   displayRepresentation: DisplayRepresentation;
   properties: IRParameter[];
   queryType: "all" | "id" | "string" | "property";
+  /** Swift expression for Apple's `@AppEntity(schema:)` macro. */
+  schema?: string;
+  /** Apple app schema domain bucket this entity belongs to. */
+  schemaDomain?: IRAppSchemaDomain;
+  /** Adopt `SyncableEntity` for stable cross-device identifiers. */
+  syncable?: boolean;
+  /** Adopt `IndexedEntity` so Spotlight can include this entity. */
+  indexed?: boolean;
+  /** Adopt `OwnershipProvidingEntity` with the selected ownership scope. */
+  ownership?: IREntityOwnership;
+  /** Swift expression inserted into `transferRepresentation`. */
+  intentValueRepresentation?: string;
+  /** Make the generated query adopt `IndexedEntityQuery`. */
+  indexedQuery?: boolean;
 }
 
 export type IRParameterSummary =
@@ -151,6 +198,10 @@ export interface IRIntent {
   title: string;
   description: string;
   domain?: string;
+  /** Apple app schema domain bucket, e.g. `mail`, `messages`, or `calendar`. */
+  schemaDomain?: IRAppSchemaDomain;
+  /** Swift expression for Apple's `@AppIntent(schema:)` macro. */
+  schema?: string;
   category?: string;
   parameters: IRParameter[];
   returnType: IRType;
@@ -169,6 +220,12 @@ export interface IRIntent {
   donateOnPerform?: boolean;
   /** Custom result type (SwiftUI view or custom struct) to return */
   customResultType?: string;
+  /** Extra App Intents protocols introduced for Apple Intelligence workflows. */
+  conformsTo?: IRIntentConformance[];
+  /** Swift expression for `supportedModes`, e.g. `.foreground` or `[.foreground, .background]`. */
+  supportedModes?: string;
+  /** Swift expression for `allowedExecutionTargets`, e.g. `.main`. */
+  allowedExecutionTargets?: string;
 }
 
 // ─── Widget IR Types ────────────────────────────────────────────────────────
@@ -335,6 +392,10 @@ export interface IRAppEnum {
   name: string;
   /** Display title shown in Shortcuts (defaults to name when omitted). */
   title: string;
+  /** Apple app schema domain bucket this enum belongs to. */
+  schemaDomain?: IRAppSchemaDomain;
+  /** Swift expression for Apple's `@AppEnum(schema:)` macro. */
+  schema?: string;
   cases: IRAppEnumCase[];
   sourceFile: string;
 }

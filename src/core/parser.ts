@@ -21,6 +21,9 @@ import type {
   IREntity,
   DisplayRepresentation,
   IRParameterSummary,
+  IRAppSchemaDomain,
+  IRIntentConformance,
+  IREntityOwnership,
 } from "./types.js";
 import { PARAM_TYPES, LEGACY_PARAM_ALIASES, isPrimitiveType } from "./types.js";
 import {
@@ -96,6 +99,8 @@ export function parseIntentSource(
   const title = readStringLiteral(props.get("title"));
   const description = readStringLiteral(props.get("description"));
   const domain = readStringLiteral(props.get("domain"));
+  const schemaDomain = readStringLiteral(props.get("schemaDomain"));
+  const schema = readStringLiteral(props.get("schema"));
   const category = readStringLiteral(props.get("category"));
   const isDiscoverable = readBooleanLiteral(props.get("isDiscoverable"));
   const parameterSummary = props.get("parameterSummary")
@@ -164,11 +169,17 @@ export function parseIntentSource(
   const customResultTypeNode = props.get("customResultType");
   const customResultType = readStringLiteral(customResultTypeNode);
 
+  const conformsTo = readStringArray(props.get("conformsTo"));
+  const supportedModes = readStringLiteral(props.get("supportedModes"));
+  const allowedExecutionTargets = readStringLiteral(props.get("allowedExecutionTargets"));
+
   return {
     name,
     title,
     description,
     domain: domain || undefined,
+    schemaDomain: (schemaDomain as IRAppSchemaDomain | null) || undefined,
+    schema: schema || undefined,
     category: category || undefined,
     parameters,
     returnType,
@@ -180,6 +191,9 @@ export function parseIntentSource(
     entities: entities.length > 0 ? entities : undefined,
     donateOnPerform: donateOnPerform ?? undefined,
     customResultType: customResultType ?? undefined,
+    conformsTo: conformsTo.length > 0 ? (conformsTo as IRIntentConformance[]) : undefined,
+    supportedModes: supportedModes || undefined,
+    allowedExecutionTargets: allowedExecutionTargets || undefined,
   };
 }
 
@@ -280,12 +294,28 @@ function parseEntityDefinition(
   const queryTypeNode = props.get("query");
   const queryTypeStr = readStringLiteral(queryTypeNode);
   const queryType = validateQueryType(queryTypeStr, filePath, sourceFile, queryTypeNode);
+  const schema = readStringLiteral(props.get("schema"));
+  const schemaDomain = readStringLiteral(props.get("schemaDomain"));
+  const syncable = readBooleanLiteral(props.get("syncable"));
+  const indexed = readBooleanLiteral(props.get("indexed"));
+  const indexedQuery = readBooleanLiteral(props.get("indexedQuery"));
+  const ownership = readStringLiteral(props.get("ownership"));
+  const intentValueRepresentation = readStringLiteral(
+    props.get("intentValueRepresentation")
+  );
 
   return {
     name,
     displayRepresentation,
     properties,
     queryType,
+    schema: schema || undefined,
+    schemaDomain: (schemaDomain as IRAppSchemaDomain | null) || undefined,
+    syncable: syncable ?? undefined,
+    indexed: indexed ?? undefined,
+    indexedQuery: indexedQuery ?? undefined,
+    ownership: (ownership as IREntityOwnership | null) || undefined,
+    intentValueRepresentation: intentValueRepresentation || undefined,
   };
 }
 

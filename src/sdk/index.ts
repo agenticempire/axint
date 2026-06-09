@@ -36,6 +36,42 @@
 
 // ─── Shared Config ───────────────────────────────────────────────────
 
+export const appSchemaDomains = {
+  assistant: "assistant",
+  audio: "audio",
+  books: "books",
+  browser: "browser",
+  calendar: "calendar",
+  camera: "camera",
+  clock: "clock",
+  files: "files",
+  journaling: "journaling",
+  mail: "mail",
+  maps: "maps",
+  messages: "messages",
+  notes: "notes",
+  phone: "phone",
+  photos: "photos",
+  presentation: "presentation",
+  reader: "reader",
+  reminders: "reminders",
+  spreadsheet: "spreadsheet",
+  systemSearch: "system-search",
+  visualIntelligence: "visual-intelligence",
+  whiteboard: "whiteboard",
+  wordProcessor: "word-processor",
+} as const;
+
+export type AppSchemaDomain = (typeof appSchemaDomains)[keyof typeof appSchemaDomains];
+
+export type AppIntentConformance =
+  | "LongRunningIntent"
+  | "CancellableIntent"
+  | "UndoableIntent"
+  | "RunSystemShortcutIntent";
+
+export type EntityOwnership = "unknown" | "shared" | "public";
+
 /** Configuration for a single parameter. */
 export interface ParamConfig {
   /** Display name for this parameter (auto-generated from field name if omitted). */
@@ -170,6 +206,16 @@ export interface IntentDefinition<
    * "social", "commerce", "media", "navigation", "smart-home"
    */
   domain?: string;
+  /**
+   * Apple app schema domain bucket from WWDC26, such as "mail",
+   * "messages", "calendar", "reminders", or "visual-intelligence".
+   */
+  schemaDomain?: AppSchemaDomain;
+  /**
+   * Swift expression emitted in `@AppIntent(schema: ...)`.
+   * Example: `".mail.createDraft"` or `"AppSchema.MailIntent.createDraft"`.
+   */
+  schema?: string;
   /** Siri/Shortcuts category for discoverability. */
   category?: string;
   /**
@@ -203,6 +249,12 @@ export interface IntentDefinition<
   perform: (params: {
     [K in keyof TParams]: unknown;
   }) => Promise<unknown>;
+  /** Additional App Intents protocols for WWDC26 workflows. */
+  conformsTo?: AppIntentConformance[];
+  /** Swift expression emitted as `static var supportedModes`. */
+  supportedModes?: string;
+  /** Swift expression emitted as `static var allowedExecutionTargets`. */
+  allowedExecutionTargets?: string;
 }
 
 /**
@@ -449,6 +501,13 @@ export interface EntityDisplay {
 export interface EntityDefinition {
   /** PascalCase name for the generated Swift struct. */
   name: string;
+  /**
+   * Swift expression emitted in `@AppEntity(schema: ...)`.
+   * Example: `".messages.message"` or `"AppSchema.MessagesEntity.message"`.
+   */
+  schema?: string;
+  /** Apple app schema domain bucket this entity belongs to. */
+  schemaDomain?: AppSchemaDomain;
   /** How the entity is displayed in Siri/Shortcuts. */
   display: EntityDisplay;
   /** Entity properties using `param.*` helpers. */
@@ -461,6 +520,16 @@ export interface EntityDefinition {
    * - "property" for EntityPropertyQuery
    */
   query?: "all" | "id" | "string" | "property";
+  /** Adopt `SyncableEntity` for stable cross-device identifiers. */
+  syncable?: boolean;
+  /** Adopt `IndexedEntity` so Spotlight can include this entity. */
+  indexed?: boolean;
+  /** Make the generated query adopt `IndexedEntityQuery`. */
+  indexedQuery?: boolean;
+  /** Adopt `OwnershipProvidingEntity` and emit `var ownership`. */
+  ownership?: EntityOwnership;
+  /** Swift expression inserted into `transferRepresentation`. */
+  intentValueRepresentation?: string;
 }
 
 /**
@@ -799,6 +868,13 @@ export interface AppEnumCaseConfig {
 export interface AppEnumDefinition {
   /** PascalCase type name — becomes the Swift enum identifier. */
   name: string;
+  /**
+   * Swift expression emitted in `@AppEnum(schema: ...)`.
+   * Example: `".messages.messageEffect"` or `"AppSchema.MessagesEnum.messageEffect"`.
+   */
+  schema?: string;
+  /** Apple app schema domain bucket this enum belongs to. */
+  schemaDomain?: AppSchemaDomain;
   /** Type display representation shown in Shortcuts (falls back to name). */
   title?: string;
   /** The ordered list of cases. */

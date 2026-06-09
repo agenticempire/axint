@@ -15,6 +15,32 @@
 
 import type { Diagnostic, IRAppEnum } from "./types.js";
 
+const APP_SCHEMA_DOMAINS = new Set([
+  "assistant",
+  "audio",
+  "books",
+  "browser",
+  "calendar",
+  "camera",
+  "clock",
+  "files",
+  "journaling",
+  "mail",
+  "maps",
+  "messages",
+  "notes",
+  "phone",
+  "photos",
+  "presentation",
+  "reader",
+  "reminders",
+  "spreadsheet",
+  "system-search",
+  "visual-intelligence",
+  "whiteboard",
+  "word-processor",
+]);
+
 export function validateAppEnum(appEnum: IRAppEnum): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
@@ -36,6 +62,27 @@ export function validateAppEnum(appEnum: IRAppEnum): Diagnostic[] {
       file: appEnum.sourceFile,
     });
     return diagnostics;
+  }
+
+  if (appEnum.schemaDomain && !APP_SCHEMA_DOMAINS.has(appEnum.schemaDomain)) {
+    diagnostics.push({
+      code: "AX797",
+      severity: "error",
+      message: `Unknown Apple app schema domain "${appEnum.schemaDomain}"`,
+      file: appEnum.sourceFile,
+      suggestion: `Use one of: ${[...APP_SCHEMA_DOMAINS].join(", ")}`,
+    });
+  }
+
+  if (appEnum.schema && !isSafeSwiftExpression(appEnum.schema)) {
+    diagnostics.push({
+      code: "AX798",
+      severity: "error",
+      message: `App Enum schema expression "${appEnum.schema}" is not safe to emit`,
+      file: appEnum.sourceFile,
+      suggestion:
+        'Use a simple Swift schema reference, e.g. ".messages.messageEffect" or "AppSchema.MessagesEnum.messageEffect".',
+    });
   }
 
   const seen = new Set<string>();
@@ -97,6 +144,10 @@ function isPascalCase(name: string): boolean {
 
 function isSwiftIdentifier(name: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !SWIFT_KEYWORDS.has(name);
+}
+
+function isSafeSwiftExpression(expression: string): boolean {
+  return /^\.?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(expression);
 }
 
 const SWIFT_KEYWORDS: ReadonlySet<string> = new Set([

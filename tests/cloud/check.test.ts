@@ -87,6 +87,63 @@ export default defineIntent({
     expect(report.swiftCode).toContain("struct SendMessageIntent");
   });
 
+  it("flags WWDC26 schema-backed entities that miss continuity and ownership proof", () => {
+    const report = runCloudCheck({
+      fileName: "SendMessageIntent.swift",
+      source: `
+import AppIntents
+
+@AppEntity(schema: AppSchema.MessagesEntity.message)
+struct Message: AppEntity, IndexedEntity {
+    static var defaultQuery = MessageQuery()
+    var id: String
+    var name: String
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Message"
+    var displayRepresentation: DisplayRepresentation { "\\(name)" }
+}
+
+struct MessageQuery: EntityQuery {
+    func entities(for identifiers: [Message.ID]) async throws -> [Message] { [] }
+}
+
+@AppIntent(schema: AppSchema.MessagesIntent.sendMessage)
+struct SendMessageIntent: AppIntent {
+    static var title: LocalizedStringResource = "Send Message"
+    static var description: IntentDescription = "Send a message"
+    func perform() async throws -> some IntentResult { .result() }
+}
+`,
+    });
+
+    const codes = report.diagnostics.map((d) => d.code);
+    expect(codes).toContain("AXCLOUD-WWDC26-SYNCABLE-ENTITY");
+    expect(codes).toContain("AXCLOUD-WWDC26-OWNERSHIP-GUARD");
+    expect(codes).toContain("AXCLOUD-WWDC26-INDEXED-QUERY");
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks Foundation Models code for model-version proof", () => {
+    const report = runCloudCheck({
+      fileName: "ModelSummary.swift",
+      source: `
+import AppIntents
+import FoundationModels
+
+struct SummarizeIntent: AppIntent {
+    static var title: LocalizedStringResource = "Summarize"
+    func perform() async throws -> some IntentResult {
+        let session = LanguageModelSession()
+        _ = session
+        return .result()
+    }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-WWDC26-MODEL-PROOF");
+    expect(report.status).toBe("needs_review");
+  });
+
   it("separates compiler, MCP, cloud ruleset, and expected project versions", () => {
     const report = runCloudCheck({
       fileName: "ContentView.swift",
