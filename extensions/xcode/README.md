@@ -1,6 +1,6 @@
 # Axint for Xcode
 
-Axint integrates with Xcode in four ways: as an MCP server for agentic coding, as an SPM build plugin for compile-time generation, as a [native Source Editor Extension](./source-editor-extension) for in-editor quickfixes, and via the `axint xcode setup` command for one-step configuration.
+Axint integrates with Xcode in five ways: as an Xcode 27 agent plugin, as an MCP server for agentic coding, as an SPM build plugin for compile-time generation, as a [native Source Editor Extension](./source-editor-extension) for in-editor quickfixes, and via the `axint xcode setup` command for one-step configuration.
 
 ## Quick Setup (recommended)
 
@@ -26,6 +26,26 @@ What MCP servers are available?
 ```
 
 You should see both `xcode-tools` and `axint`.
+
+## Xcode 27 Agent Plugin
+
+Xcode 27 can load agent plugins that bundle skills, MCP servers, and tool metadata. Axint ships a public plugin package at [`agent-plugin/plugin.json`](./agent-plugin/plugin.json) so Xcode agents can discover the Axint MCP server with branded tool names and an Apple Intelligence proof skill.
+
+The plugin points Xcode at the npm package:
+
+```json
+{
+  "mcpServers": {
+    "axint": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "-p", "@axint/compiler", "axint-mcp"]
+    }
+  }
+}
+```
+
+Use the bundled `apple-intelligence-proof` skill when building App Intents schemas, Foundation Models features, previews, localization flows, or any Xcode 27 Apple Intelligence surface. It requires `axint.swift.validate`, `axint.cloud.check`, AppIntentsTesting proof for schema-backed App Intents, and focused Xcode build/test evidence before the agent can call a feature demo-ready.
 
 ## MCP for Xcode Agentic Coding
 

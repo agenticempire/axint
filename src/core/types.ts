@@ -96,6 +96,48 @@ export type IRIntentConformance =
 
 export type IREntityOwnership = "unknown" | "shared" | "public";
 
+export type IRFoundationModelProvider =
+  | "apple-on-device"
+  | "private-cloud-compute"
+  | "custom-language-model";
+
+export interface IRFoundationModelGenerable {
+  name: string;
+  fields: Record<string, string>;
+}
+
+export interface IRFoundationModelTool {
+  name: string;
+  description: string;
+  argumentsType?: string;
+  outputType?: string;
+}
+
+export interface IRFoundationModelConfig {
+  sessionName?: string;
+  provider: IRFoundationModelProvider;
+  useCase?: string;
+  instructions?: string;
+  prompt?: string;
+  dynamicProfile?: string;
+  guardrails?: string[];
+  generable?: IRFoundationModelGenerable;
+  tools?: IRFoundationModelTool[];
+}
+
+export interface IREvaluationConfig {
+  suite: string;
+  scenarios: string[];
+  criteria: string[];
+}
+
+export interface IRPreviewProofConfig {
+  view: string;
+  variants: string[];
+  widgetTimeline?: boolean;
+  liveActivityStates?: string[];
+}
+
 /**
  * An App Entity definition for complex, domain-specific data types.
  * Entities can be queried and used as parameter types in intents.
@@ -237,6 +279,12 @@ export interface IRIntent {
   supportedModes?: string;
   /** Swift expression for `allowedExecutionTargets`, e.g. `.main`. */
   allowedExecutionTargets?: string;
+  /** Foundation Models generation contract for Apple Intelligence intents. */
+  model?: IRFoundationModelConfig;
+  /** Evaluation suite metadata that should accompany model-backed output. */
+  evaluation?: IREvaluationConfig;
+  /** Preview snapshot matrix required to prove generated UI variants. */
+  previewProof?: IRPreviewProofConfig;
 }
 
 // ─── Widget IR Types ────────────────────────────────────────────────────────

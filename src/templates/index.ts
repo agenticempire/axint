@@ -1086,6 +1086,174 @@ export default defineIntent({
 `,
 };
 
+const appIntentsTestingHarness: IntentTemplate = {
+  id: "appintents-testing-harness",
+  name: "appintents-testing-harness",
+  title: "AppIntentsTesting Harness",
+  domain: "apple-intelligence",
+  category: "testing",
+  description:
+    "Scaffold a schema-backed intent with an evaluation contract for Siri, Shortcuts, and Spotlight proof.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "VerifyReminderIntentPath",
+  title: "Verify Reminder Intent Path",
+  description: "Exercises a schema-backed App Intent through user-facing system paths.",
+  schemaDomain: "reminders",
+  schema: "AppSchema.RemindersIntent.createReminder",
+  params: {
+    title: param.string("Reminder title"),
+    dueDate: param.date("Due date", { required: false }),
+  },
+  evaluation: {
+    suite: "ReminderIntentPathEvaluations",
+    scenarios: ["siri-request", "shortcuts-run", "spotlight-suggestion"],
+    criteria: ["intent resolves", "parameters bind", "result is visible"],
+  },
+  perform: async ({ title }) => {
+    // Swift proof hint:
+    // Add AppIntentsTesting coverage for Siri, Shortcuts, and Spotlight before release.
+    return { title };
+  },
+});
+`,
+};
+
+const visualIntelligenceRouter: IntentTemplate = {
+  id: "visual-intelligence-router",
+  name: "visual-intelligence-router",
+  title: "Visual Intelligence Router",
+  domain: "apple-intelligence",
+  category: "visual-intelligence",
+  description:
+    "Scaffold an intent that maps a visual result into app search or object-specific actions.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "RouteVisualResult",
+  title: "Route Visual Result",
+  description: "Routes a Visual Intelligence result into the right app workflow.",
+  schemaDomain: "visual-intelligence",
+  params: {
+    objectLabel: param.string("Detected object label"),
+    sourceContext: param.string("Screenshot, camera, or scene context", {
+      required: false,
+    }),
+  },
+  previewProof: {
+    view: "VisualResultRouteView",
+    variants: ["light", "dark", "landscape"],
+  },
+  perform: async ({ objectLabel }) => {
+    // Swift proof hint:
+    // Attach screenshot fixtures and Xcode 27 evidence that detected objects map correctly.
+    return { routedObject: objectLabel };
+  },
+});
+`,
+};
+
+const imagePlaygroundIntent: IntentTemplate = {
+  id: "image-playground-intent",
+  name: "image-playground-intent",
+  title: "Image Playground Intent",
+  domain: "apple-intelligence",
+  category: "image-playground",
+  description:
+    "Scaffold an intent for generating an image artifact with style, safety, and proof metadata.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "GenerateCampaignImage",
+  title: "Generate Campaign Image",
+  description: "Creates a generated image with an Image Playground handoff.",
+  schemaDomain: "assistant",
+  params: {
+    prompt: param.string("Image prompt"),
+    style: param.string("Requested visual style", { required: false }),
+    audience: param.string("Audience or campaign context", { required: false }),
+  },
+  evaluation: {
+    suite: "CampaignImageEvaluations",
+    scenarios: ["safe-prompt", "style-match", "empty-context"],
+    criteria: ["artifact returned", "style respected", "safety constraints held"],
+  },
+  perform: async ({ prompt }) => {
+    // Swift proof hint:
+    // Attach generated-image evidence before calling this demo-ready.
+    return { prompt, artifact: "Replace with generated image handle" };
+  },
+});
+`,
+};
+
+const stringCatalogLocalizer: IntentTemplate = {
+  id: "string-catalog-localizer",
+  name: "string-catalog-localizer",
+  title: "String Catalog Localizer",
+  domain: "productivity",
+  category: "localization",
+  description:
+    "Scaffold a workflow for generating and proving String Catalog localization updates.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "LocalizeStringCatalog",
+  title: "Localize String Catalog",
+  description: "Updates Localizable.xcstrings with reviewed generated translations.",
+  domain: "localization",
+  conformsTo: ["LongRunningIntent", "ProgressReportingIntent"],
+  supportedModes: "[.foreground, .background]",
+  params: {
+    catalogPath: param.string("Path to Localizable.xcstrings"),
+    locale: param.string("Target locale identifier"),
+    reviewMode: param.string("Review mode, such as draft or approved", {
+      default: "draft",
+    }),
+  },
+  perform: async ({ catalogPath, locale }) => {
+    // Swift proof hint:
+    // Attach the updated .xcstrings artifact and locale coverage evidence.
+    return { catalogPath, locale };
+  },
+});
+`,
+};
+
+const resizableLayoutProof: IntentTemplate = {
+  id: "resizable-layout-proof",
+  name: "resizable-layout-proof",
+  title: "Resizable Layout Proof",
+  domain: "developer-tools",
+  category: "preview-proof",
+  description:
+    "Scaffold a proof intent that tracks adaptive SwiftUI layout snapshots across iOS sizes.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "VerifyResizableLayout",
+  title: "Verify Resizable Layout",
+  description: "Records Preview Snapshot proof for adaptive iOS SwiftUI layouts.",
+  domain: "developer-tools",
+  params: {
+    viewName: param.string("SwiftUI view name"),
+    targetSize: param.string("Target size class or preview variant"),
+    dynamicType: param.string("Dynamic Type size", { required: false }),
+  },
+  previewProof: {
+    view: "ResizableLayoutPreview",
+    variants: ["compact", "regular", "landscape", "accessibilityExtraLarge"],
+  },
+  perform: async ({ viewName, targetSize }) => {
+    // Swift proof hint:
+    // Attach Preview Snapshot baselines instead of relying on fixed device-sized frames.
+    return { viewName, targetSize };
+  },
+});
+`,
+};
+
 // ─── Registry ────────────────────────────────────────────────────────
 
 export const TEMPLATES: IntentTemplate[] = [
@@ -1123,6 +1291,11 @@ export const TEMPLATES: IntentTemplate[] = [
   systemShortcutBridge,
   entityCollectionSearch,
   unionValueRouter,
+  appIntentsTestingHarness,
+  visualIntelligenceRouter,
+  imagePlaygroundIntent,
+  stringCatalogLocalizer,
+  resizableLayoutProof,
 ];
 
 /** @deprecated Use TEMPLATES. Kept for v0.1.x import compatibility. */

@@ -248,4 +248,75 @@ export default defineIntent({
     expect(result.output?.swiftCode).toContain("var messages: [Message]");
     expect(result.output?.swiftCode).toContain("var tags: [String]?");
   });
+
+  it("emits Foundation Models, Evaluations, and preview proof support", () => {
+    const source = `
+import { defineIntent, param } from "@axint/sdk";
+
+export default defineIntent({
+  name: "SummarizeWithModel",
+  title: "Summarize With Model",
+  description: "Summarizes selected text with Apple Intelligence proof.",
+  schemaDomain: "assistant",
+  schema: "AppSchema.AssistantIntent.summarize",
+  params: {
+    sourceText: param.string("Text to summarize"),
+  },
+  model: {
+    sessionName: "MessageSummarySession",
+    provider: "apple-on-device",
+    useCase: "summarization",
+    instructions: "Summarize the input for a busy reader.",
+    prompt: "Summarize the selected text.",
+    dynamicProfile: "MessageSummaryProfile",
+    guardrails: ["sensitive-content", "locale-aware"],
+    generable: {
+      name: "MessageSummary",
+      fields: {
+        summary: "String",
+        actionItems: "[String]",
+      },
+    },
+    tools: [
+      {
+        name: "MessageSearchTool",
+        description: "Searches local messages for cited context.",
+        argumentsType: "MessageSearchArguments",
+        outputType: "[Message]",
+      },
+    ],
+  },
+  evaluation: {
+    suite: "MessageSummaryEvaluations",
+    scenarios: ["short-thread", "long-thread"],
+    criteria: ["preserves sender intent", "returns action items"],
+  },
+  previewProof: {
+    view: "MessageSummaryView",
+    variants: ["light", "dark", "landscape", "accessibilityExtraLarge"],
+    widgetTimeline: true,
+    liveActivityStates: ["queued", "complete"],
+  },
+  perform: async ({ sourceText }) => {
+    return { summary: sourceText };
+  },
+});
+`;
+    const result = compileSource(source, "model-proof.ts");
+
+    expect(result.success).toBe(true);
+    expect(result.output?.ir.model?.provider).toBe("apple-on-device");
+    expect(result.output?.ir.evaluation?.suite).toBe("MessageSummaryEvaluations");
+    expect(result.output?.ir.previewProof?.view).toBe("MessageSummaryView");
+    expect(result.output?.swiftCode).toContain("import FoundationModels");
+    expect(result.output?.swiftCode).toContain("@Generable");
+    expect(result.output?.swiftCode).toContain("struct MessageSummary: Generable");
+    expect(result.output?.swiftCode).toContain("struct MessageSearchTool: Tool");
+    expect(result.output?.swiftCode).toContain("enum MessageSummarySessionFactory");
+    expect(result.output?.swiftCode).toContain("LanguageModelSession");
+    expect(result.output?.swiftCode).toContain("Dynamic Profile: MessageSummaryProfile");
+    expect(result.output?.swiftCode).toContain("enum MessageSummaryEvaluations");
+    expect(result.output?.swiftCode).toContain("AppIntentsTesting");
+    expect(result.output?.swiftCode).toContain("Preview Snapshot proof matrix");
+  });
 });

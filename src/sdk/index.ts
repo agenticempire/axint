@@ -83,6 +83,48 @@ export type AppIntentConformance =
 
 export type EntityOwnership = "unknown" | "shared" | "public";
 
+export type FoundationModelProvider =
+  | "apple-on-device"
+  | "private-cloud-compute"
+  | "custom-language-model";
+
+export interface FoundationModelGenerableDefinition {
+  name: string;
+  fields: Record<string, string>;
+}
+
+export interface FoundationModelToolDefinition {
+  name: string;
+  description: string;
+  argumentsType?: string;
+  outputType?: string;
+}
+
+export interface FoundationModelDefinition {
+  sessionName?: string;
+  provider: FoundationModelProvider;
+  useCase?: string;
+  instructions?: string;
+  prompt?: string;
+  dynamicProfile?: string;
+  guardrails?: string[];
+  generable?: FoundationModelGenerableDefinition;
+  tools?: FoundationModelToolDefinition[];
+}
+
+export interface EvaluationDefinition {
+  suite: string;
+  scenarios: string[];
+  criteria: string[];
+}
+
+export interface PreviewProofDefinition {
+  view: string;
+  variants: string[];
+  widgetTimeline?: boolean;
+  liveActivityStates?: string[];
+}
+
 /** Configuration for a single parameter. */
 export interface ParamConfig {
   /** Display name for this parameter (auto-generated from field name if omitted). */
@@ -297,6 +339,12 @@ export interface IntentDefinition<
   supportedModes?: string;
   /** Swift expression emitted as `static var allowedExecutionTargets`. */
   allowedExecutionTargets?: string;
+  /** Foundation Models session/tool/guided-generation contract. */
+  model?: FoundationModelDefinition;
+  /** Evaluation suite that proves model behavior across scenarios. */
+  evaluation?: EvaluationDefinition;
+  /** Preview Snapshot proof matrix for generated UI variants. */
+  previewProof?: PreviewProofDefinition;
 }
 
 /**

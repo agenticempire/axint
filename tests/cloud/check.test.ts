@@ -122,6 +122,60 @@ struct SendMessageIntent: AppIntent {
     expect(report.status).toBe("needs_review");
   });
 
+  it("asks schema-backed App Intents for Xcode 27 and AppIntentsTesting proof", () => {
+    const report = runCloudCheck({
+      fileName: "CreateReminderIntent.swift",
+      source: `
+import AppIntents
+
+@AppIntent(schema: AppSchema.RemindersIntent.createReminder)
+struct CreateReminderIntent: AppIntent {
+    static var title: LocalizedStringResource = "Create Reminder"
+    static var description: IntentDescription = "Create a reminder"
+    func perform() async throws -> some IntentResult { .result() }
+}
+`,
+    });
+
+    const codes = report.diagnostics.map((d) => d.code);
+    expect(codes).toContain("AXCLOUD-WWDC26-XCODE27-PROOF");
+    expect(codes).toContain("AXCLOUD-WWDC26-APPINTENTS-TESTING");
+    expect(report.checks).toContainEqual(
+      expect.objectContaining({
+        label: "Xcode 27 readiness",
+        state: "warn",
+      })
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("accepts Xcode 27 AppIntentsTesting evidence for schema-backed intents", () => {
+    const report = runCloudCheck({
+      fileName: "CreateReminderIntent.swift",
+      source: `
+import AppIntents
+
+@AppIntent(schema: AppSchema.RemindersIntent.createReminder)
+struct CreateReminderIntent: AppIntent {
+    static var title: LocalizedStringResource = "Create Reminder"
+    static var description: IntentDescription = "Create a reminder"
+    func perform() async throws -> some IntentResult { .result() }
+}
+`,
+      xcodeBuildLog: [
+        "Xcode 27.0",
+        "AppIntentsTesting passed CreateReminderIntent through Siri, Shortcuts, and Spotlight pathways.",
+        "** TEST SUCCEEDED **",
+        "Executed 1 test, with 0 failures",
+      ].join("\n"),
+    });
+
+    const codes = report.diagnostics.map((d) => d.code);
+    expect(codes).not.toContain("AXCLOUD-WWDC26-XCODE27-PROOF");
+    expect(codes).not.toContain("AXCLOUD-WWDC26-APPINTENTS-TESTING");
+    expect(report.status).toBe("pass");
+  });
+
   it("asks Foundation Models code for model-version proof", () => {
     const report = runCloudCheck({
       fileName: "ModelSummary.swift",
@@ -141,6 +195,128 @@ struct SummarizeIntent: AppIntent {
     });
 
     expect(report.diagnostics.map((d) => d.code)).toContain("AXCLOUD-WWDC26-MODEL-PROOF");
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks evaluation suites for scenario proof", () => {
+    const report = runCloudCheck({
+      fileName: "MessageSummaryEvaluations.swift",
+      source: `
+import AppIntents
+
+enum MessageSummaryEvaluations {
+    static let scenarios: [String] = ["short-thread", "long-thread"]
+    static let criteria: [String] = ["preserves sender intent"]
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-EVALUATION-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks preview snapshot matrices for attached snapshot proof", () => {
+    const report = runCloudCheck({
+      fileName: "MessageSummaryPreviewProof.swift",
+      source: `
+import SwiftUI
+
+// Preview Snapshot proof matrix for MessageSummaryView.
+// Variants: light, dark, landscape, accessibilityExtraLarge
+struct MessageSummaryView: View {
+    var body: some View { Text("Summary") }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-PREVIEW-SNAPSHOT-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks Visual Intelligence routers for screenshot/object proof", () => {
+    const report = runCloudCheck({
+      fileName: "VisualIntelligenceRouter.swift",
+      source: `
+import AppIntents
+import VisionKit
+
+struct VisualIntelligenceRouterIntent: AppIntent {
+    static var title: LocalizedStringResource = "Route Visual Result"
+    static var description: IntentDescription = "Routes a Visual Intelligence result into app search."
+    func perform() async throws -> some IntentResult { .result() }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-VISUAL-INTELLIGENCE-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks Image Playground flows for generated-image proof", () => {
+    const report = runCloudCheck({
+      fileName: "ImagePlaygroundIntent.swift",
+      source: `
+import AppIntents
+import ImagePlayground
+
+struct GenerateCampaignImageIntent: AppIntent {
+    static var title: LocalizedStringResource = "Generate Campaign Image"
+    static var description: IntentDescription = "Creates a generated image in Image Playground."
+    func perform() async throws -> some IntentResult { .result() }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-IMAGE-PLAYGROUND-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks String Catalog workflows for localization proof", () => {
+    const report = runCloudCheck({
+      fileName: "StringCatalogLocalizer.swift",
+      source: `
+import AppIntents
+
+struct LocalizeStringCatalogIntent: AppIntent {
+    static var title: LocalizedStringResource = "Localize String Catalog"
+    static var description: IntentDescription = "Updates Localizable.xcstrings with generated translations."
+    func perform() async throws -> some IntentResult { .result() }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-STRING-CATALOG-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks fixed-size SwiftUI layouts for resizable iOS proof", () => {
+    const report = runCloudCheck({
+      fileName: "CampaignDashboardView.swift",
+      source: `
+import SwiftUI
+
+struct CampaignDashboardView: View {
+    var body: some View {
+        Text("Campaign")
+            .frame(width: 393, height: 852)
+    }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-RESIZABLE-IOS-LAYOUT"
+    );
     expect(report.status).toBe("needs_review");
   });
 

@@ -5,6 +5,7 @@ import {
   templates,
   TEMPLATES,
 } from "../../src/templates/index.js";
+import { compileSource } from "../../src/core/compiler.js";
 
 describe("templates registry", () => {
   it("TEMPLATES contains the bundled reference set", () => {
@@ -50,5 +51,24 @@ describe("templates registry", () => {
     const msgs = listTemplates("messaging");
     expect(msgs.length).toBeGreaterThan(0);
     expect(msgs.every((t) => t.category === "messaging")).toBe(true);
+  });
+
+  it("ships WWDC26 proof templates that compile", () => {
+    const ids = [
+      "appintents-testing-harness",
+      "visual-intelligence-router",
+      "image-playground-intent",
+      "string-catalog-localizer",
+      "resizable-layout-proof",
+    ];
+
+    for (const id of ids) {
+      const template = getTemplate(id);
+      expect(template, id).toBeDefined();
+
+      const result = compileSource(template!.source, `${id}.ts`);
+      expect(result.success, id).toBe(true);
+      expect(result.output?.swiftCode, id).toContain("struct");
+    }
   });
 });

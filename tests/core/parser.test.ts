@@ -107,6 +107,24 @@ defineIntent({
     expect(() => parseIntentSource(source, "badtype.ts")).toThrow(ParserError);
   });
 
+  it("throws ParserError for unsupported Foundation Model providers", () => {
+    const source = `
+defineIntent({
+  name: "ModelIntent",
+  title: "Model Intent",
+  description: "Uses a model",
+  params: {},
+  model: {
+    provider: "unsupported-provider",
+  },
+  perform: async () => {},
+});
+`;
+    expect(() => parseIntentSource(source, "bad-model-provider.ts")).toThrow(
+      /model.provider/
+    );
+  });
+
   it("ParserError formats correctly", () => {
     const err = new ParserError(
       "AX001",

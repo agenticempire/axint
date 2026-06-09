@@ -20,6 +20,8 @@ import type {
   IRType,
   IREntity,
   IRParameterSummary,
+  IREvaluationConfig,
+  IRPreviewProofConfig,
 } from "./types.js";
 import { irTypeToSwift } from "./types.js";
 
@@ -36,6 +38,10 @@ export function escapeSwiftString(s: string): string {
     .replace(/\n/g, "\\n")
     .replace(/\r/g, "\\r")
     .replace(/\t/g, "\\t");
+}
+
+function quotedSwiftString(value: string): string {
+  return `"${escapeSwiftString(value)}"`;
 }
 
 /**
@@ -75,6 +81,9 @@ export function generateSwift(intent: IRIntent): string {
   if (intentUsesCoreTransferable(safeIntent)) {
     lines.push(`import CoreTransferable`);
   }
+  if (safeIntent.model) {
+    lines.push(`import FoundationModels`);
+  }
   lines.push(`import Foundation`);
   lines.push(``);
 
@@ -90,6 +99,11 @@ export function generateSwift(intent: IRIntent): string {
 
   for (const provider of collectDynamicOptionsProviders(safeIntent.parameters)) {
     lines.push(generateDynamicOptionsProvider(provider.providerName, provider.valueType));
+    lines.push(``);
+  }
+
+  if (safeIntent.model) {
+    lines.push(generateFoundationModelSupport(safeIntent));
     lines.push(``);
   }
 
@@ -165,6 +179,16 @@ export function generateSwift(intent: IRIntent): string {
   lines.push(`    }`);
   lines.push(`}`);
   lines.push(``);
+
+  if (safeIntent.evaluation) {
+    lines.push(generateEvaluationSupport(safeIntent.evaluation));
+    lines.push(``);
+  }
+
+  if (safeIntent.previewProof) {
+    lines.push(generatePreviewProofSupport(safeIntent.previewProof));
+    lines.push(``);
+  }
 
   return lines.join("\n");
 }
@@ -361,6 +385,121 @@ function generateDynamicOptionsProvider(providerName: string, valueType: IRType)
   lines.push(`        return []`);
   lines.push(`    }`);
   lines.push(`}`);
+  return lines.join("\n");
+}
+
+function generateFoundationModelSupport(intent: IRIntent): string {
+  const model = intent.model!;
+  const sessionName = model.sessionName || `${intent.name}ModelSession`;
+  const lines: string[] = [];
+
+  if (model.generable) {
+    lines.push(`@Generable`);
+    lines.push(`struct ${model.generable.name}: Generable {`);
+    for (const [name, type] of Object.entries(model.generable.fields)) {
+      lines.push(`    var ${name}: ${type}`);
+    }
+    lines.push(`}`);
+    lines.push(``);
+  }
+
+  for (const tool of model.tools ?? []) {
+    const argumentsType = tool.argumentsType || `${tool.name}Arguments`;
+    const outputType = tool.outputType || "String";
+    lines.push(`struct ${tool.name}: Tool {`);
+    lines.push(`    let name = "${escapeSwiftString(tool.name)}"`);
+    lines.push(`    let description = "${escapeSwiftString(tool.description)}"`);
+    lines.push(``);
+    lines.push(`    @Generable`);
+    lines.push(`    struct Arguments: Generable {`);
+    lines.push(
+      `        // TODO: Replace with fields from ${escapeSwiftString(argumentsType)}.`
+    );
+    lines.push(`        var query: String`);
+    lines.push(`    }`);
+    lines.push(``);
+    lines.push(`    func call(arguments: Arguments) async throws -> ${outputType} {`);
+    lines.push(`        // TODO: Implement ${escapeSwiftString(tool.name)} safely.`);
+    lines.push(`        ${defaultFoundationModelToolReturn(outputType)}`);
+    lines.push(`    }`);
+    lines.push(`}`);
+    lines.push(``);
+  }
+
+  lines.push(`enum ${sessionName}Factory {`);
+  lines.push(`    static func make() -> LanguageModelSession {`);
+  if (model.instructions) {
+    lines.push(
+      `        let instructions = Instructions("${escapeSwiftString(model.instructions)}")`
+    );
+  } else {
+    lines.push(`        let instructions = Instructions("")`);
+  }
+  if (model.dynamicProfile) {
+    lines.push(`        // Dynamic Profile: ${escapeSwiftString(model.dynamicProfile)}`);
+  }
+  if (model.guardrails?.length) {
+    lines.push(
+      `        // Guardrails: ${model.guardrails.map(escapeSwiftString).join(", ")}`
+    );
+  }
+  lines.push(
+    `        // Provider: ${escapeSwiftString(model.provider)}${model.useCase ? ` · Use case: ${escapeSwiftString(model.useCase)}` : ""}`
+  );
+  if (model.prompt) {
+    lines.push(`        // Prompt seed: ${escapeSwiftString(model.prompt)}`);
+  }
+  lines.push(`        return LanguageModelSession(instructions: instructions)`);
+  lines.push(`    }`);
+  lines.push(`}`);
+
+  return lines.join("\n");
+}
+
+function defaultFoundationModelToolReturn(outputType: string): string {
+  if (outputType === "String") return `return ""`;
+  if (outputType === "Int") return `return 0`;
+  if (outputType === "Bool") return `return false`;
+  if (/^\[[A-Za-z_][A-Za-z0-9_]*\]$/.test(outputType)) return `return []`;
+  return `throw CancellationError()`;
+}
+
+function generateEvaluationSupport(evaluation: IREvaluationConfig): string {
+  const lines: string[] = [];
+  lines.push(`enum ${evaluation.suite} {`);
+  lines.push(`    // Evaluations framework proof contract.`);
+  lines.push(
+    `    static let scenarios: [String] = [${evaluation.scenarios.map(quotedSwiftString).join(", ")}]`
+  );
+  lines.push(
+    `    static let criteria: [String] = [${evaluation.criteria.map(quotedSwiftString).join(", ")}]`
+  );
+  lines.push(
+    `    // AppIntentsTesting: pair these scenarios with Siri, Shortcuts, and Spotlight pathway tests.`
+  );
+  lines.push(`}`);
+  return lines.join("\n");
+}
+
+function generatePreviewProofSupport(previewProof: IRPreviewProofConfig): string {
+  const lines: string[] = [];
+  lines.push(`// Preview Snapshot proof matrix for ${previewProof.view}.`);
+  lines.push(
+    `// Variants: ${previewProof.variants.length ? previewProof.variants.map(escapeSwiftString).join(", ") : "default"}`
+  );
+  if (previewProof.widgetTimeline) {
+    lines.push(
+      `// Widget timeline states must be rendered in Xcode Preview Snapshot proof.`
+    );
+  }
+  if (previewProof.liveActivityStates?.length) {
+    lines.push(
+      `// Live Activity states: ${previewProof.liveActivityStates.map(escapeSwiftString).join(", ")}`
+    );
+  }
+  lines.push(
+    `// AppIntentsTesting and preview evidence should be attached before release.`
+  );
   return lines.join("\n");
 }
 
