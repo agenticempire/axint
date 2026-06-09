@@ -72,6 +72,9 @@ export function generateSwift(intent: IRIntent): string {
   lines.push(...generatedFileHeader(`${intent.name}Intent.swift`));
   lines.push(``);
   lines.push(`import AppIntents`);
+  if (intentUsesCoreTransferable(safeIntent)) {
+    lines.push(`import CoreTransferable`);
+  }
   lines.push(`import Foundation`);
   lines.push(``);
 
@@ -91,7 +94,12 @@ export function generateSwift(intent: IRIntent): string {
   }
 
   // Struct declaration
-  lines.push(`struct ${safeIntent.name}Intent: AppIntent {`);
+  if (safeIntent.schema) {
+    lines.push(`@AppIntent(schema: ${safeIntent.schema})`);
+  }
+  lines.push(
+    `struct ${safeIntent.name}Intent: ${intentConformances(safeIntent).join(", ")} {`
+  );
 
   // Static metadata
   lines.push(
@@ -102,6 +110,16 @@ export function generateSwift(intent: IRIntent): string {
   );
   if (safeIntent.isDiscoverable !== undefined) {
     lines.push(`    static let isDiscoverable: Bool = ${safeIntent.isDiscoverable}`);
+  }
+  if (safeIntent.supportedModes) {
+    lines.push(
+      `    static var supportedModes: IntentModes { ${safeIntent.supportedModes} }`
+    );
+  }
+  if (safeIntent.allowedExecutionTargets) {
+    lines.push(
+      `    static var allowedExecutionTargets: ExecutionTargets { ${safeIntent.allowedExecutionTargets} }`
+    );
   }
   lines.push(``);
 
@@ -160,7 +178,10 @@ export function generateEntity(entity: IREntity): string {
   const lines: string[] = [];
   const propertyNames = new Set(entity.properties.map((p) => p.name));
 
-  lines.push(`struct ${entity.name}: AppEntity {`);
+  if (entity.schema) {
+    lines.push(`@AppEntity(schema: ${entity.schema})`);
+  }
+  lines.push(`struct ${entity.name}: ${entityConformances(entity).join(", ")} {`);
   lines.push(`    static var defaultQuery = ${entity.name}Query()`);
   lines.push(``);
 
@@ -214,6 +235,18 @@ export function generateEntity(entity: IREntity): string {
   lines.push(`        )`);
   lines.push(`    }`);
 
+  if (entity.ownership) {
+    lines.push(``);
+    lines.push(`    var ownership: EntityOwnership { .${entity.ownership} }`);
+  }
+
+  if (entity.intentValueRepresentation) {
+    lines.push(``);
+    lines.push(`    static var transferRepresentation: some TransferRepresentation {`);
+    lines.push(`        ${entity.intentValueRepresentation}`);
+    lines.push(`    }`);
+  }
+
   lines.push(`}`);
 
   return lines.join("\n");
@@ -234,7 +267,10 @@ export function generateEntityQuery(entity: IREntity): string {
         : queryType === "property"
           ? "EntityPropertyQuery"
           : "EntityQuery";
-  lines.push(`struct ${entity.name}Query: ${protocol} {`);
+  const queryConformances = entity.indexedQuery
+    ? [protocol, "IndexedEntityQuery"]
+    : [protocol];
+  lines.push(`struct ${entity.name}Query: ${queryConformances.join(", ")} {`);
   if (queryType === "all" || queryType === "property") {
     lines.push(
       `    static var findIntentDescription: IntentDescription = IntentDescription("Find ${escapeSwiftString(entity.name)}")`
@@ -409,7 +445,29 @@ const APP_INTENT_MEMBER_NAMES = new Set([
   "isDiscoverable",
   "openAppWhenRun",
   "authenticationPolicy",
+  "supportedModes",
+  "allowedExecutionTargets",
 ]);
+
+function intentUsesCoreTransferable(intent: IRIntent): boolean {
+  return (intent.entities ?? []).some((entity) => !!entity.intentValueRepresentation);
+}
+
+function intentConformances(intent: IRIntent): string[] {
+  const conformances = ["AppIntent"];
+  for (const conformance of intent.conformsTo ?? []) {
+    if (!conformances.includes(conformance)) conformances.push(conformance);
+  }
+  return conformances;
+}
+
+function entityConformances(entity: IREntity): string[] {
+  const conformances = ["AppEntity"];
+  if (entity.syncable) conformances.push("SyncableEntity");
+  if (entity.indexed) conformances.push("IndexedEntity");
+  if (entity.ownership) conformances.push("OwnershipProvidingEntity");
+  return conformances;
+}
 
 function makeIntentParametersSwiftSafe(intent: IRIntent): IRIntent {
   const renames = new Map<string, string>();

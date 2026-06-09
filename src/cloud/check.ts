@@ -1125,6 +1125,7 @@ function inferEvidenceDiagnostics(input: {
   diagnostics.push(
     ...diagnosticsFromStateTransitionHangEvidence(evidenceText, source, file)
   );
+  diagnostics.push(...diagnosticsFromWwdc26Readiness(source, evidenceText, file));
 
   if (
     input.input.expectedBehavior &&
@@ -1194,6 +1195,157 @@ function inferEvidenceDiagnostics(input: {
   }
 
   return dedupeDiagnostics(diagnostics);
+}
+
+function diagnosticsFromWwdc26Readiness(
+  source: string,
+  evidenceText: string,
+  file: string
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const lower = source.toLowerCase();
+  const touchesAppleIntelligence =
+    /@App(Intent|Entity|Enum)\(schema:/.test(source) ||
+    /\b(AppSchema|SyncableEntity|OwnershipProvidingEntity|IndexedEntityQuery|IntentValueQuery|FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|GenerationSchema|ToolCallingMode)\b/.test(
+      source
+    ) ||
+    /@(?:Generable|UnionValue)\b/.test(source) ||
+    /\b(LongRunningIntent|ProgressReportingIntent|SnippetIntent|ShowsSnippetIntent|ShowsSnippetView|ResultsCollection|IntentItemCollection|AppUnionValue|AppUnionValueCasesProviding)\b/.test(
+      source
+    );
+
+  if (!touchesAppleIntelligence) return diagnostics;
+
+  if (
+    /@AppEntity\(schema:/.test(source) &&
+    !/\bSyncableEntity\b/.test(source) &&
+    !/\bTransientAppEntity\b/.test(source)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-SYNCABLE-ENTITY",
+      severity: "warning",
+      file,
+      message:
+        "This entity adopts an Apple app schema but does not declare SyncableEntity for stable cross-device identifiers.",
+      suggestion:
+        "If the entity represents durable user content, adopt SyncableEntity and make sure id values remain stable across devices.",
+    });
+  }
+
+  if (
+    /@AppIntent\(schema:/.test(source) &&
+    /\b(delete|remove|archive|send|update|publish|share)\b/.test(lower) &&
+    !/\bOwnershipProvidingEntity\b/.test(source)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-OWNERSHIP-GUARD",
+      severity: "warning",
+      file,
+      message:
+        "This schema-backed intent appears to perform a sensitive or destructive action without an OwnershipProvidingEntity guard.",
+      suggestion:
+        "For shared or public entities, adopt OwnershipProvidingEntity and return EntityOwnership so the system can ask for confirmation when needed.",
+    });
+  }
+
+  if (/\bIndexedEntity\b/.test(source) && !/\bIndexedEntityQuery\b/.test(source)) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-INDEXED-QUERY",
+      severity: "warning",
+      file,
+      message:
+        "This entity is indexed for Spotlight, but its query does not adopt IndexedEntityQuery for SDK-level reindex support.",
+      suggestion:
+        "Adopt IndexedEntityQuery on the entity query when the entity should be retrieved from Spotlight by identifier.",
+    });
+  }
+
+  if (
+    /\b(FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel)\b/.test(
+      source
+    ) &&
+    !/\b(xcode\s*27|ios\s*27|ipados\s*27|macos\s*27|visionos\s*27|model version|prompt version|tokenCount|contextSize)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-MODEL-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Foundation Models code needs prompt/model-version proof against the current OS model before it is safe to call demo-ready.",
+      suggestion:
+        "Attach Xcode 27 build proof plus prompt-version notes, token/context checks, or a focused model behavior test.",
+    });
+  }
+
+  if (
+    /\bLongRunningIntent\b/.test(source) &&
+    !/\b(performBackgroundTask|LongRunningTaskOptions)\b/.test(
+      source + "\n" + evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-LONG-RUNNING-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "LongRunningIntent code needs proof that work is wrapped in the SDK long-running background task API.",
+      suggestion:
+        "Use performBackgroundTask(options:operation:) with LongRunningTaskOptions, then attach clean Xcode build/run proof for the target OS.",
+    });
+  }
+
+  if (
+    /\bProgressReportingIntent\b/.test(source) &&
+    !/(?:\bcompletedUnitCount\b|\btotalUnitCount\b|\bProgress\s*\(|\bprogress\.)/.test(
+      source + "\n" + evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-PROGRESS-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "ProgressReportingIntent code needs observable progress proof before it is demo-ready.",
+      suggestion:
+        "Report progress milestones during the long-running operation and attach a focused run log or test showing progress updates.",
+    });
+  }
+
+  if (
+    /\b(SnippetIntent|ShowsSnippetIntent|ShowsSnippetView)\b/.test(source) &&
+    !/\b(requestConfirmation|snippetIntent|ShowsSnippetIntent|ShowsSnippetView)\b/.test(
+      source + "\n" + evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-SNIPPET-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Snippet-backed App Intents need proof that the snippet is actually returned or requested from perform().",
+      suggestion:
+        "Return a result that conforms to ShowsSnippetIntent or ShowsSnippetView, or call requestConfirmation(..., snippetIntent: ...), then attach simulator/device proof.",
+    });
+  }
+
+  if (
+    /(?:@UnionValue\b|\bAppUnionValue\b)/.test(source) &&
+    !/\bAppUnionValueCasesProviding\b/.test(source)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-UNION-VALUE-CASES",
+      severity: "warning",
+      file,
+      message:
+        "Union value code needs an AppUnionValueCasesProviding cases type so the system can enumerate supported cases.",
+      suggestion:
+        "Define a cases enum that adopts AppUnionValueCasesProviding and attach Xcode proof that the union value resolves in App Intents.",
+    });
+  }
+
+  return diagnostics;
 }
 
 function compactCloudCheckReport(report: CloudCheckReport): Omit<

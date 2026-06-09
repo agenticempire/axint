@@ -17,6 +17,9 @@ export function generateSwiftAppEnum(appEnum: IRAppEnum): string {
   lines.push(``);
   lines.push(`import AppIntents`);
   lines.push(``);
+  if (appEnum.schema) {
+    lines.push(`@AppEnum(schema: ${appEnum.schema})`);
+  }
   lines.push(`enum ${appEnum.name}: String, AppEnum {`);
 
   for (const c of appEnum.cases) {

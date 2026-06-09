@@ -123,4 +123,129 @@ export default defineIntent({
       "static var parameterSummary: some ParameterSummary"
     );
   });
+
+  it("emits WWDC26 App schema macros and entity AI affordances", () => {
+    const source = `
+import { defineIntent, defineEntity, param } from "@axint/sdk";
+
+defineEntity({
+  name: "Message",
+  schemaDomain: "messages",
+  schema: "AppSchema.MessagesEntity.message",
+  syncable: true,
+  indexed: true,
+  indexedQuery: true,
+  ownership: "shared",
+  intentValueRepresentation: "IntentValueRepresentation(exporting: \\\\.name)",
+  display: {
+    title: "name",
+    subtitle: "thread",
+  },
+  properties: {
+    id: param.string("Stable message ID"),
+    name: param.string("Message summary"),
+    thread: param.string("Thread title"),
+  },
+  query: "string",
+});
+
+export default defineIntent({
+  name: "SendMessage",
+  title: "Send Message",
+  description: "Sends a message through the app",
+  schemaDomain: "messages",
+  schema: "AppSchema.MessagesIntent.sendMessage",
+  conformsTo: ["LongRunningIntent", "CancellableIntent"],
+  supportedModes: "[.foreground, .background]",
+  allowedExecutionTargets: ".main",
+  params: {
+    target: param.entity("Message", "Message thread"),
+    body: param.string("Message body"),
+  },
+  perform: async () => {
+    return { ok: true };
+  },
+});
+`;
+    const result = compileSource(source, "wwdc26.ts");
+
+    expect(result.success).toBe(true);
+    expect(result.output?.ir.schemaDomain).toBe("messages");
+    expect(result.output?.swiftCode).toContain("import CoreTransferable");
+    expect(result.output?.swiftCode).toContain(
+      "@AppEntity(schema: AppSchema.MessagesEntity.message)"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "struct Message: AppEntity, SyncableEntity, IndexedEntity, OwnershipProvidingEntity"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "struct MessageQuery: EntityStringQuery, IndexedEntityQuery"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "var ownership: EntityOwnership { .shared }"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "static var transferRepresentation: some TransferRepresentation"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "@AppIntent(schema: AppSchema.MessagesIntent.sendMessage)"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "struct SendMessageIntent: AppIntent, LongRunningIntent, CancellableIntent"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "static var supportedModes: IntentModes { [.foreground, .background] }"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "static var allowedExecutionTargets: ExecutionTargets { .main }"
+    );
+  });
+
+  it("emits P1 protocol conformances and entity collection parameters", () => {
+    const source = `
+import { defineIntent, defineEntity, param } from "@axint/sdk";
+
+defineEntity({
+  name: "Message",
+  schemaDomain: "messages",
+  schema: "AppSchema.MessagesEntity.message",
+  syncable: true,
+  indexed: true,
+  indexedQuery: true,
+  ownership: "shared",
+  display: {
+    title: "name",
+  },
+  properties: {
+    id: param.string("Stable message ID"),
+    name: param.string("Message summary"),
+  },
+  query: "string",
+});
+
+export default defineIntent({
+  name: "SummarizeMessages",
+  title: "Summarize Messages",
+  description: "Summarizes selected messages with progress",
+  schemaDomain: "messages",
+  schema: "AppSchema.MessagesIntent.sendMessage",
+  conformsTo: ["LongRunningIntent", "ProgressReportingIntent"],
+  params: {
+    messages: param.entityCollection("Message", "Messages to summarize"),
+    tags: param.array(param.string("Tag"), "Tags", { required: false }),
+  },
+  perform: async () => {
+    return { ok: true };
+  },
+});
+`;
+    const result = compileSource(source, "p1.ts");
+
+    expect(result.success).toBe(true);
+    expect(result.output?.swiftCode).toContain(
+      "struct SummarizeMessagesIntent: AppIntent, LongRunningIntent, ProgressReportingIntent"
+    );
+    expect(result.output?.swiftCode).toContain("var messages: [Message]");
+    expect(result.output?.swiftCode).toContain("var tags: [String]?");
+  });
 });

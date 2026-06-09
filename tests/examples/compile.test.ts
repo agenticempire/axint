@@ -34,6 +34,8 @@ const EXPECTED_SURFACES = new Map<
   ["step-counter.ts", "widget"],
   ["trail-planner.ts", "intent"],
   ["weather-app.ts", "app"],
+  ["wwdc26-apple-intelligence.ts", "intent"],
+  ["wwdc26-p1-collections-and-progress.ts", "intent"],
 ]);
 
 describe("bundled examples", () => {

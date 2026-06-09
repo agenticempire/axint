@@ -89,9 +89,13 @@ export {
   scene,
   storage,
   activityState,
+  appSchemaDomains,
 } from "../sdk/index.js";
 export type {
   IntentDefinition,
+  AppSchemaDomain,
+  AppIntentConformance,
+  EntityOwnership,
   EntityDefinition,
   EntityDisplay,
   ViewDefinition,

@@ -39,6 +39,52 @@ const HEALTHKIT_USAGE_DESCRIPTION_ALIASES = new Map<string, string[]>([
 
 const PRIVACY_USAGE_DESCRIPTION_PATTERN = /^NS[A-Za-z0-9]+UsageDescription$/;
 
+const APP_SCHEMA_DOMAINS = new Set([
+  "assistant",
+  "audio",
+  "books",
+  "browser",
+  "calendar",
+  "camera",
+  "clock",
+  "files",
+  "journaling",
+  "mail",
+  "maps",
+  "messages",
+  "notes",
+  "phone",
+  "photos",
+  "presentation",
+  "reader",
+  "reminders",
+  "spreadsheet",
+  "system-search",
+  "visual-intelligence",
+  "whiteboard",
+  "word-processor",
+]);
+
+const APP_INTENT_CONFORMANCES = new Set([
+  "LongRunningIntent",
+  "CancellableIntent",
+  "UndoableIntent",
+  "RunSystemShortcutIntent",
+  "ProgressReportingIntent",
+  "SnippetIntent",
+  "SystemIntent",
+  "ShowInAppSearchResultsIntent",
+  "TargetContentProvidingIntent",
+  "URLRepresentableIntent",
+  "OpenIntent",
+  "DeleteIntent",
+  "SetValueIntent",
+  "ControlConfigurationIntent",
+  "WidgetConfigurationIntent",
+]);
+
+const ENTITY_OWNERSHIP_VALUES = new Set(["unknown", "shared", "public"]);
+
 /**
  * Validate an IR intent for App Intents framework compliance.
  */
@@ -138,6 +184,55 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
       });
     }
     seen.add(param.name);
+  }
+
+  if (intent.schemaDomain && !APP_SCHEMA_DOMAINS.has(intent.schemaDomain)) {
+    diagnostics.push({
+      code: "AX119",
+      severity: "error",
+      message: `Unknown Apple app schema domain "${intent.schemaDomain}"`,
+      file: intent.sourceFile,
+      suggestion: `Use one of: ${[...APP_SCHEMA_DOMAINS].join(", ")}`,
+    });
+  }
+
+  if (intent.schema && !isSafeSwiftExpression(intent.schema)) {
+    diagnostics.push({
+      code: "AX120",
+      severity: "error",
+      message: `Intent schema expression "${intent.schema}" is not safe to emit`,
+      file: intent.sourceFile,
+      suggestion:
+        'Use a simple Swift schema reference, e.g. ".mail.createDraft" or "AppSchema.MailIntent.createDraft".',
+    });
+  }
+
+  for (const conformance of intent.conformsTo ?? []) {
+    if (!APP_INTENT_CONFORMANCES.has(conformance)) {
+      diagnostics.push({
+        code: "AX121",
+        severity: "error",
+        message: `Unsupported App Intent conformance "${conformance}"`,
+        file: intent.sourceFile,
+        suggestion: `Use one of: ${[...APP_INTENT_CONFORMANCES].join(", ")}`,
+      });
+    }
+  }
+
+  for (const [label, expression] of [
+    ["supportedModes", intent.supportedModes],
+    ["allowedExecutionTargets", intent.allowedExecutionTargets],
+  ] as const) {
+    if (expression && !isSafeSwiftOptionExpression(expression)) {
+      diagnostics.push({
+        code: "AX122",
+        severity: "error",
+        message: `${label} expression "${expression}" is not safe to emit`,
+        file: intent.sourceFile,
+        suggestion:
+          'Use a simple Swift option expression like ".foreground", ".background", ".main", or "[.main, .widgetKitExtension]".',
+      });
+    }
   }
 
   // Rule: Entitlement strings must look like reverse-DNS identifiers
@@ -302,6 +397,51 @@ export function validateEntity(entity: IREntity, sourceFile: string): Diagnostic
     });
   }
 
+  if (entity.schemaDomain && !APP_SCHEMA_DOMAINS.has(entity.schemaDomain)) {
+    diagnostics.push({
+      code: "AX123",
+      severity: "error",
+      message: `Unknown Apple app schema domain "${entity.schemaDomain}"`,
+      file: sourceFile,
+      suggestion: `Use one of: ${[...APP_SCHEMA_DOMAINS].join(", ")}`,
+    });
+  }
+
+  if (entity.schema && !isSafeSwiftExpression(entity.schema)) {
+    diagnostics.push({
+      code: "AX124",
+      severity: "error",
+      message: `Entity schema expression "${entity.schema}" is not safe to emit`,
+      file: sourceFile,
+      suggestion:
+        'Use a simple Swift schema reference, e.g. ".messages.message" or "AppSchema.MessagesEntity.message".',
+    });
+  }
+
+  if (entity.ownership && !ENTITY_OWNERSHIP_VALUES.has(entity.ownership)) {
+    diagnostics.push({
+      code: "AX125",
+      severity: "error",
+      message: `Entity ownership "${entity.ownership}" is not valid`,
+      file: sourceFile,
+      suggestion: 'Use "unknown", "shared", or "public".',
+    });
+  }
+
+  if (
+    entity.intentValueRepresentation &&
+    !isSafeIntentValueRepresentation(entity.intentValueRepresentation)
+  ) {
+    diagnostics.push({
+      code: "AX126",
+      severity: "error",
+      message: "intentValueRepresentation must be a single safe Swift expression",
+      file: sourceFile,
+      suggestion:
+        "Use an IntentValueRepresentation(...) expression and avoid semicolons, comments, or braces.",
+    });
+  }
+
   return diagnostics;
 }
 
@@ -363,5 +503,20 @@ function isPlaceholderUsageDescription(value: string): boolean {
     normalized.includes("<#") ||
     normalized.includes("your usage description") ||
     normalized.includes("insert usage description")
+  );
+}
+
+function isSafeSwiftExpression(expression: string): boolean {
+  return /^\.?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(expression);
+}
+
+function isSafeSwiftOptionExpression(expression: string): boolean {
+  return /^[A-Za-z0-9_.,\s[\]()]+$/.test(expression) && !/[{};:]/.test(expression);
+}
+
+function isSafeIntentValueRepresentation(expression: string): boolean {
+  return (
+    /^IntentValueRepresentation\s*\([^{};]*\)$/.test(expression.trim()) &&
+    !/\/\/|\/\*/.test(expression)
   );
 }

@@ -57,6 +57,17 @@ describe("generateSwiftAppEnum", () => {
     );
   });
 
+  it("emits the Apple app schema macro when configured", () => {
+    const swift = generateSwiftAppEnum({
+      ...PIZZA_SIZE,
+      schemaDomain: "messages",
+      schema: "AppSchema.MessagesEnum.messageEffect",
+    });
+
+    expect(swift).toContain("@AppEnum(schema: AppSchema.MessagesEnum.messageEffect)");
+    expect(swift).toContain("enum PizzaSize: String, AppEnum");
+  });
+
   it("uses a plain string DisplayRepresentation when a case has no image", () => {
     const plain: IRAppEnum = {
       ...PIZZA_SIZE,
@@ -162,6 +173,24 @@ describe("parseAppEnumSource", () => {
     expect(ir.cases.map((c) => c.value)).toEqual(["small", "medium", "large"]);
     expect(ir.cases[0].image).toBe("circle");
     expect(ir.sourceFile).toBe("pizza.ts");
+  });
+
+  it("parses schema metadata from defineAppEnum", () => {
+    const ir = parseAppEnumSource(
+      `
+      import { defineAppEnum } from "@axint/compiler";
+      export default defineAppEnum({
+        name: "MessageEffect",
+        schemaDomain: "messages",
+        schema: "AppSchema.MessagesEnum.messageEffect",
+        cases: [{ value: "gentle", title: "Gentle" }],
+      });
+    `,
+      "message-effect.ts"
+    );
+
+    expect(ir.schemaDomain).toBe("messages");
+    expect(ir.schema).toBe("AppSchema.MessagesEnum.messageEffect");
   });
 
   it("defaults title to name when omitted", () => {

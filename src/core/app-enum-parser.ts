@@ -11,7 +11,7 @@
  */
 
 import ts from "typescript";
-import type { IRAppEnum, IRAppEnumCase } from "./types.js";
+import type { IRAppEnum, IRAppEnumCase, IRAppSchemaDomain } from "./types.js";
 import { ParserError } from "./parser.js";
 import {
   findCallExpression,
@@ -68,6 +68,8 @@ export function parseAppEnumSource(
   }
 
   const title = readStringLiteral(props.get("title")) ?? name;
+  const schema = readStringLiteral(props.get("schema"));
+  const schemaDomain = readStringLiteral(props.get("schemaDomain"));
   const cases = parseCases(props.get("cases"), filePath, sourceFile);
 
   if (cases.length === 0) {
@@ -83,6 +85,8 @@ export function parseAppEnumSource(
   return {
     name,
     title,
+    schema: schema || undefined,
+    schemaDomain: (schemaDomain as IRAppSchemaDomain | null) || undefined,
     cases,
     sourceFile: filePath,
   };
