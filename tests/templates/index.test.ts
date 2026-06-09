@@ -71,4 +71,25 @@ describe("templates registry", () => {
       expect(result.output?.swiftCode, id).toContain("struct");
     }
   });
+
+  it("ships Apple Intelligence runtime templates from WWDC26 updates", () => {
+    const ids = [
+      "multimodal-foundation-model",
+      "custom-language-model-provider",
+      "view-annotation-entity",
+      "spotlight-semantic-index",
+      "image-playground-pcc",
+      "ocr-vision-tool",
+      "barcode-vision-tool",
+    ];
+
+    for (const id of ids) {
+      const template = getTemplate(id);
+      expect(template, id).toBeDefined();
+
+      const result = compileSource(template!.source, `${id}.ts`);
+      expect(result.success, id).toBe(true);
+      expect(result.output?.swiftCode, id).toContain("struct");
+    }
+  });
 });

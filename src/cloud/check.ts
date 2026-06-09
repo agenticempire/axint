@@ -1231,6 +1231,30 @@ function diagnosticsFromWwdc26Readiness(
     );
   const touchesImagePlayground =
     /\b(ImagePlayground|Image Playground|generated image)\b/i.test(source);
+  const touchesMultimodalFoundationModels =
+    /\b(Multimodal inputs|imageInputs|image prompt|source image|Prompt\s*\(|Vision framework tool)\b/i.test(
+      source
+    );
+  const touchesDynamicProfiles =
+    /\b(Dynamic Profile|Dynamic Profiles|SessionProfiles|dynamic profiles?)\b/i.test(
+      source
+    );
+  const touchesCustomModelProvider =
+    /\b(Custom Language Model provider|custom-language-model|Language Model protocol|LanguageModelProvider|BrandLanguageModel|model provider)\b/i.test(
+      source
+    );
+  const touchesViewAnnotation =
+    /\b(appEntityIdentifier|EntityIdentifier\(for:|View Annotation|onscreen awareness)\b/i.test(
+      source
+    );
+  const touchesSemanticIndex =
+    /\b(Spotlight semantic index|Semantic index|semanticIndex|CoreSpotlight|searchableByLLM)\b/i.test(
+      source
+    );
+  const touchesPcc =
+    /\b(Private Cloud Compute|PCC|privateCloudComputeEligible|private-cloud-compute)\b/i.test(
+      source
+    );
   const touchesStringCatalog =
     /\b(StringCatalog|String Catalog|Localizable\.xcstrings|\.xcstrings|generated translations?)\b/i.test(
       source
@@ -1252,6 +1276,12 @@ function diagnosticsFromWwdc26Readiness(
     touchesPreviewSnapshotProof ||
     touchesVisualIntelligence ||
     touchesImagePlayground ||
+    touchesMultimodalFoundationModels ||
+    touchesDynamicProfiles ||
+    touchesCustomModelProvider ||
+    touchesViewAnnotation ||
+    touchesSemanticIndex ||
+    touchesPcc ||
     touchesStringCatalog ||
     touchesResizableIosLayout;
 
@@ -1361,6 +1391,91 @@ function diagnosticsFromWwdc26Readiness(
   }
 
   if (
+    touchesMultimodalFoundationModels &&
+    !/\b(multimodal|image prompt|image fixture|vision fixture|screenshot|photo|xcode\s*27|test succeeded|0 failures)\b/i.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-MULTIMODAL-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Multimodal Foundation Models code needs image-prompt proof before it is demo-ready.",
+      suggestion:
+        "Attach an Xcode 27 run, image fixture, or model evaluation showing text and image prompts produce the expected grounded output.",
+    });
+  }
+
+  if (
+    touchesDynamicProfiles &&
+    !/\b(dynamic profile|profile switch|fastdraft|cloudreview|xcode\s*27|test succeeded|0 failures)\b/i.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-DYNAMIC-PROFILE-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Dynamic Profile model sessions need proof that profile selection changes the model path as intended.",
+      suggestion:
+        "Attach an Xcode 27 test or run log that switches between each declared profile and records the selected provider/tools.",
+    });
+  }
+
+  if (
+    touchesCustomModelProvider &&
+    !/\b(language model protocol|provider conformance|swift package|custom provider|xcode\s*27|test succeeded|0 failures)\b/i.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-CUSTOM-MODEL-PROVIDER",
+      severity: "warning",
+      file,
+      message:
+        "Custom Language Model providers need protocol-conformance proof before release.",
+      suggestion:
+        "Attach the Swift package provider conformance, Xcode 27 build evidence, or a focused test proving the provider can create sessions.",
+    });
+  }
+
+  if (
+    touchesViewAnnotation &&
+    !/\b(appentityidentifier|view annotation|onscreen|siri|apple intelligence|xcode\s*27|test succeeded|0 failures)\b/i.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-VIEW-ANNOTATION-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "View Annotations need onscreen entity proof before they are safe to present as Apple Intelligence-aware UI.",
+      suggestion:
+        "Attach an Xcode 27 run or UI test showing the visible view maps to the expected AppEntity identifier for Siri/Apple Intelligence.",
+    });
+  }
+
+  if (
+    touchesSemanticIndex &&
+    !/\b(spotlight|semantic index|corespotlight|attribution|appintentstesting|xcode\s*27|test succeeded|0 failures)\b/i.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-SEMANTIC-INDEX-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Spotlight semantic index metadata needs attribution and retrieval proof before it is demo-ready.",
+      suggestion:
+        "Attach Spotlight/AppIntentsTesting evidence that the indexed entity is attributed correctly and retrievable through the declared schema path.",
+    });
+  }
+
+  if (
     touchesEvaluationProof &&
     !/\b(evaluation|evaluations|scenario|criteria|pass|passed|xcode\s*27|test succeeded|0 failures)\b/.test(
       evidenceText
@@ -1425,6 +1540,23 @@ function diagnosticsFromWwdc26Readiness(
         "Image Playground flows need generated-image proof before they are safe to present as working.",
       suggestion:
         "Attach the generated image artifact or Xcode 27 run evidence, including prompt/style notes and any safety or Private Cloud Compute constraints.",
+    });
+  }
+
+  if (
+    touchesPcc &&
+    !/\b(private cloud compute|pcc|privacy|eligibility|small business|generated image|artifact|xcode\s*27|test succeeded|0 failures)\b/i.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-PCC-ELIGIBILITY-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Private Cloud Compute-eligible flows need privacy and artifact proof before demo or release.",
+      suggestion:
+        "Attach PCC eligibility notes plus the generated artifact or Xcode 27 run evidence so reviewers can verify what left the device and why.",
     });
   }
 

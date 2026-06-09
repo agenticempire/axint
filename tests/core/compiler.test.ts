@@ -319,4 +319,162 @@ export default defineIntent({
     expect(result.output?.swiftCode).toContain("AppIntentsTesting");
     expect(result.output?.swiftCode).toContain("Preview Snapshot proof matrix");
   });
+
+  it("emits multimodal Foundation Models, dynamic profiles, custom providers, and Image Playground contracts", () => {
+    const source = `
+import { defineIntent, param } from "@axint/sdk";
+
+export default defineIntent({
+  name: "CreateVisualBrief",
+  title: "Create Visual Brief",
+  description: "Creates a visual campaign brief from text and an image.",
+  schemaDomain: "assistant",
+  params: {
+    prompt: param.string("Brief prompt"),
+    sourceImage: param.string("Source image URL or asset identifier", { required: false }),
+  },
+  model: {
+    sessionName: "VisualBriefSession",
+    provider: "custom-language-model",
+    useCase: "visual-briefing",
+    instructions: "Create concise campaign guidance from the supplied text and image.",
+    prompt: "Generate the visual brief.",
+    promptVersion: "2026-wwdc-day1",
+    modalities: ["text", "image"],
+    imageInputs: [
+      { name: "sourceImage", source: "parameter", required: false },
+    ],
+    customProvider: {
+      packageName: "BrandModelKit",
+      typeName: "BrandLanguageModel",
+      configuration: "BrandLanguageModel.Configuration(profile: .campaign)",
+    },
+    dynamicProfiles: [
+      {
+        name: "fastDraft",
+        provider: "apple-on-device",
+        instructions: "Produce a short draft.",
+        tools: ["OCRVisionTool"],
+      },
+      {
+        name: "cloudReview",
+        provider: "private-cloud-compute",
+        instructions: "Review the final visual brief.",
+      },
+    ],
+    tools: [
+      {
+        name: "OCRVisionTool",
+        description: "Extracts text from the provided image.",
+        kind: "ocr",
+        outputType: "[String]",
+      },
+      {
+        name: "BarcodeVisionTool",
+        description: "Reads product barcodes from the provided image.",
+        kind: "barcode",
+        outputType: "[String]",
+      },
+    ],
+  },
+  evaluation: {
+    suite: "VisualBriefEvaluations",
+    scenarios: ["text-only", "image-with-text", "barcode"],
+    criteria: ["uses visual evidence", "keeps claims grounded"],
+    fixtures: ["Fixtures/visual-brief/card.png"],
+    metrics: ["groundedness", "latency"],
+  },
+  imagePlayground: {
+    conceptParam: "prompt",
+    sourceImageParam: "sourceImage",
+    style: "photorealistic",
+    dimensions: "landscape",
+    mode: "programmatic",
+    privateCloudCompute: true,
+  },
+  perform: async ({ prompt }) => {
+    return { brief: prompt };
+  },
+});
+`;
+    const result = compileSource(source, "visual-brief.ts");
+
+    expect(result.success).toBe(true);
+    expect(result.output?.ir.model?.modalities).toEqual(["text", "image"]);
+    expect(result.output?.ir.model?.imageInputs?.[0]).toMatchObject({
+      name: "sourceImage",
+      source: "parameter",
+      required: false,
+    });
+    expect(result.output?.ir.model?.customProvider?.typeName).toBe("BrandLanguageModel");
+    expect(result.output?.ir.model?.dynamicProfiles?.map((p) => p.name)).toEqual([
+      "fastDraft",
+      "cloudReview",
+    ]);
+    expect(result.output?.ir.imagePlayground?.style).toBe("photorealistic");
+    expect(result.output?.swiftCode).toContain("import FoundationModels");
+    expect(result.output?.swiftCode).toContain("import ImagePlayground");
+    expect(result.output?.swiftCode).toContain("Custom Language Model provider");
+    expect(result.output?.swiftCode).toContain("BrandLanguageModel");
+    expect(result.output?.swiftCode).toContain("Multimodal inputs: text, image");
+    expect(result.output?.swiftCode).toContain("OCRVisionTool");
+    expect(result.output?.swiftCode).toContain("BarcodeVisionTool");
+    expect(result.output?.swiftCode).toContain("enum VisualBriefSessionProfiles");
+    expect(result.output?.swiftCode).toContain("Image Playground contract");
+    expect(result.output?.swiftCode).toContain("photorealistic");
+    expect(result.output?.swiftCode).toContain("Evaluation fixtures");
+  });
+
+  it("emits Spotlight semantic index metadata for schema-backed entities", () => {
+    const source = `
+import { defineEntity, defineIntent, param } from "@axint/sdk";
+
+defineEntity({
+  name: "ResearchNote",
+  schemaDomain: "notes",
+  schema: "AppSchema.NotesEntity.note",
+  syncable: true,
+  indexed: true,
+  indexedQuery: true,
+  display: {
+    title: "title",
+    subtitle: "summary",
+  },
+  properties: {
+    id: param.string("Stable note identifier"),
+    title: param.string("Note title"),
+    summary: param.string("Short note summary"),
+  },
+  query: "string",
+  semanticIndex: {
+    contentType: "note",
+    searchableByLLM: true,
+    attribution: "Research notes in the current account",
+    attributes: ["title", "summary"],
+  },
+});
+
+export default defineIntent({
+  name: "SearchResearchNotes",
+  title: "Search Research Notes",
+  description: "Searches semantically indexed research notes.",
+  schemaDomain: "notes",
+  params: {
+    query: param.string("Search query"),
+  },
+  perform: async ({ query }) => ({ query }),
+});
+`;
+    const result = compileSource(source, "semantic-index.ts");
+
+    expect(result.success).toBe(true);
+    expect(result.output?.ir.entities?.[0].semanticIndex).toMatchObject({
+      contentType: "note",
+      searchableByLLM: true,
+      attribution: "Research notes in the current account",
+      attributes: ["title", "summary"],
+    });
+    expect(result.output?.swiftCode).toContain("Spotlight semantic index");
+    expect(result.output?.swiftCode).toContain("Research notes in the current account");
+  });
 });

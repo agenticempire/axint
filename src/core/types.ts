@@ -109,8 +109,30 @@ export interface IRFoundationModelGenerable {
 export interface IRFoundationModelTool {
   name: string;
   description: string;
+  kind?: "custom" | "ocr" | "barcode" | "vision";
   argumentsType?: string;
   outputType?: string;
+}
+
+export type IRFoundationModelModality = "text" | "image" | "audio" | "video";
+
+export interface IRFoundationModelImageInput {
+  name: string;
+  source: "parameter" | "photo-library" | "camera" | "screenshot" | "asset";
+  required?: boolean;
+}
+
+export interface IRFoundationModelCustomProvider {
+  packageName?: string;
+  typeName: string;
+  configuration?: string;
+}
+
+export interface IRFoundationModelDynamicProfile {
+  name: string;
+  provider?: IRFoundationModelProvider;
+  instructions?: string;
+  tools?: string[];
 }
 
 export interface IRFoundationModelConfig {
@@ -119,8 +141,13 @@ export interface IRFoundationModelConfig {
   useCase?: string;
   instructions?: string;
   prompt?: string;
+  promptVersion?: string;
   dynamicProfile?: string;
+  dynamicProfiles?: IRFoundationModelDynamicProfile[];
   guardrails?: string[];
+  modalities?: IRFoundationModelModality[];
+  imageInputs?: IRFoundationModelImageInput[];
+  customProvider?: IRFoundationModelCustomProvider;
   generable?: IRFoundationModelGenerable;
   tools?: IRFoundationModelTool[];
 }
@@ -129,6 +156,8 @@ export interface IREvaluationConfig {
   suite: string;
   scenarios: string[];
   criteria: string[];
+  fixtures?: string[];
+  metrics?: string[];
 }
 
 export interface IRPreviewProofConfig {
@@ -136,6 +165,15 @@ export interface IRPreviewProofConfig {
   variants: string[];
   widgetTimeline?: boolean;
   liveActivityStates?: string[];
+}
+
+export interface IRImagePlaygroundConfig {
+  conceptParam: string;
+  sourceImageParam?: string;
+  style?: string;
+  dimensions?: "square" | "portrait" | "landscape";
+  mode?: "sheet" | "programmatic";
+  privateCloudCompute?: boolean;
 }
 
 /**
@@ -161,6 +199,13 @@ export interface IREntity {
   intentValueRepresentation?: string;
   /** Make the generated query adopt `IndexedEntityQuery`. */
   indexedQuery?: boolean;
+  /** Spotlight semantic index proof metadata for Apple Intelligence personal context. */
+  semanticIndex?: {
+    contentType: string;
+    searchableByLLM?: boolean;
+    attribution?: string;
+    attributes?: string[];
+  };
 }
 
 export type IRParameterSummary =
@@ -242,6 +287,12 @@ export interface IRView {
   state: IRViewState[];
   body: ViewBodyNode[];
   modifiers?: Record<string, ViewModifier[]>;
+  /** AppEntity view annotations that make visible content available to Siri/Apple Intelligence. */
+  appEntityAnnotations?: Array<{
+    entity: string;
+    identifier: string;
+    label?: string;
+  }>;
   sourceFile: string;
 }
 
@@ -285,6 +336,8 @@ export interface IRIntent {
   evaluation?: IREvaluationConfig;
   /** Preview snapshot matrix required to prove generated UI variants. */
   previewProof?: IRPreviewProofConfig;
+  /** Image Playground generation contract for image-producing App Intents. */
+  imagePlayground?: IRImagePlaygroundConfig;
 }
 
 // ─── Widget IR Types ────────────────────────────────────────────────────────

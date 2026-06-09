@@ -28,8 +28,13 @@ import type {
   IRFoundationModelProvider,
   IRFoundationModelTool,
   IRFoundationModelGenerable,
+  IRFoundationModelModality,
+  IRFoundationModelImageInput,
+  IRFoundationModelCustomProvider,
+  IRFoundationModelDynamicProfile,
   IREvaluationConfig,
   IRPreviewProofConfig,
+  IRImagePlaygroundConfig,
 } from "./types.js";
 import { PARAM_TYPES, LEGACY_PARAM_ALIASES, isPrimitiveType } from "./types.js";
 import {
@@ -191,6 +196,11 @@ export function parseIntentSource(
     filePath,
     sourceFile
   );
+  const imagePlayground = parseImagePlaygroundConfig(
+    props.get("imagePlayground"),
+    filePath,
+    sourceFile
+  );
 
   return {
     name,
@@ -216,6 +226,7 @@ export function parseIntentSource(
     model,
     evaluation,
     previewProof,
+    imagePlayground,
   };
 }
 
@@ -325,6 +336,11 @@ function parseEntityDefinition(
   const intentValueRepresentation = readStringLiteral(
     props.get("intentValueRepresentation")
   );
+  const semanticIndex = parseSemanticIndexConfig(
+    props.get("semanticIndex"),
+    filePath,
+    sourceFile
+  );
 
   return {
     name,
@@ -338,6 +354,7 @@ function parseEntityDefinition(
     indexedQuery: indexedQuery ?? undefined,
     ownership: (ownership as IREntityOwnership | null) || undefined,
     intentValueRepresentation: intentValueRepresentation || undefined,
+    semanticIndex,
   };
 }
 
@@ -537,8 +554,29 @@ function parseFoundationModelConfig(
     useCase: readStringLiteral(props.get("useCase")) || undefined,
     instructions: readStringLiteral(props.get("instructions")) || undefined,
     prompt: readStringLiteral(props.get("prompt")) || undefined,
+    promptVersion: readStringLiteral(props.get("promptVersion")) || undefined,
     dynamicProfile: readStringLiteral(props.get("dynamicProfile")) || undefined,
+    dynamicProfiles: parseFoundationModelDynamicProfiles(
+      props.get("dynamicProfiles"),
+      filePath,
+      sourceFile
+    ),
     guardrails: readStringArray(props.get("guardrails")),
+    modalities: parseFoundationModelModalities(
+      props.get("modalities"),
+      filePath,
+      sourceFile
+    ),
+    imageInputs: parseFoundationModelImageInputs(
+      props.get("imageInputs"),
+      filePath,
+      sourceFile
+    ),
+    customProvider: parseFoundationModelCustomProvider(
+      props.get("customProvider"),
+      filePath,
+      sourceFile
+    ),
     generable: parseFoundationModelGenerable(
       props.get("generable"),
       filePath,
@@ -615,8 +653,150 @@ function parseFoundationModelTools(
     return {
       name,
       description,
+      kind:
+        (readStringLiteral(props.get("kind")) as IRFoundationModelTool["kind"] | null) ||
+        undefined,
       argumentsType: readStringLiteral(props.get("argumentsType")) || undefined,
       outputType: readStringLiteral(props.get("outputType")) || undefined,
+    };
+  });
+}
+
+function parseFoundationModelModalities(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRFoundationModelModality[] | undefined {
+  if (!node) return undefined;
+  const values = readStringArray(node);
+  const allowed = new Set(["text", "image", "audio", "video"]);
+  for (const value of values) {
+    if (!allowed.has(value)) {
+      throw new ParserError(
+        "AX043",
+        `Invalid model modality: "${value}"`,
+        filePath,
+        posOf(sourceFile, node),
+        'Use modalities like ["text", "image"].'
+      );
+    }
+  }
+  return values as IRFoundationModelModality[];
+}
+
+function parseFoundationModelImageInputs(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRFoundationModelImageInput[] | undefined {
+  if (!node) return undefined;
+  if (!ts.isArrayLiteralExpression(node)) {
+    throw new ParserError(
+      "AX044",
+      "model.imageInputs must be an array",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  return node.elements.map((element) => {
+    if (!ts.isObjectLiteralExpression(element)) {
+      throw new ParserError(
+        "AX045",
+        "model.imageInputs entries must be object literals",
+        filePath,
+        posOf(sourceFile, element)
+      );
+    }
+    const props = propertyMap(element);
+    const name = readStringLiteral(props.get("name"));
+    const source = readStringLiteral(props.get("source"));
+    if (!name || !source) {
+      throw new ParserError(
+        "AX046",
+        "model.imageInputs entries require name and source",
+        filePath,
+        posOf(sourceFile, element)
+      );
+    }
+    return {
+      name,
+      source: source as IRFoundationModelImageInput["source"],
+      required: readBooleanLiteral(props.get("required")) ?? undefined,
+    };
+  });
+}
+
+function parseFoundationModelCustomProvider(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRFoundationModelCustomProvider | undefined {
+  if (!node) return undefined;
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX047",
+      "model.customProvider must be an object literal",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const props = propertyMap(node);
+  const typeName = readStringLiteral(props.get("typeName"));
+  if (!typeName) {
+    throw new ParserError(
+      "AX048",
+      "model.customProvider.typeName is required",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  return {
+    packageName: readStringLiteral(props.get("packageName")) || undefined,
+    typeName,
+    configuration: readStringLiteral(props.get("configuration")) || undefined,
+  };
+}
+
+function parseFoundationModelDynamicProfiles(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRFoundationModelDynamicProfile[] | undefined {
+  if (!node) return undefined;
+  if (!ts.isArrayLiteralExpression(node)) {
+    throw new ParserError(
+      "AX049",
+      "model.dynamicProfiles must be an array",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  return node.elements.map((element) => {
+    if (!ts.isObjectLiteralExpression(element)) {
+      throw new ParserError(
+        "AX050",
+        "model.dynamicProfiles entries must be object literals",
+        filePath,
+        posOf(sourceFile, element)
+      );
+    }
+    const props = propertyMap(element);
+    const name = readStringLiteral(props.get("name"));
+    if (!name) {
+      throw new ParserError(
+        "AX051",
+        "model.dynamicProfiles entries require name",
+        filePath,
+        posOf(sourceFile, element)
+      );
+    }
+    return {
+      name,
+      provider:
+        (readStringLiteral(props.get("provider")) as IRFoundationModelProvider | null) ||
+        undefined,
+      instructions: readStringLiteral(props.get("instructions")) || undefined,
+      tools: readStringArray(props.get("tools")),
     };
   });
 }
@@ -649,6 +829,8 @@ function parseEvaluationConfig(
     suite,
     scenarios: readStringArray(props.get("scenarios")),
     criteria: readStringArray(props.get("criteria")),
+    fixtures: readStringArray(props.get("fixtures")),
+    metrics: readStringArray(props.get("metrics")),
   };
 }
 
@@ -681,6 +863,78 @@ function parsePreviewProofConfig(
     variants: readStringArray(props.get("variants")),
     widgetTimeline: readBooleanLiteral(props.get("widgetTimeline")),
     liveActivityStates: readStringArray(props.get("liveActivityStates")),
+  };
+}
+
+function parseImagePlaygroundConfig(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRImagePlaygroundConfig | undefined {
+  if (!node) return undefined;
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX052",
+      "imagePlayground must be an object literal",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const props = propertyMap(node);
+  const conceptParam = readStringLiteral(props.get("conceptParam"));
+  if (!conceptParam) {
+    throw new ParserError(
+      "AX053",
+      "imagePlayground.conceptParam is required",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  return {
+    conceptParam,
+    sourceImageParam: readStringLiteral(props.get("sourceImageParam")) || undefined,
+    style: readStringLiteral(props.get("style")) || undefined,
+    dimensions:
+      (readStringLiteral(props.get("dimensions")) as
+        | IRImagePlaygroundConfig["dimensions"]
+        | null) || undefined,
+    mode:
+      (readStringLiteral(props.get("mode")) as IRImagePlaygroundConfig["mode"] | null) ||
+      undefined,
+    privateCloudCompute:
+      readBooleanLiteral(props.get("privateCloudCompute")) ?? undefined,
+  };
+}
+
+function parseSemanticIndexConfig(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IREntity["semanticIndex"] | undefined {
+  if (!node) return undefined;
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX054",
+      "semanticIndex must be an object literal",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const props = propertyMap(node);
+  const contentType = readStringLiteral(props.get("contentType"));
+  if (!contentType) {
+    throw new ParserError(
+      "AX055",
+      "semanticIndex.contentType is required",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  return {
+    contentType,
+    searchableByLLM: readBooleanLiteral(props.get("searchableByLLM")) ?? undefined,
+    attribution: readStringLiteral(props.get("attribution")) || undefined,
+    attributes: readStringArray(props.get("attributes")),
   };
 }
 

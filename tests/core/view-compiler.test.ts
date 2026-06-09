@@ -159,6 +159,46 @@ describe("compileViewSource", () => {
     expect(swift).toContain("EmptyState()");
   });
 
+  it("emits App Entity view annotations for onscreen awareness", () => {
+    const source = `
+      import { defineView, prop, view } from "@axint/sdk";
+
+      export default defineView({
+        name: "LandmarkCard",
+        props: {
+          landmarkID: prop.string("Stable landmark identifier"),
+          title: prop.string("Landmark title"),
+        },
+        appEntityAnnotations: [
+          {
+            entity: "LandmarkEntity",
+            identifier: "landmarkID",
+            label: "visible-landmark",
+          },
+        ],
+        body: [
+          view.vstack([
+            view.text("\\\\(title)"),
+          ]),
+        ],
+      });
+    `;
+
+    const result = compileViewSource(source, "landmark-card.ts");
+    expect(result.success).toBe(true);
+    expect(result.output?.ir.appEntityAnnotations?.[0]).toMatchObject({
+      entity: "LandmarkEntity",
+      identifier: "landmarkID",
+      label: "visible-landmark",
+    });
+    expect(result.output?.swiftCode).toContain(
+      ".appEntityIdentifier(EntityIdentifier(for: LandmarkEntity.self, identifier: landmarkID))"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "View Annotation: visible-landmark maps this view to LandmarkEntity"
+    );
+  });
+
   it("outputs correct file name", () => {
     const result = compileViewSource(GREETING_VIEW);
     expect(result.output!.outputPath).toBe("Greeting.swift");
