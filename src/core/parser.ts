@@ -577,13 +577,21 @@ function extractParamCall(
 
   const typeName = expr.expression.name.text;
 
-  // For entity and dynamicOptions, the structure differs:
+  // For entity, entityCollection, array, and dynamicOptions, the structure differs:
   // - param.entity("EntityName", "description", config?)
+  // - param.entityCollection("EntityName", "description", config?)
+  // - param.array(param.string(...), "description", config?)
   // - param.dynamicOptions("Provider", param.string(...))
   let descriptionArg: ts.Expression | undefined;
   let configArg: ts.Expression | undefined;
 
-  if (typeName === "entity" && expr.arguments.length >= 2) {
+  if (
+    (typeName === "entity" || typeName === "entityCollection") &&
+    expr.arguments.length >= 2
+  ) {
+    descriptionArg = expr.arguments[1];
+    configArg = expr.arguments[2];
+  } else if (typeName === "array" && expr.arguments.length >= 2) {
     descriptionArg = expr.arguments[1];
     configArg = expr.arguments[2];
   } else if (typeName === "dynamicOptions" && expr.arguments.length >= 2) {
@@ -673,6 +681,74 @@ function resolveParamType(
     };
   }
 
+  // Entity collection types: param.entityCollection("EntityName")
+  if (typeName === "entityCollection") {
+    if (!callExpr || callExpr.arguments.length === 0) {
+      throw new ParserError(
+        "AX024",
+        "param.entityCollection() requires the entity name as the first argument",
+        filePath,
+        posOf(sourceFile, node),
+        'Example: param.entityCollection("Task", "Reference multiple entities")'
+      );
+    }
+    const entityName = readStringLiteral(callExpr.arguments[0]);
+    if (!entityName) {
+      throw new ParserError(
+        "AX025",
+        "param.entityCollection() requires a string entity name",
+        filePath,
+        posOf(sourceFile, node)
+      );
+    }
+    return {
+      kind: "array",
+      elementType: {
+        kind: "entity",
+        entityName,
+        properties: [],
+      },
+    };
+  }
+
+  // Array types: param.array(param.string(...), "Description")
+  if (typeName === "array") {
+    if (!callExpr || callExpr.arguments.length === 0) {
+      throw new ParserError(
+        "AX026",
+        "param.array() requires an inner param helper as the first argument",
+        filePath,
+        posOf(sourceFile, node),
+        'Example: param.array(param.string("Tag"), "Tags")'
+      );
+    }
+    const innerArg = callExpr.arguments[0];
+    if (
+      ts.isCallExpression(innerArg) &&
+      ts.isPropertyAccessExpression(innerArg.expression) &&
+      ts.isIdentifier(innerArg.expression.expression) &&
+      innerArg.expression.expression.text === "param"
+    ) {
+      return {
+        kind: "array",
+        elementType: resolveParamType(
+          innerArg.expression.name.text,
+          filePath,
+          sourceFile,
+          innerArg,
+          innerArg
+        ),
+      };
+    }
+    throw new ParserError(
+      "AX027",
+      "param.array() first argument must be a param.* helper",
+      filePath,
+      posOf(sourceFile, node),
+      'Example: param.array(param.entity("Task", "Task"), "Tasks")'
+    );
+  }
+
   // Dynamic options: param.dynamicOptions("ProviderName", innerType)
   if (typeName === "dynamicOptions") {
     if (!callExpr || callExpr.arguments.length < 2) {
@@ -726,7 +802,7 @@ function resolveParamType(
     `Unknown param type: param.${typeName}`,
     filePath,
     posOf(sourceFile, node),
-    `Supported types: ${[...PARAM_TYPES].join(", ")}, entity, dynamicOptions`
+    `Supported types: ${[...PARAM_TYPES].join(", ")}, entity, entityCollection, array, dynamicOptions`
   );
 }
 

@@ -68,7 +68,18 @@ export type AppIntentConformance =
   | "LongRunningIntent"
   | "CancellableIntent"
   | "UndoableIntent"
-  | "RunSystemShortcutIntent";
+  | "RunSystemShortcutIntent"
+  | "ProgressReportingIntent"
+  | "SnippetIntent"
+  | "SystemIntent"
+  | "ShowInAppSearchResultsIntent"
+  | "TargetContentProvidingIntent"
+  | "URLRepresentableIntent"
+  | "OpenIntent"
+  | "DeleteIntent"
+  | "SetValueIntent"
+  | "ControlConfigurationIntent"
+  | "WidgetConfigurationIntent";
 
 export type EntityOwnership = "unknown" | "shared" | "public";
 
@@ -163,6 +174,37 @@ export const param = {
    */
   entity: (entityName: string, description: string, config?: Partial<ParamConfig>) => ({
     type: "entity" as const,
+    entityName,
+    description,
+    ...config,
+  }),
+
+  /** Array parameter. Pass another `param.*` helper as the element type. */
+  array: (
+    innerParam: ReturnType<ParamFactory<string>>,
+    description: string,
+    config?: Partial<ParamConfig>
+  ) => {
+    const { description: innerDescription, ...inner } = innerParam;
+    return {
+      type: "array" as const,
+      innerType: inner,
+      description,
+      innerDescription,
+      ...config,
+    };
+  },
+
+  /**
+   * Entity collection parameter. Compiles to `[EntityName]` for intents
+   * that operate on a selected group of app entities.
+   */
+  entityCollection: (
+    entityName: string,
+    description: string,
+    config?: Partial<ParamConfig>
+  ) => ({
+    type: "entityCollection" as const,
     entityName,
     description,
     ...config,

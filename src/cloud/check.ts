@@ -1206,7 +1206,11 @@ function diagnosticsFromWwdc26Readiness(
   const lower = source.toLowerCase();
   const touchesAppleIntelligence =
     /@App(Intent|Entity|Enum)\(schema:/.test(source) ||
-    /\b(AppSchema|SyncableEntity|OwnershipProvidingEntity|IndexedEntityQuery|IntentValueQuery|FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|@Generable|GenerationSchema|ToolCallingMode)\b/.test(
+    /\b(AppSchema|SyncableEntity|OwnershipProvidingEntity|IndexedEntityQuery|IntentValueQuery|FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|GenerationSchema|ToolCallingMode)\b/.test(
+      source
+    ) ||
+    /@(?:Generable|UnionValue)\b/.test(source) ||
+    /\b(LongRunningIntent|ProgressReportingIntent|SnippetIntent|ShowsSnippetIntent|ShowsSnippetView|ResultsCollection|IntentItemCollection|AppUnionValue|AppUnionValueCasesProviding)\b/.test(
       source
     );
 
@@ -1272,6 +1276,72 @@ function diagnosticsFromWwdc26Readiness(
         "Foundation Models code needs prompt/model-version proof against the current OS model before it is safe to call demo-ready.",
       suggestion:
         "Attach Xcode 27 build proof plus prompt-version notes, token/context checks, or a focused model behavior test.",
+    });
+  }
+
+  if (
+    /\bLongRunningIntent\b/.test(source) &&
+    !/\b(performBackgroundTask|LongRunningTaskOptions)\b/.test(
+      source + "\n" + evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-LONG-RUNNING-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "LongRunningIntent code needs proof that work is wrapped in the SDK long-running background task API.",
+      suggestion:
+        "Use performBackgroundTask(options:operation:) with LongRunningTaskOptions, then attach clean Xcode build/run proof for the target OS.",
+    });
+  }
+
+  if (
+    /\bProgressReportingIntent\b/.test(source) &&
+    !/(?:\bcompletedUnitCount\b|\btotalUnitCount\b|\bProgress\s*\(|\bprogress\.)/.test(
+      source + "\n" + evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-PROGRESS-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "ProgressReportingIntent code needs observable progress proof before it is demo-ready.",
+      suggestion:
+        "Report progress milestones during the long-running operation and attach a focused run log or test showing progress updates.",
+    });
+  }
+
+  if (
+    /\b(SnippetIntent|ShowsSnippetIntent|ShowsSnippetView)\b/.test(source) &&
+    !/\b(requestConfirmation|snippetIntent|ShowsSnippetIntent|ShowsSnippetView)\b/.test(
+      source + "\n" + evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-SNIPPET-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Snippet-backed App Intents need proof that the snippet is actually returned or requested from perform().",
+      suggestion:
+        "Return a result that conforms to ShowsSnippetIntent or ShowsSnippetView, or call requestConfirmation(..., snippetIntent: ...), then attach simulator/device proof.",
+    });
+  }
+
+  if (
+    /(?:@UnionValue\b|\bAppUnionValue\b)/.test(source) &&
+    !/\bAppUnionValueCasesProviding\b/.test(source)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-UNION-VALUE-CASES",
+      severity: "warning",
+      file,
+      message:
+        "Union value code needs an AppUnionValueCasesProviding cases type so the system can enumerate supported cases.",
+      suggestion:
+        "Define a cases enum that adopts AppUnionValueCasesProviding and attach Xcode proof that the union value resolves in App Intents.",
     });
   }
 

@@ -70,6 +70,17 @@ const APP_INTENT_CONFORMANCES = new Set([
   "CancellableIntent",
   "UndoableIntent",
   "RunSystemShortcutIntent",
+  "ProgressReportingIntent",
+  "SnippetIntent",
+  "SystemIntent",
+  "ShowInAppSearchResultsIntent",
+  "TargetContentProvidingIntent",
+  "URLRepresentableIntent",
+  "OpenIntent",
+  "DeleteIntent",
+  "SetValueIntent",
+  "ControlConfigurationIntent",
+  "WidgetConfigurationIntent",
 ]);
 
 const ENTITY_OWNERSHIP_VALUES = new Set(["unknown", "shared", "public"]);

@@ -920,6 +920,172 @@ export default defineIntent({
 `,
 };
 
+const longRunningProgressIntent: IntentTemplate = {
+  id: "long-running-progress-intent",
+  name: "long-running-progress-intent",
+  title: "Long-Running Progress Intent",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold an intent that marks long-running work and progress reporting explicitly.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "BuildResearchBrief",
+  title: "Build Research Brief",
+  description: "Runs a longer model-backed workflow with progress proof.",
+  schemaDomain: "assistant",
+  conformsTo: ["LongRunningIntent", "ProgressReportingIntent"],
+  supportedModes: "[.foreground, .background]",
+  params: {
+    topic: param.string("Brief topic"),
+    sources: param.array(param.string("Source URL or note"), "Sources to include", {
+      required: false,
+    }),
+  },
+  perform: async ({ topic }) => {
+    // Swift implementation hint:
+    // Use performBackgroundTask(options: LongRunningTaskOptions(...)) for
+    // background runtime and report progress as milestones complete.
+    return { briefId: \`brief-\${topic}\` };
+  },
+});
+`,
+};
+
+const interactiveSnippetIntent: IntentTemplate = {
+  id: "interactive-snippet-intent",
+  name: "interactive-snippet-intent",
+  title: "Interactive Snippet Intent",
+  domain: "apple-intelligence",
+  category: "snippets",
+  description:
+    "Scaffold a snippet-backed App Intent flow for confirmation or follow-up actions.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "ConfirmTicketSearch",
+  title: "Confirm Ticket Search",
+  description: "Presents a snippet-backed confirmation before continuing.",
+  schemaDomain: "assistant",
+  conformsTo: ["SnippetIntent"],
+  params: {
+    eventName: param.string("Event name"),
+    ticketCount: param.int("Ticket count", { default: 2 }),
+  },
+  perform: async ({ eventName }) => {
+    // Swift implementation hint:
+    // Return some IntentResult & ShowsSnippetIntent from the real Swift
+    // perform() and call requestConfirmation(..., snippetIntent: ...).
+    return { confirmation: \`Review tickets for \${eventName}\` };
+  },
+});
+`,
+};
+
+const systemShortcutBridge: IntentTemplate = {
+  id: "system-shortcut-bridge",
+  name: "system-shortcut-bridge",
+  title: "System Shortcut Bridge",
+  domain: "automation",
+  category: "shortcuts",
+  description:
+    "Scaffold an intent that bridges app data into a system shortcut workflow.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "RunMorningAutomation",
+  title: "Run Morning Automation",
+  description: "Runs a named system shortcut with app context.",
+  schemaDomain: "assistant",
+  conformsTo: ["RunSystemShortcutIntent"],
+  params: {
+    shortcutName: param.string("Shortcut name"),
+    context: param.string("Context payload", { required: false }),
+  },
+  perform: async ({ shortcutName }) => {
+    // Swift implementation hint:
+    // Resolve the system shortcut target, pass app context, and attach
+    // Xcode 27 proof that the target exists on the current OS build.
+    return { shortcutName };
+  },
+});
+`,
+};
+
+const entityCollectionSearch: IntentTemplate = {
+  id: "entity-collection-search",
+  name: "entity-collection-search",
+  title: "Entity Collection Search",
+  domain: "apple-intelligence",
+  category: "entities",
+  description: "Scaffold an intent that accepts a collection of schema-backed entities.",
+  source: `import { defineEntity, defineIntent, param } from "@axint/compiler";
+
+defineEntity({
+  name: "InboxMessage",
+  schemaDomain: "messages",
+  schema: "AppSchema.MessagesEntity.message",
+  syncable: true,
+  indexed: true,
+  indexedQuery: true,
+  ownership: "shared",
+  display: {
+    title: "subject",
+    subtitle: "sender",
+  },
+  properties: {
+    id: param.string("Stable message identifier"),
+    subject: param.string("Message subject"),
+    sender: param.string("Sender name"),
+  },
+  query: "string",
+});
+
+export default defineIntent({
+  name: "SummarizeInboxMessages",
+  title: "Summarize Inbox Messages",
+  description: "Summarizes a selected collection of messages.",
+  schemaDomain: "messages",
+  schema: "AppSchema.MessagesIntent.sendMessage",
+  params: {
+    messages: param.entityCollection("InboxMessage", "Messages to summarize"),
+  },
+  perform: async ({ messages }) => {
+    return { count: Array.isArray(messages) ? messages.length : 0 };
+  },
+});
+`,
+};
+
+const unionValueRouter: IntentTemplate = {
+  id: "union-value-router",
+  name: "union-value-router",
+  title: "Union Value Router",
+  domain: "apple-intelligence",
+  category: "entities",
+  description: "Scaffold an intent that routes work across union-value style cases.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "RouteAssistantValue",
+  title: "Route Assistant Value",
+  description: "Routes an assistant value into the right app workflow.",
+  schemaDomain: "assistant",
+  params: {
+    valueKind: param.string("Union value case"),
+    payload: param.string("Serialized value payload"),
+  },
+  perform: async ({ valueKind }) => {
+    // Swift implementation hint:
+    // Define the concrete Swift union with @UnionValue and make its cases
+    // enum adopt AppUnionValueCasesProviding before wiring this router.
+    return { routedTo: valueKind };
+  },
+});
+`,
+};
+
 // ─── Registry ────────────────────────────────────────────────────────
 
 export const TEMPLATES: IntentTemplate[] = [
@@ -952,6 +1118,11 @@ export const TEMPLATES: IntentTemplate[] = [
   foundationModelSession,
   foundationModelTool,
   privateCloudModelIntent,
+  longRunningProgressIntent,
+  interactiveSnippetIntent,
+  systemShortcutBridge,
+  entityCollectionSearch,
+  unionValueRouter,
 ];
 
 /** @deprecated Use TEMPLATES. Kept for v0.1.x import compatibility. */

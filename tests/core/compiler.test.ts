@@ -200,4 +200,52 @@ export default defineIntent({
       "static var allowedExecutionTargets: ExecutionTargets { .main }"
     );
   });
+
+  it("emits P1 protocol conformances and entity collection parameters", () => {
+    const source = `
+import { defineIntent, defineEntity, param } from "@axint/sdk";
+
+defineEntity({
+  name: "Message",
+  schemaDomain: "messages",
+  schema: "AppSchema.MessagesEntity.message",
+  syncable: true,
+  indexed: true,
+  indexedQuery: true,
+  ownership: "shared",
+  display: {
+    title: "name",
+  },
+  properties: {
+    id: param.string("Stable message ID"),
+    name: param.string("Message summary"),
+  },
+  query: "string",
+});
+
+export default defineIntent({
+  name: "SummarizeMessages",
+  title: "Summarize Messages",
+  description: "Summarizes selected messages with progress",
+  schemaDomain: "messages",
+  schema: "AppSchema.MessagesIntent.sendMessage",
+  conformsTo: ["LongRunningIntent", "ProgressReportingIntent"],
+  params: {
+    messages: param.entityCollection("Message", "Messages to summarize"),
+    tags: param.array(param.string("Tag"), "Tags", { required: false }),
+  },
+  perform: async () => {
+    return { ok: true };
+  },
+});
+`;
+    const result = compileSource(source, "p1.ts");
+
+    expect(result.success).toBe(true);
+    expect(result.output?.swiftCode).toContain(
+      "struct SummarizeMessagesIntent: AppIntent, LongRunningIntent, ProgressReportingIntent"
+    );
+    expect(result.output?.swiftCode).toContain("var messages: [Message]");
+    expect(result.output?.swiftCode).toContain("var tags: [String]?");
+  });
 });

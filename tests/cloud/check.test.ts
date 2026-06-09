@@ -144,6 +144,67 @@ struct SummarizeIntent: AppIntent {
     expect(report.status).toBe("needs_review");
   });
 
+  it("asks long-running progress intents for background and progress proof", () => {
+    const report = runCloudCheck({
+      fileName: "ResearchBriefIntent.swift",
+      source: `
+import AppIntents
+
+struct ResearchBriefIntent: AppIntent, LongRunningIntent, ProgressReportingIntent {
+    static var title: LocalizedStringResource = "Research Brief"
+    func perform() async throws -> some IntentResult {
+        return .result()
+    }
+}
+`,
+    });
+
+    const codes = report.diagnostics.map((d) => d.code);
+    expect(codes).toContain("AXCLOUD-WWDC26-LONG-RUNNING-PROOF");
+    expect(codes).toContain("AXCLOUD-WWDC26-PROGRESS-PROOF");
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks snippet intents for returned snippet proof", () => {
+    const report = runCloudCheck({
+      fileName: "TicketSnippetIntent.swift",
+      source: `
+import AppIntents
+
+struct TicketSnippetIntent: AppIntent, SnippetIntent {
+    static var title: LocalizedStringResource = "Ticket Snippet"
+    func perform() async throws -> some IntentResult {
+        return .result()
+    }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-SNIPPET-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks union values for cases-provider proof", () => {
+    const report = runCloudCheck({
+      fileName: "AssistantValue.swift",
+      source: `
+import AppIntents
+
+@UnionValue
+struct AssistantValue: AppUnionValue {
+    var id: String
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-UNION-VALUE-CASES"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
   it("separates compiler, MCP, cloud ruleset, and expected project versions", () => {
     const report = runCloudCheck({
       fileName: "ContentView.swift",

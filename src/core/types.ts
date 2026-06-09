@@ -81,7 +81,18 @@ export type IRIntentConformance =
   | "LongRunningIntent"
   | "CancellableIntent"
   | "UndoableIntent"
-  | "RunSystemShortcutIntent";
+  | "RunSystemShortcutIntent"
+  | "ProgressReportingIntent"
+  | "SnippetIntent"
+  | "SystemIntent"
+  | "ShowInAppSearchResultsIntent"
+  | "TargetContentProvidingIntent"
+  | "URLRepresentableIntent"
+  | "OpenIntent"
+  | "DeleteIntent"
+  | "SetValueIntent"
+  | "ControlConfigurationIntent"
+  | "WidgetConfigurationIntent";
 
 export type IREntityOwnership = "unknown" | "shared" | "public";
 
