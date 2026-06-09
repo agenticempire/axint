@@ -84,6 +84,9 @@ export function generateSwift(intent: IRIntent): string {
   if (safeIntent.model) {
     lines.push(`import FoundationModels`);
   }
+  if (safeIntent.imagePlayground) {
+    lines.push(`import ImagePlayground`);
+  }
   lines.push(`import Foundation`);
   lines.push(``);
 
@@ -104,6 +107,11 @@ export function generateSwift(intent: IRIntent): string {
 
   if (safeIntent.model) {
     lines.push(generateFoundationModelSupport(safeIntent));
+    lines.push(``);
+  }
+
+  if (safeIntent.imagePlayground) {
+    lines.push(generateImagePlaygroundSupport(safeIntent));
     lines.push(``);
   }
 
@@ -207,6 +215,26 @@ export function generateEntity(entity: IREntity): string {
   }
   lines.push(`struct ${entity.name}: ${entityConformances(entity).join(", ")} {`);
   lines.push(`    static var defaultQuery = ${entity.name}Query()`);
+  if (entity.semanticIndex) {
+    lines.push(
+      `    // Spotlight semantic index: ${escapeSwiftString(entity.semanticIndex.contentType)}`
+    );
+    if (entity.semanticIndex.attribution) {
+      lines.push(
+        `    // Semantic index attribution: ${escapeSwiftString(entity.semanticIndex.attribution)}`
+      );
+    }
+    if (entity.semanticIndex.searchableByLLM !== undefined) {
+      lines.push(
+        `    // Searchable by Apple Intelligence: ${entity.semanticIndex.searchableByLLM}`
+      );
+    }
+    if (entity.semanticIndex.attributes?.length) {
+      lines.push(
+        `    // Semantic index attributes: ${entity.semanticIndex.attributes.map(escapeSwiftString).join(", ")}`
+      );
+    }
+  }
   lines.push(``);
 
   // Apple requires AppEntity to have an id property
@@ -406,9 +434,19 @@ function generateFoundationModelSupport(intent: IRIntent): string {
   for (const tool of model.tools ?? []) {
     const argumentsType = tool.argumentsType || `${tool.name}Arguments`;
     const outputType = tool.outputType || "String";
+    if (tool.kind) {
+      lines.push(`// ${tool.name} is a ${tool.kind} Foundation Models tool.`);
+    }
     lines.push(`struct ${tool.name}: Tool {`);
     lines.push(`    let name = "${escapeSwiftString(tool.name)}"`);
     lines.push(`    let description = "${escapeSwiftString(tool.description)}"`);
+    if (tool.kind === "ocr") {
+      lines.push(`    // OCRVisionTool: connect this to Vision text-recognition proof.`);
+    } else if (tool.kind === "barcode") {
+      lines.push(`    // BarcodeVisionTool: connect this to Vision barcode proof.`);
+    } else if (tool.kind === "vision") {
+      lines.push(`    // Vision framework tool: attach image-understanding fixtures.`);
+    }
     lines.push(``);
     lines.push(`    @Generable`);
     lines.push(`    struct Arguments: Generable {`);
@@ -426,6 +464,27 @@ function generateFoundationModelSupport(intent: IRIntent): string {
     lines.push(``);
   }
 
+  if (model.dynamicProfiles?.length) {
+    lines.push(`enum ${sessionName}Profiles {`);
+    for (const profile of model.dynamicProfiles) {
+      lines.push(
+        `    static let ${swiftIdentifier(profile.name)} = "${escapeSwiftString(profile.provider ?? model.provider)}"`
+      );
+      if (profile.instructions) {
+        lines.push(
+          `    // ${escapeSwiftString(profile.name)} instructions: ${escapeSwiftString(profile.instructions)}`
+        );
+      }
+      if (profile.tools?.length) {
+        lines.push(
+          `    // ${escapeSwiftString(profile.name)} tools: ${profile.tools.map(escapeSwiftString).join(", ")}`
+        );
+      }
+    }
+    lines.push(`}`);
+    lines.push(``);
+  }
+
   lines.push(`enum ${sessionName}Factory {`);
   lines.push(`    static func make() -> LanguageModelSession {`);
   if (model.instructions) {
@@ -438,6 +497,39 @@ function generateFoundationModelSupport(intent: IRIntent): string {
   if (model.dynamicProfile) {
     lines.push(`        // Dynamic Profile: ${escapeSwiftString(model.dynamicProfile)}`);
   }
+  if (model.dynamicProfiles?.length) {
+    lines.push(
+      `        // Dynamic Profiles: ${model.dynamicProfiles.map((profile) => escapeSwiftString(profile.name)).join(", ")}`
+    );
+  }
+  if (model.promptVersion) {
+    lines.push(`        // Prompt version: ${escapeSwiftString(model.promptVersion)}`);
+  }
+  if (model.modalities?.length) {
+    lines.push(
+      `        // Multimodal inputs: ${model.modalities.map(escapeSwiftString).join(", ")}`
+    );
+  }
+  for (const imageInput of model.imageInputs ?? []) {
+    lines.push(
+      `        // Image input ${escapeSwiftString(imageInput.name)} from ${escapeSwiftString(imageInput.source)}${imageInput.required === false ? " (optional)" : ""}`
+    );
+  }
+  if (model.customProvider) {
+    lines.push(
+      `        // Custom Language Model provider: ${escapeSwiftString(model.customProvider.typeName)}`
+    );
+    if (model.customProvider.packageName) {
+      lines.push(
+        `        // Custom provider Swift package: ${escapeSwiftString(model.customProvider.packageName)}`
+      );
+    }
+    if (model.customProvider.configuration) {
+      lines.push(
+        `        // Custom provider configuration: ${escapeSwiftString(model.customProvider.configuration)}`
+      );
+    }
+  }
   if (model.guardrails?.length) {
     lines.push(
       `        // Guardrails: ${model.guardrails.map(escapeSwiftString).join(", ")}`
@@ -449,11 +541,23 @@ function generateFoundationModelSupport(intent: IRIntent): string {
   if (model.prompt) {
     lines.push(`        // Prompt seed: ${escapeSwiftString(model.prompt)}`);
   }
+  if (model.tools?.length) {
+    lines.push(
+      `        // Tools: ${model.tools.map((tool) => escapeSwiftString(tool.name)).join(", ")}`
+    );
+  }
   lines.push(`        return LanguageModelSession(instructions: instructions)`);
   lines.push(`    }`);
   lines.push(`}`);
 
   return lines.join("\n");
+}
+
+function swiftIdentifier(value: string): string {
+  const sanitized = value.replace(/[^A-Za-z0-9_]/g, "_");
+  if (!sanitized) return "profile";
+  if (/^[A-Za-z_]/.test(sanitized)) return sanitized;
+  return `profile_${sanitized}`;
 }
 
 function defaultFoundationModelToolReturn(outputType: string): string {
@@ -474,9 +578,55 @@ function generateEvaluationSupport(evaluation: IREvaluationConfig): string {
   lines.push(
     `    static let criteria: [String] = [${evaluation.criteria.map(quotedSwiftString).join(", ")}]`
   );
+  if (evaluation.fixtures?.length) {
+    lines.push(
+      `    // Evaluation fixtures: ${evaluation.fixtures.map(escapeSwiftString).join(", ")}`
+    );
+  }
+  if (evaluation.metrics?.length) {
+    lines.push(
+      `    // Evaluation metrics: ${evaluation.metrics.map(escapeSwiftString).join(", ")}`
+    );
+  }
   lines.push(
     `    // AppIntentsTesting: pair these scenarios with Siri, Shortcuts, and Spotlight pathway tests.`
   );
+  lines.push(`}`);
+  return lines.join("\n");
+}
+
+function generateImagePlaygroundSupport(intent: IRIntent): string {
+  const imagePlayground = intent.imagePlayground!;
+  const lines: string[] = [];
+  lines.push(`enum ${intent.name}ImagePlaygroundContract {`);
+  lines.push(`    // Image Playground contract`);
+  lines.push(
+    `    static let conceptParameter = "${escapeSwiftString(imagePlayground.conceptParam)}"`
+  );
+  if (imagePlayground.sourceImageParam) {
+    lines.push(
+      `    static let sourceImageParameter = "${escapeSwiftString(imagePlayground.sourceImageParam)}"`
+    );
+  }
+  if (imagePlayground.style) {
+    lines.push(`    static let style = "${escapeSwiftString(imagePlayground.style)}"`);
+  }
+  if (imagePlayground.dimensions) {
+    lines.push(
+      `    static let dimensions = "${escapeSwiftString(imagePlayground.dimensions)}"`
+    );
+  }
+  if (imagePlayground.mode) {
+    lines.push(`    static let mode = "${escapeSwiftString(imagePlayground.mode)}"`);
+  }
+  if (imagePlayground.privateCloudCompute !== undefined) {
+    lines.push(
+      `    static let privateCloudComputeEligible = ${imagePlayground.privateCloudCompute}`
+    );
+    lines.push(
+      `    // Private Cloud Compute proof must include generated-image artifacts and privacy eligibility notes.`
+    );
+  }
   lines.push(`}`);
   return lines.join("\n");
 }

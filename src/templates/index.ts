@@ -1188,6 +1188,288 @@ export default defineIntent({
 `,
 };
 
+const multimodalFoundationModel: IntentTemplate = {
+  id: "multimodal-foundation-model",
+  name: "multimodal-foundation-model",
+  title: "Multimodal Foundation Model",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold a Foundation Models intent that accepts text plus image input and records evaluation proof.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "CreateVisualBrief",
+  title: "Create Visual Brief",
+  description: "Creates a grounded visual brief from a prompt and image input.",
+  schemaDomain: "assistant",
+  params: {
+    prompt: param.string("Brief prompt"),
+    sourceImage: param.string("Image asset, URL, or fixture identifier", {
+      required: false,
+    }),
+  },
+  model: {
+    sessionName: "VisualBriefSession",
+    provider: "apple-on-device",
+    useCase: "visual-briefing",
+    instructions: "Use the supplied text and image evidence before generating a brief.",
+    promptVersion: "wwdc26-multimodal-v1",
+    modalities: ["text", "image"],
+    imageInputs: [
+      { name: "sourceImage", source: "parameter", required: false },
+    ],
+  },
+  evaluation: {
+    suite: "VisualBriefEvaluations",
+    scenarios: ["text-only", "image-with-text"],
+    criteria: ["uses image evidence", "keeps claims grounded"],
+    fixtures: ["Fixtures/visual-brief/source.png"],
+    metrics: ["groundedness", "latency"],
+  },
+  perform: async ({ prompt }) => {
+    return { brief: prompt };
+  },
+});
+`,
+};
+
+const customLanguageModelProvider: IntentTemplate = {
+  id: "custom-language-model-provider",
+  name: "custom-language-model-provider",
+  title: "Custom Language Model Provider",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold a custom Language Model provider session with protocol-conformance proof notes.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "RunBrandModel",
+  title: "Run Brand Model",
+  description: "Routes a prompt through a custom Language Model provider.",
+  schemaDomain: "assistant",
+  params: {
+    prompt: param.string("Prompt for the custom model"),
+  },
+  model: {
+    sessionName: "BrandModelSession",
+    provider: "custom-language-model",
+    instructions: "Answer using the brand model provider.",
+    customProvider: {
+      packageName: "BrandModelKit",
+      typeName: "BrandLanguageModel",
+      configuration: "BrandLanguageModel.Configuration(profile: .default)",
+    },
+  },
+  perform: async ({ prompt }) => {
+    return { output: prompt };
+  },
+});
+`,
+};
+
+const viewAnnotationEntity: IntentTemplate = {
+  id: "view-annotation-entity",
+  name: "view-annotation-entity",
+  title: "View Annotation Entity",
+  domain: "apple-intelligence",
+  category: "views",
+  description:
+    "Scaffold proof metadata for views that expose visible AppEntity identifiers to Apple Intelligence.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "VerifyVisibleEntityAnnotation",
+  title: "Verify Visible Entity Annotation",
+  description: "Records proof that a SwiftUI view maps visible content to an AppEntity identifier.",
+  schemaDomain: "assistant",
+  params: {
+    entityName: param.string("AppEntity type name"),
+    identifier: param.string("Visible entity identifier"),
+    viewName: param.string("SwiftUI view name"),
+  },
+  previewProof: {
+    view: "AnnotatedEntityView",
+    variants: ["default", "accessibilityExtraLarge"],
+  },
+  perform: async ({ entityName, identifier }) => {
+    // Swift proof hint:
+    // In the paired view, apply .appEntityIdentifier(EntityIdentifier(for: Entity.self, identifier: id)).
+    return { entityName, identifier };
+  },
+});
+`,
+};
+
+const spotlightSemanticIndex: IntentTemplate = {
+  id: "spotlight-semantic-index",
+  name: "spotlight-semantic-index",
+  title: "Spotlight Semantic Index",
+  domain: "apple-intelligence",
+  category: "entities",
+  description:
+    "Scaffold a schema-backed entity with Spotlight semantic index proof metadata.",
+  source: `import { defineEntity, defineIntent, param } from "@axint/compiler";
+
+defineEntity({
+  name: "ResearchNote",
+  schemaDomain: "notes",
+  schema: "AppSchema.NotesEntity.note",
+  syncable: true,
+  indexed: true,
+  indexedQuery: true,
+  display: {
+    title: "title",
+    subtitle: "summary",
+  },
+  properties: {
+    id: param.string("Stable note identifier"),
+    title: param.string("Note title"),
+    summary: param.string("Short summary"),
+  },
+  query: "string",
+  semanticIndex: {
+    contentType: "note",
+    searchableByLLM: true,
+    attribution: "Research notes owned by the current account",
+    attributes: ["title", "summary"],
+  },
+});
+
+export default defineIntent({
+  name: "SearchResearchNotes",
+  title: "Search Research Notes",
+  description: "Searches semantically indexed research notes.",
+  schemaDomain: "notes",
+  params: {
+    query: param.string("Search query"),
+  },
+  perform: async ({ query }) => {
+    return { query };
+  },
+});
+`,
+};
+
+const imagePlaygroundPcc: IntentTemplate = {
+  id: "image-playground-pcc",
+  name: "image-playground-pcc",
+  title: "Image Playground PCC",
+  domain: "apple-intelligence",
+  category: "image-playground",
+  description:
+    "Scaffold an Image Playground flow with Private Cloud Compute proof requirements.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "GenerateProductScene",
+  title: "Generate Product Scene",
+  description: "Generates a product scene through Image Playground with PCC proof notes.",
+  schemaDomain: "assistant",
+  params: {
+    prompt: param.string("Scene prompt"),
+    sourceImage: param.string("Product image asset or fixture", { required: false }),
+  },
+  imagePlayground: {
+    conceptParam: "prompt",
+    sourceImageParam: "sourceImage",
+    style: "photorealistic",
+    dimensions: "landscape",
+    mode: "programmatic",
+    privateCloudCompute: true,
+  },
+  perform: async ({ prompt }) => {
+    return { prompt, artifact: "Attach generated image artifact" };
+  },
+});
+`,
+};
+
+const ocrVisionTool: IntentTemplate = {
+  id: "ocr-vision-tool",
+  name: "ocr-vision-tool",
+  title: "OCR Vision Tool",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold a Foundation Models tool that extracts text from image fixtures.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "ReadImageText",
+  title: "Read Image Text",
+  description: "Extracts readable text from an image before model reasoning.",
+  schemaDomain: "assistant",
+  params: {
+    image: param.string("Image fixture or asset identifier"),
+  },
+  model: {
+    sessionName: "ImageTextSession",
+    provider: "apple-on-device",
+    instructions: "Use OCR output before answering.",
+    modalities: ["text", "image"],
+    imageInputs: [
+      { name: "image", source: "parameter", required: true },
+    ],
+    tools: [
+      {
+        name: "OCRVisionTool",
+        description: "Extracts text from the supplied image.",
+        kind: "ocr",
+        outputType: "[String]",
+      },
+    ],
+  },
+  perform: async ({ image }) => {
+    return { image };
+  },
+});
+`,
+};
+
+const barcodeVisionTool: IntentTemplate = {
+  id: "barcode-vision-tool",
+  name: "barcode-vision-tool",
+  title: "Barcode Vision Tool",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold a Foundation Models tool that reads barcode data from image fixtures.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "ReadProductBarcode",
+  title: "Read Product Barcode",
+  description: "Reads a barcode from an image before model reasoning.",
+  schemaDomain: "assistant",
+  params: {
+    image: param.string("Image fixture or asset identifier"),
+  },
+  model: {
+    sessionName: "BarcodeSession",
+    provider: "apple-on-device",
+    instructions: "Use barcode results before answering.",
+    modalities: ["text", "image"],
+    imageInputs: [
+      { name: "image", source: "parameter", required: true },
+    ],
+    tools: [
+      {
+        name: "BarcodeVisionTool",
+        description: "Reads barcode values from the supplied image.",
+        kind: "barcode",
+        outputType: "[String]",
+      },
+    ],
+  },
+  perform: async ({ image }) => {
+    return { image };
+  },
+});
+`,
+};
+
 const stringCatalogLocalizer: IntentTemplate = {
   id: "string-catalog-localizer",
   name: "string-catalog-localizer",
@@ -1294,6 +1576,13 @@ export const TEMPLATES: IntentTemplate[] = [
   appIntentsTestingHarness,
   visualIntelligenceRouter,
   imagePlaygroundIntent,
+  multimodalFoundationModel,
+  customLanguageModelProvider,
+  viewAnnotationEntity,
+  spotlightSemanticIndex,
+  imagePlaygroundPcc,
+  ocrVisionTool,
+  barcodeVisionTool,
   stringCatalogLocalizer,
   resizableLayoutProof,
 ];

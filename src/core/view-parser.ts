@@ -80,14 +80,66 @@ export function parseViewSource(source: string, filePath: string = "<stdin>"): I
   const viewProps = extractViewProps(props.get("props"), filePath, sourceFile);
   const viewState = extractViewState(props.get("state"), filePath, sourceFile);
   const body = extractViewBody(props.get("body"), filePath, sourceFile);
+  const appEntityAnnotations = extractAppEntityAnnotations(
+    props.get("appEntityAnnotations"),
+    filePath,
+    sourceFile
+  );
 
   return {
     name,
     props: viewProps,
     state: viewState,
     body,
+    appEntityAnnotations,
     sourceFile: filePath,
   };
+}
+
+function extractAppEntityAnnotations(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRView["appEntityAnnotations"] | undefined {
+  if (!node) return undefined;
+  if (!ts.isArrayLiteralExpression(node)) {
+    throw new ParserError(
+      "AX310",
+      "`appEntityAnnotations` must be an array literal",
+      filePath,
+      posOf(sourceFile, node),
+      'Use appEntityAnnotations: [{ entity: "LandmarkEntity", identifier: "landmarkID" }].'
+    );
+  }
+
+  const annotations = node.elements.map((element) => {
+    if (!ts.isObjectLiteralExpression(element)) {
+      throw new ParserError(
+        "AX311",
+        "`appEntityAnnotations` entries must be object literals",
+        filePath,
+        posOf(sourceFile, element)
+      );
+    }
+    const props = propertyMap(element);
+    const entity = readStringLiteral(props.get("entity"));
+    const identifier = readStringLiteral(props.get("identifier"));
+    if (!entity || !identifier) {
+      throw new ParserError(
+        "AX312",
+        "`appEntityAnnotations` entries require entity and identifier",
+        filePath,
+        posOf(sourceFile, element)
+      );
+    }
+    return {
+      entity,
+      identifier,
+      label: readStringLiteral(props.get("label")) ?? undefined,
+    };
+  });
+
+  return annotations.length > 0 ? annotations : undefined;
 }
 
 // ─── Prop Extraction ────────────────────────────────────────────────

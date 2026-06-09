@@ -279,6 +279,145 @@ struct GenerateCampaignImageIntent: AppIntent {
     expect(report.status).toBe("needs_review");
   });
 
+  it("asks multimodal Foundation Models code for image prompt proof", () => {
+    const report = runCloudCheck({
+      fileName: "VisualBriefIntent.swift",
+      source: `
+import AppIntents
+import FoundationModels
+
+// Multimodal inputs: text, image
+struct VisualBriefIntent: AppIntent {
+    static var title: LocalizedStringResource = "Visual Brief"
+    func perform() async throws -> some IntentResult {
+        let session = LanguageModelSession()
+        _ = session
+        return .result()
+    }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-MULTIMODAL-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks Dynamic Profile model sessions for switch proof", () => {
+    const report = runCloudCheck({
+      fileName: "ProfiledModel.swift",
+      source: `
+import FoundationModels
+
+enum VisualBriefSessionProfiles {
+    static let fastDraft = "apple-on-device"
+    static let cloudReview = "private-cloud-compute"
+}
+
+enum VisualBriefSessionFactory {
+    static func make() -> LanguageModelSession {
+        // Dynamic Profile: fastDraft -> cloudReview
+        return LanguageModelSession()
+    }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-DYNAMIC-PROFILE-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks custom Language Model providers for protocol proof", () => {
+    const report = runCloudCheck({
+      fileName: "CustomProvider.swift",
+      source: `
+import FoundationModels
+
+// Custom Language Model provider: BrandLanguageModel
+enum BrandSessionFactory {
+    static func make() -> LanguageModelSession {
+        let model = BrandLanguageModel()
+        return LanguageModelSession(model: model)
+    }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-CUSTOM-MODEL-PROVIDER"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks View Annotations for onscreen entity proof", () => {
+    const report = runCloudCheck({
+      fileName: "LandmarkCard.swift",
+      source: `
+import SwiftUI
+import AppIntents
+
+struct LandmarkCard: View {
+    let landmarkID: String
+    var body: some View {
+        Text("Landmark")
+            .appEntityIdentifier(EntityIdentifier(for: LandmarkEntity.self, identifier: landmarkID))
+    }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-VIEW-ANNOTATION-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks Spotlight semantic index code for attribution proof", () => {
+    const report = runCloudCheck({
+      fileName: "ResearchNote.swift",
+      source: `
+import AppIntents
+import CoreSpotlight
+
+// Spotlight semantic index: Research notes in the current account
+@AppEntity(schema: AppSchema.NotesEntity.note)
+struct ResearchNote: AppEntity, IndexedEntity {
+    static var defaultQuery = ResearchNoteQuery()
+    var id: String
+    var title: String
+    var displayRepresentation: DisplayRepresentation { "\\\\(title)" }
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-SEMANTIC-INDEX-PROOF"
+    );
+    expect(report.status).toBe("needs_review");
+  });
+
+  it("asks Image Playground PCC flows for privacy and artifact proof", () => {
+    const report = runCloudCheck({
+      fileName: "CampaignImage.swift",
+      source: `
+import ImagePlayground
+
+// Image Playground contract: photorealistic landscape Private Cloud Compute
+struct CampaignImageGenerator {
+    let concept = "campaign"
+}
+`,
+    });
+
+    const codes = report.diagnostics.map((d) => d.code);
+    expect(codes).toContain("AXCLOUD-WWDC26-IMAGE-PLAYGROUND-PROOF");
+    expect(codes).toContain("AXCLOUD-WWDC26-PCC-ELIGIBILITY-PROOF");
+    expect(report.status).toBe("needs_review");
+  });
+
   it("asks String Catalog workflows for localization proof", () => {
     const report = runCloudCheck({
       fileName: "StringCatalogLocalizer.swift",

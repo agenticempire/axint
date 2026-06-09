@@ -6,7 +6,7 @@ Axint is the Apple-native execution layer for AI coding agents. The open-source 
 
 The thesis is simple: agents can write code, but Apple-native software needs proof. Axint turns agent output into validated, repairable, inspectable Apple work.
 
-<!-- metrics:roadmap-snapshot:start -->Current compiler snapshot: v0.4.30 · 36 MCP tools + 5 prompts · 39 templates · 214 diagnostic codes · 1362 tests.<!-- metrics:roadmap-snapshot:end -->
+<!-- metrics:roadmap-snapshot:start -->Current compiler snapshot: v0.4.30 · 36 MCP tools + 5 prompts · 46 templates · 214 diagnostic codes · 1372 tests.<!-- metrics:roadmap-snapshot:end -->
 
 ---
 
@@ -25,7 +25,7 @@ The thesis is simple: agents can write code, but Apple-native software needs pro
 - TypeScript, Python, JSON schema mode, and preview `.axint` inputs compile into Apple-native Swift.
 - Supported surfaces include App Intents, SwiftUI views, WidgetKit widgets, app scaffolds, plist fragments, entitlements, and Apple metadata.
 - The validator covers 214 diagnostic codes across compiler, intent, view, widget, app, Swift build, SwiftUI, accessibility, concurrency, and Live Activity rules.
-- The suite currently tracks 1362 tests across TypeScript and Python paths.
+- The suite currently tracks 1372 tests across TypeScript and Python paths.
 
 ### Agent distribution
 
@@ -37,7 +37,7 @@ The thesis is simple: agents can write code, but Apple-native software needs pro
 ### First-use and templates
 
 - `create-axint-app` / `axint create` generates the Apple Day Agent starter: multiple App Intent contracts, generated Swift, plist and entitlement fragments, agent prompts, proof artifacts, and an interactive local proof preview.
-- 39 bundled templates and 58 live Registry packages give agents reusable starting points instead of asking them to hallucinate every Apple surface from scratch.
+- 46 bundled templates and 58 live Registry packages give agents reusable starting points instead of asking them to hallucinate every Apple surface from scratch.
 
 ### Privacy-safe learning and adoption proof
 

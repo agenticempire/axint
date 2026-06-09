@@ -19,6 +19,9 @@ export function generateSwiftUIView(view: IRView): string {
   lines.push(...generatedFileHeader(`${view.name}.swift`));
   lines.push(``);
   lines.push(`import SwiftUI`);
+  if (view.appEntityAnnotations?.length) {
+    lines.push(`import AppIntents`);
+  }
   if (viewRequiresAppKit(view)) {
     lines.push(`#if os(macOS)`);
     lines.push(`import AppKit`);
@@ -53,9 +56,26 @@ export function generateSwiftUIView(view: IRView): string {
 
   // Body
   lines.push(`    var body: some View {`);
-  for (const node of view.body) {
-    const nodeLines = generateBodyNode(node, 2);
-    lines.push(...nodeLines);
+  if (view.appEntityAnnotations?.length) {
+    lines.push(`        Group {`);
+    for (const node of view.body) {
+      const nodeLines = generateBodyNode(node, 3);
+      lines.push(...nodeLines);
+    }
+    lines.push(`        }`);
+    for (const annotation of view.appEntityAnnotations) {
+      lines.push(
+        `        // View Annotation: ${escapeSwiftString(annotation.label ?? annotation.identifier)} maps this view to ${escapeSwiftString(annotation.entity)}.`
+      );
+      lines.push(
+        `        .appEntityIdentifier(EntityIdentifier(for: ${annotation.entity}.self, identifier: ${annotation.identifier}))`
+      );
+    }
+  } else {
+    for (const node of view.body) {
+      const nodeLines = generateBodyNode(node, 2);
+      lines.push(...nodeLines);
+    }
   }
   lines.push(`    }`);
 

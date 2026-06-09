@@ -96,8 +96,30 @@ export interface FoundationModelGenerableDefinition {
 export interface FoundationModelToolDefinition {
   name: string;
   description: string;
+  kind?: "custom" | "ocr" | "barcode" | "vision";
   argumentsType?: string;
   outputType?: string;
+}
+
+export type FoundationModelModality = "text" | "image" | "audio" | "video";
+
+export interface FoundationModelImageInputDefinition {
+  name: string;
+  source: "parameter" | "photo-library" | "camera" | "screenshot" | "asset";
+  required?: boolean;
+}
+
+export interface FoundationModelCustomProviderDefinition {
+  packageName?: string;
+  typeName: string;
+  configuration?: string;
+}
+
+export interface FoundationModelDynamicProfileDefinition {
+  name: string;
+  provider?: FoundationModelProvider;
+  instructions?: string;
+  tools?: string[];
 }
 
 export interface FoundationModelDefinition {
@@ -106,8 +128,13 @@ export interface FoundationModelDefinition {
   useCase?: string;
   instructions?: string;
   prompt?: string;
+  promptVersion?: string;
   dynamicProfile?: string;
+  dynamicProfiles?: FoundationModelDynamicProfileDefinition[];
   guardrails?: string[];
+  modalities?: FoundationModelModality[];
+  imageInputs?: FoundationModelImageInputDefinition[];
+  customProvider?: FoundationModelCustomProviderDefinition;
   generable?: FoundationModelGenerableDefinition;
   tools?: FoundationModelToolDefinition[];
 }
@@ -116,6 +143,8 @@ export interface EvaluationDefinition {
   suite: string;
   scenarios: string[];
   criteria: string[];
+  fixtures?: string[];
+  metrics?: string[];
 }
 
 export interface PreviewProofDefinition {
@@ -123,6 +152,15 @@ export interface PreviewProofDefinition {
   variants: string[];
   widgetTimeline?: boolean;
   liveActivityStates?: string[];
+}
+
+export interface ImagePlaygroundDefinition {
+  conceptParam: string;
+  sourceImageParam?: string;
+  style?: string;
+  dimensions?: "square" | "portrait" | "landscape";
+  mode?: "sheet" | "programmatic";
+  privateCloudCompute?: boolean;
 }
 
 /** Configuration for a single parameter. */
@@ -345,6 +383,8 @@ export interface IntentDefinition<
   evaluation?: EvaluationDefinition;
   /** Preview Snapshot proof matrix for generated UI variants. */
   previewProof?: PreviewProofDefinition;
+  /** Image Playground generation contract for image-producing App Intents. */
+  imagePlayground?: ImagePlaygroundDefinition;
 }
 
 /**
@@ -549,6 +589,12 @@ export interface ViewDefinition {
   state?: Record<string, ReturnType<(typeof state)[keyof typeof state]>>;
   /** The view body tree — using view.* helpers. */
   body: ViewElement[];
+  /** AppEntity annotations that make onscreen content available to Siri and Apple Intelligence. */
+  appEntityAnnotations?: Array<{
+    entity: string;
+    identifier: string;
+    label?: string;
+  }>;
 }
 
 /**
@@ -620,6 +666,13 @@ export interface EntityDefinition {
   ownership?: EntityOwnership;
   /** Swift expression inserted into `transferRepresentation`. */
   intentValueRepresentation?: string;
+  /** Spotlight semantic index metadata for Apple Intelligence personal context. */
+  semanticIndex?: {
+    contentType: string;
+    searchableByLLM?: boolean;
+    attribution?: string;
+    attributes?: string[];
+  };
 }
 
 /**
