@@ -496,6 +496,18 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
             : []),
         ]
   ) satisfies CloudCheckReport["checks"];
+  const wwdc26Diagnostics = diagnostics.filter((diagnostic) =>
+    diagnostic.code.startsWith("AXCLOUD-WWDC26-")
+  );
+  if (wwdc26Diagnostics.length > 0) {
+    checks.push({
+      label: "Xcode 27 readiness",
+      state: wwdc26Diagnostics.some((diagnostic) => diagnostic.severity === "error")
+        ? "fail"
+        : "warn",
+      detail: `${wwdc26Diagnostics.length} WWDC26 proof requirement${wwdc26Diagnostics.length === 1 ? "" : "s"} need evidence before this is demo-ready.`,
+    });
+  }
   if (projectContext) {
     checks.push({
       label: "Project context pack",
@@ -1204,6 +1216,29 @@ function diagnosticsFromWwdc26Readiness(
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const lower = source.toLowerCase();
+  const touchesEvaluationProof =
+    /\b[A-Za-z_][A-Za-z0-9_]*Evaluations\b/.test(source) ||
+    /\b(static\s+let\s+scenarios|static\s+let\s+criteria|Evaluation\s+suite)\b/i.test(
+      source
+    );
+  const touchesPreviewSnapshotProof =
+    /\bPreview Snapshot proof matrix\b/i.test(source) ||
+    /\bpreviewProof\b/.test(source) ||
+    /\bXcode Preview Snapshot proof\b/i.test(source);
+  const touchesVisualIntelligence =
+    /\b(VisualIntelligence|VisionKit|visual-intelligence|visual intelligence)\b/i.test(
+      source
+    );
+  const touchesImagePlayground =
+    /\b(ImagePlayground|Image Playground|generated image)\b/i.test(source);
+  const touchesStringCatalog =
+    /\b(StringCatalog|String Catalog|Localizable\.xcstrings|\.xcstrings|generated translations?)\b/i.test(
+      source
+    );
+  const touchesResizableIosLayout =
+    /\bSwiftUI\b/.test(source) &&
+    /\bView\b/.test(source) &&
+    /\.frame\s*\([^)]*\b(width|height)\s*:\s*\d{3,}/.test(source);
   const touchesAppleIntelligence =
     /@App(Intent|Entity|Enum)\(schema:/.test(source) ||
     /\b(AppSchema|SyncableEntity|OwnershipProvidingEntity|IndexedEntityQuery|IntentValueQuery|FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|GenerationSchema|ToolCallingMode)\b/.test(
@@ -1212,9 +1247,55 @@ function diagnosticsFromWwdc26Readiness(
     /@(?:Generable|UnionValue)\b/.test(source) ||
     /\b(LongRunningIntent|ProgressReportingIntent|SnippetIntent|ShowsSnippetIntent|ShowsSnippetView|ResultsCollection|IntentItemCollection|AppUnionValue|AppUnionValueCasesProviding)\b/.test(
       source
-    );
+    ) ||
+    touchesEvaluationProof ||
+    touchesPreviewSnapshotProof ||
+    touchesVisualIntelligence ||
+    touchesImagePlayground ||
+    touchesStringCatalog ||
+    touchesResizableIosLayout;
 
   if (!touchesAppleIntelligence) return diagnostics;
+
+  const touchesAppIntentSystemPath =
+    /@App(Intent|Entity|Enum)\(schema:/.test(source) ||
+    /\b(AppSchema|AssistantSchemaIntent|AssistantIntent|IndexedEntity|IndexedEntityQuery|AppShortcutsProvider)\b/.test(
+      source
+    );
+
+  if (
+    touchesAppIntentSystemPath &&
+    !/\b(xcode\s*27|ios\s*27|ipados\s*27|macos\s*27|visionos\s*27|sdk\s*27)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-XCODE27-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "WWDC26 App Intents and Apple Intelligence surfaces need Xcode 27 / SDK 27 proof before they are demo-ready.",
+      suggestion:
+        "Attach Xcode 27 build/test evidence, or rerun the proof loop with DEVELOPER_DIR pointing at the Xcode 27 beta.",
+    });
+  }
+
+  if (
+    /@App(Intent|Entity|Enum)\(schema:/.test(source) &&
+    !/\b(appintentstesting|app\s*intents\s*testing|siri|shortcuts|spotlight)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-APPINTENTS-TESTING",
+      severity: "warning",
+      file,
+      message:
+        "Schema-backed App Intents need AppIntentsTesting proof through the same Siri, Shortcuts, and Spotlight pathways people will use.",
+      suggestion:
+        "Add an AppIntentsTesting test for the intent/entity/enum adoption, then attach the passing Xcode 27 test log to Cloud Check.",
+    });
+  }
 
   if (
     /@AppEntity\(schema:/.test(source) &&
@@ -1276,6 +1357,108 @@ function diagnosticsFromWwdc26Readiness(
         "Foundation Models code needs prompt/model-version proof against the current OS model before it is safe to call demo-ready.",
       suggestion:
         "Attach Xcode 27 build proof plus prompt-version notes, token/context checks, or a focused model behavior test.",
+    });
+  }
+
+  if (
+    touchesEvaluationProof &&
+    !/\b(evaluation|evaluations|scenario|criteria|pass|passed|xcode\s*27|test succeeded|0 failures)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-EVALUATION-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Evaluation suites need attached scenario evidence before model-backed behavior is demo-ready.",
+      suggestion:
+        "Attach the passing evaluation run, Xcode 27 test log, or scenario/criteria proof that covers the generated suite.",
+    });
+  }
+
+  if (
+    touchesPreviewSnapshotProof &&
+    !/\b(preview snapshot|snapshot|baseline|variant|accessibility|xcode\s*27|test succeeded|0 failures)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-PREVIEW-SNAPSHOT-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Preview Snapshot proof matrices need attached rendered snapshot evidence before release.",
+      suggestion:
+        "Attach the Xcode 27 Preview Snapshot run or baseline artifact for each declared variant, including accessibility-size variants when listed.",
+    });
+  }
+
+  if (
+    touchesVisualIntelligence &&
+    !/\b(visual intelligence|visionkit|screenshot|camera|object|image understanding|xcode\s*27|test succeeded|0 failures)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-VISUAL-INTELLIGENCE-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Visual Intelligence routes need screenshot/object-understanding proof before they are demo-ready.",
+      suggestion:
+        "Attach the Xcode 27 run, screenshot fixture, or VisionKit/Visual Intelligence evidence showing the detected object maps to the intended app action.",
+    });
+  }
+
+  if (
+    touchesImagePlayground &&
+    !/\b(image playground|generated image|image generation|style|safety|private cloud compute|pcc|xcode\s*27|test succeeded|0 failures)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-IMAGE-PLAYGROUND-PROOF",
+      severity: "warning",
+      file,
+      message:
+        "Image Playground flows need generated-image proof before they are safe to present as working.",
+      suggestion:
+        "Attach the generated image artifact or Xcode 27 run evidence, including prompt/style notes and any safety or Private Cloud Compute constraints.",
+    });
+  }
+
+  if (
+    touchesStringCatalog &&
+    !/\b(string catalog|xcstrings|localization|localized|locale|translation|xliff|xcode\s*27|test succeeded|0 failures)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-STRING-CATALOG-PROOF",
+      severity: "warning",
+      file,
+      message: "String Catalog workflows need localization proof before release.",
+      suggestion:
+        "Attach the updated .xcstrings output, locale coverage, or Xcode 27 localization/export evidence for the generated strings.",
+    });
+  }
+
+  if (
+    touchesResizableIosLayout &&
+    !/\b(resizable|size class|compact|regular|dynamic type|accessibility|preview snapshot|baseline|xcode\s*27|test succeeded|0 failures)\b/.test(
+      evidenceText
+    )
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-RESIZABLE-IOS-LAYOUT",
+      severity: "warning",
+      file,
+      line: findLine(source, ".frame"),
+      message:
+        "SwiftUI layouts with fixed large frame dimensions need resizable iOS proof.",
+      suggestion:
+        "Replace fixed device-sized frames with adaptive layout, or attach Preview Snapshot evidence across compact/regular, landscape, and accessibility-size variants.",
     });
   }
 

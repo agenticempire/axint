@@ -24,6 +24,12 @@ import type {
   IRAppSchemaDomain,
   IRIntentConformance,
   IREntityOwnership,
+  IRFoundationModelConfig,
+  IRFoundationModelProvider,
+  IRFoundationModelTool,
+  IRFoundationModelGenerable,
+  IREvaluationConfig,
+  IRPreviewProofConfig,
 } from "./types.js";
 import { PARAM_TYPES, LEGACY_PARAM_ALIASES, isPrimitiveType } from "./types.js";
 import {
@@ -38,6 +44,12 @@ import {
   findCallExpression,
   findAllCallExpressions,
 } from "./parser-utils.js";
+
+const FOUNDATION_MODEL_PROVIDERS = new Set([
+  "apple-on-device",
+  "private-cloud-compute",
+  "custom-language-model",
+]);
 
 function resolveEntityProperties(type: IRType, entities: IREntity[]): void {
   if (type.kind === "entity") {
@@ -172,6 +184,13 @@ export function parseIntentSource(
   const conformsTo = readStringArray(props.get("conformsTo"));
   const supportedModes = readStringLiteral(props.get("supportedModes"));
   const allowedExecutionTargets = readStringLiteral(props.get("allowedExecutionTargets"));
+  const model = parseFoundationModelConfig(props.get("model"), filePath, sourceFile);
+  const evaluation = parseEvaluationConfig(props.get("evaluation"), filePath, sourceFile);
+  const previewProof = parsePreviewProofConfig(
+    props.get("previewProof"),
+    filePath,
+    sourceFile
+  );
 
   return {
     name,
@@ -194,6 +213,9 @@ export function parseIntentSource(
     conformsTo: conformsTo.length > 0 ? (conformsTo as IRIntentConformance[]) : undefined,
     supportedModes: supportedModes || undefined,
     allowedExecutionTargets: allowedExecutionTargets || undefined,
+    model,
+    evaluation,
+    previewProof,
   };
 }
 
@@ -470,6 +492,196 @@ function parseParameterSummaryDefinition(
     filePath,
     posOf(sourceFile, node)
   );
+}
+
+function parseFoundationModelConfig(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRFoundationModelConfig | undefined {
+  if (!node) return undefined;
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX031",
+      "model must be an object literal",
+      filePath,
+      posOf(sourceFile, node),
+      'Use model: { provider: "apple-on-device", instructions: "..." }.'
+    );
+  }
+
+  const props = propertyMap(node);
+  const provider = readStringLiteral(props.get("provider"));
+  if (!provider) {
+    throw new ParserError(
+      "AX032",
+      "model.provider is required",
+      filePath,
+      posOf(sourceFile, node),
+      'Add provider: "apple-on-device", "private-cloud-compute", or "custom-language-model".'
+    );
+  }
+  if (!FOUNDATION_MODEL_PROVIDERS.has(provider)) {
+    throw new ParserError(
+      "AX042",
+      `Invalid model.provider: "${provider}"`,
+      filePath,
+      posOf(sourceFile, props.get("provider") ?? node),
+      'Use provider: "apple-on-device", "private-cloud-compute", or "custom-language-model".'
+    );
+  }
+
+  return {
+    sessionName: readStringLiteral(props.get("sessionName")) || undefined,
+    provider: provider as IRFoundationModelProvider,
+    useCase: readStringLiteral(props.get("useCase")) || undefined,
+    instructions: readStringLiteral(props.get("instructions")) || undefined,
+    prompt: readStringLiteral(props.get("prompt")) || undefined,
+    dynamicProfile: readStringLiteral(props.get("dynamicProfile")) || undefined,
+    guardrails: readStringArray(props.get("guardrails")),
+    generable: parseFoundationModelGenerable(
+      props.get("generable"),
+      filePath,
+      sourceFile
+    ),
+    tools: parseFoundationModelTools(props.get("tools"), filePath, sourceFile),
+  };
+}
+
+function parseFoundationModelGenerable(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRFoundationModelGenerable | undefined {
+  if (!node) return undefined;
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX033",
+      "model.generable must be an object literal",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const props = propertyMap(node);
+  const name = readStringLiteral(props.get("name"));
+  if (!name) {
+    throw new ParserError(
+      "AX034",
+      "model.generable.name is required",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  return {
+    name,
+    fields: readStringRecord(props.get("fields")),
+  };
+}
+
+function parseFoundationModelTools(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRFoundationModelTool[] {
+  if (!node) return [];
+  if (!ts.isArrayLiteralExpression(node)) {
+    throw new ParserError(
+      "AX035",
+      "model.tools must be an array",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  return node.elements.map((element) => {
+    if (!ts.isObjectLiteralExpression(element)) {
+      throw new ParserError(
+        "AX036",
+        "model.tools entries must be object literals",
+        filePath,
+        posOf(sourceFile, element)
+      );
+    }
+    const props = propertyMap(element);
+    const name = readStringLiteral(props.get("name"));
+    const description = readStringLiteral(props.get("description"));
+    if (!name || !description) {
+      throw new ParserError(
+        "AX037",
+        "model.tools entries require name and description",
+        filePath,
+        posOf(sourceFile, element)
+      );
+    }
+    return {
+      name,
+      description,
+      argumentsType: readStringLiteral(props.get("argumentsType")) || undefined,
+      outputType: readStringLiteral(props.get("outputType")) || undefined,
+    };
+  });
+}
+
+function parseEvaluationConfig(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IREvaluationConfig | undefined {
+  if (!node) return undefined;
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX038",
+      "evaluation must be an object literal",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const props = propertyMap(node);
+  const suite = readStringLiteral(props.get("suite"));
+  if (!suite) {
+    throw new ParserError(
+      "AX039",
+      "evaluation.suite is required",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  return {
+    suite,
+    scenarios: readStringArray(props.get("scenarios")),
+    criteria: readStringArray(props.get("criteria")),
+  };
+}
+
+function parsePreviewProofConfig(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRPreviewProofConfig | undefined {
+  if (!node) return undefined;
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX040",
+      "previewProof must be an object literal",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const props = propertyMap(node);
+  const view = readStringLiteral(props.get("view"));
+  if (!view) {
+    throw new ParserError(
+      "AX041",
+      "previewProof.view is required",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  return {
+    view,
+    variants: readStringArray(props.get("variants")),
+    widgetTimeline: readBooleanLiteral(props.get("widgetTimeline")),
+    liveActivityStates: readStringArray(props.get("liveActivityStates")),
+  };
 }
 
 // ─── Parameter Extraction ────────────────────────────────────────────

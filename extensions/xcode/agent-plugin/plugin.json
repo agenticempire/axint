@@ -1,0 +1,37 @@
+{
+  "name": "Axint",
+  "description": "Apple Intelligence proof layer for Xcode agents: compile, validate, repair, and prove App Intents, Foundation Models, previews, localization, and Xcode build loops.",
+  "version": "0.4.30",
+  "homepage": "https://axint.ai",
+  "repository": "https://github.com/agenticempire/axint",
+  "license": "Apache-2.0",
+  "mcpServers": {
+    "axint": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "-p", "@axint/compiler", "axint-mcp"],
+      "tools": ["*"],
+      "_meta": {
+        "ideToolIconPath": "./icon.svg",
+        "ideToolIconRendersAsTemplate": true,
+        "ideToolTitles": {
+          "axint.status": "Axint Status",
+          "axint.suggest": "Apple Feature Plan",
+          "axint.feature": "Generate Apple Feature",
+          "axint.swift.validate": "Swift Validator",
+          "axint.cloud.check": "Apple Readiness Check",
+          "axint.repair": "Apple Repair Plan",
+          "axint.run": "Build Proof Loop",
+          "axint.xcode.guard": "Axint Guard",
+          "axint.xcode.write": "Guarded Swift Write"
+        }
+      }
+    }
+  },
+  "skills": [
+    {
+      "name": "apple-intelligence-proof",
+      "path": "./skills/apple-intelligence-proof.md"
+    }
+  ]
+}

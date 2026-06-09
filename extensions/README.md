@@ -12,7 +12,7 @@ Pre-built integrations for every major AI coding tool. Each directory contains t
 | **Cursor** | Copy `cursor/mcp.json` → `.cursor/mcp.json` or search in Settings → Tools → MCP |
 | **Windsurf** | Copy `windsurf/mcp_config.json` → `~/.codeium/windsurf/mcp_config.json` |
 | **Codex** | Copy `codex/mcp.json` into your Codex MCP config |
-| **Xcode** | Add SPM dependency (see `xcode/README.md`) |
+| **Xcode** | Use the Xcode 27 agent plugin or add the SPM dependency (see `xcode/README.md`) |
 | **JetBrains** | Settings → Tools → AI Assistant → MCP Servers (see `jetbrains/README.md`) |
 | **Zed** | Add to `~/.config/zed/settings.json` (see `zed/README.md`) |
 | **Neovim** | Configure your MCP plugin (see `neovim/README.md`) |
