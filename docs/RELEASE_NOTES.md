@@ -1,5 +1,30 @@
 # Release Notes
 
+## 2026-06-08 — WWDC26 compiler support
+
+This release adds the first Axint compiler support for the Xcode 27 / WWDC26
+Apple Intelligence and App Intents changes.
+
+### Added
+
+- App schema support for `@AppIntent(schema:)`, `@AppEntity(schema:)`, and
+  `@AppEnum(schema:)`.
+- Schema domain catalog types and SDK exports for Apple Intelligence era App
+  Intents.
+- Entity metadata for syncable, indexed, indexed query, ownership, and intent
+  value representation flows.
+- Intent metadata for schema domains, schema names, protocol conformances,
+  supported modes, and allowed execution targets.
+- P1 templates and examples for long-running progress, snippets, system
+  shortcut bridges, entity collection search, and union value routing.
+- Cloud Check diagnostics for WWDC26 schema, entity, model, long-running,
+  snippet, and union proof gaps.
+
+### Changed
+
+- Public truth advances to v0.4.30 with 36 MCP tools, 5 prompts, 214 diagnostic
+  codes, 1350 tests, 58 live packages, and 34 bundled templates.
+
 ## 2026-05-24 — Dogfood routing and release-readiness patch
 
 This patch ships the Cadabra dogfood fixes needed before the next large build

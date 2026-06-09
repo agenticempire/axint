@@ -297,7 +297,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.29 · 36 MCP tools + 5 prompts · 214 diagnostic codes · 1350 tests · 58 live packages · 34 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.30 · 36 MCP tools + 5 prompts · 214 diagnostic codes · 1350 tests · 58 live packages · 34 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
 
@@ -381,7 +381,7 @@ Agent sessions should not have to restart from scratch just because Axint shippe
 axint upgrade
 axint upgrade --apply
 axint upgrade --apply --xcode-install
-axint upgrade --target 0.4.29 --apply
+axint upgrade --target 0.4.30 --apply
 ```
 
 From MCP, call `axint.upgrade`. The tool returns the exact command plan plus a same-thread prompt that tells the agent to keep the current conversation, reload or reconnect only the Axint MCP server/tool process, then call `axint.status` and `axint.activate` to prove the running version and first real Axint output before editing code.
