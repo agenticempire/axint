@@ -741,7 +741,7 @@ export const TOOL_MANIFEST = [
           type: "array",
           items: { type: "string" },
           description:
-            "Optional product goals for Pro mode, such as activation, retention, conversion, speed, accessibility, or investor readiness.",
+            "Optional product goals for Pro mode, such as activation, retention, conversion, speed, accessibility, or production readiness.",
         },
         stage: {
           type: "string",

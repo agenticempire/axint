@@ -1569,7 +1569,7 @@ function greenfieldAppSuggestions(
       rationale,
       confidence: "high",
       source: "local",
-      impact: "Turns greenfield generation into investor-grade evidence.",
+      impact: "Turns greenfield generation into audit-grade evidence.",
       loop: "Render -> tap -> assert -> record proof",
       nextStep:
         "Run axint.run with the generated app files and attach simulator/build evidence when available.",
@@ -1625,8 +1625,7 @@ function productHierarchySuggestions(
       rationale,
       confidence: "high",
       source: "local",
-      impact:
-        "Makes dogfood feedback actionable and investor-grade instead of anecdotal.",
+      impact: "Makes dogfood feedback actionable and audit-grade instead of anecdotal.",
       loop: "Generate -> react -> persist -> improve prompt contract",
       nextStep:
         "Add state and analytics-safe metadata first, then verify feedback survives history/share routing.",
@@ -1718,7 +1717,7 @@ function additiveFeatureSuggestions(
       confidence: "high",
       source: "local",
       impact:
-        "Makes the additive feature investor-grade by tying UX controls to durable runtime evidence.",
+        "Makes the additive feature audit-grade by tying UX controls to durable runtime evidence.",
       loop: "Select -> persist -> generate -> inspect metadata",
       nextStep:
         "Run axint.run or a focused UI/state test and attach provider prompt evidence where available.",
@@ -1793,7 +1792,7 @@ function releasePreflightSuggestions(
       confidence: "high",
       source: "local",
       impact:
-        "Turns release failures into investor-grade proof instead of mystery Xcode/App Store Connect churn.",
+        "Turns release failures into audit-grade proof instead of mystery Xcode/App Store Connect churn.",
       loop: "Collect logs -> classify blocker -> patch metadata or portal -> rerun",
       nextStep:
         "Attach the generated evidence packet to the next Axint run or release checklist.",
@@ -1867,7 +1866,7 @@ function axintDogfoodSuggestions(
       rationale,
       confidence: "high",
       source: "local",
-      impact: "Turns anecdotal dogfooding into investor-grade product-quality evidence.",
+      impact: "Turns anecdotal dogfooding into audit-grade product-quality evidence.",
       loop: "Fixture -> failing test -> patch -> focused suite -> full build",
       nextStep: "Run focused tests first, then npm run prepublishOnly before committing.",
       modeTrace,
