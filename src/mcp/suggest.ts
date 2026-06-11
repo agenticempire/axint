@@ -365,6 +365,11 @@ const FEATURE_CATALOG: DomainFeatureSet[] = [
       "running",
       "gym",
       "track",
+      "habit",
+      "streak",
+      "meditation",
+      "mindfulness",
+      "wellness",
     ],
     blockers: [
       "not a fitness app",
@@ -592,6 +597,10 @@ const FEATURE_CATALOG: DomainFeatureSet[] = [
       "bookmark",
       "document",
       "organize",
+      "checklist",
+      "planner",
+      "agenda",
+      "deadline",
     ],
     features: [
       {
@@ -661,6 +670,9 @@ const FEATURE_CATALOG: DomainFeatureSet[] = [
       "portfolio",
       "stock",
       "crypto",
+      "spending",
+      "debt",
+      "receipt",
     ],
     features: [
       {
@@ -968,7 +980,7 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
           suggestion: {
             ...feature,
             domain: domainSet.domain,
-            rationale: buildRationale(domainSet.domain, descriptionScore, text),
+            rationale: buildRationale(domainSet.domain, descriptionScore, text, feature),
             confidence: confidenceFor(score),
             source: "local",
           } satisfies FeatureSuggestion,
@@ -2107,8 +2119,8 @@ function appSpecificFallbackSuggestions(
 
   const concept = titleCase(tokens.slice(0, 3).join(" "));
   const lowerConcept = concept.toLowerCase();
-  const rationale =
-    "No stock domain strongly matched, so Axint generated app-specific Apple-native surfaces from the current app description instead of falling back to a generic domain.";
+  const rationale = (angle: string) =>
+    `No stock domain strongly matched, so Axint generated app-specific surfaces from the description — ${angle}`;
 
   const suggestions: FeatureSuggestion[] = [
     {
@@ -2118,7 +2130,7 @@ function appSpecificFallbackSuggestions(
       complexity: "low",
       featurePrompt: `Let users capture a new ${lowerConcept} item with title, notes, and priority via Siri and Shortcuts`,
       domain: "custom",
-      rationale,
+      rationale: rationale("this one covers hands-free capture via Siri and Shortcuts."),
       confidence: "medium",
       source: "local",
     },
@@ -2129,7 +2141,7 @@ function appSpecificFallbackSuggestions(
       complexity: "medium",
       featurePrompt: `Show the latest ${lowerConcept} state, blockers, and next action in a widget`,
       domain: "custom",
-      rationale,
+      rationale: rationale("this one keeps glanceable state on the Home Screen."),
       confidence: "medium",
       source: "local",
     },
@@ -2140,7 +2152,7 @@ function appSpecificFallbackSuggestions(
       complexity: "medium",
       featurePrompt: `Create a ${lowerConcept} review view with status, details, and follow-up actions`,
       domain: "custom",
-      rationale,
+      rationale: rationale("this one gives the in-app review surface."),
       confidence: "medium",
       source: "local",
     },
@@ -2163,9 +2175,10 @@ function adaptiveSemanticSuggestions(
   const concept = labels.slice(0, 2).join(" ");
   const lowerConcept = concept.toLowerCase();
   const platform = input.platform ? `${input.platform} ` : "";
-  const rationale = `Generated from the app description terms ${labels
-    .slice(0, 4)
-    .join(", ")} instead of relying only on a stock domain template.`;
+  const rationale = (angle: string) =>
+    `Generated from the app description terms ${labels
+      .slice(0, 4)
+      .join(", ")} — ${angle}`;
 
   const suggestions: FeatureSuggestion[] = [
     {
@@ -2175,7 +2188,9 @@ function adaptiveSemanticSuggestions(
       complexity: "medium",
       featurePrompt: `Create a ${platform}${lowerConcept} command surface with intent entry, visible status, and next action controls`,
       domain,
-      rationale,
+      rationale: rationale(
+        "the command surface turns the core noun into an Apple-native action loop."
+      ),
       confidence: "medium",
       source: "local",
       impact: "Turns the app's core noun into an Apple-native action loop.",
@@ -2189,7 +2204,9 @@ function adaptiveSemanticSuggestions(
       complexity: "medium",
       featurePrompt: `Create a shared ${lowerConcept} store with a review view and App Intent that reads and updates the same state`,
       domain,
-      rationale,
+      rationale: rationale(
+        "the shared store keeps views, widgets, and intents on one source of truth."
+      ),
       confidence: "medium",
       source: "local",
       impact: "Prevents generated surfaces from becoming isolated demo files.",
@@ -2203,7 +2220,9 @@ function adaptiveSemanticSuggestions(
       complexity: "medium",
       featurePrompt: `Create a ${platform}${lowerConcept} review queue component kit with rows, status pills, owner metadata, and approve or defer actions`,
       domain,
-      rationale,
+      rationale: rationale(
+        "the review queue makes the app feel operational instead of static."
+      ),
       confidence: "medium",
       source: "local",
       impact: "Makes the app feel operational instead of static.",
@@ -2219,7 +2238,9 @@ function shouldLeadWithAdaptive(
   normalizedAppDescription: string,
   strongestDescriptionScore: number
 ): boolean {
-  if (strongestDescriptionScore < 3) return true;
+  // Two stock-domain cues (e.g. "habit" + "streak") are a real domain hit —
+  // those plans should lead with the curated features, not the generic trio.
+  if (strongestDescriptionScore < 2) return true;
   return [
     "agent",
     "approval",
@@ -2732,19 +2753,47 @@ function meaningfulTokens(text: string): string[] {
 function buildRationale(
   domain: string,
   descriptionScore: number,
-  normalizedAppDescription: string
+  normalizedAppDescription: string,
+  feature: Omit<FeatureSuggestion, "domain" | "rationale" | "confidence">
 ): string {
   const cues = meaningfulTokens(normalizedAppDescription)
     .filter((token) => token.length > 3)
     .slice(0, 4);
   const cueText = cues.length > 0 ? ` from cues like ${cues.join(", ")}` : "";
+  const angle = featureAngle(feature);
   if (descriptionScore >= 3) {
-    return `Strong match for ${domain} workflows${cueText}.`;
+    return `Strong match for ${domain} workflows${cueText} — ${angle}`;
   }
   if (descriptionScore >= 1) {
-    return `Matched ${domain} cues${cueText}.`;
+    return `Matched ${domain} cues${cueText} — ${angle}`;
   }
-  return `Included from a weak ${domain} hint; validate fit before generating.`;
+  return `Included from a weak ${domain} hint — ${angle} Validate fit before generating.`;
+}
+
+/**
+ * One plan often pulls several features from the same domain; without a
+ * per-feature angle every rationale reads identically and tells the
+ * user nothing about why *this* suggestion is on the list.
+ */
+function featureAngle(
+  feature: Omit<FeatureSuggestion, "domain" | "rationale" | "confidence">
+): string {
+  switch (feature.surfaces[0]) {
+    case "intent":
+      return `${feature.name} covers the hands-free capture/action loop in Siri and Shortcuts.`;
+    case "widget":
+      return `${feature.name} keeps glanceable state on the Home/Lock Screen.`;
+    case "view":
+      return `${feature.name} gives the in-app surface for reviewing details.`;
+    case "component":
+      return `${feature.name} is a reusable building block for the app's screens.`;
+    case "app":
+      return `${feature.name} frames the app shell the other surfaces plug into.`;
+    case "store":
+      return `${feature.name} prepares the App Store-facing side of the release.`;
+    default:
+      return `${feature.name} rounds out the Apple-native surface set.`;
+  }
 }
 
 function confidenceFor(score: number): "low" | "medium" | "high" {
