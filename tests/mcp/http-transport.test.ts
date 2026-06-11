@@ -109,9 +109,10 @@ describe("axint HTTP MCP transport", () => {
 
     expect(response.status).toBe(200);
     expect(payload.result.tools).toHaveLength(TOOL_MANIFEST.length);
-    expect(payload.result.tools.map((tool: { name: string }) => tool.name)).toEqual(
-      TOOL_MANIFEST.map((tool) => tool.name)
-    );
+    expect(
+      payload.result.tools.map((tool: { name: string }) => tool.name).sort()
+    ).toEqual(TOOL_MANIFEST.map((tool) => tool.name).sort());
+    expect(payload.result.tools[0].name).toBe("axint.compile");
     expect(payload.result.tools).toEqual(compactManifest);
     expect(
       payload.result.tools.every((tool: { description?: string }) =>
@@ -265,35 +266,17 @@ describe("axint HTTP MCP transport", () => {
   });
 });
 
+// The compact manifest documents every top-level parameter; nested
+// structure relies on types, with the full prose behind
+// AXINT_MCP_MANIFEST_MODE=full.
 function schemaHasParameterDescriptions(schema: unknown): boolean {
-  const properties = asObject(schema)?.properties;
-  if (!properties || typeof properties !== "object") return true;
-  return Object.values(properties).every(parameterSchemaHasDescription);
-}
-
-function parameterSchemaHasDescription(schema: unknown): boolean {
-  const object = asObject(schema);
-  if (!object) return true;
-  if (typeof object.description !== "string" || object.description.trim() === "") {
-    return false;
-  }
-
-  const properties = asObject(object.properties);
-  if (properties && !Object.values(properties).every(parameterSchemaHasDescription)) {
-    return false;
-  }
-
-  if (object.items && !parameterSchemaHasDescription(object.items)) return false;
-
-  if (
-    object.additionalProperties &&
-    typeof object.additionalProperties === "object" &&
-    !parameterSchemaHasDescription(object.additionalProperties)
-  ) {
-    return false;
-  }
-
-  return true;
+  const properties = asObject(asObject(schema)?.properties);
+  if (!properties) return true;
+  return Object.values(properties).every((parameter) => {
+    const object = asObject(parameter);
+    if (!object) return true;
+    return typeof object.description === "string" && object.description.trim() !== "";
+  });
 }
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
