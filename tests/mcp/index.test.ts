@@ -40,14 +40,21 @@ describe("axint/mcp import surface", () => {
     const full = mod.getRuntimeToolManifest({ AXINT_MCP_MANIFEST_MODE: "full" });
 
     expect(compact).toHaveLength(mod.TOOL_MANIFEST.length);
-    expect(compact.map((tool: { name: string }) => tool.name)).toEqual(
-      mod.TOOL_MANIFEST.map((tool: { name: string }) => tool.name)
+    expect(compact.map((tool: { name: string }) => tool.name).sort()).toEqual(
+      mod.TOOL_MANIFEST.map((tool: { name: string }) => tool.name).sort()
     );
     expect(full).toHaveLength(mod.TOOL_MANIFEST.length);
     expect(
       full.every((tool: { outputSchema?: unknown }) => Boolean(tool.outputSchema))
     ).toBe(true);
-    expect(JSON.stringify(compact).length).toBeLessThan(JSON.stringify(full).length);
+    expect(
+      compact.every((tool: { outputSchema?: unknown }) => Boolean(tool.outputSchema))
+    ).toBe(true);
+    // The compact manifest is the default agents pay context for — keep
+    // it well under two-thirds of the full prose listing.
+    expect(JSON.stringify(compact).length).toBeLessThan(
+      JSON.stringify(full).length * 0.6
+    );
     expect(
       compact.every((tool: { description?: string }) =>
         Boolean(
@@ -55,6 +62,27 @@ describe("axint/mcp import surface", () => {
         )
       )
     ).toBe(true);
+  });
+
+  it("lists the hero tools first in both manifest modes", async () => {
+    const mod = await import("../../src/mcp/index.js");
+    const heroes = [
+      "axint.compile",
+      "axint.validate",
+      "axint.swift.validate",
+      "axint.swift.fix",
+      "axint.scaffold",
+      "axint.templates.list",
+      "axint.templates.get",
+      "axint.repair",
+    ];
+
+    for (const env of [{}, { AXINT_MCP_MANIFEST_MODE: "full" }]) {
+      const manifest = mod.getRuntimeToolManifest(env);
+      expect(
+        manifest.slice(0, heroes.length).map((tool: { name: string }) => tool.name)
+      ).toEqual(heroes);
+    }
   });
 
   it("keeps the MCP SDK bundled out of published runtime dependencies", () => {

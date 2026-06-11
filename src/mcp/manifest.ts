@@ -2289,57 +2289,95 @@ type CompactManifestOptions = {
   nestedDescriptionChars: number;
 };
 
-const DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS = 420;
-const DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS = 112;
-const DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS = 80;
+const DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS = 156;
+const DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS = 64;
+const DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS = 0;
+
+/** Optional params keep a short hint; the full prose stays in full mode. */
+const OPTIONAL_PROPERTY_DESCRIPTION_CHARS = 20;
+
+/** Compact mode ships the output contract without the prose around it. */
+const MINIMAL_TEXT_OUTPUT_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    text: { type: "string" as const },
+    isError: { type: "boolean" as const },
+  },
+  required: ["text"],
+  additionalProperties: false,
+};
+
+// Hero tools lead the listing so a first-time agent sees the compile and
+// validation loop before the long tail of session/agent plumbing.
+const HERO_TOOL_ORDER = [
+  "axint.compile",
+  "axint.validate",
+  "axint.swift.validate",
+  "axint.swift.fix",
+  "axint.scaffold",
+  "axint.templates.list",
+  "axint.templates.get",
+  "axint.repair",
+] as const;
+
+function heroFirst<T extends { name: string }>(tools: readonly T[]): T[] {
+  const rank = new Map<string, number>(
+    HERO_TOOL_ORDER.map((name, index) => [name, index])
+  );
+  const heroes = [...tools]
+    .filter((tool) => rank.has(tool.name))
+    .sort((a, b) => rank.get(a.name)! - rank.get(b.name)!);
+  return [...heroes, ...tools.filter((tool) => !rank.has(tool.name))];
+}
 
 export function getRuntimeToolManifest(env: RuntimeManifestEnv = {}) {
   const mode = env.AXINT_MCP_MANIFEST_MODE?.trim().toLowerCase();
   if (env.AXINT_MCP_FULL_MANIFEST === "1" || mode === "full" || mode === "verbose") {
-    return withOutputSchemas(TOOL_MANIFEST);
+    return heroFirst(withOutputSchemas(TOOL_MANIFEST));
   }
 
-  return compactToolManifest({
-    toolDescriptionChars: positiveEnvInt(
-      env.AXINT_MCP_TOOL_DESCRIPTION_CHARS,
-      DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS
-    ),
-    schemaDescriptionChars: positiveEnvInt(
-      env.AXINT_MCP_SCHEMA_DESCRIPTION_CHARS,
-      DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS
-    ),
-    nestedDescriptionChars: positiveEnvInt(
-      env.AXINT_MCP_NESTED_DESCRIPTION_CHARS,
-      DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS
-    ),
-  });
+  return heroFirst(
+    compactToolManifest({
+      toolDescriptionChars: positiveEnvInt(
+        env.AXINT_MCP_TOOL_DESCRIPTION_CHARS,
+        DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS
+      ),
+      schemaDescriptionChars: positiveEnvInt(
+        env.AXINT_MCP_SCHEMA_DESCRIPTION_CHARS,
+        DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS
+      ),
+      nestedDescriptionChars: positiveEnvInt(
+        env.AXINT_MCP_NESTED_DESCRIPTION_CHARS,
+        DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS
+      ),
+    })
+  );
 }
 
 export function compactToolManifest(options: CompactManifestOptions) {
-  return withOutputSchemas(
-    TOOL_MANIFEST.map((tool) => ({
-      ...tool,
-      description: compactToolDescription(tool, options.toolDescriptionChars),
-      inputSchema: compactSchemaValue(tool.inputSchema, options, 0),
-    }))
-  ) as unknown as typeof TOOL_MANIFEST;
+  return TOOL_MANIFEST.map((tool) => ({
+    ...tool,
+    description: compactToolDescription(tool, options.toolDescriptionChars),
+    inputSchema: compactSchemaValue(tool.inputSchema, options, 0),
+    outputSchema: MINIMAL_TEXT_OUTPUT_SCHEMA,
+  })) as unknown as typeof TOOL_MANIFEST;
 }
 
 function compactToolDescription(
   tool: (typeof TOOL_MANIFEST)[number],
   maxChars: number
 ): string {
+  // Each segment is compacted on its own so the Use/Effects markers
+  // survive however small the budget gets.
   const effects = RUNTIME_TOOL_EFFECTS[tool.name] ?? defaultEffectSummary(tool);
   const guidance = RUNTIME_TOOL_GUIDANCE[tool.name];
-  const suffix = [guidance ? `Use: ${guidance}` : undefined, `Effects: ${effects}`]
-    .filter(Boolean)
-    .join(" ");
-  const suffixLength = suffix.length + 1;
-  const summaryChars = Math.max(96, maxChars - suffixLength);
-  return compactDescription(
-    `${compactDescription(tool.description, summaryChars)} ${suffix}`,
-    maxChars
-  );
+  const summaryChars = Math.max(60, Math.floor(maxChars * 0.45));
+  const detailChars = Math.max(36, Math.floor((maxChars - summaryChars) / 2));
+
+  const parts = [compactDescription(tool.description, summaryChars)];
+  if (guidance) parts.push(`Use: ${compactDescription(guidance, detailChars)}`);
+  parts.push(`Effects: ${compactDescription(effects, detailChars)}`);
+  return parts.join(" ");
 }
 
 function defaultEffectSummary(tool: (typeof TOOL_MANIFEST)[number]): string {
@@ -2503,7 +2541,7 @@ const RUNTIME_TOOL_EFFECTS: Record<string, string> = {
     "read-only template source; writes no files and uses no network.",
 };
 
-function withOutputSchemas<T extends readonly Record<string, unknown>[]>(tools: T) {
+function withOutputSchemas<T extends { name: string }>(tools: readonly T[]) {
   return tools.map((tool) => ({
     ...tool,
     outputSchema: TOOL_TEXT_OUTPUT_SCHEMA,
@@ -2513,7 +2551,8 @@ function withOutputSchemas<T extends readonly Record<string, unknown>[]>(tools: 
 function compactSchemaValue(
   value: unknown,
   options: CompactManifestOptions,
-  depth: number
+  depth: number,
+  ownDescriptionChars?: number
 ): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => compactSchemaValue(item, options, depth + 1));
@@ -2521,20 +2560,55 @@ function compactSchemaValue(
 
   if (!value || typeof value !== "object") return value;
 
+  const record = value as Record<string, unknown>;
+  const limit =
+    ownDescriptionChars ??
+    (depth <= 2 ? options.schemaDescriptionChars : options.nestedDescriptionChars);
+  const requiredNames = new Set(
+    Array.isArray(record.required)
+      ? record.required.filter((name): name is string => typeof name === "string")
+      : []
+  );
+
   const compacted: Record<string, unknown> = {};
-  for (const [key, nestedValue] of Object.entries(value)) {
+  for (const [key, nestedValue] of Object.entries(record)) {
     if (key === "description" && typeof nestedValue === "string") {
-      const limit =
-        depth <= 2 ? options.schemaDescriptionChars : options.nestedDescriptionChars;
       if (limit <= 0) continue;
       compacted[key] = compactDescription(nestedValue, limit);
+      continue;
+    }
+
+    if (
+      depth === 0 &&
+      key === "properties" &&
+      nestedValue &&
+      typeof nestedValue === "object" &&
+      !Array.isArray(nestedValue)
+    ) {
+      // Required params keep the full (capped) docs an agent needs to
+      // call the tool; optional ones shrink to a short hint.
+      const properties: Record<string, unknown> = {};
+      for (const [name, property] of Object.entries(nestedValue)) {
+        const propertyChars = requiredNames.has(name)
+          ? options.schemaDescriptionChars
+          : Math.min(OPTIONAL_PROPERTY_DESCRIPTION_CHARS, options.schemaDescriptionChars);
+        properties[name] = compactSchemaValue(
+          property,
+          options,
+          depth + 2,
+          propertyChars
+        );
+      }
+      compacted[key] = properties;
       continue;
     }
 
     compacted[key] = compactSchemaValue(nestedValue, options, depth + 1);
   }
 
-  if (shouldAddFallbackDescription(compacted, depth)) {
+  // No fallback where descriptions are budgeted out — re-adding filler
+  // text would undo the compaction.
+  if (limit > 0 && shouldAddFallbackDescription(compacted, depth)) {
     compacted.description = fallbackSchemaDescription(compacted);
   }
 
@@ -2565,9 +2639,9 @@ function compactDescription(value: string, maxChars: number): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxChars) return normalized;
 
-  const safeLimit = Math.max(32, maxChars);
+  const safeLimit = Math.max(16, maxChars);
   const wordBoundary = normalized.lastIndexOf(" ", safeLimit - 4);
-  const end = wordBoundary > 32 ? wordBoundary : safeLimit - 3;
+  const end = wordBoundary > 16 ? wordBoundary : safeLimit - 3;
   return `${normalized.slice(0, end).trim()}...`;
 }
 
