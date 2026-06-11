@@ -101,3 +101,84 @@ export default defineIntent({
     expect(result.stderr).not.toContain("perform body");
   });
 });
+
+describe("axint compile — quiet success and clean pipes", () => {
+  const cli = resolve(__dirname, "../../dist/cli/index.js");
+  const ansi = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`);
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = resolve(tmpdir(), `axint-compile-quiet-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const VALID = `
+import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "MakeThing",
+  title: "Make Thing",
+  description: "Makes a thing",
+  params: { length: param.string("Length") },
+});
+`;
+
+  it("keeps Fix Packet lines and the login tip out of successful runs", () => {
+    const file = join(tmpDir, "make-thing.ts");
+    writeFileSync(file, VALID, "utf-8");
+
+    const result = spawnSync("node", [cli, "compile", file, "--out", tmpDir], {
+      cwd: tmpDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).not.toContain("Fix Packet");
+    expect(result.stdout).not.toContain("axint login");
+  });
+
+  it("prints Fix Packet lines on success when --verbose is set", () => {
+    const file = join(tmpDir, "make-thing.ts");
+    writeFileSync(file, VALID, "utf-8");
+
+    const result = spawnSync(
+      "node",
+      [cli, "compile", file, "--out", tmpDir, "--verbose"],
+      { cwd: tmpDir, encoding: "utf-8" }
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Fix Packet");
+  });
+
+  it("still prints Fix Packet lines when compilation fails", () => {
+    const file = join(tmpDir, "broken.ts");
+    writeFileSync(file, VALID.replace('"MakeThing"', '"makeThing"'), "utf-8");
+
+    const result = spawnSync("node", [cli, "compile", file, "--out", tmpDir], {
+      cwd: tmpDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Fix Packet");
+  });
+
+  it("emits no ANSI escapes when output is piped", () => {
+    const file = join(tmpDir, "broken.ts");
+    writeFileSync(file, VALID.replace('"MakeThing"', '"makeThing"'), "utf-8");
+
+    const result = spawnSync("node", [cli, "compile", file, "--out", tmpDir], {
+      cwd: tmpDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).not.toMatch(ansi);
+    expect(result.stderr).not.toMatch(ansi);
+  });
+});

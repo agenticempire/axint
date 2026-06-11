@@ -9,6 +9,7 @@ import {
 } from "../core/compiler.js";
 import type { Diagnostic } from "../core/types.js";
 import { renderDiagnostic } from "./render-diagnostics.js";
+import { shouldUseColor } from "./color.js";
 import {
   printRepairArtifactLines,
   tryEmitRepairArtifacts,
@@ -90,10 +91,11 @@ function unifyOutput(result: AnyCompileResult): UnifiedOutput | null {
 
 function printDiagnostics(
   diagnostics: Diagnostic[],
+  color: boolean,
   sources?: ReadonlyMap<string, string>
 ): void {
   for (const d of diagnostics) {
-    console.error(renderDiagnostic(d, { color: true, sources }));
+    console.error(renderDiagnostic(d, { color, sources }));
     console.error();
   }
 }
@@ -142,6 +144,10 @@ export function registerCompile(program: Command) {
       "Directory for the emitted Fix Packet artifacts",
       ".axint/fix"
     )
+    .option(
+      "--verbose",
+      "Print Fix Packet paths and sign-in tips even when compilation succeeds"
+    )
     .action(
       async (
         file: string,
@@ -158,9 +164,13 @@ export function registerCompile(program: Command) {
           fromIr: boolean;
           fixPacket: boolean;
           fixPacketDir: string;
+          verbose?: boolean;
         }
       ) => {
         const filePath = resolve(file);
+        const color = shouldUseColor();
+        const paint = (ansi: string, text: string) =>
+          color ? `${ansi}${text}\x1b[0m` : text;
 
         try {
           let surface:
@@ -198,7 +208,7 @@ export function registerCompile(program: Command) {
             try {
               parsed = JSON.parse(irRaw);
             } catch {
-              console.error(`\x1b[31merror:\x1b[0m Invalid JSON in ${file}`);
+              console.error(`${paint("\x1b[31m", "error:")} Invalid JSON in ${file}`);
               process.exit(1);
             }
 
@@ -207,7 +217,7 @@ export function registerCompile(program: Command) {
               : (parsed as Record<string, unknown>);
             if (!irData || typeof irData !== "object") {
               console.error(
-                `\x1b[31merror:\x1b[0m Expected an IR object or array in ${file}`
+                `${paint("\x1b[31m", "error:")} Expected an IR object or array in ${file}`
               );
               process.exit(1);
             }
@@ -257,7 +267,7 @@ export function registerCompile(program: Command) {
               (options.emitInfoPlist || options.emitEntitlements)
             ) {
               console.error(
-                `\x1b[33mwarning:\x1b[0m --emit-info-plist and --emit-entitlements apply to intents only; ignored for ${result.surface}.`
+                `${paint("\x1b[33m", "warning:")} --emit-info-plist and --emit-entitlements apply to intents only; ignored for ${result.surface}.`
               );
             }
           }
@@ -324,7 +334,7 @@ export function registerCompile(program: Command) {
             repairArtifacts = repairResult.artifacts;
             if (repairResult.error) {
               console.error(
-                `\x1b[33mwarning:\x1b[0m Fix Packet skipped — ${repairResult.error.message}`
+                `${paint("\x1b[33m", "warning:")} Fix Packet skipped — ${repairResult.error.message}`
               );
             }
           }
@@ -363,15 +373,15 @@ export function registerCompile(program: Command) {
             inputSource !== undefined && inputFilePath !== undefined
               ? new Map([[inputFilePath, inputSource]])
               : undefined;
-          printDiagnostics(diagnostics, sources);
+          printDiagnostics(diagnostics, color, sources);
 
           if (!success || !output) {
             if (repairArtifacts) {
-              printRepairArtifactLines(repairArtifacts, console.error);
+              printRepairArtifactLines(repairArtifacts, console.error, { color });
             }
             const errorCount = diagnostics.filter((d) => d.severity === "error").length;
             console.error(
-              `\x1b[31mCompilation failed with ${errorCount} error(s)\x1b[0m`
+              paint("\x1b[31m", `Compilation failed with ${errorCount} error(s)`)
             );
             process.exit(1);
           }
@@ -386,16 +396,18 @@ export function registerCompile(program: Command) {
                 output.swiftCode = fmt.formatted;
               } else {
                 console.error(
-                  `\x1b[33mwarning:\x1b[0m swift-format skipped — ${fmt.reason}`
+                  `${paint("\x1b[33m", "warning:")} swift-format skipped — ${fmt.reason}`
                 );
               }
             } catch (fmtErr: unknown) {
               if (options.strictFormat) {
-                console.error(`\x1b[31merror:\x1b[0m ${(fmtErr as Error).message}`);
+                console.error(
+                  `${paint("\x1b[31m", "error:")} ${(fmtErr as Error).message}`
+                );
                 process.exit(1);
               }
               console.error(
-                `\x1b[33mwarning:\x1b[0m swift-format skipped — ${(fmtErr as Error).message}`
+                `${paint("\x1b[33m", "warning:")} swift-format skipped — ${(fmtErr as Error).message}`
               );
             }
           }
@@ -415,7 +427,7 @@ export function registerCompile(program: Command) {
             mkdirSync(dirname(outPath), { recursive: true });
             writeFileSync(outPath, output.swiftCode, "utf-8");
             console.log(
-              `\x1b[32m✓\x1b[0m Compiled ${surface} ${output.irName} → ${outPath}`
+              `${paint("\x1b[32m", "✓")} Compiled ${surface} ${output.irName} → ${outPath}`
             );
 
             // Show TS-to-Swift compression so authors can eyeball whether
@@ -429,7 +441,7 @@ export function registerCompile(program: Command) {
                 if (ratio !== null) {
                   const label = swiftLines > tsLines ? "Expansion" : "Compression";
                   console.log(
-                    `\x1b[36m→\x1b[0m ${label}: ${tsLines} TS → ${swiftLines} Swift (${ratio})`
+                    `${paint("\x1b[36m", "→")} ${label}: ${tsLines} TS → ${swiftLines} Swift (${ratio})`
                   );
                 }
               } catch {
@@ -445,7 +457,7 @@ export function registerCompile(program: Command) {
             ) {
               const plistPath = outPath.replace(/\.swift$/, ".plist.fragment.xml");
               writeFileSync(plistPath, output.infoPlistFragment, "utf-8");
-              console.log(`\x1b[32m✓\x1b[0m Info.plist fragment → ${plistPath}`);
+              console.log(`${paint("\x1b[32m", "✓")} Info.plist fragment → ${plistPath}`);
             }
 
             if (
@@ -455,7 +467,7 @@ export function registerCompile(program: Command) {
             ) {
               const entPath = outPath.replace(/\.swift$/, ".entitlements.fragment.xml");
               writeFileSync(entPath, output.entitlementsFragment, "utf-8");
-              console.log(`\x1b[32m✓\x1b[0m Entitlements fragment → ${entPath}`);
+              console.log(`${paint("\x1b[32m", "✓")} Entitlements fragment → ${entPath}`);
             }
 
             // Extensions always ship with an NSExtension Info.plist fragment —
@@ -464,11 +476,11 @@ export function registerCompile(program: Command) {
             if (surface === "extension" && output.infoPlistFragment) {
               const plistPath = outPath.replace(/\.swift$/, ".plist.fragment.xml");
               writeFileSync(plistPath, output.infoPlistFragment, "utf-8");
-              console.log(`\x1b[32m✓\x1b[0m Info.plist fragment → ${plistPath}`);
+              console.log(`${paint("\x1b[32m", "✓")} Info.plist fragment → ${plistPath}`);
             }
 
-            if (repairArtifacts) {
-              printRepairArtifactLines(repairArtifacts, console.log);
+            if (repairArtifacts && options.verbose) {
+              printRepairArtifactLines(repairArtifacts, console.log, { color });
             }
           }
 
@@ -476,23 +488,23 @@ export function registerCompile(program: Command) {
             try {
               const { sandboxCompile } = await import("../core/sandbox.js");
               console.log();
-              console.log(`\x1b[36m→\x1b[0m Stage 4: SPM sandbox compile...`);
+              console.log(`${paint("\x1b[36m", "→")} Stage 4: SPM sandbox compile...`);
               const sandboxResult = await sandboxCompile(output.swiftCode, {
                 intentName: output.irName,
               });
               if (sandboxResult.ok) {
                 console.log(
-                  `\x1b[32m✓\x1b[0m Swift builds cleanly (${sandboxResult.durationMs}ms in ${sandboxResult.sandboxPath})`
+                  `${paint("\x1b[32m", "✓")} Swift builds cleanly (${sandboxResult.durationMs}ms in ${sandboxResult.sandboxPath})`
                 );
               } else {
                 console.error(
-                  `\x1b[31m✗\x1b[0m Sandbox compile failed:\n${sandboxResult.stderr}`
+                  `${paint("\x1b[31m", "✗")} Sandbox compile failed:\n${sandboxResult.stderr}`
                 );
                 process.exit(1);
               }
             } catch (sbErr: unknown) {
               console.error(
-                `\x1b[33mwarning:\x1b[0m sandbox compile skipped — ${(sbErr as Error).message}`
+                `${paint("\x1b[33m", "warning:")} sandbox compile skipped — ${(sbErr as Error).message}`
               );
             }
           }
@@ -510,7 +522,7 @@ export function registerCompile(program: Command) {
           ) {
             console.error((err as { format: () => string }).format());
           } else {
-            console.error(`\x1b[31merror:\x1b[0m ${err}`);
+            console.error(`${paint("\x1b[31m", "error:")} ${err}`);
           }
           process.exit(1);
         }
