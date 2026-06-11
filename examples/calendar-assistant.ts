@@ -18,7 +18,7 @@ export default defineIntent({
   params: {
     title: param.string("Event title"),
     date: param.date("Event date"),
-    duration: param.duration("Event duration", { default: "1h" }),
+    duration: param.duration("Event duration"),
     location: param.string("Location", { required: false }),
   },
   perform: async ({ title, date, duration: _duration, location: _location }) => {
