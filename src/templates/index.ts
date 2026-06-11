@@ -1536,6 +1536,128 @@ export default defineIntent({
 `,
 };
 
+const foundationModelsCustomProvider: IntentTemplate = {
+  id: "foundation-models-custom-provider",
+  name: "foundation-models-custom-provider",
+  title: "Foundation Models Custom Provider",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold a session backed by a LanguageModel-protocol provider that falls back to the on-device model when the provider is unavailable.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "DraftWithHouseModel",
+  title: "Draft With House Model",
+  description: "Drafts a reply through a custom LanguageModel provider with an on-device fallback.",
+  schemaDomain: "assistant",
+  params: {
+    prompt: param.string("Draft prompt"),
+  },
+  model: {
+    sessionName: "HouseModelSession",
+    provider: "custom-language-model",
+    useCase: "reply-drafting",
+    instructions: "Draft a reply in the account voice and keep claims grounded.",
+    customProvider: {
+      packageName: "HouseModelKit",
+      typeName: "HouseLanguageModel",
+      configuration: "HouseLanguageModel.Configuration(deployment: .production)",
+    },
+    dynamicProfiles: [
+      {
+        name: "houseModel",
+        provider: "custom-language-model",
+        instructions: "Use the house model whenever the provider is reachable.",
+      },
+      {
+        name: "onDeviceFallback",
+        provider: "apple-on-device",
+        instructions: "Fall back to the system model when the house provider is unavailable.",
+      },
+    ],
+  },
+  perform: async ({ prompt }) => {
+    // Swift proof hint:
+    // Attach evidence that the session degrades to the on-device profile when the provider is offline.
+    return { draft: prompt };
+  },
+});
+`,
+};
+
+const appIntentsTestingXctestHarness: IntentTemplate = {
+  id: "app-intents-testing-harness",
+  name: "app-intents-testing-harness",
+  title: "App Intents Testing Harness",
+  domain: "apple-intelligence",
+  category: "testing",
+  description:
+    "Scaffold an intent plus an AppIntentsTesting XCTest harness that drives perform() with sample inputs.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "LogReadingSession",
+  title: "Log Reading Session",
+  description: "Logs a reading session so the harness can exercise perform() end to end.",
+  domain: "productivity",
+  params: {
+    bookTitle: param.string("Book title"),
+    minutes: param.int("Minutes read"),
+  },
+  testHarness: {
+    className: "LogReadingSessionIntentTests",
+  },
+  perform: async ({ bookTitle, minutes }) => {
+    return { bookTitle, minutes };
+  },
+});
+`,
+};
+
+const dynamicProfileSession: IntentTemplate = {
+  id: "dynamic-profile-session",
+  name: "dynamic-profile-session",
+  title: "Dynamic Profile Session",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold a Foundation Models session that selects a DynamicProfile per request context.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "CoachNextWorkout",
+  title: "Coach Next Workout",
+  description: "Coaches the next workout with a profile matched to the athlete's context.",
+  schemaDomain: "assistant",
+  params: {
+    goal: param.string("Training goal"),
+  },
+  model: {
+    sessionName: "WorkoutCoachSession",
+    provider: "apple-on-device",
+    useCase: "workout-coaching",
+    instructions: "Coach with the active profile's tone and scope.",
+    dynamicProfile: "quickTips",
+    dynamicProfiles: [
+      {
+        name: "quickTips",
+        instructions: "Short, actionable cues between sets.",
+      },
+      {
+        name: "weeklyPlan",
+        provider: "private-cloud-compute",
+        instructions: "Full-week periodized plans that need the larger model.",
+      },
+    ],
+  },
+  perform: async ({ goal }) => {
+    return { goal };
+  },
+});
+`,
+};
+
 // ─── Registry ────────────────────────────────────────────────────────
 
 export const TEMPLATES: IntentTemplate[] = [
@@ -1585,6 +1707,9 @@ export const TEMPLATES: IntentTemplate[] = [
   barcodeVisionTool,
   stringCatalogLocalizer,
   resizableLayoutProof,
+  foundationModelsCustomProvider,
+  appIntentsTestingXctestHarness,
+  dynamicProfileSession,
 ];
 
 /** @deprecated Use TEMPLATES. Kept for v0.1.x import compatibility. */

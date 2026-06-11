@@ -175,6 +175,49 @@ describe("swift validator — SwiftUI compiler parity", () => {
     expect(diagnostics.map((d) => d.code)).toContain("AX767");
   });
 
+  it("flags non-View computed properties with local declarations but no explicit return", () => {
+    const source = `
+      struct CadabraSettings {
+          var magicSummary: String {
+              let tier = "Better"
+              "Magic Level: \\(tier)"
+          }
+      }
+    `;
+
+    const { diagnostics } = validate(source);
+    const diagnostic = diagnostics.find((d) => d.code === "AX849");
+    expect(diagnostic?.message).toContain("magicSummary");
+    expect(diagnostic?.suggestion).toContain("return");
+  });
+
+  it("flags same-file switches over enum values that omit a declared case", () => {
+    const source = `
+      enum CadabraPreset {
+          case better
+          case outfit
+          case wild
+          case noirFrame
+
+          var suggestedCameraFeel: String {
+              switch self {
+              case .better:
+                  return "Clean"
+              case .outfit:
+                  return "Styled"
+              case .wild:
+                  return "Chaotic"
+              }
+          }
+      }
+    `;
+
+    const { diagnostics } = validate(source);
+    const diagnostic = diagnostics.find((d) => d.code === "AX860");
+    expect(diagnostic?.message).toContain("noirFrame");
+    expect(diagnostic?.suggestion).toContain("case .noirFrame");
+  });
+
   it("accepts some View helpers that explicitly return the final expression", () => {
     const source = `
       import SwiftUI

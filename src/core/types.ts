@@ -167,6 +167,10 @@ export interface IRPreviewProofConfig {
   liveActivityStates?: string[];
 }
 
+export interface IRTestHarnessConfig {
+  className?: string;
+}
+
 export interface IRImagePlaygroundConfig {
   conceptParam: string;
   sourceImageParam?: string;
@@ -334,6 +338,8 @@ export interface IRIntent {
   model?: IRFoundationModelConfig;
   /** Evaluation suite metadata that should accompany model-backed output. */
   evaluation?: IREvaluationConfig;
+  /** AppIntentsTesting harness emitted alongside the intent. */
+  testHarness?: IRTestHarnessConfig;
   /** Preview snapshot matrix required to prove generated UI variants. */
   previewProof?: IRPreviewProofConfig;
   /** Image Playground generation contract for image-producing App Intents. */

@@ -92,4 +92,39 @@ describe("templates registry", () => {
       expect(result.output?.swiftCode, id).toContain("struct");
     }
   });
+
+  it("ships WWDC26 provider fallback and testing-harness templates that compile", () => {
+    const ids = [
+      "foundation-models-custom-provider",
+      "app-intents-testing-harness",
+      "dynamic-profile-session",
+    ];
+
+    for (const id of ids) {
+      const template = getTemplate(id);
+      expect(template, id).toBeDefined();
+
+      const result = compileSource(template!.source, `${id}.ts`);
+      expect(result.success, id).toBe(true);
+      expect(result.output?.swiftCode, id).toContain("struct");
+    }
+
+    const harness = compileSource(
+      getTemplate("app-intents-testing-harness")!.source,
+      "app-intents-testing-harness.ts"
+    );
+    expect(harness.output?.swiftCode).toContain(
+      "#if canImport(XCTest) && canImport(AppIntentsTesting)"
+    );
+    expect(harness.output?.swiftCode).toContain(
+      "final class LogReadingSessionIntentTests: XCTestCase"
+    );
+
+    const provider = compileSource(
+      getTemplate("foundation-models-custom-provider")!.source,
+      "foundation-models-custom-provider.ts"
+    );
+    expect(provider.output?.swiftCode).toContain("HouseLanguageModel");
+    expect(provider.output?.swiftCode).toContain("onDeviceFallback");
+  });
 });

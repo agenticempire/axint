@@ -916,12 +916,16 @@ export function suggestFeatures(input: SuggestInput): FeatureSuggestion[] {
   const productHierarchyMode = detectProductHierarchyMode(input, text);
   const additiveFeatureMode = detectAdditiveFeatureMode(input, text);
   const releasePreflightMode = detectReleasePreflightMode(input, text);
+  const axintDogfoodMode = detectAxintDogfoodMode(input, text);
 
   if (freshProductMode?.kind === "public-page") {
     return publicLanderSuggestions(input, text, limit, freshProductMode.trace);
   }
   if (freshProductMode?.kind === "brand-polish") {
     return brandPolishSuggestions(input, text, limit, freshProductMode.trace);
+  }
+  if (axintDogfoodMode) {
+    return axintDogfoodSuggestions(input, text, limit, axintDogfoodMode.trace);
   }
   if (greenfieldAppMode) {
     return greenfieldAppSuggestions(input, text, limit, greenfieldAppMode.trace);
@@ -1057,6 +1061,66 @@ type ReleasePreflightMode =
       trace: string;
     }
   | undefined;
+
+type AxintDogfoodMode =
+  | {
+      trace: string;
+    }
+  | undefined;
+
+function detectAxintDogfoodMode(
+  input: SuggestInput,
+  normalizedAppDescription: string
+): AxintDogfoodMode {
+  const goalsText = normalizeText((input.goals ?? []).join(" "));
+  const constraintsText = normalizeText((input.constraints ?? []).join(" "));
+  const combined = [normalizedAppDescription, goalsText, constraintsText]
+    .filter(Boolean)
+    .join(" ");
+
+  const axintCues = [
+    "axint",
+    "cloud check",
+    "mcp",
+    "mcp version",
+    "workflow check",
+    "fix packet",
+    "ax001",
+    "dogfood",
+    "dogfooding",
+    "non-apple artifact",
+    "non apple artifact",
+    "version metadata",
+    "version truth",
+    "release script",
+    "generic feature scaffold",
+    "classifier",
+    "cadabra dogfood",
+  ].filter((cue) => hasKeyword(combined, cue));
+
+  const toolingIntent = [
+    "atom",
+    "atoms",
+    "classify",
+    "classified",
+    "fix",
+    "misclassified",
+    "misclassification",
+    "prevent",
+    "route",
+    "routing",
+    "stale",
+    "sync",
+    "version",
+  ].some((cue) => hasKeyword(combined, cue));
+
+  if (axintCues.length < 2 || !toolingIntent) return undefined;
+
+  const cueList = axintCues.slice(0, 6).join(", ");
+  return {
+    trace: `Current prompt won as Axint dogfood/tooling work (${cueList}); Axint is repairing its own classifier, Cloud Check, and version-truth atoms instead of mapping provider words to an app image-provider repair.`,
+  };
+}
 
 function detectFreshProductMode(
   input: SuggestInput,
@@ -1505,7 +1569,7 @@ function greenfieldAppSuggestions(
       rationale,
       confidence: "high",
       source: "local",
-      impact: "Turns greenfield generation into investor-grade evidence.",
+      impact: "Turns greenfield generation into audit-grade evidence.",
       loop: "Render -> tap -> assert -> record proof",
       nextStep:
         "Run axint.run with the generated app files and attach simulator/build evidence when available.",
@@ -1561,8 +1625,7 @@ function productHierarchySuggestions(
       rationale,
       confidence: "high",
       source: "local",
-      impact:
-        "Makes dogfood feedback actionable and investor-grade instead of anecdotal.",
+      impact: "Makes dogfood feedback actionable and audit-grade instead of anecdotal.",
       loop: "Generate -> react -> persist -> improve prompt contract",
       nextStep:
         "Add state and analytics-safe metadata first, then verify feedback survives history/share routing.",
@@ -1654,7 +1717,7 @@ function additiveFeatureSuggestions(
       confidence: "high",
       source: "local",
       impact:
-        "Makes the additive feature investor-grade by tying UX controls to durable runtime evidence.",
+        "Makes the additive feature audit-grade by tying UX controls to durable runtime evidence.",
       loop: "Select -> persist -> generate -> inspect metadata",
       nextStep:
         "Run axint.run or a focused UI/state test and attach provider prompt evidence where available.",
@@ -1729,10 +1792,83 @@ function releasePreflightSuggestions(
       confidence: "high",
       source: "local",
       impact:
-        "Turns release failures into investor-grade proof instead of mystery Xcode/App Store Connect churn.",
+        "Turns release failures into audit-grade proof instead of mystery Xcode/App Store Connect churn.",
       loop: "Collect logs -> classify blocker -> patch metadata or portal -> rerun",
       nextStep:
         "Attach the generated evidence packet to the next Axint run or release checklist.",
+      modeTrace,
+    },
+  ];
+
+  return suggestions.slice(0, limit);
+}
+
+function axintDogfoodSuggestions(
+  input: SuggestInput,
+  normalizedAppDescription: string,
+  limit: number,
+  modeTrace: string
+): FeatureSuggestion[] {
+  const platform = input.platform ? `${input.platform} ` : "";
+  const labels = semanticLabels(normalizedAppDescription, 5);
+  const dogfoodLabel =
+    labels.find((label) => /axint|dogfood|cloud|mcp|version|classifier/i.test(label)) ??
+    "Axint Dogfood";
+  const rationale = `Mode trace: ${modeTrace} Dogfooding prompts about Axint itself need source classifier, release/version truth, and regression-harness fixes before any generated Apple surface.`;
+
+  const suggestions: FeatureSuggestion[] = [
+    {
+      name: `${dogfoodLabel} Routing Atom`,
+      description:
+        "Patch Axint's own classifier so implementation files, deployment artifacts, and dogfood repair requests route to the right proof surface.",
+      surfaces: ["store", "component"],
+      complexity: "medium",
+      featurePrompt: `Repair the ${platform}Axint dogfood routing atom: Cloud Check should treat JS/TS/Python/shell/plist/docs as non-Apple artifacts unless they are explicit Axint contracts, suggest should route Axint/Cadabra dogfood prompts to tooling or product-quality repair lanes, and provider-output words must not automatically become an image-provider SwiftUI repair.`,
+      domain: "axint-dogfood",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Prevents Axint from creating fake AX001 diagnostics or stale app-surface suggestions while dogfooding real products.",
+      loop: "Dogfood log -> classifier patch -> regression test -> Cloud Check proof",
+      nextStep:
+        "Add focused tests for the exact misclassification, then run the Cloud Check, suggest, repair, and version suites.",
+      modeTrace,
+    },
+    {
+      name: `${dogfoodLabel} Version Truth Guard`,
+      description:
+        "Keep MCP, CLI, extension, docs, roadmap, and release fallback versions pinned to the canonical package version.",
+      surfaces: ["store"],
+      complexity: "low",
+      featurePrompt:
+        "Extend Axint version-truth checks so MCP fallback metadata, Fix Packet compiler fallback, VS Code lockfiles, Claude Desktop manifests, Xcode extension metadata, roadmap release links, README proof lines, and release notes cannot drift from package.json.",
+      domain: "axint-dogfood",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact:
+        "Stops stale MCP metadata from undermining trust during large downstream dogfood runs.",
+      loop: "Canonical version -> tracked surfaces -> release check -> prepublish proof",
+      nextStep:
+        "Run versions:check and release:check after the patch, then publish only when both package registries match.",
+      modeTrace,
+    },
+    {
+      name: `${dogfoodLabel} Regression Harness`,
+      description:
+        "Convert Cadabra dogfood misses into durable Axint tests so the same atoms do not regress during the next release.",
+      surfaces: ["component"],
+      complexity: "medium",
+      featurePrompt:
+        "Add regression coverage for Cadabra dogfood atoms: non-Apple artifacts avoid AX001, provider-behavior repairs avoid runtime-freeze, TestFlight metadata routes to release-preflight, Magic Pass and preset-library prompts stay product-specific, and feature generation refuses generic scaffolds when product vocabulary is present.",
+      domain: "axint-dogfood",
+      rationale,
+      confidence: "high",
+      source: "local",
+      impact: "Turns anecdotal dogfooding into audit-grade product-quality evidence.",
+      loop: "Fixture -> failing test -> patch -> focused suite -> full build",
+      nextStep: "Run focused tests first, then npm run prepublishOnly before committing.",
       modeTrace,
     },
   ];

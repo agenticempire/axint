@@ -1,5 +1,36 @@
 # Release Notes
 
+## 2026-06-10 — Provider fallback templates and compiler-parity diagnostics
+
+This release ships the WWDC26 custom LanguageModel provider and App Intents
+testing templates, plus two Swift validator checks that catch real Xcode
+build failures before the build.
+
+### Added
+
+- `foundation-models-custom-provider` template: a session backed by a custom
+  LanguageModel provider with an on-device fallback profile.
+- `app-intents-testing-harness` template: an intent plus an AppIntentsTesting
+  XCTest harness that drives `perform()` with sample inputs behind a
+  `canImport` guard.
+- `dynamic-profile-session` template: a Foundation Models session that selects
+  a DynamicProfile per request context.
+- `testHarness` config on `defineIntent` for emitting the XCTest harness from
+  any intent definition.
+- AX849 flags computed properties that declare locals but never return the
+  final expression.
+- AX860 flags `switch self` statements that omit a declared enum case without
+  a `default` branch.
+- `axint.suggest` routes Axint dogfood prompts to a dedicated `axint-dogfood`
+  plan instead of generic app-feature suggestions.
+
+### Changed
+
+- Public-facing copy now says "audit-grade" and "production readiness" instead
+  of fundraising vocabulary.
+- Public truth advances to v0.4.31 with 36 MCP tools, 5 prompts, 216 diagnostic
+  codes, 1377 tests, 58 live packages, and 49 bundled templates.
+
 ## 2026-06-08 — WWDC26 compiler support
 
 This release adds the first Axint compiler support for the Xcode 27 / WWDC26

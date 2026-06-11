@@ -33,6 +33,7 @@ import type {
   IRFoundationModelCustomProvider,
   IRFoundationModelDynamicProfile,
   IREvaluationConfig,
+  IRTestHarnessConfig,
   IRPreviewProofConfig,
   IRImagePlaygroundConfig,
 } from "./types.js";
@@ -191,6 +192,11 @@ export function parseIntentSource(
   const allowedExecutionTargets = readStringLiteral(props.get("allowedExecutionTargets"));
   const model = parseFoundationModelConfig(props.get("model"), filePath, sourceFile);
   const evaluation = parseEvaluationConfig(props.get("evaluation"), filePath, sourceFile);
+  const testHarness = parseTestHarnessConfig(
+    props.get("testHarness"),
+    filePath,
+    sourceFile
+  );
   const previewProof = parsePreviewProofConfig(
     props.get("previewProof"),
     filePath,
@@ -225,6 +231,7 @@ export function parseIntentSource(
     allowedExecutionTargets: allowedExecutionTargets || undefined,
     model,
     evaluation,
+    testHarness,
     previewProof,
     imagePlayground,
   };
@@ -831,6 +838,26 @@ function parseEvaluationConfig(
     criteria: readStringArray(props.get("criteria")),
     fixtures: readStringArray(props.get("fixtures")),
     metrics: readStringArray(props.get("metrics")),
+  };
+}
+
+function parseTestHarnessConfig(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRTestHarnessConfig | undefined {
+  if (!node) return undefined;
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX056",
+      "testHarness must be an object literal",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const props = propertyMap(node);
+  return {
+    className: readStringLiteral(props.get("className")) || undefined,
   };
 }
 

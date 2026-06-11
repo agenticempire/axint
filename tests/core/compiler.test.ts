@@ -320,6 +320,45 @@ export default defineIntent({
     expect(result.output?.swiftCode).toContain("Preview Snapshot proof matrix");
   });
 
+  it("emits a guarded AppIntentsTesting XCTest harness when testHarness is declared", () => {
+    const source = `
+import { defineIntent, param } from "@axint/sdk";
+
+export default defineIntent({
+  name: "LogReadingSession",
+  title: "Log Reading Session",
+  description: "Logs minutes read for a book.",
+  params: {
+    bookTitle: param.string("Book title"),
+    minutes: param.int("Minutes read"),
+    notes: param.string("Session notes", { required: false }),
+  },
+  testHarness: {
+    className: "LogReadingSessionIntentTests",
+  },
+  perform: async ({ bookTitle, minutes }) => {
+    return { bookTitle, minutes };
+  },
+});
+`;
+    const result = compileSource(source, "harness.ts");
+
+    expect(result.success).toBe(true);
+    expect(result.output?.ir.testHarness?.className).toBe("LogReadingSessionIntentTests");
+    expect(result.output?.swiftCode).toContain(
+      "#if canImport(XCTest) && canImport(AppIntentsTesting)"
+    );
+    expect(result.output?.swiftCode).toContain(
+      "final class LogReadingSessionIntentTests: XCTestCase"
+    );
+    expect(result.output?.swiftCode).toContain("@available(iOS 26.0, macOS 26.0, *)");
+    expect(result.output?.swiftCode).toContain("let intent = LogReadingSessionIntent()");
+    expect(result.output?.swiftCode).toContain('intent.bookTitle = "Sample"');
+    expect(result.output?.swiftCode).toContain("intent.minutes = 1");
+    expect(result.output?.swiftCode).not.toContain("intent.notes =");
+    expect(result.output?.swiftCode).toContain("_ = try await intent.perform()");
+  });
+
   it("emits multimodal Foundation Models, dynamic profiles, custom providers, and Image Playground contracts", () => {
     const source = `
 import { defineIntent, param } from "@axint/sdk";

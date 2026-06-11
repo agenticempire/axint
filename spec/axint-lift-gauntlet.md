@@ -49,7 +49,7 @@ Every run records these metrics.
 | Human interventions | Times a human had to explain what to do next | Shows autonomy |
 | Apple-specific defects | Count of unresolved App Intents, plist, entitlement, SwiftUI, WidgetKit, Xcode, signing, or test issues | Shows Apple-native competence |
 | False ship claims | Times the agent said it was done while build/test/runtime proof failed | Shows trustworthiness |
-| Proof completeness | 0-5 score for source, generated Swift, static validation, Xcode/build, runtime/test, and artifact evidence | Shows investor-grade rigor |
+| Proof completeness | 0-5 score for source, generated Swift, static validation, Xcode/build, runtime/test, and artifact evidence | Shows audit-grade rigor |
 | Token cost | Approximate prompt/output tokens across the run | Shows workflow efficiency |
 | Repair precision | Number of changed files and diff lines needed to fix failures | Shows whether Axint focuses the agent |
 

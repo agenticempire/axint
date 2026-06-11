@@ -198,6 +198,11 @@ export function generateSwift(intent: IRIntent): string {
     lines.push(``);
   }
 
+  if (safeIntent.testHarness) {
+    lines.push(generateTestHarnessSupport(safeIntent));
+    lines.push(``);
+  }
+
   return lines.join("\n");
 }
 
@@ -651,6 +656,72 @@ function generatePreviewProofSupport(previewProof: IRPreviewProofConfig): string
     `// AppIntentsTesting and preview evidence should be attached before release.`
   );
   return lines.join("\n");
+}
+
+function generateTestHarnessSupport(intent: IRIntent): string {
+  const className = swiftIdentifier(
+    intent.testHarness?.className || `${intent.name}IntentTests`
+  );
+  const lines: string[] = [];
+
+  // canImport guards keep the harness inert in app targets, so the file can
+  // live in either target without an #if TESTING build setting.
+  lines.push(`#if canImport(XCTest) && canImport(AppIntentsTesting)`);
+  lines.push(`import XCTest`);
+  lines.push(`import AppIntentsTesting`);
+  lines.push(``);
+  lines.push(`@available(iOS 26.0, macOS 26.0, *)`);
+  lines.push(`final class ${className}: XCTestCase {`);
+  lines.push(`    func testPerformSucceeds() async throws {`);
+  lines.push(`        let intent = ${intent.name}Intent()`);
+  for (const param of intent.parameters) {
+    if (param.isOptional) continue;
+    const sample = sampleSwiftValue(param.type);
+    if (sample) {
+      lines.push(`        intent.${param.name} = ${sample}`);
+    } else {
+      lines.push(`        // Set ${param.name} before running the harness.`);
+    }
+  }
+  lines.push(``);
+  lines.push(`        _ = try await intent.perform()`);
+  lines.push(`    }`);
+  lines.push(`}`);
+  lines.push(`#endif`);
+  return lines.join("\n");
+}
+
+function sampleSwiftValue(type: IRType): string | undefined {
+  switch (type.kind) {
+    case "primitive":
+      switch (type.value) {
+        case "string":
+          return `"Sample"`;
+        case "int":
+          return "1";
+        case "double":
+        case "float":
+          return "1.0";
+        case "boolean":
+          return "true";
+        case "date":
+          return "Date()";
+        case "duration":
+          return "Measurement(value: 60, unit: UnitDuration.seconds)";
+        case "url":
+          return `URL(string: "https://example.com")!`;
+      }
+      return undefined;
+    case "array":
+      return "[]";
+    case "dynamicOptions":
+      return sampleSwiftValue(type.valueType);
+    case "optional":
+    case "entity":
+    case "entityQuery":
+    case "enum":
+      return undefined;
+  }
 }
 
 // ─── Info.plist Fragment Generator ───────────────────────────────────

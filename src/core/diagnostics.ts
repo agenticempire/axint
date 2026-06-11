@@ -841,6 +841,19 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
       "Nested type or static member access on a project-indexed type that does not declare the accessed name (catches the IntelBriefItem.Kind class of cross-file miss that AX841 deliberately skips)",
     category: "swift-cross-file-resolution",
   },
+  AX849: {
+    code: "AX849",
+    severity: "error",
+    message:
+      "Computed property has local declarations but no explicit return; Swift rejects the final expression",
+    category: "swift-compiler-parity",
+  },
+  AX860: {
+    code: "AX860",
+    severity: "error",
+    message: "Switch over enum value omits one or more declared enum cases",
+    category: "swift-state-machine",
+  },
   AX714: {
     code: "AX714",
     severity: "error",

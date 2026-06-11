@@ -741,7 +741,7 @@ export const TOOL_MANIFEST = [
           type: "array",
           items: { type: "string" },
           description:
-            "Optional product goals for Pro mode, such as activation, retention, conversion, speed, accessibility, or investor readiness.",
+            "Optional product goals for Pro mode, such as activation, retention, conversion, speed, accessibility, or production readiness.",
         },
         stage: {
           type: "string",
@@ -2206,7 +2206,7 @@ export const TOOL_MANIFEST = [
   {
     name: "axint.templates.list",
     description:
-      "List all 39 bundled reference templates in the Axint SDK. Returns " +
+      "List all 49 bundled reference templates in the Axint SDK. Returns " +
       "a JSON array of { id, name, description } objects — one per template. " +
       "Templates cover messaging, productivity, health, finance, commerce, " +
       "media, navigation, smart-home, and entity/query patterns. No input " +
