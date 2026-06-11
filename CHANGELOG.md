@@ -6,6 +6,19 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.31] — 2026-06-10
+
+### Added
+
+- **AX849 and AX860 diagnostics** — the Swift validator now flags computed properties that declare locals but never `return` the final expression (AX849), and same-file `switch self` statements that omit a declared enum case without a `default` branch (AX860).
+- **Dogfood routing in `axint.suggest`** — prompts about repairing Axint's own classifier, Cloud Check artifact handling, or version truth now route to a dedicated `axint-dogfood` plan instead of generic app-feature suggestions.
+- **WWDC26 templates** — `foundation-models-custom-provider` (custom LanguageModel provider session with an on-device fallback profile), `app-intents-testing-harness` (intent plus an AppIntentsTesting XCTest harness), and `dynamic-profile-session` (Foundation Models session with per-context DynamicProfiles).
+- **`testHarness` intent config** — `defineIntent` accepts a `testHarness` block; the generator emits an XCTest class that drives `perform()` with sample inputs behind `#if canImport(XCTest) && canImport(AppIntentsTesting)`.
+
+### Changed
+
+- Public-facing copy now says "audit-grade" and "production readiness" instead of fundraising vocabulary.
+
 ## [0.4.28] — 2026-05-08
 
 ### Added
