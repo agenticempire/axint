@@ -23,7 +23,7 @@
 
 <p align="center">
   <a href="https://axint.ai">Website</a> ·
-  <a href="https://axint.ai/#playground">Playground</a> ·
+  <a href="https://cloud.axint.ai">Playground</a> ·
   <a href="#create-the-apple-day-agent-starter">Create App</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#mcp-server">MCP Server</a> ·
@@ -299,7 +299,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 <!-- truth:readme-proof-line:start -->v0.4.31 · 36 MCP tools + 5 prompts · 216 diagnostic codes · 1377 tests · 58 live packages · 49 bundled templates<!-- truth:readme-proof-line:end -->
 
-<!-- truth:readme-truth-source:start -->Public proof is generated from `../public-truth/public-truth.json` via `npm --prefix .. run truth:sync`.<!-- truth:readme-truth-source:end -->
+<!-- truth:readme-truth-source:start -->Public proof is regenerated from the compiler's metrics pipeline on every release (`npm run metrics:emit && npm run metrics:check`).<!-- truth:readme-truth-source:end -->
 
 If release numbers, diagnostics, package counts, or MCP surfaces change, update the canonical truth layer and re-run the sync instead of editing proof values by hand.
 
@@ -513,7 +513,7 @@ Full reference: [`docs/ERRORS.md`](docs/ERRORS.md)
 
 ## Playground
 
-No install required — [axint.ai/#playground](https://axint.ai/#playground) runs the same compiler in a server-backed playground, returning Swift live without a local install.
+No install required — [cloud.axint.ai](https://cloud.axint.ai) runs the same compiler in a server-backed playground, returning Swift live without a local install.
 
 ---
 
