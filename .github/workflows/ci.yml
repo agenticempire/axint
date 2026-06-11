@@ -40,7 +40,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Upload TypeScript coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage/coverage-final.json
           flags: typescript
@@ -125,7 +125,7 @@ jobs:
         run: pytest -v --tb=short --cov=axint --cov-report=json --cov-report=lcov --cov-report=term
 
       - name: Upload Python coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: ./python/coverage.json
           flags: python
