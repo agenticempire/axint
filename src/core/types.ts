@@ -322,6 +322,14 @@ export interface IRIntent {
   parameters: IRParameter[];
   returnType: IRType;
   sourceFile: string;
+  /** Source positions of the name/title/description fields, when parsed from TS */
+  spans?: {
+    name?: SourceSpan;
+    title?: SourceSpan;
+    description?: SourceSpan;
+  };
+  /** Whether the TS definition carried a perform body (discarded into the Swift stub) */
+  hasPerformBody?: boolean;
   /** Entitlements required by this intent (e.g., "com.apple.developer.siri") */
   entitlements?: string[];
   /** Info.plist keys required by this intent (e.g., "NSCalendarsUsageDescription") */

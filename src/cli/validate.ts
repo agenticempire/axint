@@ -1,6 +1,8 @@
 import type { Command } from "commander";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { compileFile } from "../core/compiler.js";
+import { renderDiagnostic } from "./render-diagnostics.js";
 
 export function registerValidate(program: Command) {
   program
@@ -17,15 +19,15 @@ export function registerValidate(program: Command) {
       try {
         const result = compileFile(filePath, { validate: true });
 
+        let sources: Map<string, string> | undefined;
+        try {
+          sources = new Map([[filePath, readFileSync(filePath, "utf-8")]]);
+        } catch {
+          sources = undefined;
+        }
+
         for (const d of result.diagnostics) {
-          const prefix =
-            d.severity === "error"
-              ? "\x1b[31merror\x1b[0m"
-              : d.severity === "warning"
-                ? "\x1b[33mwarning\x1b[0m"
-                : "\x1b[36minfo\x1b[0m";
-          console.error(`  ${prefix}[${d.code}]: ${d.message}`);
-          if (d.suggestion) console.error(`    = help: ${d.suggestion}`);
+          console.error(renderDiagnostic(d, { color: true, sources }));
         }
 
         if (!result.success) {

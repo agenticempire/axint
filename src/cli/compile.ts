@@ -8,6 +8,7 @@ import {
   type AnyCompileResult,
 } from "../core/compiler.js";
 import type { Diagnostic } from "../core/types.js";
+import { renderDiagnostic } from "./render-diagnostics.js";
 import {
   printRepairArtifactLines,
   tryEmitRepairArtifacts,
@@ -85,18 +86,12 @@ function unifyOutput(result: AnyCompileResult): UnifiedOutput | null {
   };
 }
 
-function printDiagnostics(diagnostics: Diagnostic[]): void {
+function printDiagnostics(
+  diagnostics: Diagnostic[],
+  sources?: ReadonlyMap<string, string>
+): void {
   for (const d of diagnostics) {
-    const prefix =
-      d.severity === "error"
-        ? "\x1b[31merror\x1b[0m"
-        : d.severity === "warning"
-          ? "\x1b[33mwarning\x1b[0m"
-          : "\x1b[36minfo\x1b[0m";
-
-    console.error(`  ${prefix}[${d.code}]: ${d.message}`);
-    if (d.file) console.error(`    --> ${d.file}${d.line ? `:${d.line}` : ""}`);
-    if (d.suggestion) console.error(`    = help: ${d.suggestion}`);
+    console.error(renderDiagnostic(d, { color: true, sources }));
     console.error();
   }
 }
@@ -348,6 +343,7 @@ export function registerCompile(program: Command) {
                     message: d.message,
                     file: d.file,
                     line: d.line,
+                    column: d.column,
                     suggestion: d.suggestion,
                   })),
                   fixPacketPath: repairArtifacts?.packet.jsonPath ?? null,
@@ -361,7 +357,11 @@ export function registerCompile(program: Command) {
             return;
           }
 
-          printDiagnostics(diagnostics);
+          const sources =
+            inputSource !== undefined && inputFilePath !== undefined
+              ? new Map([[inputFilePath, inputSource]])
+              : undefined;
+          printDiagnostics(diagnostics, sources);
 
           if (!success || !output) {
             if (repairArtifacts) {

@@ -5,6 +5,7 @@
  */
 
 import ts from "typescript";
+import type { SourceSpan } from "./types.js";
 
 export function propertyMap(obj: ts.ObjectLiteralExpression): Map<string, ts.Node> {
   const map = new Map<string, ts.Node>();
@@ -98,9 +99,17 @@ export function evaluateLiteral(node: ts.Node): unknown {
 }
 
 export function posOf(sourceFile: ts.SourceFile, node: ts.Node): number | undefined {
+  return spanOf(sourceFile, node)?.line;
+}
+
+export function spanOf(
+  sourceFile: ts.SourceFile,
+  node: ts.Node | undefined
+): SourceSpan | undefined {
+  if (!node) return undefined;
   try {
-    const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-    return line + 1;
+    const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+    return { line: line + 1, column: character + 1 };
   } catch {
     return undefined;
   }
