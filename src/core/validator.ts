@@ -99,6 +99,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
       severity: "error",
       message: `Intent name "${intent.name}" must be PascalCase (e.g., "CreateEvent")`,
       file: intent.sourceFile,
+      line: intent.spans?.name?.line,
+      column: intent.spans?.name?.column,
       suggestion: `Rename to "${toPascalCase(intent.name)}"`,
     });
   }
@@ -110,6 +112,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
       severity: "error",
       message: "Intent title must not be empty",
       file: intent.sourceFile,
+      line: intent.spans?.title?.line,
+      column: intent.spans?.title?.column,
       suggestion: "Add a human-readable title for Siri and Shortcuts display",
     });
   }
@@ -121,6 +125,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
       severity: "error",
       message: "Intent description must not be empty",
       file: intent.sourceFile,
+      line: intent.spans?.description?.line,
+      column: intent.spans?.description?.column,
       suggestion: "Add a description explaining what this intent does",
     });
   }
@@ -133,6 +139,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
         severity: "error",
         message: `Parameter name "${param.name}" is not a valid Swift identifier`,
         file: intent.sourceFile,
+        line: param.span?.line,
+        column: param.span?.column,
         suggestion: `Rename to "${param.name.replace(/[^a-zA-Z0-9_]/g, "_")}"`,
       });
     }
@@ -144,6 +152,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
         severity: "warning",
         message: `Parameter "${param.name}" has no description — Siri will display it without context`,
         file: intent.sourceFile,
+        line: param.span?.line,
+        column: param.span?.column,
         suggestion: "Add a description for better Siri/Shortcuts display",
       });
     }
@@ -185,6 +195,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
       severity: "warning",
       message: `Intent title is ${intent.title.length} characters. Siri display may truncate titles over ${MAX_TITLE_LENGTH} characters.`,
       file: intent.sourceFile,
+      line: intent.spans?.title?.line,
+      column: intent.spans?.title?.column,
     });
   }
 
@@ -197,6 +209,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
         severity: "error",
         message: `Duplicate parameter name "${param.name}"`,
         file: intent.sourceFile,
+        line: param.span?.line,
+        column: param.span?.column,
         suggestion: "Each parameter in a single intent must have a unique name",
       });
     }
