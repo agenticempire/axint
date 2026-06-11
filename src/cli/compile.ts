@@ -48,6 +48,7 @@ interface UnifiedOutput {
   irName: string;
   infoPlistFragment?: string;
   entitlementsFragment?: string;
+  hasPerformBody?: boolean;
 }
 
 /**
@@ -65,6 +66,7 @@ function unifyOutput(result: AnyCompileResult): UnifiedOutput | null {
       irName: result.output.ir.name,
       infoPlistFragment: result.output.infoPlistFragment,
       entitlementsFragment: result.output.entitlementsFragment,
+      hasPerformBody: result.output.ir.hasPerformBody,
     };
   }
 
@@ -396,6 +398,14 @@ export function registerCompile(program: Command) {
                 `\x1b[33mwarning:\x1b[0m swift-format skipped — ${(fmtErr as Error).message}`
               );
             }
+          }
+
+          // The TS perform body never crosses into Swift — saying so up
+          // front beats the user discovering a TODO stub in Xcode later.
+          if (surface === "intent" && output.hasPerformBody) {
+            console.error(
+              "note: perform body is not translated yet — Swift stub emitted (implement perform() in the generated file)"
+            );
           }
 
           if (options.stdout) {
