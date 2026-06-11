@@ -81,7 +81,7 @@ describe("axint validate-swift", () => {
 
     const result = spawnSync(
       "node",
-      [CLI, "validate-swift", swiftFile, "--fix-packet-dir", packetDir],
+      [CLI, "validate-swift", swiftFile, "--fix-packet-dir", packetDir, "--verbose"],
       {
         cwd: tmpDir,
         encoding: "utf-8",
@@ -141,6 +141,21 @@ struct SecondSwift {
 
     expect(packet.outcome.verdict).toBe("pass");
     expect(packet.diagnostics).toHaveLength(0);
+  });
+
+  it("keeps successful runs free of Fix Packet and login-tip noise", () => {
+    const swiftFile = join(tmpDir, "PlainSwift.swift");
+    writeFileSync(swiftFile, VALID_SWIFT, "utf-8");
+
+    const result = spawnSync("node", [CLI, "validate-swift", swiftFile], {
+      cwd: tmpDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).not.toContain("Fix Packet");
+    expect(result.stdout).not.toContain("axint login");
+    expect(result.stdout).toContain("passed axint validation");
   });
 
   it("disables ANSI color in non-TTY output by default", () => {
