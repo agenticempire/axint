@@ -103,6 +103,8 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkInvalidSwiftUIFrameOverloads(source, stripped, file, diagnostics);
   checkTypeErasedSwiftUIModifierChains(source, stripped, file, diagnostics);
   checkOpaqueViewReturnsNeedExplicitReturn(source, stripped, file, diagnostics);
+  checkComputedPropertiesNeedExplicitReturn(source, stripped, file, diagnostics);
+  checkEnumSwitchesCoverDeclaredCases(source, stripped, file, diagnostics);
   checkDenseViewWithoutAffordance(source, stripped, file, diagnostics);
   checkUndefinedBooleanIdentifiers(source, stripped, file, diagnostics);
   checkUndefinedStringInterpolationIdentifiers(source, stripped, file, diagnostics);
@@ -434,6 +436,86 @@ function checkOpaqueViewReturnsNeedExplicitReturn(
           "Prefer `@ViewBuilder` for SwiftUI helpers — it documents intent, supports multi-statement bodies as the surface grows, and matches the style of `var body`. Use an explicit `return` only when the helper truly returns a single expression.",
       })
     );
+  }
+}
+
+function checkComputedPropertiesNeedExplicitReturn(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const declaration =
+    /\bvar\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*((?!some\s+View\b)[A-Za-z_][A-Za-z0-9_<>,\s[\]?!:.&]*)\s*\{/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = declaration.exec(stripped)) !== null) {
+    const name = match[1] ?? "unnamed";
+    if (name === "body") continue;
+    if (hasViewBuilderAttribute(stripped, match.index)) continue;
+
+    const openBrace = stripped.indexOf("{", match.index);
+    const closeBrace = findMatchingBrace(stripped, openBrace);
+    if (openBrace === -1 || closeBrace === -1) continue;
+
+    const body = stripped.slice(openBrace + 1, closeBrace);
+    const originalBody = source.slice(openBrace + 1, closeBrace);
+    if (!/\b(?:let|var)\s+[A-Za-z_][A-Za-z0-9_]*\b/.test(body)) continue;
+    if (hasTopLevelReturn(body)) continue;
+    if (!endsWithLikelySwiftExpression(originalBody)) continue;
+
+    diagnostics.push(
+      makeDiagnostic("AX849", file, 1 + countNewlinesUpTo(source, match.index), {
+        message: `Computed property '${name}' declares locals and ends with an expression but has no explicit return`,
+        suggestion:
+          "Add `return` before the final expression, or refactor the property into a single-expression computed property without local declarations.",
+      })
+    );
+  }
+}
+
+function checkEnumSwitchesCoverDeclaredCases(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const decls = findTypeDeclarations(stripped, source);
+
+  for (const decl of decls) {
+    if (decl.kind !== "enum") continue;
+    const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+    const cases = collectEnumCases(body);
+    if (cases.length === 0) continue;
+
+    const switchPattern = /\bswitch\s+self\s*\{/g;
+    let match: RegExpExecArray | null;
+    while ((match = switchPattern.exec(body)) !== null) {
+      const switchOpen = body.indexOf("{", match.index);
+      const switchClose = findMatchingBrace(body, switchOpen);
+      if (switchOpen === -1 || switchClose === -1) continue;
+
+      const switchBody = body.slice(switchOpen + 1, switchClose);
+      if (/\b(?:default|@unknown\s+default)\b/.test(switchBody)) continue;
+
+      const seen = collectDottedSwitchCases(switchBody);
+      const missing = cases.filter((enumCase) => !seen.has(enumCase.name));
+      if (missing.length === 0) continue;
+
+      const switchOffset = decl.bodyStart + match.index;
+      diagnostics.push(
+        makeDiagnostic("AX860", file, 1 + countNewlinesUpTo(source, switchOffset), {
+          message: `Switch over '${decl.name}' is missing case${missing.length === 1 ? "" : "s"} ${missing
+            .map((enumCase) => `.${enumCase.name}`)
+            .join(", ")}`,
+          suggestion: `Add ${missing
+            .map((enumCase) => `case .${enumCase.name}:`)
+            .join(
+              " "
+            )} before the next Xcode build, or add an intentional default branch if every future case should share one behavior.`,
+        })
+      );
+    }
   }
 }
 
@@ -1130,6 +1212,36 @@ function endsWithLikelyViewExpression(body: string): boolean {
   return /(?:VStack|HStack|ZStack|Text|Button|ScrollView|List|LazyVStack|LazyHStack|Group|Section|ForEach|AnyView|Image|Label|Form|NavigationStack|NavigationSplitView|HSplitView|VSplitView)\s*(?:\(|\{)/.test(
     cleaned
   );
+}
+
+function endsWithLikelySwiftExpression(body: string): boolean {
+  const cleaned = body
+    .trim()
+    .replace(/;+\s*$/, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .at(-1);
+  if (!cleaned) return false;
+  if (
+    /^(?:let|var|if|guard|switch|for|while|do|defer|return|throw|case|default)\b/.test(
+      cleaned
+    )
+  )
+    return false;
+  return /^(?:"|\.?[A-Za-z_][A-Za-z0-9_]*|\d|\[|\(|#)/.test(cleaned);
+}
+
+function collectDottedSwitchCases(body: string): Set<string> {
+  const seen = new Set<string>();
+  const casePattern = /\bcase\s+([^:]+):/g;
+  let match: RegExpExecArray | null;
+  while ((match = casePattern.exec(body)) !== null) {
+    for (const dotted of match[1]!.matchAll(/\.([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+      seen.add(dotted[1]!);
+    }
+  }
+  return seen;
 }
 
 function collectLeadingModifierChain(
