@@ -32,6 +32,12 @@ export type IRType =
   | { kind: "dynamicOptions"; valueType: IRType; providerName: string }
   | { kind: "enum"; name: string; cases: string[] };
 
+/** 1-based source position of a node in the original TypeScript file */
+export interface SourceSpan {
+  line: number;
+  column: number;
+}
+
 /** A single parameter in an intent definition */
 export interface IRParameter {
   name: string;
@@ -40,6 +46,8 @@ export interface IRParameter {
   description: string;
   isOptional: boolean;
   defaultValue?: unknown;
+  span?: SourceSpan;
+  defaultSpan?: SourceSpan;
 }
 
 /**

@@ -1002,7 +1002,24 @@ function defaultLiteralFor(primitive: string): string {
   }
 }
 
-function formatSwiftDefault(value: unknown, _type: IRType): string {
+function formatSwiftDefault(value: unknown, type: IRType): string {
+  const base =
+    type.kind === "optional"
+      ? type.innerType
+      : type.kind === "dynamicOptions"
+        ? type.valueType
+        : type;
+
+  if (base.kind === "array" && Array.isArray(value)) {
+    return `[${value.map((element) => formatSwiftDefault(element, base.elementType)).join(", ")}]`;
+  }
+
+  // A bare string literal is not a URL in Swift — wrap it in the
+  // failable initializer the way hand-written App Intents code would.
+  if (base.kind === "primitive" && base.value === "url" && typeof value === "string") {
+    return `URL(string: "${escapeSwiftString(value)}")!`;
+  }
+
   if (typeof value === "string") return `"${escapeSwiftString(value)}"`;
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return `0`; // Guard against NaN/Infinity

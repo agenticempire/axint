@@ -246,6 +246,12 @@ export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
       "HealthKit Info.plist usage-description key uses shorthand instead of Apple's real key",
     category: "intent-validator",
   },
+  AX127: {
+    code: "AX127",
+    severity: "error",
+    message: "Parameter default value does not match the declared param type",
+    category: "intent-validator",
+  },
 
   // ─── Intent Generator (AX200–AX299) ──────────────────────
   AX200: {

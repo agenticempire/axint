@@ -217,3 +217,125 @@ struct TestIntent: AppIntent {
     expect(diagnostics.some((d) => d.code === "AX202")).toBe(true);
   });
 });
+
+describe("validateIntent — param default type checks (AX127)", () => {
+  const paramWith = (
+    type: IRIntent["parameters"][number]["type"],
+    defaultValue: unknown
+  ) =>
+    makeIntent({
+      parameters: [
+        {
+          name: "value",
+          type,
+          title: "Value",
+          description: "A value",
+          isOptional: false,
+          defaultValue,
+        },
+      ],
+    });
+
+  const primitive = (value: string) =>
+    ({ kind: "primitive", value }) as IRIntent["parameters"][number]["type"];
+
+  const ax127 = (intent: IRIntent) =>
+    validateIntent(intent).find((d) => d.code === "AX127");
+
+  it("rejects a number default on a string param", () => {
+    const diagnostic = ax127(paramWith(primitive("string"), 8));
+    expect(diagnostic?.severity).toBe("error");
+    expect(diagnostic?.message).toContain("the number 8");
+    expect(diagnostic?.suggestion).toContain("param.int(...)");
+  });
+
+  it("rejects a string default on an int param", () => {
+    const diagnostic = ax127(paramWith(primitive("int"), "x"));
+    expect(diagnostic?.message).toContain('the string "x"');
+    expect(diagnostic?.suggestion).toContain("whole number");
+  });
+
+  it("rejects a fractional default on an int param", () => {
+    expect(ax127(paramWith(primitive("int"), 1.5))).toBeDefined();
+  });
+
+  it("rejects a boolean default on a double param", () => {
+    expect(ax127(paramWith(primitive("double"), true))).toBeDefined();
+  });
+
+  it("rejects a string default on a float param", () => {
+    expect(ax127(paramWith(primitive("float"), "fast"))).toBeDefined();
+  });
+
+  it("rejects a string default on a boolean param", () => {
+    const diagnostic = ax127(paramWith(primitive("boolean"), "yes"));
+    expect(diagnostic?.suggestion).toContain("true or false");
+  });
+
+  it("rejects any literal default on a date param", () => {
+    const diagnostic = ax127(paramWith(primitive("date"), "2026-01-01"));
+    expect(diagnostic?.message).toContain("do not support literal defaults");
+    expect(diagnostic?.suggestion).toContain("perform()");
+  });
+
+  it("rejects any literal default on a duration param", () => {
+    expect(ax127(paramWith(primitive("duration"), 30))).toBeDefined();
+  });
+
+  it("rejects a number default on a url param", () => {
+    expect(ax127(paramWith(primitive("url"), 8080))).toBeDefined();
+  });
+
+  it("rejects an empty-string default on a url param", () => {
+    expect(ax127(paramWith(primitive("url"), ""))).toBeDefined();
+  });
+
+  it("rejects a mismatched default inside an optional wrapper", () => {
+    expect(
+      ax127(paramWith({ kind: "optional", innerType: primitive("string") }, 8))
+    ).toBeDefined();
+  });
+
+  it("rejects a mismatched element in an array default", () => {
+    expect(
+      ax127(paramWith({ kind: "array", elementType: primitive("string") }, ["a", 2]))
+    ).toBeDefined();
+  });
+
+  it("rejects a default that is not one of the enum cases", () => {
+    const diagnostic = ax127(
+      paramWith({ kind: "enum", name: "ModeOption", cases: ["fast", "slow"] }, "medium")
+    );
+    expect(diagnostic?.suggestion).toContain("fast, slow");
+  });
+
+  it("accepts matching defaults for every literal-friendly type", () => {
+    const valid: Array<[IRIntent["parameters"][number]["type"], unknown]> = [
+      [primitive("string"), "hello"],
+      [primitive("int"), 8],
+      [primitive("double"), 1.5],
+      [primitive("float"), 2.5],
+      [primitive("boolean"), false],
+      [primitive("url"), "https://example.com"],
+      [{ kind: "optional", innerType: primitive("int") }, 3],
+      [{ kind: "array", elementType: primitive("string") }, ["a", "b"]],
+      [{ kind: "enum", name: "ModeOption", cases: ["fast", "slow"] }, "fast"],
+      [
+        {
+          kind: "dynamicOptions",
+          valueType: primitive("string"),
+          providerName: "Provider",
+        },
+        "a",
+      ],
+    ];
+
+    for (const [type, defaultValue] of valid) {
+      expect(ax127(paramWith(type, defaultValue))).toBeUndefined();
+    }
+  });
+
+  it("accepts params without a default", () => {
+    expect(ax127(paramWith(primitive("date"), undefined))).toBeUndefined();
+  });
+});
