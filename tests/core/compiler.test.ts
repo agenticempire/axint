@@ -517,3 +517,48 @@ export default defineIntent({
     expect(result.output?.swiftCode).toContain("Research notes in the current account");
   });
 });
+
+describe("compileSource — default/type mismatches stop emit (AX127)", () => {
+  const intentWith = (paramSource: string) => `
+defineIntent({
+  name: "MakeThing",
+  title: "Make Thing",
+  description: "Makes a thing",
+  params: {
+    value: ${paramSource},
+  },
+  perform: async () => "done",
+});
+`;
+
+  it("fails compile when a string param defaults to a number", () => {
+    const result = compileSource(intentWith('param.string("Length", { default: 8 })'));
+    expect(result.success).toBe(false);
+    const diagnostic = result.diagnostics.find((d) => d.code === "AX127");
+    expect(diagnostic?.suggestion).toContain("param.int(...)");
+  });
+
+  it("fails compile when a number param defaults to a string", () => {
+    const result = compileSource(intentWith('param.number("Length", { default: "x" })'));
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "AX127")).toBe(true);
+  });
+
+  it("emits a URL initializer for url params with string defaults", () => {
+    const result = compileSource(
+      intentWith('param.url("Endpoint", { default: "https://example.com" })')
+    );
+    expect(result.success).toBe(true);
+    expect(result.output!.swiftCode).toContain(
+      'var value: URL = URL(string: "https://example.com")!'
+    );
+  });
+
+  it("emits a Swift array literal for array params with defaults", () => {
+    const result = compileSource(
+      intentWith('param.array(param.string("Tag"), "Tags", { default: ["a", "b"] })')
+    );
+    expect(result.success).toBe(true);
+    expect(result.output!.swiftCode).toContain('var value: [String] = ["a", "b"]');
+  });
+});

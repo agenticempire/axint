@@ -191,6 +191,56 @@ describe("swift validator — SwiftUI compiler parity", () => {
     expect(diagnostic?.suggestion).toContain("return");
   });
 
+  it("attributes the missing return to the offending property, not its neighbor", () => {
+    // A stored property above the offender used to get blamed: the type
+    // annotation regex crossed newlines and swallowed the next declaration.
+    const source = `import SwiftUI
+
+struct StatsView: View {
+    let items: [String]
+    let completed: Int
+
+    var body: some View {
+        VStack {
+            Text(subtitle)
+        }
+    }
+
+    // Done count for the header row.
+
+    var count: Int
+
+    var subtitle: String {
+        let done = completed
+        "\\(done) of \\(items.count) done"
+    }
+}
+`;
+
+    const { diagnostics } = validate(source);
+    const matches = diagnostics.filter((d) => d.code === "AX849");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.message).toContain("'subtitle'");
+    expect(matches[0]!.line).toBe(17);
+  });
+
+  it("keeps attribution straight across two adjacent computed properties", () => {
+    const source = `struct Stats {
+    var count: Int { 3 }
+    var subtitle: String {
+        let done = 2
+        "\\(done) of 3 done"
+    }
+}
+`;
+
+    const { diagnostics } = validate(source);
+    const matches = diagnostics.filter((d) => d.code === "AX849");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.message).toContain("'subtitle'");
+    expect(matches[0]!.line).toBe(3);
+  });
+
   it("flags same-file switches over enum values that omit a declared case", () => {
     const source = `
       enum CadabraPreset {

@@ -32,6 +32,12 @@ export type IRType =
   | { kind: "dynamicOptions"; valueType: IRType; providerName: string }
   | { kind: "enum"; name: string; cases: string[] };
 
+/** 1-based source position of a node in the original TypeScript file */
+export interface SourceSpan {
+  line: number;
+  column: number;
+}
+
 /** A single parameter in an intent definition */
 export interface IRParameter {
   name: string;
@@ -40,6 +46,8 @@ export interface IRParameter {
   description: string;
   isOptional: boolean;
   defaultValue?: unknown;
+  span?: SourceSpan;
+  defaultSpan?: SourceSpan;
 }
 
 /**
@@ -314,6 +322,14 @@ export interface IRIntent {
   parameters: IRParameter[];
   returnType: IRType;
   sourceFile: string;
+  /** Source positions of the name/title/description fields, when parsed from TS */
+  spans?: {
+    name?: SourceSpan;
+    title?: SourceSpan;
+    description?: SourceSpan;
+  };
+  /** Whether the TS definition carried a perform body (discarded into the Swift stub) */
+  hasPerformBody?: boolean;
   /** Entitlements required by this intent (e.g., "com.apple.developer.siri") */
   entitlements?: string[];
   /** Info.plist keys required by this intent (e.g., "NSCalendarsUsageDescription") */

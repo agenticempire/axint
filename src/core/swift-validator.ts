@@ -445,8 +445,11 @@ function checkComputedPropertiesNeedExplicitReturn(
   file: string,
   diagnostics: Diagnostic[]
 ) {
+  // The type annotation must stay on the declaration line — letting it
+  // span newlines made a stored `var count: Int` swallow the next
+  // property's declaration and attribute its body to the wrong name.
   const declaration =
-    /\bvar\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*((?!some\s+View\b)[A-Za-z_][A-Za-z0-9_<>,\s[\]?!:.&]*)\s*\{/g;
+    /\bvar\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*((?!some\s+View\b)[A-Za-z_][A-Za-z0-9_<>,\t [\]?!:.&]*)\{/g;
   let match: RegExpExecArray | null;
 
   while ((match = declaration.exec(stripped)) !== null) {

@@ -1,6 +1,9 @@
 import type { Command } from "commander";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { compileFile } from "../core/compiler.js";
+import { renderDiagnostic } from "./render-diagnostics.js";
+import { shouldUseColor } from "./color.js";
 
 export function registerValidate(program: Command) {
   program
@@ -13,19 +16,22 @@ export function registerValidate(program: Command) {
     )
     .action(async (file: string, options: { sandbox: boolean }) => {
       const filePath = resolve(file);
+      const color = shouldUseColor();
+      const paint = (ansi: string, text: string) =>
+        color ? `${ansi}${text}\x1b[0m` : text;
 
       try {
         const result = compileFile(filePath, { validate: true });
 
+        let sources: Map<string, string> | undefined;
+        try {
+          sources = new Map([[filePath, readFileSync(filePath, "utf-8")]]);
+        } catch {
+          sources = undefined;
+        }
+
         for (const d of result.diagnostics) {
-          const prefix =
-            d.severity === "error"
-              ? "\x1b[31merror\x1b[0m"
-              : d.severity === "warning"
-                ? "\x1b[33mwarning\x1b[0m"
-                : "\x1b[36minfo\x1b[0m";
-          console.error(`  ${prefix}[${d.code}]: ${d.message}`);
-          if (d.suggestion) console.error(`    = help: ${d.suggestion}`);
+          console.error(renderDiagnostic(d, { color, sources }));
         }
 
         if (!result.success) {
@@ -34,19 +40,19 @@ export function registerValidate(program: Command) {
 
         if (options.sandbox && result.output) {
           const { sandboxCompile } = await import("../core/sandbox.js");
-          console.log(`\x1b[36m→\x1b[0m Stage 4: SPM sandbox compile...`);
+          console.log(`${paint("\x1b[36m", "→")} Stage 4: SPM sandbox compile...`);
           const sandboxResult = await sandboxCompile(result.output.swiftCode, {
             intentName: result.output.ir.name,
           });
           if (!sandboxResult.ok) {
-            console.error(`\x1b[31m✗\x1b[0m ${sandboxResult.stderr}`);
+            console.error(`${paint("\x1b[31m", "✗")} ${sandboxResult.stderr}`);
             process.exit(1);
           }
           console.log(
-            `\x1b[32m✓\x1b[0m Valid intent definition (sandbox-verified, ${sandboxResult.durationMs}ms)`
+            `${paint("\x1b[32m", "✓")} Valid intent definition (sandbox-verified, ${sandboxResult.durationMs}ms)`
           );
         } else {
-          console.log(`\x1b[32m✓\x1b[0m Valid intent definition`);
+          console.log(`${paint("\x1b[32m", "✓")} Valid intent definition`);
         }
       } catch (err: unknown) {
         if (
@@ -57,7 +63,7 @@ export function registerValidate(program: Command) {
         ) {
           console.error((err as { format: () => string }).format());
         } else {
-          console.error(`\x1b[31merror:\x1b[0m ${err}`);
+          console.error(`${paint("\x1b[31m", "error:")} ${err}`);
         }
         process.exit(1);
       }

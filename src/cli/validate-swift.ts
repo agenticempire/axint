@@ -4,6 +4,7 @@ import { resolve, join, extname } from "node:path";
 import { validateSwiftSources } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
 import { getAxintLoginState } from "../core/credentials.js";
+import { shouldUseColor } from "./color.js";
 import {
   renderRepairArtifactLines,
   tryEmitRepairArtifacts,
@@ -17,6 +18,10 @@ export function registerValidateSwift(program: Command) {
     )
     .argument("<paths...>", "Swift file(s) or directories to validate")
     .option("--quiet", "Only print errors, not the success banner")
+    .option(
+      "--verbose",
+      "Print Fix Packet paths and sign-in tips even when validation passes"
+    )
     .option("--json", "Emit a machine-readable JSON report to stdout")
     .option("--color", "Force ANSI color output even when stdout/stderr are not TTYs")
     .option(
@@ -37,6 +42,7 @@ export function registerValidateSwift(program: Command) {
         pathArgs: string[],
         options: {
           quiet?: boolean;
+          verbose?: boolean;
           json?: boolean;
           color?: boolean;
           quietSystemSymbols?: boolean;
@@ -167,7 +173,7 @@ export function registerValidateSwift(program: Command) {
         }
 
         if (!options.quiet) {
-          if (repairArtifacts) {
+          if (repairArtifacts && options.verbose) {
             printRepairArtifactLinesWithColor(repairArtifacts, color, console.log);
           }
           printLine(
@@ -230,12 +236,6 @@ function printDiagnostic(d: Diagnostic, color: boolean) {
   }
 }
 
-function shouldUseColor(forceColor: boolean): boolean {
-  if (forceColor) return true;
-  if ("NO_COLOR" in process.env) return false;
-  return process.stdout.isTTY === true && process.stderr.isTTY === true;
-}
-
 function printRepairArtifactLinesWithColor(
   artifacts: NonNullable<ReturnType<typeof tryEmitRepairArtifacts>["artifacts"]>,
   color: boolean,
@@ -243,13 +243,10 @@ function printRepairArtifactLinesWithColor(
 ) {
   for (const line of renderRepairArtifactLines(artifacts, {
     signedIn: getAxintLoginState().signedIn,
+    color,
   })) {
-    writeLine(color ? line : stripAnsi(line));
+    writeLine(line);
   }
-}
-
-function stripAnsi(value: string): string {
-  return value.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), "");
 }
 
 function printLine(

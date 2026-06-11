@@ -40,10 +40,12 @@ export function tryEmitRepairArtifacts(
 
 export function printRepairArtifactLines(
   artifacts: RepairArtifacts,
-  writeLine: (line: string) => void
+  writeLine: (line: string) => void,
+  options: { color?: boolean } = {}
 ) {
   for (const line of renderRepairArtifactLines(artifacts, {
     signedIn: getAxintLoginState().signedIn,
+    color: options.color,
   })) {
     writeLine(line);
   }
@@ -51,25 +53,31 @@ export function printRepairArtifactLines(
 
 export function renderRepairArtifactLines(
   artifacts: RepairArtifacts,
-  options: { signedIn?: boolean } = {}
+  options: { signedIn?: boolean; color?: boolean } = {}
 ): string[] {
+  const color = options.color ?? true;
+  const paint = (ansi: string, text: string) => (color ? `${ansi}${text}\x1b[0m` : text);
+
   const lines = [
-    `\x1b[36m→\x1b[0m Axint Check → ${artifacts.check.jsonPath}`,
-    `\x1b[36m→\x1b[0m Fix Packet → ${artifacts.packet.jsonPath}`,
+    `${paint("\x1b[36m", "→")} Axint Check → ${artifacts.check.jsonPath}`,
+    `${paint("\x1b[36m", "→")} Fix Packet → ${artifacts.packet.jsonPath}`,
   ];
 
   if (options.signedIn) {
-    lines.push(...renderSignedInSummaryLines(artifacts.check.summary));
+    lines.push(...renderSignedInSummaryLines(artifacts.check.summary, paint));
   } else {
     lines.push(
-      "  \x1b[2mTip:\x1b[0m Run `axint login` to unlock fuller repair summaries in terminal, `axint publish`, and Axint Cloud features like saved runs, reopenable history, and shareable links as they roll out."
+      `  ${paint("\x1b[2m", "Tip:")} Run \`axint login\` to unlock fuller repair summaries in terminal, \`axint publish\`, and Axint Cloud features like saved runs, reopenable history, and shareable links as they roll out.`
     );
   }
 
   return lines;
 }
 
-function renderSignedInSummaryLines(summary: CheckSummary): string[] {
+function renderSignedInSummaryLines(
+  summary: CheckSummary,
+  paint: (ansi: string, text: string) => string
+): string[] {
   const verdict =
     summary.outcome.verdict === "needs_review"
       ? "Needs review"
@@ -77,7 +85,7 @@ function renderSignedInSummaryLines(summary: CheckSummary): string[] {
   const topFinding = summary.topFindings[0];
 
   const lines = [
-    "  \x1b[35m↳\x1b[0m Signed in · fuller repair report enabled",
+    `  ${paint("\x1b[35m", "↳")} Signed in · fuller repair report enabled`,
     `    Verdict: ${verdict} · ${summary.outcome.headline}`,
   ];
 

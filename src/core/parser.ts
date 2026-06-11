@@ -47,6 +47,7 @@ import {
   readStringRecord,
   evaluateLiteral,
   posOf,
+  spanOf,
   findCallExpression,
   findAllCallExpressions,
 } from "./parser-utils.js";
@@ -212,6 +213,12 @@ export function parseIntentSource(
     name,
     title,
     description,
+    spans: {
+      name: spanOf(sourceFile, props.get("name")),
+      title: spanOf(sourceFile, props.get("title")),
+      description: spanOf(sourceFile, props.get("description")),
+    },
+    hasPerformBody: performNode !== undefined,
     domain: domain || undefined,
     schemaDomain: (schemaDomain as IRAppSchemaDomain | null) || undefined,
     schema: schema || undefined,
@@ -1021,6 +1028,8 @@ function extractParameters(
       description,
       isOptional,
       defaultValue,
+      span: spanOf(sourceFile, prop),
+      defaultSpan: spanOf(sourceFile, defaultExpr),
     });
   }
 

@@ -1,5 +1,45 @@
 # Release Notes
 
+## 2026-06-10 — First-hour polish: validated defaults, diagnostic spans, quieter pipes
+
+This release closes the gap between "validated Swift" and what a cold user
+actually sees in their first hour: a default/type mismatch can no longer
+sail through a green check, diagnostics point at the exact line and column
+with a source excerpt, and piped output stays clean for agents.
+
+### Added
+
+- AX127 rejects param defaults that disagree with the declared type — both
+  `axint validate` and `axint compile` stop before emit and suggest the
+  concrete fix. Every param type is covered; date and duration params reject
+  literal defaults outright.
+- TS diagnostics print `--> file.ts:line:col` plus a caret-underlined source
+  excerpt; JSON output gains additive `line` and `column` fields.
+- `axint compile` prints a one-line note when a TS `perform` body is
+  discarded into the Swift stub.
+
+### Changed
+
+- `axint --help` leads with a Core section of hero commands and groups the
+  rest under Authoring, Registry & cloud, and Project & agents.
+- Successful runs no longer print Fix Packet paths or the sign-in tip
+  (`--verbose` restores them), and ANSI color turns off for non-TTY output
+  and `NO_COLOR`.
+- `axint.suggest` maps consumer phrases like "habit tracker with streaks"
+  onto the stock health/productivity/finance domains and writes a distinct
+  rationale for every suggestion in a plan.
+- The default MCP manifest drops to ~40 KB (about 45% smaller) with hero
+  tools listed first; `AXINT_MCP_MANIFEST_MODE=full` keeps the full prose.
+- `param.url` and array defaults now emit compilable Swift
+  (`URL(string: "...")!`, array literals).
+- Public truth advances to v0.4.32 with 36 MCP tools, 5 prompts, 217
+  diagnostic codes, 1426 tests, 58 live packages, and 49 bundled templates.
+
+### Fixed
+
+- AX849 attributes a missing `return` to the offending computed property
+  instead of the stored property above it.
+
 ## 2026-06-10 — Provider fallback templates and compiler-parity diagnostics
 
 This release ships the WWDC26 custom LanguageModel provider and App Intents

@@ -6,6 +6,27 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.32] — 2026-06-10
+
+### Added
+
+- **AX127 diagnostic** — a param default that disagrees with the declared type (`param.string("Length", { default: 8 })`) now fails both `axint validate` and `axint compile` before any Swift is emitted, with a computed fix ("change the default to a string, or change the param to param.int(...)"). Covers every param type; date and duration params reject literal defaults outright.
+- **Diagnostic spans and snippets** — TypeScript diagnostics now print `--> file.ts:line:col` plus a short source excerpt with a caret underline, rust-style. JSON output gains additive `line` and `column` fields.
+- **Perform-body notice** — `axint compile` prints a one-line note when a TS `perform` body is discarded into the Swift stub, so nobody discovers the TODO in Xcode later.
+
+### Changed
+
+- `axint --help` now leads with a Core section (init, compile, validate, validate-swift, templates, suggest, mcp) and groups the remaining commands into Authoring, Registry & cloud, and Project & agents sections.
+- Successful `compile`, `validate-swift`, and `watch` runs no longer print Fix Packet paths or the `axint login` tip — pass `--verbose` to bring them back. Failures still print everything.
+- ANSI color is disabled when output is piped or `NO_COLOR` is set, so agents reading CLI output stop receiving escape bytes.
+- `axint.suggest` matches consumer phrases to stock domains (habit/streak → health, todo/task/note → productivity, budget/expense/spending → finance) and gives each suggestion in a plan its own rationale instead of repeating one sentence.
+- The default MCP tool manifest is ~45% smaller and lists the hero tools first (compile, validate, swift.validate, swift.fix, scaffold, templates.list, templates.get, repair). Full prose stays behind `AXINT_MCP_MANIFEST_MODE=full`.
+- `param.url` string defaults now emit `URL(string: "...")!` and array defaults emit Swift array literals, so every default the validator accepts produces Swift that compiles.
+
+### Fixed
+
+- AX849 no longer blames the property above the real offender when a stored property precedes a computed property that is missing its `return`.
+
 ## [0.4.31] — 2026-06-10
 
 ### Added

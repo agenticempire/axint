@@ -283,3 +283,36 @@ defineIntent({
     });
   });
 });
+
+describe("source spans", () => {
+  it("records spans for name, title, description, and params", () => {
+    const source = `defineIntent({
+  name: "MakeThing",
+  title: "Make Thing",
+  description: "Makes a thing",
+  params: {
+    length: param.string("Length", { default: "8" }),
+  },
+  perform: async () => "done",
+});
+`;
+
+    const ir = parseIntentSource(source, "make-thing.ts");
+    expect(ir.spans?.name).toEqual({ line: 2, column: 9 });
+    expect(ir.spans?.title).toEqual({ line: 3, column: 10 });
+    expect(ir.spans?.description).toEqual({ line: 4, column: 16 });
+
+    const [length] = ir.parameters;
+    expect(length!.span).toEqual({ line: 6, column: 5 });
+    expect(length!.defaultSpan).toEqual({ line: 6, column: 47 });
+    expect(ir.hasPerformBody).toBe(true);
+  });
+
+  it("leaves hasPerformBody unset-friendly when perform is missing", () => {
+    const ir = parseIntentSource(
+      `defineIntent({ name: "A", title: "A", description: "A" });`,
+      "a.ts"
+    );
+    expect(ir.hasPerformBody).toBe(false);
+  });
+});

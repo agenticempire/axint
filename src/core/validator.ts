@@ -5,7 +5,7 @@
  * Returns diagnostics with error codes, locations, and fix suggestions.
  */
 
-import type { Diagnostic, IRIntent, IREntity } from "./types.js";
+import type { Diagnostic, IRIntent, IRParameter, IRType, IREntity } from "./types.js";
 
 /** Apple-recommended maximum parameters per intent for usability */
 const MAX_PARAMETERS = 10;
@@ -99,6 +99,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
       severity: "error",
       message: `Intent name "${intent.name}" must be PascalCase (e.g., "CreateEvent")`,
       file: intent.sourceFile,
+      line: intent.spans?.name?.line,
+      column: intent.spans?.name?.column,
       suggestion: `Rename to "${toPascalCase(intent.name)}"`,
     });
   }
@@ -110,6 +112,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
       severity: "error",
       message: "Intent title must not be empty",
       file: intent.sourceFile,
+      line: intent.spans?.title?.line,
+      column: intent.spans?.title?.column,
       suggestion: "Add a human-readable title for Siri and Shortcuts display",
     });
   }
@@ -121,6 +125,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
       severity: "error",
       message: "Intent description must not be empty",
       file: intent.sourceFile,
+      line: intent.spans?.description?.line,
+      column: intent.spans?.description?.column,
       suggestion: "Add a description explaining what this intent does",
     });
   }
@@ -133,6 +139,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
         severity: "error",
         message: `Parameter name "${param.name}" is not a valid Swift identifier`,
         file: intent.sourceFile,
+        line: param.span?.line,
+        column: param.span?.column,
         suggestion: `Rename to "${param.name.replace(/[^a-zA-Z0-9_]/g, "_")}"`,
       });
     }
@@ -144,7 +152,26 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
         severity: "warning",
         message: `Parameter "${param.name}" has no description — Siri will display it without context`,
         file: intent.sourceFile,
+        line: param.span?.line,
+        column: param.span?.column,
         suggestion: "Add a description for better Siri/Shortcuts display",
+      });
+    }
+  }
+
+  // Rule: a literal default must match the declared param type, otherwise
+  // the generated Swift (`var x: String = 8`) fails to build under a green check
+  for (const param of intent.parameters) {
+    const mismatch = checkDefaultMatchesType(param);
+    if (mismatch) {
+      diagnostics.push({
+        code: "AX127",
+        severity: "error",
+        message: mismatch.message,
+        file: intent.sourceFile,
+        line: param.defaultSpan?.line ?? param.span?.line,
+        column: param.defaultSpan?.column ?? param.span?.column,
+        suggestion: mismatch.suggestion,
       });
     }
   }
@@ -168,6 +195,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
       severity: "warning",
       message: `Intent title is ${intent.title.length} characters. Siri display may truncate titles over ${MAX_TITLE_LENGTH} characters.`,
       file: intent.sourceFile,
+      line: intent.spans?.title?.line,
+      column: intent.spans?.title?.column,
     });
   }
 
@@ -180,6 +209,8 @@ export function validateIntent(intent: IRIntent): Diagnostic[] {
         severity: "error",
         message: `Duplicate parameter name "${param.name}"`,
         file: intent.sourceFile,
+        line: param.span?.line,
+        column: param.span?.column,
         suggestion: "Each parameter in a single intent must have a unique name",
       });
     }
@@ -482,6 +513,131 @@ export function validateSwiftSource(swift: string): Diagnostic[] {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
+
+interface DefaultMismatch {
+  message: string;
+  suggestion: string;
+}
+
+/**
+ * Defaults are emitted verbatim into the generated Swift property, so a
+ * default whose JS type disagrees with the declared param type produces
+ * Swift that cannot compile. Returns the mismatch, or null when the
+ * default is absent or valid.
+ */
+function checkDefaultMatchesType(param: IRParameter): DefaultMismatch | null {
+  if (param.defaultValue === undefined) return null;
+  return checkDefaultAgainst(param.name, param.defaultValue, param.type);
+}
+
+function checkDefaultAgainst(
+  name: string,
+  value: unknown,
+  type: IRType
+): DefaultMismatch | null {
+  switch (type.kind) {
+    case "optional":
+      return checkDefaultAgainst(name, value, type.innerType);
+    case "dynamicOptions":
+      return checkDefaultAgainst(name, value, type.valueType);
+    case "primitive":
+      return checkPrimitiveDefault(name, value, type.value);
+    case "array":
+      if (!Array.isArray(value)) {
+        return {
+          message: `Parameter "${name}" declares an array type but its default is ${describeDefault(value)}`,
+          suggestion: `Change the default to an array literal, or change the param to ${suggestedHelperFor(value)}.`,
+        };
+      }
+      for (const element of value) {
+        const elementMismatch = checkDefaultAgainst(name, element, type.elementType);
+        if (elementMismatch) return elementMismatch;
+      }
+      return null;
+    case "enum":
+      if (typeof value === "string" && type.cases.includes(value)) return null;
+      return {
+        message: `Parameter "${name}" has default ${describeDefault(value)}, which is not one of its enum cases`,
+        suggestion: `Use one of: ${type.cases.join(", ")}.`,
+      };
+    case "entity":
+    case "entityQuery":
+      return {
+        message: `Parameter "${name}" is an entity reference and cannot take a literal default`,
+        suggestion:
+          "Remove the default — entity values are resolved at runtime by the entity query.",
+      };
+  }
+}
+
+function checkPrimitiveDefault(
+  name: string,
+  value: unknown,
+  primitive: string
+): DefaultMismatch | null {
+  const change = (to: string) =>
+    `Change the default to ${to}, or change the param to ${suggestedHelperFor(value)}.`;
+
+  switch (primitive) {
+    case "string":
+      if (typeof value === "string") return null;
+      return {
+        message: `Parameter "${name}" is declared param.string() but its default is ${describeDefault(value)}`,
+        suggestion: change(`a string (e.g. ${JSON.stringify(String(value))})`),
+      };
+    case "int":
+      if (typeof value === "number" && Number.isInteger(value)) return null;
+      return {
+        message: `Parameter "${name}" is declared as an integer but its default is ${describeDefault(value)}`,
+        suggestion: change("a whole number (e.g. 8)"),
+      };
+    case "double":
+    case "float":
+      if (typeof value === "number" && Number.isFinite(value)) return null;
+      return {
+        message: `Parameter "${name}" is declared param.${primitive}() but its default is ${describeDefault(value)}`,
+        suggestion: change("a number (e.g. 1.5)"),
+      };
+    case "boolean":
+      if (typeof value === "boolean") return null;
+      return {
+        message: `Parameter "${name}" is declared param.boolean() but its default is ${describeDefault(value)}`,
+        suggestion: change("true or false"),
+      };
+    case "url":
+      if (typeof value === "string" && value.trim().length > 0) return null;
+      return {
+        message: `Parameter "${name}" is declared param.url() but its default is ${describeDefault(value)}`,
+        suggestion: change('a non-empty URL string (e.g. "https://example.com")'),
+      };
+    case "date":
+    case "duration":
+      return {
+        message: `Parameter "${name}" is declared param.${primitive}() — ${primitive} params do not support literal defaults`,
+        suggestion: `Remove the default and set the initial ${primitive} inside perform(), or change the param to ${suggestedHelperFor(value)}.`,
+      };
+    default:
+      return null;
+  }
+}
+
+function describeDefault(value: unknown): string {
+  if (typeof value === "string") return `the string ${JSON.stringify(value)}`;
+  if (typeof value === "number") return `the number ${value}`;
+  if (typeof value === "boolean") return `the boolean ${value}`;
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  return `a ${typeof value}`;
+}
+
+function suggestedHelperFor(value: unknown): string {
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? "param.int(...)" : "param.double(...)";
+  }
+  if (typeof value === "boolean") return "param.boolean(...)";
+  if (Array.isArray(value)) return "param.array(...)";
+  return "param.string(...)";
+}
 
 function toPascalCase(s: string): string {
   if (!s) return "UnnamedIntent";

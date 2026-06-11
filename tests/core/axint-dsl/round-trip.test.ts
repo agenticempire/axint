@@ -349,9 +349,19 @@ export default defineIntent({
 ];
 
 // The DSL and TS paths both stamp the intent with the sourceFile they were
-// given. That field isn't part of the contract — it's provenance. Strip it
-// before comparing, along with any undefined-valued field JSON.stringify
-// already hides but structural equality doesn't.
+// given, and the TS parser additionally records source spans and whether a
+// perform body was present. None of that is part of the contract — it's
+// provenance about where the definition came from. Strip it before
+// comparing, along with any undefined-valued field JSON.stringify already
+// hides but structural equality doesn't.
+const PROVENANCE_KEYS = new Set([
+  "sourceFile",
+  "spans",
+  "span",
+  "defaultSpan",
+  "hasPerformBody",
+]);
+
 function canonicalize(value: unknown): unknown {
   if (value === null || value === undefined) return value;
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -359,7 +369,7 @@ function canonicalize(value: unknown): unknown {
   const source = value as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(source).sort()) {
-    if (key === "sourceFile") continue;
+    if (PROVENANCE_KEYS.has(key)) continue;
     const v = source[key];
     if (v === undefined) continue;
     out[key] = canonicalize(v);

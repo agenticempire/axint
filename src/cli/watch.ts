@@ -83,6 +83,10 @@ export function registerWatch(program: Command) {
       "Directory for the emitted Fix Packet artifacts",
       ".axint/fix"
     )
+    .option(
+      "--verbose",
+      "Print Fix Packet paths and sign-in tips after successful recompiles"
+    )
     .action(
       async (
         file: string,
@@ -97,6 +101,7 @@ export function registerWatch(program: Command) {
           swiftProject?: string;
           fixPacket: boolean;
           fixPacketDir: string;
+          verbose?: boolean;
         }
       ) => {
         const target = resolve(file);
@@ -225,7 +230,7 @@ export function registerWatch(program: Command) {
             `\x1b[32m✓\x1b[0m ${result.output.ir.name} → ${outPath} \x1b[90m(${dt}ms)\x1b[0m`
           );
           const packetArtifacts = emitPacket(filePath, result);
-          if (packetArtifacts) {
+          if (packetArtifacts && options.verbose) {
             printRepairArtifactLines(packetArtifacts, console.log);
           }
           return true;
@@ -304,7 +309,7 @@ export function registerWatch(program: Command) {
             `\x1b[32m✓\x1b[0m ${result.output.ir.name} → ${outPath} \x1b[90m(${dt}ms)\x1b[0m`
           );
           const packetArtifacts = emitPacket(filePath, result);
-          if (packetArtifacts) {
+          if (packetArtifacts && options.verbose) {
             printRepairArtifactLines(packetArtifacts, console.log);
           }
           return true;
