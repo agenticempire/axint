@@ -178,4 +178,23 @@ describe("axint.suggest", () => {
     expect(suggestions[0]?.featurePrompt).not.toContain("Capture Testflight");
     expect(suggestions.map((suggestion) => suggestion.domain)).not.toContain("custom");
   });
+
+  it("routes Axint dogfood atom fixes to tooling repair instead of app-provider repair", () => {
+    const suggestions = suggestFeatures({
+      appDescription:
+        "Fix Axint dogfood atoms from Cadabra without touching Cadabra: route non-Apple artifacts away from fake AX001 diagnostics, keep MCP version metadata current, classify release/preflight/provider-output repair loops correctly, and prevent generic feature scaffolds for product-specific preset-library requests.",
+      platform: "iOS",
+      limit: 3,
+    });
+
+    expect(suggestions[0]?.domain).toBe("axint-dogfood");
+    expect(suggestions[0]?.featurePrompt).toContain("Cloud Check");
+    expect(suggestions[0]?.featurePrompt).toContain("non-Apple artifacts");
+    expect(suggestions[0]?.featurePrompt).toContain("provider-output words");
+    expect(suggestions.map((suggestion) => suggestion.name).join("\n")).toContain(
+      "Version Truth Guard"
+    );
+    expect(suggestions.map((suggestion) => suggestion.domain)).not.toContain("repair");
+    expect(suggestions[0]?.name).not.toContain("Repair Existing");
+  });
 });
