@@ -669,6 +669,67 @@ xcodeExtension
     await xcodeExtensionStatus();
   });
 
+// ─── help layout ─────────────────────────────────────────────────────
+// A first-time user should see the seven hero commands before the long
+// tail. Everything stays registered and functional — the sections only
+// shape `axint --help`.
+
+const HELP_SECTIONS: ReadonlyArray<readonly [string, ReadonlyArray<string>]> = [
+  [
+    "Core:",
+    ["init", "compile", "validate", "validate-swift", "templates", "suggest", "mcp"],
+  ],
+  [
+    "Authoring:",
+    [
+      "create",
+      "activate",
+      "eject",
+      "format",
+      "tokens",
+      "schema",
+      "feature",
+      "watch",
+      "paint-test",
+    ],
+  ],
+  [
+    "Registry & cloud:",
+    ["login", "cloud", "publish", "add", "search", "feedback", "telemetry"],
+  ],
+  [
+    "Project & agents:",
+    [
+      "repair",
+      "agent",
+      "memory",
+      "project",
+      "session",
+      "workflow",
+      "run",
+      "runner",
+      "status",
+      "upgrade",
+      "doctor",
+      "xcode",
+    ],
+  ],
+];
+
+const helpSectionByCommand = new Map(
+  HELP_SECTIONS.flatMap(([heading, names]) =>
+    names.map((name) => [name, heading] as const)
+  )
+);
+
+for (const command of program.commands) {
+  command.helpGroup(helpSectionByCommand.get(command.name()) ?? "Project & agents:");
+}
+
+// The implicit `help` command belongs with the hero commands.
+program.commandsGroup("Core:");
+program.helpCommand(true);
+
 // Helper used by scaffold to avoid a circular import
 export function __axintExistsSync(p: string) {
   return existsSync(p);
