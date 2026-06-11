@@ -198,3 +198,30 @@ describe("axint.suggest", () => {
     expect(suggestions[0]?.name).not.toContain("Repair Existing");
   });
 });
+
+describe("stock domain matching for consumer phrases", () => {
+  const cases: Array<{ prompt: string; domain: string }> = [
+    { prompt: "habit tracker with streaks and a home screen widget", domain: "health" },
+    { prompt: "todo list app with tasks and reminders", domain: "productivity" },
+    { prompt: "budget app to track expenses and spending", domain: "finance" },
+    { prompt: "sleep tracker that also logs workouts", domain: "health" },
+    { prompt: "note taking app with a calendar and deadlines", domain: "productivity" },
+  ];
+
+  for (const { prompt, domain } of cases) {
+    it(`matches "${prompt}" to the ${domain} domain`, () => {
+      const suggestions = suggestFeatures({ appDescription: prompt, limit: 5 });
+      expect(suggestions.length).toBeGreaterThan(0);
+      expect(suggestions[0]?.domain).toBe(domain);
+      expect(
+        suggestions.filter((s) => s.domain === domain).length
+      ).toBeGreaterThanOrEqual(2);
+    });
+
+    it(`gives every suggestion for "${prompt}" its own rationale`, () => {
+      const suggestions = suggestFeatures({ appDescription: prompt, limit: 5 });
+      const rationales = suggestions.map((s) => s.rationale);
+      expect(new Set(rationales).size).toBe(rationales.length);
+    });
+  }
+});
