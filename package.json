@@ -120,7 +120,7 @@
     "vitest": "^4.1.4"
   },
   "dependencies": {
-    "commander": "^14.0.3",
+    "commander": "^15.0.0",
     "typescript": "^6.0.3"
   },
   "overrides": {
