@@ -1261,6 +1261,11 @@ function diagnosticsFromWwdc26Readiness(
     /\b(StringCatalog|String Catalog|Localizable\.xcstrings|\.xcstrings|generated translations?)\b/i.test(
       source
     );
+  const touchesSwiftUISwipeContainerModernization =
+    /\bSwiftUI\b/.test(source) &&
+    /\bList\s*\{/.test(source) &&
+    /\.swipeActions\s*\{/.test(source) &&
+    !/\.swipeActionsContainer\s*\(/.test(source);
   const touchesResizableIosLayout =
     /\bSwiftUI\b/.test(source) &&
     /\bView\b/.test(source) &&
@@ -1285,6 +1290,7 @@ function diagnosticsFromWwdc26Readiness(
     touchesSemanticIndex ||
     touchesPcc ||
     touchesStringCatalog ||
+    touchesSwiftUISwipeContainerModernization ||
     touchesResizableIosLayout;
 
   if (!touchesAppleIntelligence) return diagnostics;
@@ -1666,6 +1672,19 @@ function diagnosticsFromWwdc26Readiness(
         "SwiftUI layouts with fixed large frame dimensions need resizable iOS proof.",
       suggestion:
         "Replace fixed device-sized frames with adaptive layout, or attach Preview Snapshot evidence across compact/regular, landscape, and accessibility-size variants.",
+    });
+  }
+
+  if (touchesSwiftUISwipeContainerModernization) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-SWIFTUI-SWIPE-CONTAINER",
+      severity: "warning",
+      file,
+      line: findLine(source, ".swipeActions") ?? findLine(source, "List"),
+      message:
+        "This SwiftUI view still uses List to host swipe actions; WWDC26 lets custom containers own swipe actions directly.",
+      suggestion:
+        "If the UI wants a custom ScrollView, LazyVStack, grid, or card layout, move the rows into that container, add .swipeActionsContainer() to the scrollable parent, and pair .reorderable() with .reorderContainer(...) when drag ordering matters.",
     });
   }
 

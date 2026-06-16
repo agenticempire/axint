@@ -53,6 +53,32 @@ describe("templates registry", () => {
     expect(t?.source).toContain("redactSensitiveFields");
   });
 
+  it("ships a SwiftUI reorderable swipe container template", () => {
+    const t = getTemplate("swiftui-reorderable-swipe-container");
+
+    expect(t?.category).toBe("swiftui");
+    expect(t?.source).toContain("reorderable()");
+    expect(t?.source).toContain("reorderContainer");
+    expect(t?.source).toContain("swipeActionsContainer");
+    expect(t?.source).toContain("LazyVStack");
+    expect(t?.source).toContain("apply(to: &items)");
+
+    const result = compileSource(t!.source, "swiftui-reorderable-swipe-container.ts");
+    expect(result.success).toBe(true);
+    expect(result.output?.swiftCode).toContain("struct ManageQueueIntent");
+  });
+
+  it("Dynamic Profile template includes profile switching and transcript proof cues", () => {
+    const t = getTemplate("dynamic-profile-session");
+
+    expect(t?.source).toContain("DynamicProfile");
+    expect(t?.source).toContain("LanguageModelSession");
+    expect(t?.source).toContain("selectedProfile");
+    expect(t?.source).toContain("profileSwitchProof");
+    expect(t?.source).toContain("session.transcript");
+    expect(t?.source).toContain("tools:");
+  });
+
   it("listTemplates() returns every template when no category is given", () => {
     expect(listTemplates().length).toBe(TEMPLATES.length);
   });
