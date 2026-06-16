@@ -1550,6 +1550,57 @@ export default defineIntent({
 `,
 };
 
+const swiftuiReorderableSwipeContainer: IntentTemplate = {
+  id: "swiftui-reorderable-swipe-container",
+  name: "swiftui-reorderable-swipe-container",
+  title: "SwiftUI Reorderable Swipe Container",
+  domain: "developer-tools",
+  category: "swiftui",
+  description:
+    "Scaffold a proof intent with WWDC26 SwiftUI notes for reorderable custom containers and swipe actions outside List.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "ManageQueue",
+  title: "Manage Queue",
+  description: "Records the SwiftUI proof plan for a custom reorderable queue with swipe actions.",
+  domain: "developer-tools",
+  params: {
+    collectionName: param.string("Name of the collection being reordered"),
+    itemCount: param.int("Number of visible items", { default: 5 }),
+  },
+  perform: async ({ collectionName, itemCount }) => {
+    // SwiftUI implementation hint:
+    // struct QueueView: View {
+    //   @State private var items: [QueueItem]
+    //
+    //   var body: some View {
+    //     ScrollView {
+    //       LazyVStack(spacing: 8) {
+    //         ForEach(items) { item in
+    //           QueueRow(item: item)
+    //             .swipeActions {
+    //               Button("Archive", role: .destructive) { archive(item) }
+    //             }
+    //         }
+    //         .reorderable()
+    //       }
+    //     }
+    //     .swipeActionsContainer()
+    //     .reorderContainer(for: QueueItem.self) { difference in
+    //       difference.apply(to: &items)
+    //     }
+    //   }
+    // }
+    //
+    // Proof: attach a UI test that drags two rows, performs one swipe action,
+    // and records the before/after order plus the archived item identifier.
+    return { collectionName, itemCount };
+  },
+});
+`,
+};
+
 const foundationModelsCustomProvider: IntentTemplate = {
   id: "foundation-models-custom-provider",
   name: "foundation-models-custom-provider",
@@ -1666,6 +1717,18 @@ export default defineIntent({
     ],
   },
   perform: async ({ goal }) => {
+    // Swift implementation hint:
+    // import FoundationModels
+    // let selectedProfile = goal.contains("week") ? "weeklyPlan" : "quickTips"
+    // let profileSwitchProof = "selectedProfile=\\(selectedProfile)"
+    // let session = LanguageModelSession(
+    //   tools: [WorkoutHistoryTool()],
+    //   profile: DynamicProfile(selectedProfile),
+    //   instructions: "Use the selected profile's tools and instruction scope."
+    // )
+    // let response = try await session.respond(to: Prompt(goal))
+    // let transcript = session.transcript
+    // Persist selectedProfile, profileSwitchProof, transcript metadata, and tool-call counts.
     return { goal };
   },
 });
@@ -1721,6 +1784,7 @@ export const TEMPLATES: IntentTemplate[] = [
   barcodeVisionTool,
   stringCatalogLocalizer,
   resizableLayoutProof,
+  swiftuiReorderableSwipeContainer,
   foundationModelsCustomProvider,
   appIntentsTestingXctestHarness,
   dynamicProfileSession,

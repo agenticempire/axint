@@ -1,5 +1,23 @@
 # Release Notes
 
+## 2026-06-16 — SwiftUI container interactions and Dynamic Profile proof
+
+This release picks up two lower-noise WWDC26 signals that matter for real app
+work: SwiftUI custom containers no longer need to fall back to `List` just to
+get native swipe actions, and Foundation Models Dynamic Profiles need proof
+that the selected model/tools/instructions actually changed.
+
+### Added
+
+- `swiftui-reorderable-swipe-container` template: a compileable proof scaffold
+  with SwiftUI notes for `ScrollView`, `LazyVStack`, `reorderable()`,
+  `reorderContainer(...)`, and `swipeActionsContainer()`.
+- Cloud Check diagnostic `AXCLOUD-WWDC26-SWIFTUI-SWIPE-CONTAINER`, which points
+  SwiftUI views using `List` plus `.swipeActions` toward the WWDC26 custom
+  container path when appropriate.
+- Stronger Dynamic Profile template cues for selected-profile logging,
+  `LanguageModelSession` tools, transcript metadata, and profile-switch proof.
+
 ## 2026-06-15 — Siri/App Schema readiness and Foundation Models safety proof
 
 This release tightens the WWDC26 path Apple just made more important:

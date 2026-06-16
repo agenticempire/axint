@@ -253,6 +253,37 @@ struct DeleteSharedMessageIntent: AppIntent, LongRunningIntent {
     );
   });
 
+  it("suggests WWDC26 SwiftUI swipeActionsContainer modernization", () => {
+    const report = runCloudCheck({
+      fileName: "QueueView.swift",
+      source: `
+import SwiftUI
+
+struct QueueView: View {
+    @State private var items: [QueueItem]
+
+    var body: some View {
+        List {
+            ForEach(items) { item in
+                QueueRow(item: item)
+                    .swipeActions {
+                        Button("Archive") {}
+                    }
+            }
+            .onMove { from, to in
+                items.move(fromOffsets: from, toOffset: to)
+            }
+        }
+    }
+}
+`,
+    });
+
+    const codes = report.diagnostics.map((d) => d.code);
+    expect(codes).toContain("AXCLOUD-WWDC26-SWIFTUI-SWIPE-CONTAINER");
+    expect(renderCloudCheckReport(report, "markdown")).toContain("swipeActionsContainer");
+  });
+
   it("asks evaluation suites for scenario proof", () => {
     const report = runCloudCheck({
       fileName: "MessageSummaryEvaluations.swift",
