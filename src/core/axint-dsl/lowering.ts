@@ -543,6 +543,7 @@ function literalMatchesType(
     case "optional":
       return literalMatchesType(literal, type.innerType, index);
     case "entity":
+    case "entityCollection":
       return false;
     case "entityQuery":
       return false;

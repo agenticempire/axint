@@ -666,6 +666,10 @@ export interface EntityDefinition {
   ownership?: EntityOwnership;
   /** Swift expression inserted into `transferRepresentation`. */
   intentValueRepresentation?: string;
+  /** Alias for `intentValueRepresentation`, matching Apple's terminology. */
+  valueRepresentation?: string;
+  /** Swift `AppEntityContext` expressions used by RelevantEntities helpers. */
+  relevantContexts?: string[];
   /** Spotlight semantic index metadata for Apple Intelligence personal context. */
   semanticIndex?: {
     contentType: string;

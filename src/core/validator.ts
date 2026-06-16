@@ -469,7 +469,7 @@ export function validateEntity(entity: IREntity, sourceFile: string): Diagnostic
       message: "intentValueRepresentation must be a single safe Swift expression",
       file: sourceFile,
       suggestion:
-        "Use an IntentValueRepresentation(...) expression and avoid semicolons, comments, or braces.",
+        "Use a ValueRepresentation(...) or IntentValueRepresentation(...) expression and avoid semicolons, comments, or braces.",
     });
   }
 
@@ -561,6 +561,7 @@ function checkDefaultAgainst(
         suggestion: `Use one of: ${type.cases.join(", ")}.`,
       };
     case "entity":
+    case "entityCollection":
     case "entityQuery":
       return {
         message: `Parameter "${name}" is an entity reference and cannot take a literal default`,
@@ -672,7 +673,8 @@ function isSafeSwiftOptionExpression(expression: string): boolean {
 
 function isSafeIntentValueRepresentation(expression: string): boolean {
   return (
-    /^IntentValueRepresentation\s*\([^{};]*\)$/.test(expression.trim()) &&
-    !/\/\/|\/\*/.test(expression)
+    /^(?:IntentValueRepresentation|ValueRepresentation)\s*\([^{};]*\)$/.test(
+      expression.trim()
+    ) && !/\/\/|\/\*/.test(expression)
   );
 }

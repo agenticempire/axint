@@ -881,8 +881,22 @@ export default defineIntent({
   perform: async ({ request }) => {
     // Swift implementation hint:
     // import FoundationModels
-    // Define a Tool that reads app data or performs safe side effects,
-    // then pass it into LanguageModelSession for tool-calling.
+    // struct AppDataTool: Tool {
+    //   let name = "app_data_lookup"
+    //   let description = "Reads safe, user-authorized app context."
+    //   func call(arguments: AppDataArguments) async throws -> AppDataResult {
+    //     try await fetchAuthorizedContext(arguments)
+    //   }
+    // }
+    //
+    // let promptVersion = "plan-with-tool.v1"
+    // let safeContext = redactSensitiveFields(context)
+    // let session = LanguageModelSession(tools: [AppDataTool()])
+    // let response = try await session.respond(
+    //   to: Prompt("Use trusted app context only: \\(safeContext). Request: \\(request)")
+    // )
+    // let transcript = session.transcript
+    // Persist promptVersion, transcript metadata, and tool-call counts for Cloud proof.
     return { plan: "Replace with Foundation Models tool output" };
   },
 });

@@ -423,6 +423,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
   const runtimeCoverageRequired = requiresRuntimeCoverage(language, surface, swiftCode);
   const runtimeEvidenceProvided =
     hasRuntimeEvidence(evidence) && !hasPendingRuntimeProofSignal(input);
+  const siriAppSchemaReadiness = isSiriAppSchemaReadinessRelevant(swiftCode ?? source);
   const status: CloudCheckStatus = nonAppleArtifact
     ? "needs_review"
     : errors > 0
@@ -525,6 +526,7 @@ export function runCloudCheck(input: CloudCheckInput): CloudCheckReport {
     runtimeEvidenceProvided,
     projectContextLoaded: Boolean(projectContext),
     nonAppleArtifact,
+    siriAppSchemaReadiness,
   });
   const confidence = buildCloudConfidence({
     status,
@@ -1265,7 +1267,7 @@ function diagnosticsFromWwdc26Readiness(
     /\.frame\s*\([^)]*\b(width|height)\s*:\s*\d{3,}/.test(source);
   const touchesAppleIntelligence =
     /@App(Intent|Entity|Enum)\(schema:/.test(source) ||
-    /\b(AppSchema|SyncableEntity|OwnershipProvidingEntity|IndexedEntityQuery|IntentValueQuery|FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|GenerationSchema|ToolCallingMode)\b/.test(
+    /\b(AppSchema|SyncableEntity|OwnershipProvidingEntity|IndexedEntityQuery|IntentValueQuery|ValueRepresentation|EntityCollection|RelevantEntities|AppEntityContext|FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|GenerationSchema|ToolCallingMode)\b/.test(
       source
     ) ||
     /@(?:Generable|UnionValue)\b/.test(source) ||
@@ -1387,6 +1389,79 @@ function diagnosticsFromWwdc26Readiness(
         "Foundation Models code needs prompt/model-version proof against the current OS model before it is safe to call demo-ready.",
       suggestion:
         "Attach Xcode 27 build proof plus prompt-version notes, token/context checks, or a focused model behavior test.",
+    });
+  }
+
+  if (
+    /@AppIntent\(schema:/.test(source) &&
+    hasSensitiveAppIntentAction(lower) &&
+    !hasConfirmationMitigation(source, evidenceText)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-CONFIRMATION-REQUIRED",
+      severity: "warning",
+      file,
+      line: findLine(source, "@AppIntent(schema:"),
+      message:
+        "This schema-backed App Intent appears capable of changing user data without visible confirmation proof.",
+      suggestion:
+        "Add an App Intents confirmation path, confirmation dialog, or attached Xcode/AppIntentsTesting evidence showing when Siri asks the user before the action runs.",
+    });
+  }
+
+  if (
+    /@AppIntent\(schema:/.test(source) &&
+    hasSensitiveAppIntentAction(lower) &&
+    !hasAuthenticationMitigation(source, evidenceText)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-AUTH-BOUNDARY",
+      severity: "warning",
+      file,
+      line: findLine(source, "@AppIntent(schema:"),
+      message:
+        "This schema-backed App Intent touches sensitive or shared data without a clear authentication or authorization boundary.",
+      suggestion:
+        "Declare the authentication policy, use a platform authorization boundary, or attach evidence that the app verifies the caller/user before mutating or exposing data.",
+    });
+  }
+
+  if (
+    /\b(FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|Prompt\()\b/.test(
+      source
+    ) &&
+    /Prompt\s*\([^)]*\\\(/s.test(source) &&
+    !hasPromptInjectionMitigation(source, evidenceText)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-PROMPT-INJECTION",
+      severity: "warning",
+      file,
+      line: findLine(source, "Prompt(") ?? findLine(source, "LanguageModelSession"),
+      message:
+        "Foundation Models prompt text interpolates app data without visible prompt-injection mitigation.",
+      suggestion:
+        "Separate trusted instructions from user/content data, sanitize or quote untrusted fields, and persist prompt/transcript versions so model behavior can be audited.",
+    });
+  }
+
+  if (
+    /\b(FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel)\b/.test(
+      source
+    ) &&
+    hasSensitiveDataShape(lower) &&
+    !hasDataBoundaryProof(source, evidenceText)
+  ) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-DATA-BOUNDARY",
+      severity: "warning",
+      file,
+      line:
+        findLine(source, "LanguageModelSession") ?? findLine(source, "FoundationModels"),
+      message:
+        "Foundation Models code appears to process sensitive app data without a visible data-boundary or redaction proof.",
+      suggestion:
+        "Show what stays on-device, what can go to Private Cloud Compute, what is redacted, and how transcripts are retained or discarded.",
     });
   }
 
@@ -1661,6 +1736,55 @@ function diagnosticsFromWwdc26Readiness(
   }
 
   return diagnostics;
+}
+
+function isSiriAppSchemaReadinessRelevant(source: string): boolean {
+  return (
+    /@App(Intent|Entity|Enum)\(schema:/.test(source) ||
+    /\b(AppSchema|SyncableEntity|OwnershipProvidingEntity|IndexedEntity|IndexedEntityQuery|IntentValueQuery|ValueRepresentation|EntityCollection|RelevantEntities|AppEntityContext|FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|@Generable|GenerationSchema|ToolCallingMode|LongRunningIntent|CancellableIntent|ExecutionTargets)\b/.test(
+      source
+    )
+  );
+}
+
+function hasSensitiveAppIntentAction(lowerSource: string): boolean {
+  return /\b(delete|remove|archive|send|transfer|purchase|pay|payment|charge|update|publish|share|grant|revoke)\b/.test(
+    lowerSource
+  );
+}
+
+function hasSensitiveDataShape(lowerSource: string): boolean {
+  return /\b(message|contact|calendar|health|photo|location|mail|file|document|private|shared|payment|billing|token|password|credential|address)\b/.test(
+    lowerSource
+  );
+}
+
+function hasConfirmationMitigation(source: string, evidenceText: string): boolean {
+  const text = `${source}\n${evidenceText}`;
+  return /\b(requestConfirmation|confirmationDialog|IntentDialog|confirmBeforeRunning|requiresConfirmation|confirmation required|asks? the user|user confirmation|confirmed by user)\b/i.test(
+    text
+  );
+}
+
+function hasAuthenticationMitigation(source: string, evidenceText: string): boolean {
+  const text = `${source}\n${evidenceText}`;
+  return /\b(authenticationPolicy|AuthorizationCenter|LAContext|LocalAuthentication|ASAuthorization|requiresAuthentication|authenticated|authorized|auth boundary|permission check|access control|userConfirmed)\b/i.test(
+    text
+  );
+}
+
+function hasPromptInjectionMitigation(source: string, evidenceText: string): boolean {
+  const text = `${source}\n${evidenceText}`;
+  return /\b(promptVersion|transcriptVersion|trusted instructions|system instructions|sanitize|sanitized|redact|redacted|quote untrusted|tool schema|structured prompt|transcript audit|prompt injection)\b/i.test(
+    text
+  );
+}
+
+function hasDataBoundaryProof(source: string, evidenceText: string): boolean {
+  const text = `${source}\n${evidenceText}`;
+  return /\b(redact|redacted|minimize|minimized|minimization|PrivateCloudCompute|PCC|on-device|local only|privacy boundary|data boundary|transcript retention|discard transcript|no source leaves|sensitive fields)\b/i.test(
+    text
+  );
 }
 
 function compactCloudCheckReport(report: CloudCheckReport): Omit<
@@ -2816,6 +2940,7 @@ function buildCloudCoverage(input: {
   runtimeEvidenceProvided: boolean;
   projectContextLoaded: boolean;
   nonAppleArtifact: boolean;
+  siriAppSchemaReadiness: boolean;
 }): CloudCheckReport["coverage"] {
   const coverage: CloudCheckReport["coverage"] = [];
 
@@ -2861,6 +2986,15 @@ function buildCloudCoverage(input: {
     detail:
       "Returned matching AX diagnostics with severity, line number when known, and fix guidance. A clean result means no current static rule fired, not that the app has no bug.",
   });
+
+  if (input.siriAppSchemaReadiness) {
+    coverage.push({
+      label: "Siri/App Schema readiness",
+      state: "checked",
+      detail:
+        "Checked App Schema macros, entity continuity, RelevantEntities, EntityCollection, ExecutionTargets, Foundation Models proof, and security boundaries.",
+    });
+  }
 
   coverage.push({
     label: "Xcode build, UI tests, and runtime behavior",

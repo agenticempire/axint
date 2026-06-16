@@ -78,6 +78,9 @@ import type {
   IREntity,
   IRPrimitiveType,
   IRParameterSummary,
+  IRAppSchemaDomain,
+  IRIntentConformance,
+  IREntityOwnership,
 } from "./types.js";
 
 export interface CompileResult {
@@ -748,6 +751,9 @@ export function irFromJSON(data: Record<string, unknown>): IRIntent {
     title: data.title as string,
     description: data.description as string,
     domain: data.domain as string | undefined,
+    schemaDomain: data.schemaDomain as IRAppSchemaDomain | undefined,
+    schema: data.schema as string | undefined,
+    category: data.category as string | undefined,
     parameters,
     returnType: data.returnType
       ? normalizeIRType(data.returnType)
@@ -760,6 +766,9 @@ export function irFromJSON(data: Record<string, unknown>): IRIntent {
     entities: entities.length > 0 ? entities : undefined,
     donateOnPerform: data.donateOnPerform as boolean | undefined,
     customResultType: data.customResultType as string | undefined,
+    conformsTo: readStringArray(data.conformsTo) as IRIntentConformance[],
+    supportedModes: data.supportedModes as string | undefined,
+    allowedExecutionTargets: data.allowedExecutionTargets as string | undefined,
   };
 }
 
@@ -788,11 +797,11 @@ function normalizeIRParameterType(
     if (VALID_PRIMITIVES.has(normalized)) {
       return { kind: "primitive", value: normalized as IRPrimitiveType };
     }
-    if (normalized === "entity") {
+    if (normalized === "entity" || normalized === "entityCollection") {
       const entityName = (param.entityName as string | undefined) ?? "Entity";
       const entity = entities.find((entry) => entry.name === entityName);
       return {
-        kind: "entity",
+        kind: normalized,
         entityName,
         properties: entity?.properties ?? [],
       };
@@ -844,11 +853,11 @@ function normalizeIRType(type: unknown, entities: IREntity[] = []): IRType {
       return { kind: "array", elementType: normalizeIRType(t.elementType, entities) };
     if (t.kind === "optional")
       return { kind: "optional", innerType: normalizeIRType(t.innerType, entities) };
-    if (t.kind === "entity") {
+    if (t.kind === "entity" || t.kind === "entityCollection") {
       const entityName = t.entityName as string;
       const entity = entities.find((entry) => entry.name === entityName);
       return {
-        kind: "entity",
+        kind: t.kind,
         entityName,
         properties:
           normalizeIRParameters(t.properties, entities) ?? entity?.properties ?? [],
@@ -895,6 +904,16 @@ function normalizeEntities(value: unknown): IREntity[] {
       properties: normalizeIRParameters(entity.properties, []) ?? [],
       queryType:
         (entity.queryType as "all" | "id" | "string" | "property" | undefined) ?? "id",
+      schema: entity.schema as string | undefined,
+      schemaDomain: entity.schemaDomain as IRAppSchemaDomain | undefined,
+      syncable: entity.syncable as boolean | undefined,
+      indexed: entity.indexed as boolean | undefined,
+      indexedQuery: entity.indexedQuery as boolean | undefined,
+      ownership: entity.ownership as IREntityOwnership | undefined,
+      intentValueRepresentation:
+        (entity.intentValueRepresentation as string | undefined) ??
+        (entity.valueRepresentation as string | undefined),
+      relevantContexts: readStringArray(entity.relevantContexts),
     };
   });
 }

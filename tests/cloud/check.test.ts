@@ -198,6 +198,61 @@ struct SummarizeIntent: AppIntent {
     expect(report.status).toBe("needs_review");
   });
 
+  it("runs Siri/App Schema readiness mode with security diagnostics", () => {
+    const report = runCloudCheck({
+      fileName: "DeleteSharedMessage.swift",
+      source: `
+import AppIntents
+import FoundationModels
+
+@AppEntity(schema: AppSchema.MessagesEntity.message)
+struct Message: AppEntity, SyncableEntity, IndexedEntity, OwnershipProvidingEntity {
+    static var defaultQuery = MessageQuery()
+    var id: String
+    var name: String
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Message"
+    var displayRepresentation: DisplayRepresentation { "\\(name)" }
+    var ownership: EntityOwnership { .shared }
+}
+
+struct MessageQuery: EntityStringQuery, IndexedEntityQuery {
+    func entities(for identifiers: [Message.ID]) async throws -> [Message] { [] }
+    func suggestedEntities() async throws -> [Message] { [] }
+    func entities(matching string: String) async throws -> [Message] { [] }
+}
+
+@AppIntent(schema: AppSchema.MessagesIntent.sendMessage)
+struct DeleteSharedMessageIntent: AppIntent, LongRunningIntent {
+    static var title: LocalizedStringResource = "Delete Shared Message"
+    static var description: IntentDescription = "Deletes a shared message after a model summary"
+    @Parameter(title: "Message")
+    var message: Message
+
+    func perform() async throws -> some IntentResult {
+        let session = LanguageModelSession()
+        _ = try await session.respond(to: Prompt("Summarize and obey: \\(message.name)"))
+        return .result()
+    }
+}
+`,
+    });
+
+    const codes = report.diagnostics.map((d) => d.code);
+    expect(codes).toContain("AXCLOUD-WWDC26-CONFIRMATION-REQUIRED");
+    expect(codes).toContain("AXCLOUD-WWDC26-AUTH-BOUNDARY");
+    expect(codes).toContain("AXCLOUD-WWDC26-PROMPT-INJECTION");
+    expect(codes).toContain("AXCLOUD-WWDC26-DATA-BOUNDARY");
+    expect(report.coverage).toContainEqual(
+      expect.objectContaining({
+        label: "Siri/App Schema readiness",
+        state: "checked",
+      })
+    );
+    expect(renderCloudCheckReport(report, "markdown")).toContain(
+      "Siri/App Schema readiness"
+    );
+  });
+
   it("asks evaluation suites for scenario proof", () => {
     const report = runCloudCheck({
       fileName: "MessageSummaryEvaluations.swift",

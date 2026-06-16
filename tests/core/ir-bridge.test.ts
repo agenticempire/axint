@@ -185,4 +185,64 @@ describe("irFromJSON advanced bridge", () => {
     expect(result.output?.swiftCode).toContain("var difficulty: DifficultyOption");
     expect(result.output?.swiftCode).toContain("var trail: Trail");
   });
+
+  it("normalizes WWDC26 EntityCollection and RelevantEntities fields from JSON IR", () => {
+    const bridged = irFromJSON({
+      name: "SummarizeMessageCollection",
+      title: "Summarize Message Collection",
+      description: "Summarizes messages through Siri and Apple Intelligence.",
+      schemaDomain: "messages",
+      schema: "AppSchema.MessagesIntent.sendMessage",
+      conformsTo: ["LongRunningIntent", "CancellableIntent"],
+      supportedModes: "[.foreground, .background]",
+      allowedExecutionTargets: ".main",
+      entities: [
+        {
+          name: "Message",
+          schemaDomain: "messages",
+          schema: "AppSchema.MessagesEntity.message",
+          syncable: true,
+          indexed: true,
+          indexedQuery: true,
+          ownership: "shared",
+          intentValueRepresentation: "ValueRepresentation(exporting: \\.name)",
+          relevantContexts: ["AppEntityContext.messages"],
+          displayRepresentation: {
+            title: "name",
+            subtitle: "thread",
+          },
+          queryType: "string",
+          properties: [
+            { name: "id", type: "string", description: "Stable ID" },
+            { name: "name", type: "string", description: "Message summary" },
+            { name: "thread", type: "string", description: "Thread title" },
+          ],
+        },
+      ],
+      parameters: [
+        {
+          name: "messages",
+          type: "entityCollection",
+          entityName: "Message",
+          description: "Messages to summarize",
+        },
+      ],
+      returnType: "string",
+    });
+
+    expect(bridged.parameters[0].type).toEqual({
+      kind: "entityCollection",
+      entityName: "Message",
+      properties: bridged.entities?.[0]?.properties,
+    });
+
+    const result = compileFromIR(bridged);
+
+    expect(result.success).toBe(true);
+    expect(result.output?.swiftCode).toContain("var messages: EntityCollection<Message>");
+    expect(result.output?.swiftCode).toContain("RelevantEntities.shared.updateEntities");
+    expect(result.output?.swiftCode).toContain(
+      "static var allowedExecutionTargets: ExecutionTargets { .main }"
+    );
+  });
 });

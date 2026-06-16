@@ -1,5 +1,27 @@
 # Release Notes
 
+## 2026-06-15 — Siri/App Schema readiness and Foundation Models safety proof
+
+This release tightens the WWDC26 path Apple just made more important:
+schema-backed App Intents, Siri/App Schema readiness, and Foundation Models
+tool-calling proof.
+
+### Added
+
+- TypeScript and JSON IR can now preserve WWDC26 entity continuity fields:
+  `ValueRepresentation(...)`, `RelevantEntities` contexts, and
+  `EntityCollection<T>` parameters.
+- The Swift generator emits `RelevantEntities.shared.updateEntities` and
+  `removeAllEntities` helpers when an entity declares AppEntity contexts.
+- Cloud Check adds a Siri/App Schema readiness coverage row for App Schema,
+  entity continuity, RelevantEntities, EntityCollection, ExecutionTargets,
+  Foundation Models proof, and security boundaries.
+- Cloud Check now flags missing confirmation, authorization, prompt-injection,
+  and data-boundary proof on sensitive schema-backed App Intents and
+  Foundation Models flows.
+- The `foundation-model-tool` template now includes concrete tool-calling,
+  prompt-version, transcript, and redaction proof cues.
+
 ## 2026-06-10 — First-hour polish: validated defaults, diagnostic spans, quieter pipes
 
 This release closes the gap between "validated Swift" and what a cold user

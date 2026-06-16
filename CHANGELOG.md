@@ -6,6 +6,12 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+### Added
+
+- **WWDC26 Siri/App Schema readiness** — the compiler now normalizes and emits `EntityCollection<T>` parameters, `ValueRepresentation(...)` aliases, and `RelevantEntities` helper methods from TypeScript and JSON IR so schema-backed entities can stay current for Siri, Shortcuts, Spotlight, and Apple Intelligence paths.
+- **Cloud Check security diagnostics** — `axint.cloud.check` now has a Siri/App Schema readiness coverage row plus diagnostics for confirmation-required actions, authorization boundaries, prompt-injection mitigation, and data-boundary proof around Foundation Models code.
+- **Foundation Models tool-calling proof cues** — the `foundation-model-tool` template now names the generated `Tool`, prompt-version metadata, transcript capture, and sensitive-field redaction proof expected before demoing model-backed Apple actions.
+
 ## [0.4.32] — 2026-06-10
 
 ### Added
