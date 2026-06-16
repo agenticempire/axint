@@ -43,6 +43,16 @@ describe("templates registry", () => {
     expect(t?.domain).toBe("messaging");
   });
 
+  it("Foundation Models tool template includes tool-calling and transcript proof cues", () => {
+    const t = getTemplate("foundation-model-tool");
+
+    expect(t?.source).toContain("struct AppDataTool: Tool");
+    expect(t?.source).toContain("LanguageModelSession(tools:");
+    expect(t?.source).toContain("promptVersion");
+    expect(t?.source).toContain("session.transcript");
+    expect(t?.source).toContain("redactSensitiveFields");
+  });
+
   it("listTemplates() returns every template when no category is given", () => {
     expect(listTemplates().length).toBe(TEMPLATES.length);
   });

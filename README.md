@@ -67,6 +67,11 @@ The compiler is useful on its own. Registry and Cloud extend the same workflow:
 - **Registry** — install reusable Apple capabilities with source, compiler metadata, and package details attached.
 - **Cloud Check + feedback** — free hosted validation for quick results; signed-in Pro checks add the AI-ready repair prompt, history, and a shareable report. Privacy-safe feedback packets help Axint learn repeated Apple failure modes without sending source code.
 
+WWDC26 made App Intents, App Schemas, Siri, Shortcuts, Spotlight, and
+Foundation Models tool calls a single agent-facing execution path. Axint now
+validates that path with schema continuity, entity freshness, execution-target,
+model-proof, and security-boundary checks.
+
 [Read the thesis](https://axint.ai/thesis) · [Open proof](https://axint.ai/proof) · [View Fix Packet](https://axint.ai/fix-packet)
 
 ---
@@ -297,7 +302,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.32 · 36 MCP tools + 5 prompts · 217 diagnostic codes · 1426 tests · 58 live packages · 49 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.32 · 36 MCP tools + 5 prompts · 217 diagnostic codes · 1429 tests · 58 live packages · 49 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is regenerated from the compiler's metrics pipeline on every release (`npm run metrics:emit && npm run metrics:check`).<!-- truth:readme-truth-source:end -->
 

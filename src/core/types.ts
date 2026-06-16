@@ -24,6 +24,7 @@ export type IRType =
   | { kind: "array"; elementType: IRType }
   | { kind: "optional"; innerType: IRType }
   | { kind: "entity"; entityName: string; properties: IRParameter[] }
+  | { kind: "entityCollection"; entityName: string; properties: IRParameter[] }
   | {
       kind: "entityQuery";
       entityName: string;
@@ -209,6 +210,8 @@ export interface IREntity {
   ownership?: IREntityOwnership;
   /** Swift expression inserted into `transferRepresentation`. */
   intentValueRepresentation?: string;
+  /** Swift AppEntityContext expressions used for RelevantEntities updates. */
+  relevantContexts?: string[];
   /** Make the generated query adopt `IndexedEntityQuery`. */
   indexedQuery?: boolean;
   /** Spotlight semantic index proof metadata for Apple Intelligence personal context. */
@@ -716,6 +719,8 @@ export function irTypeToSwift(type: IRType): string {
       return `${irTypeToSwift(type.innerType)}?`;
     case "entity":
       return type.entityName;
+    case "entityCollection":
+      return `EntityCollection<${type.entityName}>`;
     case "entityQuery":
       return `${type.entityName}Query`;
     case "dynamicOptions":

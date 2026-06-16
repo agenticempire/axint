@@ -97,6 +97,10 @@ export function generateSwift(intent: IRIntent): string {
       lines.push(``);
       lines.push(generateEntityQuery(entity));
       lines.push(``);
+      if (entity.relevantContexts && entity.relevantContexts.length > 0) {
+        lines.push(generateRelevantEntitiesSupport(entity));
+        lines.push(``);
+      }
     }
   }
 
@@ -410,6 +414,36 @@ export function generateEntityQuery(entity: IREntity): string {
   return lines.join("\n");
 }
 
+/**
+ * Generate helper methods for registering WWDC26 RelevantEntities contexts.
+ */
+export function generateRelevantEntitiesSupport(entity: IREntity): string {
+  const lines: string[] = [];
+
+  lines.push(`extension ${entity.name} {`);
+  lines.push(
+    `    static func updateRelevantEntities(_ entities: [${entity.name}]) async throws {`
+  );
+  for (const context of entity.relevantContexts ?? []) {
+    lines.push(`        try await RelevantEntities.shared.updateEntities(`);
+    lines.push(`            entities,`);
+    lines.push(`            for: ${context}`);
+    lines.push(`        )`);
+  }
+  lines.push(`    }`);
+  lines.push(``);
+  lines.push(`    static func removeAllRelevantEntities() async throws {`);
+  for (const context of entity.relevantContexts ?? []) {
+    lines.push(
+      `        try await RelevantEntities.shared.removeAllEntities(for: ${context})`
+    );
+  }
+  lines.push(`    }`);
+  lines.push(`}`);
+
+  return lines.join("\n");
+}
+
 function generateDynamicOptionsProvider(providerName: string, valueType: IRType): string {
   const lines: string[] = [];
   lines.push(`struct ${providerName}: DynamicOptionsProvider {`);
@@ -718,6 +752,7 @@ function sampleSwiftValue(type: IRType): string | undefined {
       return sampleSwiftValue(type.valueType);
     case "optional":
     case "entity":
+    case "entityCollection":
     case "entityQuery":
     case "enum":
       return undefined;

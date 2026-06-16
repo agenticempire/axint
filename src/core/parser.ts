@@ -347,9 +347,10 @@ function parseEntityDefinition(
   const indexed = readBooleanLiteral(props.get("indexed"));
   const indexedQuery = readBooleanLiteral(props.get("indexedQuery"));
   const ownership = readStringLiteral(props.get("ownership"));
-  const intentValueRepresentation = readStringLiteral(
-    props.get("intentValueRepresentation")
-  );
+  const intentValueRepresentation =
+    readStringLiteral(props.get("intentValueRepresentation")) ||
+    readStringLiteral(props.get("valueRepresentation"));
+  const relevantContexts = readStringArray(props.get("relevantContexts"));
   const semanticIndex = parseSemanticIndexConfig(
     props.get("semanticIndex"),
     filePath,
@@ -368,6 +369,7 @@ function parseEntityDefinition(
     indexedQuery: indexedQuery ?? undefined,
     ownership: (ownership as IREntityOwnership | null) || undefined,
     intentValueRepresentation: intentValueRepresentation || undefined,
+    relevantContexts: relevantContexts.length > 0 ? relevantContexts : undefined,
     semanticIndex,
   };
 }
@@ -1204,12 +1206,9 @@ function resolveParamType(
       );
     }
     return {
-      kind: "array",
-      elementType: {
-        kind: "entity",
-        entityName,
-        properties: [],
-      },
+      kind: "entityCollection",
+      entityName,
+      properties: [],
     };
   }
 

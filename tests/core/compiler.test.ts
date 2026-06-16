@@ -213,6 +213,8 @@ defineEntity({
   indexed: true,
   indexedQuery: true,
   ownership: "shared",
+  valueRepresentation: "ValueRepresentation(exporting: \\\\.name)",
+  relevantContexts: ["AppEntityContext.messages"],
   display: {
     title: "name",
   },
@@ -245,7 +247,9 @@ export default defineIntent({
     expect(result.output?.swiftCode).toContain(
       "struct SummarizeMessagesIntent: AppIntent, LongRunningIntent, ProgressReportingIntent"
     );
-    expect(result.output?.swiftCode).toContain("var messages: [Message]");
+    expect(result.output?.swiftCode).toContain("var messages: EntityCollection<Message>");
+    expect(result.output?.swiftCode).toContain("ValueRepresentation(exporting: \\.name)");
+    expect(result.output?.swiftCode).toContain("RelevantEntities.shared.updateEntities");
     expect(result.output?.swiftCode).toContain("var tags: [String]?");
   });
 
