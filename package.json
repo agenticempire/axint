@@ -108,7 +108,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@types/node": "^25.6.0",
+    "@types/node": "^26.0.0",
     "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^10.2.1",
     "husky": "^9.0.0",
