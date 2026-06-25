@@ -302,7 +302,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.32 · 36 MCP tools + 5 prompts · 217 diagnostic codes · 1432 tests · 58 live packages · 50 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.33 · 36 MCP tools + 5 prompts · 217 diagnostic codes · 1445 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is regenerated from the compiler's metrics pipeline on every release (`npm run metrics:emit && npm run metrics:check`).<!-- truth:readme-truth-source:end -->
 
@@ -334,6 +334,7 @@ axint xcode guard --dir /path/to/MyApp --stage context-recovery
 axint agent install --dir /path/to/MyApp --agent codex
 axint agent advice --dir /path/to/MyApp --agent codex --changed Sources/HomeComposer.swift Tests/HomeComposerUITests.swift
 axint memory index --dir /path/to/MyApp --changed Sources/HomeComposer.swift Tests/HomeComposerUITests.swift
+axint appintents test Sources/App/SendMessageIntent.swift --module MyApp --out Tests/AxintAppIntentsReadinessTests.swift
 axint run --dir /path/to/MyApp --agent codex --scheme MyApp --destination "platform=macOS"
 axint run --dir /path/to/MyApp --agent codex --scheme MyApp --changed Sources/HomeComposer.swift --only-testing MyAppUITests/MyAppUITests/testComposerStillAcceptsInput
 axint run --dir /path/to/MyApp --agent codex --scheme MyApp --runtime

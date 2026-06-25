@@ -6,8 +6,15 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.33] — 2026-06-25
+
 ### Added
 
+- **AppIntentsTesting harness generator** — `generateAppIntentsTestingHarness` and `axint appintents test <file>` create a Swift Testing/AppIntentsTesting readiness scaffold from existing App Intent and App Entity source.
+- **Shortcuts Use Model readiness checks** — Cloud Check now flags generated `UUID()` entity ids and thin AppEntity metadata before those entities are exposed to Shortcuts Use Model transcripts.
+- **Foundation Models proof hardening** — Cloud Check now asks tool-calling sessions for dynamic profile boundaries, asks model sessions for evaluation coverage, and asks Private Cloud Compute sessions for fallback/quota proof.
+- **Core AI and ImageCreator migration checks** — Cloud Check now asks Core AI code for deployment/availability proof and flags `ImageCreator` usage as a migration risk.
+- **Apple Intelligence proof templates** — added `shortcuts-use-model-entity`, `foundation-model-evaluation`, and `core-ai-local-model` to the bundled template registry.
 - **WWDC26 Siri/App Schema readiness** — the compiler now normalizes and emits `EntityCollection<T>` parameters, `ValueRepresentation(...)` aliases, and `RelevantEntities` helper methods from TypeScript and JSON IR so schema-backed entities can stay current for Siri, Shortcuts, Spotlight, and Apple Intelligence paths.
 - **Cloud Check security diagnostics** — `axint.cloud.check` now has a Siri/App Schema readiness coverage row plus diagnostics for confirmation-required actions, authorization boundaries, prompt-injection mitigation, and data-boundary proof around Foundation Models code.
 - **Foundation Models tool-calling proof cues** — the `foundation-model-tool` template now names the generated `Tool`, prompt-version metadata, transcript capture, and sensitive-field redaction proof expected before demoing model-backed Apple actions.

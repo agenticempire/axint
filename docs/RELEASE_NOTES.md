@@ -1,5 +1,26 @@
 # Release Notes
 
+## 2026-06-25 — AppIntentsTesting harness and Apple Intelligence proof gaps
+
+This release keeps the repo clean after the Dependabot sweep and ships the
+remaining WWDC26 proof surfaces that were still only partially covered.
+
+### Added
+
+- `axint appintents test <file>` generates a Swift Testing/AppIntentsTesting
+  readiness harness from existing App Intent and App Entity source.
+- `generateAppIntentsTestingHarness` is exported for agents and tooling that
+  want the same harness without shelling out to the CLI.
+- Cloud Check now flags generated `UUID()` entity ids and thin AppEntity
+  metadata before entities are exposed to Shortcuts Use Model transcripts.
+- Cloud Check now asks Foundation Models tool-calling sessions for dynamic
+  profile boundaries, evaluation coverage, and Private Cloud Compute
+  fallback/quota proof.
+- Cloud Check now asks Core AI code for deployment and model-availability proof
+  and flags `ImageCreator` usage as a migration risk.
+- `shortcuts-use-model-entity`, `foundation-model-evaluation`, and
+  `core-ai-local-model` join the bundled template registry.
+
 ## 2026-06-16 — SwiftUI container interactions and Dynamic Profile proof
 
 This release picks up two lower-noise WWDC26 signals that matter for real app

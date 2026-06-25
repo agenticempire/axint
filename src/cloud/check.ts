@@ -1254,9 +1254,11 @@ function diagnosticsFromWwdc26Readiness(
       source
     );
   const touchesPcc =
-    /\b(Private Cloud Compute|PCC|privateCloudComputeEligible|private-cloud-compute)\b/i.test(
+    /\b(PrivateCloudComputeLanguageModel|Private Cloud Compute|PCC|privateCloudComputeEligible|private-cloud-compute)\b/i.test(
       source
     );
+  const touchesCoreAi = /\b(CoreAI|Core AI|CoreAIModel|MLX)\b/.test(source);
+  const touchesImageCreator = /\bImageCreator\b/.test(source);
   const touchesStringCatalog =
     /\b(StringCatalog|String Catalog|Localizable\.xcstrings|\.xcstrings|generated translations?)\b/i.test(
       source
@@ -1289,6 +1291,8 @@ function diagnosticsFromWwdc26Readiness(
     touchesViewAnnotation ||
     touchesSemanticIndex ||
     touchesPcc ||
+    touchesCoreAi ||
+    touchesImageCreator ||
     touchesStringCatalog ||
     touchesSwiftUISwipeContainerModernization ||
     touchesResizableIosLayout;
@@ -1395,6 +1399,100 @@ function diagnosticsFromWwdc26Readiness(
         "Foundation Models code needs prompt/model-version proof against the current OS model before it is safe to call demo-ready.",
       suggestion:
         "Attach Xcode 27 build proof plus prompt-version notes, token/context checks, or a focused model behavior test.",
+    });
+  }
+
+  if (needsDynamicProfileBoundary(source)) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-DYNAMIC-PROFILE-BOUNDARY",
+      severity: "warning",
+      file,
+      line: findLine(source, "LanguageModelSession"),
+      message:
+        "This Foundation Models tool-calling session does not show a dynamic instruction/profile boundary.",
+      suggestion:
+        "Add DynamicProfile/DynamicInstructions-style routing, or an equivalent profile abstraction, so the model session changes behavior explicitly by task, user role, and tool availability.",
+    });
+  }
+
+  if (needsEvaluationCoverage(source, evidenceText)) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-EVALUATION-COVERAGE",
+      severity: "warning",
+      file,
+      line:
+        findLine(source, "LanguageModelSession") ?? findLine(source, "FoundationModels"),
+      message:
+        "Foundation Models code has no visible Evaluations coverage for prompt quality, tool-call behavior, or regression protection.",
+      suggestion:
+        "Add an Evaluations/SampleGenerator suite with expected tool-call traces, refusal cases, and transcript assertions before calling this demo-ready.",
+    });
+  }
+
+  if (needsPrivateCloudFallbackProof(source, evidenceText)) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-PCC-FALLBACK",
+      severity: "warning",
+      file,
+      line:
+        findLine(source, "PrivateCloudComputeLanguageModel") ??
+        findLine(source, "Private Cloud Compute"),
+      message:
+        "Private Cloud Compute usage needs a visible on-device fallback, availability check, and quota/limit story.",
+      suggestion:
+        "Gate PCC with model availability checks, fall back to SystemLanguageModel or a non-model path, and record quota/limit behavior in Cloud proof.",
+    });
+  }
+
+  if (needsShortcutStorageIdProof(source, evidenceText)) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-SHORTCUT-STORAGE-ID",
+      severity: "warning",
+      file,
+      line: findLine(source, "UUID()") ?? findLine(source, "var id"),
+      message:
+        "A Shortcuts/Use Model-facing AppEntity appears to create ids with UUID() at runtime, which can break durable storage and transcript rehydration.",
+      suggestion:
+        "Persist ids in app storage, derive them from durable backend identifiers, and prove the same entity id survives app relaunch, device sync, and repeated Shortcuts Use Model runs.",
+    });
+  }
+
+  if (needsUseModelEntityRichness(source, evidenceText)) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-USEMODEL-ENTITY-RICHNESS",
+      severity: "warning",
+      file,
+      line: findLine(source, "@AppEntity(schema:") ?? findLine(source, "AppEntity"),
+      message:
+        "This AppEntity is being exposed to Shortcuts Use Model with too little structured metadata for reliable grounding.",
+      suggestion:
+        "Expose at least three stable @Property fields that describe identity, display, and action-relevant state, then attach transcript proof showing the model grounds on those fields.",
+    });
+  }
+
+  if (needsCoreAiDeploymentProof(source, evidenceText)) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-COREAI-DEPLOYMENT",
+      severity: "warning",
+      file,
+      line: findLine(source, "CoreAI") ?? findLine(source, "Core AI"),
+      message:
+        "Core AI model code needs deployment proof before Axint can treat it as production-ready Apple execution.",
+      suggestion:
+        "Attach ahead-of-time compiled model proof, model availability checks, memory/latency evidence, and a fallback path for unsupported devices.",
+    });
+  }
+
+  if (touchesImageCreator) {
+    diagnostics.push({
+      code: "AXCLOUD-WWDC26-IMAGECREATOR-DEPRECATED",
+      severity: "warning",
+      file,
+      line: findLine(source, "ImageCreator"),
+      message:
+        "ImageCreator usage is a migration risk on the current Apple Intelligence surface.",
+      suggestion:
+        "Move image generation behind a capability adapter and verify the replacement API path, availability guard, and user-consent flow before shipping.",
     });
   }
 
@@ -1760,8 +1858,71 @@ function diagnosticsFromWwdc26Readiness(
 function isSiriAppSchemaReadinessRelevant(source: string): boolean {
   return (
     /@App(Intent|Entity|Enum)\(schema:/.test(source) ||
-    /\b(AppSchema|SyncableEntity|OwnershipProvidingEntity|IndexedEntity|IndexedEntityQuery|IntentValueQuery|ValueRepresentation|EntityCollection|RelevantEntities|AppEntityContext|FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|@Generable|GenerationSchema|ToolCallingMode|LongRunningIntent|CancellableIntent|ExecutionTargets)\b/.test(
+    /\b(AppSchema|SyncableEntity|OwnershipProvidingEntity|IndexedEntity|IndexedEntityQuery|IntentValueQuery|ValueRepresentation|EntityCollection|RelevantEntities|AppEntityContext|FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel|DynamicProfile|DynamicInstructions|Evaluations|SampleGenerator|CoreAI|MLX|ImageCreator|appEntityIdentifier|@Generable|GenerationSchema|ToolCallingMode|LongRunningIntent|CancellableIntent|ExecutionTargets)\b/.test(
       source
+    )
+  );
+}
+
+function needsDynamicProfileBoundary(source: string): boolean {
+  return (
+    /\bLanguageModelSession\b/.test(source) &&
+    /\b(tools\s*:|Tool\b|tool-calling|tool calling)\b/i.test(source) &&
+    !/\b(DynamicInstructions|DynamicProfile|ModelProfile|instructionProfile|profile:|system instructions|trusted instructions)\b/i.test(
+      source
+    )
+  );
+}
+
+function needsEvaluationCoverage(source: string, evidenceText: string): boolean {
+  const text = `${source}\n${evidenceText}`;
+  return (
+    /\b(FoundationModels|LanguageModelSession|SystemLanguageModel|PrivateCloudComputeLanguageModel)\b/.test(
+      source
+    ) &&
+    !/\b(Evaluations?|Evaluator|SampleGenerator|sample generation|model-as-judge|expected tool-call|tool-call trace|golden transcript|scenario|criteria)\b/i.test(
+      text
+    )
+  );
+}
+
+function needsPrivateCloudFallbackProof(source: string, evidenceText: string): boolean {
+  const text = `${source}\n${evidenceText}`;
+  return (
+    /\b(PrivateCloudComputeLanguageModel|Private Cloud Compute|PCC)\b/i.test(source) &&
+    !/\b(SystemLanguageModel|fallback|availability|isAvailable|supported|quota|limit|isLimitReached|usage limit|model availability)\b/i.test(
+      text
+    )
+  );
+}
+
+function needsShortcutStorageIdProof(source: string, evidenceText: string): boolean {
+  const text = `${source}\n${evidenceText}`;
+  return (
+    /\bAppEntity\b/.test(source) &&
+    /\b(shortcuts?|use model|storage|transcript|rehydrat)/i.test(text) &&
+    /\b(?:var|let)\s+id(?:\s*:\s*UUID)?\s*=\s*UUID\s*\(/.test(source)
+  );
+}
+
+function needsUseModelEntityRichness(source: string, evidenceText: string): boolean {
+  return (
+    /\bAppEntity\b/.test(source) &&
+    /\b(use model|transcript|shortcut)\b/i.test(evidenceText) &&
+    countEntityProperties(source) < 3
+  );
+}
+
+function countEntityProperties(source: string): number {
+  return source.match(/@Property\s*\(/g)?.length ?? 0;
+}
+
+function needsCoreAiDeploymentProof(source: string, evidenceText: string): boolean {
+  const text = `${source}\n${evidenceText}`;
+  return (
+    /\b(CoreAI|Core AI|CoreAIModel|MLX)\b/.test(source) &&
+    !/\b(ahead-of-time|AOT|compiled model|model availability|availability check|Instruments|memory|latency|fallback|unsupported devices?)\b/i.test(
+      text
     )
   );
 }

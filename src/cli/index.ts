@@ -12,6 +12,7 @@
  *   axint eject <file>            Eject intent to standalone Swift (no vendor lock-in)
  *   axint format <file>           Format a .axint source file in canonical style
  *   axint templates               List bundled intent templates
+ *   axint appintents test <file>  Generate an AppIntentsTesting readiness harness
  *   axint login                   Authenticate with the Axint Registry and unlock fuller repair reports
  *   axint cloud check --source    Run an agent-callable Cloud Check on a file
  *   axint cloud preview --repo    Create an Axint Cloud Preview room for an Apple app
@@ -73,6 +74,7 @@ import { registerValidateSwift } from "./validate-swift.js";
 import { registerEject } from "./eject.js";
 import { registerFormat } from "./format.js";
 import { registerTemplates } from "./templates.js";
+import { registerAppIntents } from "./appintents.js";
 import { registerLogin } from "./login.js";
 import { registerCloud } from "./cloud.js";
 import { registerTokens } from "./tokens.js";
@@ -348,6 +350,7 @@ registerValidateSwift(program);
 registerEject(program);
 registerFormat(program);
 registerTemplates(program);
+registerAppIntents(program);
 registerCreate(program, VERSION);
 registerLogin(program);
 registerCloud(program);

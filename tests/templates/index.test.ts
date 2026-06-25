@@ -79,6 +79,31 @@ describe("templates registry", () => {
     expect(t?.source).toContain("tools:");
   });
 
+  it("Shortcuts Use Model template exposes stable storage and rich entity metadata", () => {
+    const t = getTemplate("shortcuts-use-model-entity");
+
+    expect(t?.source).toContain("Use Model");
+    expect(t?.source).toContain("stable");
+    expect(t?.source).toContain("@Property");
+    expect(t?.source).toContain("Storage");
+  });
+
+  it("Foundation Models evaluation template includes sample generation proof cues", () => {
+    const t = getTemplate("foundation-model-evaluation");
+
+    expect(t?.source).toContain("Evaluations");
+    expect(t?.source).toContain("SampleGenerator");
+    expect(t?.source).toContain("tool-call");
+  });
+
+  it("Core AI local model template includes deployment and availability cues", () => {
+    const t = getTemplate("core-ai-local-model");
+
+    expect(t?.source).toContain("Core AI");
+    expect(t?.source).toContain("ahead-of-time");
+    expect(t?.source).toContain("model availability");
+  });
+
   it("listTemplates() returns every template when no category is given", () => {
     expect(listTemplates().length).toBe(TEMPLATES.length);
   });
