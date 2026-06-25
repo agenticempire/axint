@@ -1735,6 +1735,128 @@ export default defineIntent({
 `,
 };
 
+const shortcutsUseModelEntity: IntentTemplate = {
+  id: "shortcuts-use-model-entity",
+  name: "shortcuts-use-model-entity",
+  title: "Shortcuts Use Model Entity",
+  domain: "apple-intelligence",
+  category: "shortcuts",
+  description:
+    "Scaffold a stable, storage-backed AppEntity for Shortcuts Use Model transcript grounding.",
+  source: `import { defineIntent, defineEntity, param } from "@axint/compiler";
+
+defineEntity({
+  name: "ResearchNote",
+  schemaDomain: "productivity",
+  schema: "note",
+  syncable: true,
+  indexed: true,
+  display: {
+    title: "title",
+    subtitle: "summary",
+  },
+  properties: {
+    id: param.string("Stable Storage identifier, never UUID() at render time"),
+    title: param.string("@Property title exposed to Use Model"),
+    summary: param.string("@Property summary exposed to Use Model"),
+    sourceApp: param.string("@Property source app or workspace"),
+    updatedAt: param.date("@Property last updated timestamp"),
+  },
+  query: "indexed",
+});
+
+export default defineIntent({
+  name: "SummarizeResearchNote",
+  title: "Summarize Research Note",
+  description: "Lets Shortcuts Use Model ground on a rich, durable note entity.",
+  schemaDomain: "productivity",
+  params: {
+    note: param.entity("ResearchNote", "Storage-backed note"),
+    audience: param.string("Audience for the summary", { required: false }),
+  },
+  perform: async ({ note }) => {
+    // Shortcuts Use Model proof:
+    // - stable id comes from Storage/back end, not UUID()
+    // - transcript includes title, summary, sourceApp, and updatedAt
+    // - repeated Shortcut runs rehydrate the same entity id
+    return { grounded: true, note };
+  },
+});
+`,
+};
+
+const foundationModelEvaluation: IntentTemplate = {
+  id: "foundation-model-evaluation",
+  name: "foundation-model-evaluation",
+  title: "Foundation Models Evaluation",
+  domain: "apple-intelligence",
+  category: "foundation-models",
+  description:
+    "Scaffold a Foundation Models evaluation loop with SampleGenerator and tool-call regression proof cues.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "EvaluateModelPlanner",
+  title: "Evaluate Model Planner",
+  description: "Builds a repeatable Evaluations proof plan for a tool-calling Foundation Models workflow.",
+  schemaDomain: "assistant",
+  params: {
+    fixtureSet: param.string("Evaluation fixture set name"),
+    promptVersion: param.string("Prompt version to evaluate"),
+  },
+  perform: async ({ fixtureSet, promptVersion }) => {
+    // Swift evaluation target hint:
+    // import FoundationModels
+    // import Evaluations
+    //
+    // struct PlannerSampleGenerator: SampleGenerator { ... }
+    // - generate success, refusal, malformed-input, and sensitive-data samples
+    // - assert expected tool-call traces before accepting model output
+    // - persist promptVersion, modelVersion, transcript hash, and pass/fail summary
+    return {
+      fixtureSet,
+      promptVersion,
+      proof: "Evaluations + SampleGenerator + expected tool-call traces",
+    };
+  },
+});
+`,
+};
+
+const coreAiLocalModel: IntentTemplate = {
+  id: "core-ai-local-model",
+  name: "core-ai-local-model",
+  title: "Core AI Local Model",
+  domain: "apple-intelligence",
+  category: "core-ai",
+  description:
+    "Scaffold Core AI local model deployment proof with ahead-of-time compilation, availability, fallback, and performance cues.",
+  source: `import { defineIntent, param } from "@axint/compiler";
+
+export default defineIntent({
+  name: "ClassifyWithCoreAI",
+  title: "Classify With Core AI",
+  description: "Runs a local Core AI model only when deployment and model availability checks pass.",
+  schemaDomain: "assistant",
+  params: {
+    text: param.string("Text to classify"),
+    fallbackLabel: param.string("Fallback label for unsupported devices", { required: false }),
+  },
+  perform: async ({ text }) => {
+    // Swift implementation hint:
+    // import CoreAI
+    //
+    // Core AI proof:
+    // - ahead-of-time compiled model artifact is bundled and versioned
+    // - model availability is checked before inference
+    // - unsupported devices fall back to rules, server, or SystemLanguageModel
+    // - Instruments memory and latency numbers are attached to Cloud proof
+    return { label: "Replace with local model output", inputLength: text.length };
+  },
+});
+`,
+};
+
 // ─── Registry ────────────────────────────────────────────────────────
 
 export const TEMPLATES: IntentTemplate[] = [
@@ -1788,6 +1910,9 @@ export const TEMPLATES: IntentTemplate[] = [
   foundationModelsCustomProvider,
   appIntentsTestingXctestHarness,
   dynamicProfileSession,
+  shortcutsUseModelEntity,
+  foundationModelEvaluation,
+  coreAiLocalModel,
 ];
 
 /** @deprecated Use TEMPLATES. Kept for v0.1.x import compatibility. */

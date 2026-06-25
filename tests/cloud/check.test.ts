@@ -416,6 +416,149 @@ enum VisualBriefSessionFactory {
     expect(report.status).toBe("needs_review");
   });
 
+  it("asks tool-calling Foundation Models sessions for dynamic profile boundaries", () => {
+    const report = runCloudCheck({
+      fileName: "PlanWithModel.swift",
+      source: `
+import FoundationModels
+
+struct PlannerTool: Tool {
+    let name = "planner"
+}
+
+func plan(message: String) async throws {
+    let session = LanguageModelSession(tools: [PlannerTool()])
+    _ = try await session.respond(to: Prompt("Plan \\\\(message)"))
+}
+`,
+      xcodeBuildLog: "Build passed with Xcode 27 and prompt version plan.v1.",
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-DYNAMIC-PROFILE-BOUNDARY"
+    );
+  });
+
+  it("asks Foundation Models sessions for evaluation coverage", () => {
+    const report = runCloudCheck({
+      fileName: "SummarizeWithModel.swift",
+      source: `
+import FoundationModels
+
+func summarize(message: String) async throws {
+    let session = LanguageModelSession()
+    _ = try await session.respond(to: Prompt("Summarize \\\\(message)"))
+}
+`,
+      xcodeBuildLog: "Build passed with Xcode 27 and prompt version summary.v1.",
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-EVALUATION-COVERAGE"
+    );
+  });
+
+  it("asks Private Cloud Compute sessions for fallback and quota proof", () => {
+    const report = runCloudCheck({
+      fileName: "DeepReasoning.swift",
+      source: `
+import FoundationModels
+
+func reasonAboutDocument(_ document: String) async throws {
+    let model = PrivateCloudComputeLanguageModel()
+    let session = LanguageModelSession(model: model)
+    _ = try await session.respond(to: Prompt("Summarize private document: \\\\(document)"))
+}
+`,
+      xcodeBuildLog: "Build passed with Xcode 27 and prompt version pcc.v1.",
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-PCC-FALLBACK"
+    );
+  });
+
+  it("asks Shortcuts Use Model entities for stable storage ids", () => {
+    const report = runCloudCheck({
+      fileName: "NotebookEntity.swift",
+      source: `
+import AppIntents
+
+@AppEntity(schema: .documents.note)
+struct NotebookEntry: AppEntity, SyncableEntity {
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Notebook Entry")
+    static var defaultQuery = NotebookQuery()
+    var id: UUID = UUID()
+    @Property(title: "Title") var title: String
+}
+`,
+      actualBehavior:
+        "This entity is used by Shortcuts Use Model actions and needs durable storage across runs.",
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-SHORTCUT-STORAGE-ID"
+    );
+  });
+
+  it("asks Shortcuts Use Model entities for richer grounding metadata", () => {
+    const report = runCloudCheck({
+      fileName: "MailEntity.swift",
+      source: `
+import AppIntents
+
+@AppEntity(schema: .mail.message)
+struct MailMessage: AppEntity, SyncableEntity {
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Message")
+    static var defaultQuery = MailMessageQuery()
+    var id: String
+    @Property(title: "Subject") var subject: String
+}
+`,
+      testFailure:
+        "Shortcuts Use Model transcript cannot ground the action because only one entity property is exposed.",
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-USEMODEL-ENTITY-RICHNESS"
+    );
+  });
+
+  it("asks Core AI code for deployment and availability proof", () => {
+    const report = runCloudCheck({
+      fileName: "LocalClassifier.swift",
+      source: `
+import CoreAI
+
+struct LocalClassifier {
+    let model = CoreAIModel(named: "MessageClassifier")
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-COREAI-DEPLOYMENT"
+    );
+  });
+
+  it("flags ImageCreator usage as a migration risk", () => {
+    const report = runCloudCheck({
+      fileName: "ImageGeneration.swift",
+      source: `
+import FoundationModels
+
+func makeImage(prompt: String) async throws {
+    let creator = ImageCreator()
+    _ = try await creator.images(for: prompt)
+}
+`,
+    });
+
+    expect(report.diagnostics.map((d) => d.code)).toContain(
+      "AXCLOUD-WWDC26-IMAGECREATOR-DEPRECATED"
+    );
+  });
+
   it("asks custom Language Model providers for protocol proof", () => {
     const report = runCloudCheck({
       fileName: "CustomProvider.swift",

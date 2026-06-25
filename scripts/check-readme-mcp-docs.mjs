@@ -17,6 +17,9 @@ const serverJson = JSON.parse(readFileSync(SERVER_JSON, "utf-8"));
 const publicTruth = existsSync(PUBLIC_TRUTH)
   ? JSON.parse(readFileSync(PUBLIC_TRUTH, "utf-8"))
   : null;
+const publicTruthMatchesCheckout =
+  publicTruth?.axint?.version === metrics.version ||
+  publicTruth?.axint?.versionTag === `v${metrics.version}`;
 const failures = [];
 
 for (const toolName of metrics.mcpToolNames ?? []) {
@@ -51,21 +54,27 @@ if (!proofMatch) {
   failures.push("README public-truth proof line markers are missing");
 } else {
   const proofLine = proofMatch[1].trim();
-  const expectedVersion = publicTruth?.axint?.versionTag ?? `v${metrics.version}`;
+  const expectedVersion = publicTruthMatchesCheckout
+    ? publicTruth.axint.versionTag
+    : `v${metrics.version}`;
   const expectedMcp =
-    publicTruth?.axint?.mcp?.summary
-    ?? `${metrics.mcpTools} MCP tools + ${metrics.mcpPrompts} prompts`;
+    publicTruthMatchesCheckout && publicTruth?.axint?.mcp?.summary
+      ? publicTruth.axint.mcp.summary
+      : `${metrics.mcpTools} MCP tools + ${metrics.mcpPrompts} prompts`;
   const expectedDiagnostics =
-    publicTruth?.axint?.diagnostics?.summary
-    ?? `${metrics.diagnostics} diagnostic codes`;
+    publicTruthMatchesCheckout && publicTruth?.axint?.diagnostics?.summary
+      ? publicTruth.axint.diagnostics.summary
+      : `${metrics.diagnostics} diagnostic codes`;
   const totalTests = (metrics.tests?.typescript ?? 0) + (metrics.tests?.python ?? 0);
   const expectedTests =
-    publicTruth?.axint?.tests?.summary
-    ?? `${totalTests} tests`;
+    publicTruthMatchesCheckout && publicTruth?.axint?.tests?.summary
+      ? publicTruth.axint.tests.summary
+      : `${totalTests} tests`;
   const expectedPackages = `${metrics.registryPackages} live packages`;
   const expectedTemplates =
-    publicTruth?.axint?.templates?.summary
-    ?? `${metrics.bundledTemplates} bundled templates`;
+    publicTruthMatchesCheckout && publicTruth?.axint?.templates?.summary
+      ? publicTruth.axint.templates.summary
+      : `${metrics.bundledTemplates} bundled templates`;
 
   if (!proofLine.includes(expectedVersion)) {
     failures.push(`README proof line should include ${expectedVersion}`);

@@ -52,6 +52,7 @@ export {
 export type { DiagnosticInfo } from "./diagnostics.js";
 export { ejectIntent } from "./eject.js";
 export { buildToolContract, renderToolContractMarkdown } from "./tool-contract.js";
+export { generateAppIntentsTestingHarness } from "../apple-intelligence/appintents-testing.js";
 export type {
   AxintToolContract,
   AxintToolContractConfidence,
@@ -59,6 +60,7 @@ export type {
   AxintToolContractStatus,
   AxintToolContractVerdict,
 } from "./tool-contract.js";
+export type { AppIntentsTestingHarnessInput } from "../apple-intelligence/appintents-testing.js";
 export {
   irTypeToSwift,
   SWIFT_TYPE_MAP,

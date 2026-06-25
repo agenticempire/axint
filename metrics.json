@@ -1,5 +1,5 @@
 {
-  "version": "0.4.32",
+  "version": "0.4.33",
   "mcpTools": 36,
   "mcpToolNames": [
     "axint.status",
@@ -47,7 +47,7 @@
     "axint.create-widget",
     "axint.create-intent"
   ],
-  "bundledTemplates": 50,
+  "bundledTemplates": 53,
   "diagnostics": 217,
   "xcodeFixRules": 33,
   "xcodeFixRuleCodes": [
@@ -86,7 +86,7 @@
     "AX748"
   ],
   "tests": {
-    "typescript": 1318,
+    "typescript": 1331,
     "python": 114
   },
   "registryPackages": 58,
