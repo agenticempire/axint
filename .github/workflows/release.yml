@@ -18,7 +18,7 @@ jobs:
       # `secrets` context isn't available in step-level `if` expressions.
       HAS_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN != '' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Use Node.js 22
         uses: actions/setup-node@v6
