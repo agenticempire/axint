@@ -18,5 +18,11 @@
     "mcp",
     "code-generation"
   ],
-  "mcpServers": ".mcp.json"
+  "mcpServers": {
+    "axint": {
+      "command": "npx",
+      "args": ["-y", "@axint/compiler", "axint-mcp"],
+      "env": {}
+    }
+  }
 }
