@@ -13,6 +13,10 @@ import {
   compileAppFromIR,
 } from "../core/compiler.js";
 import { formatSwift } from "../core/format.js";
+import {
+  generatePrivacyManifest,
+  privacyManifestForAgenticFeature,
+} from "../apple/privacy-manifest.js";
 import type {
   IRIntent,
   IRView,
@@ -27,6 +31,8 @@ import type {
   WidgetFamily,
   WidgetRefreshPolicy,
   SceneKind,
+  IRAppSchemaDomain,
+  IRIntentExecution,
 } from "../core/types.js";
 import { isPrimitiveType, isSceneKind } from "../core/types.js";
 import { buildSmartViewBody, reservedViewPropertyName } from "./view-blueprints.js";
@@ -40,6 +46,13 @@ export type SchemaCompileArgs = {
   title?: string;
   description?: string;
   domain?: string;
+  schemaDomain?: string;
+  schema?: string;
+  conformsTo?: string[];
+  supportedModes?: string;
+  allowedExecutionTargets?: string;
+  execution?: IRIntentExecution;
+  emitPrivacyManifest?: boolean;
   params?: Record<string, string>;
   props?: Record<string, string>;
   state?: Record<string, { type: string; default?: unknown }>;
@@ -48,6 +61,10 @@ export type SchemaCompileArgs = {
   families?: string[];
   entry?: Record<string, string>;
   refreshInterval?: number;
+  configurationIntent?: {
+    name: string;
+    params?: Record<string, string>;
+  };
   scenes?: Array<{
     kind: string;
     view: string;
@@ -79,6 +96,13 @@ function schemaTypeToIRType(typeStr: string): IRType {
   const normalized = typeStr === "number" ? "int" : typeStr;
   if (isPrimitiveType(normalized)) {
     return { kind: "primitive", value: normalized };
+  }
+  if (
+    /^[A-Z][A-Za-z0-9_.<>?,\s]*$/.test(normalized) ||
+    normalized === "AttributedString" ||
+    normalized === "PersonNameComponents"
+  ) {
+    return { kind: "native", swiftType: normalized };
   }
   return { kind: "primitive", value: "string" };
 }
@@ -160,9 +184,16 @@ async function handleIntentSchema(
     title: resolvedTitle,
     description: args.description || resolvedTitle,
     domain: args.domain,
+    schemaDomain: args.schemaDomain as IRAppSchemaDomain | undefined,
+    schema: args.schema,
     parameters,
     returnType: { kind: "primitive", value: "string" },
     sourceFile: "<schema>",
+    conformsTo: args.conformsTo as IRIntent["conformsTo"],
+    supportedModes: args.execution?.supportedModes ?? args.supportedModes,
+    allowedExecutionTargets:
+      args.execution?.allowedExecutionTargets ?? args.allowedExecutionTargets,
+    execution: args.execution,
   };
 
   const result = compileFromIR(ir);
@@ -176,7 +207,12 @@ async function handleIntentSchema(
     };
   }
 
-  return formatSchemaOutput(result.output.swiftCode, inputTokens, shouldFormat);
+  const privacyManifest = args.emitPrivacyManifest
+    ? generatePrivacyManifest(privacyManifestForAgenticFeature())
+    : undefined;
+  return formatSchemaOutput(result.output.swiftCode, inputTokens, shouldFormat, {
+    privacyManifest,
+  });
 }
 
 async function handleViewSchema(
@@ -588,6 +624,7 @@ async function handleWidgetSchema(
     "systemMedium",
     "systemLarge",
     "systemExtraLarge",
+    "systemExtraLargePortrait",
     "accessoryCircular",
     "accessoryRectangular",
     "accessoryInline",
@@ -613,6 +650,21 @@ async function handleWidgetSchema(
       : [{ kind: "text", content: "Hello" }],
     refreshInterval: args.refreshInterval,
     refreshPolicy,
+    configurationIntent: args.configurationIntent
+      ? {
+          name: args.configurationIntent.name,
+          parameters: Object.entries(args.configurationIntent.params ?? {}).map(
+            ([name, typeStr]) => ({
+              name,
+              type: schemaTypeToIRType(typeStr),
+              title: humanizeIdentifier(name),
+              description: humanizeIdentifier(name),
+              isOptional: false,
+              unionValue: /^[A-Z]/.test(typeStr) && !isPrimitiveType(typeStr),
+            })
+          ),
+        }
+      : undefined,
     sourceFile: "<schema>",
   };
 
@@ -723,7 +775,8 @@ async function handleAppSchema(
 async function formatSchemaOutput(
   swiftCode: string,
   inputTokens: number,
-  shouldFormat: boolean
+  shouldFormat: boolean,
+  extras: { privacyManifest?: string } = {}
 ): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
   const swift = shouldFormat ? (await formatSwift(swiftCode)).formatted : swiftCode;
   const outputTokens = Math.ceil(swift.length / 4);
@@ -739,6 +792,9 @@ async function formatSchemaOutput(
 // Tokens saved:                   ${tokensSaved > 0 ? `+${tokensSaved}` : tokensSaved}
 `;
 
-  const output = tokenStats + "\n\n" + swift;
+  const extraOutput = extras.privacyManifest
+    ? `\n\n// ─── PrivacyInfo.xcprivacy ─────────────────────────────\n${extras.privacyManifest}`
+    : "";
+  const output = tokenStats + "\n\n" + swift + extraOutput;
   return { content: [{ type: "text" as const, text: output }] };
 }

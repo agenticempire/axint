@@ -181,6 +181,7 @@ export function registerCompile(program: Command) {
             | "app"
             | "liveActivity"
             | "appEnum"
+            | "unionValue"
             | "appShortcut"
             | "extension";
           let output: UnifiedOutput | null;
@@ -279,6 +280,7 @@ export function registerCompile(program: Command) {
             options.fixPacket &&
             surface !== "liveActivity" &&
             surface !== "appEnum" &&
+            surface !== "unionValue" &&
             surface !== "appShortcut" &&
             surface !== "extension" &&
             surface !== "entity"

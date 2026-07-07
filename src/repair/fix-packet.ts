@@ -87,7 +87,7 @@ export interface FixPacketArtifacts {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-let compilerVersion = "0.4.28";
+let compilerVersion = "0.4.33";
 try {
   const pkg = JSON.parse(
     readFileSync(resolve(__dirname, "../../package.json"), "utf-8")

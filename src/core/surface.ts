@@ -15,6 +15,7 @@ export type Surface =
   | "app"
   | "liveActivity"
   | "appEnum"
+  | "unionValue"
   | "appShortcut"
   | "extension"
   | "entity";
@@ -26,6 +27,7 @@ const DEFINE_TO_SURFACE: Readonly<Record<string, Surface>> = {
   defineApp: "app",
   defineLiveActivity: "liveActivity",
   defineAppEnum: "appEnum",
+  defineUnionValue: "unionValue",
   defineAppShortcut: "appShortcut",
   defineExtension: "extension",
 };

@@ -31,7 +31,8 @@ export type IRType =
       queryType: "all" | "id" | "string" | "property";
     }
   | { kind: "dynamicOptions"; valueType: IRType; providerName: string }
-  | { kind: "enum"; name: string; cases: string[] };
+  | { kind: "enum"; name: string; cases: string[] }
+  | { kind: "native"; swiftType: string };
 
 /** 1-based source position of a node in the original TypeScript file */
 export interface SourceSpan {
@@ -49,6 +50,8 @@ export interface IRParameter {
   defaultValue?: unknown;
   span?: SourceSpan;
   defaultSpan?: SourceSpan;
+  /** True when this parameter comes from a generated @UnionValue type. */
+  unionValue?: boolean;
 }
 
 /**
@@ -104,6 +107,21 @@ export type IRIntentConformance =
   | "WidgetConfigurationIntent";
 
 export type IREntityOwnership = "unknown" | "shared" | "public";
+
+export interface IRIntentExecution {
+  /** Swift expression for `supportedModes`, e.g. `.foreground` or `[.foreground, .background]`. */
+  supportedModes?: string;
+  /** Swift expression for `allowedExecutionTargets`, e.g. `.main`. */
+  allowedExecutionTargets?: string;
+  /** Swift expression for `authenticationPolicy`, e.g. `.requiresAuthentication`. */
+  authenticationPolicy?: string;
+  /** Whether the app should open when this intent runs. */
+  openAppWhenRun?: boolean;
+  /** Emit a long-running background task placeholder. */
+  progressReporting?: boolean;
+  /** Emit a cancellation hook placeholder. */
+  cancellationHandler?: boolean;
+}
 
 export type IRFoundationModelProvider =
   | "apple-on-device"
@@ -353,6 +371,8 @@ export interface IRIntent {
   supportedModes?: string;
   /** Swift expression for `allowedExecutionTargets`, e.g. `.main`. */
   allowedExecutionTargets?: string;
+  /** Advanced App Intents execution configuration. */
+  execution?: IRIntentExecution;
   /** Foundation Models generation contract for Apple Intelligence intents. */
   model?: IRFoundationModelConfig;
   /** Evaluation suite metadata that should accompany model-backed output. */
@@ -373,6 +393,7 @@ export type WidgetFamily =
   | "systemMedium"
   | "systemLarge"
   | "systemExtraLarge"
+  | "systemExtraLargePortrait"
   | "accessoryCircular"
   | "accessoryRectangular"
   | "accessoryInline";
@@ -399,6 +420,35 @@ export interface IRWidget {
   /** Refresh interval in minutes (for .after policy) */
   refreshInterval?: number;
   refreshPolicy: WidgetRefreshPolicy;
+  /** Optional AppIntent-backed widget configuration. */
+  configurationIntent?: {
+    name: string;
+    parameters: IRParameter[];
+  };
+  sourceFile: string;
+}
+
+// ─── Union Value IR Types ───────────────────────────────────────────────────
+
+/** A single associated-value case inside an App Intents @UnionValue enum. */
+export interface IRUnionValueCase {
+  /** Swift enum case name. */
+  name: string;
+  /** Associated Swift type, e.g. String, URL, Int, or a schema-backed AppEntity. */
+  swiftType: string;
+  /** Human-readable display title shown in Siri and Shortcuts. */
+  title: string;
+  /** Optional SF Symbol name for the case display representation. */
+  image?: string;
+}
+
+/** The main IR node for a compiled @UnionValue. */
+export interface IRUnionValue {
+  /** PascalCase Swift enum name. */
+  name: string;
+  /** Display title shown in Shortcuts/Siri type pickers. */
+  title?: string;
+  cases: IRUnionValueCase[];
   sourceFile: string;
 }
 
@@ -621,10 +671,13 @@ export interface CompilerOptions {
     | "ios17"
     | "ios18"
     | "ios26"
+    | "ios27"
     | "macos13"
     | "macos14"
     | "macos15"
-    | "macos26";
+    | "macos26"
+    | "macos27"
+    | "visionos27";
   /** Whether to emit an Info.plist fragment alongside the Swift file */
   emitInfoPlist?: boolean;
   /** Whether to emit an entitlements fragment alongside the Swift file */
@@ -727,5 +780,7 @@ export function irTypeToSwift(type: IRType): string {
       return irTypeToSwift(type.valueType);
     case "enum":
       return type.name;
+    case "native":
+      return type.swiftType;
   }
 }

@@ -580,6 +580,32 @@ struct MessengerCornerPill: View {}
     expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
   });
 
+  it("generates Cadabra preset library lanes instead of generic settings scaffolds", () => {
+    const result = generateFeature({
+      description:
+        "Create CadabraPresetLibrary for the product hierarchy: organize presets into Better, Outfit, and Wild lanes, make Better the default lane, expose public Magic Level copy, and hide advanced dogfood provider controls behind a debug affordance.",
+      surfaces: ["view"],
+      name: "CadabraPresetLibrary",
+      platform: "iOS",
+      tokenNamespace: "CadabraTokens",
+    });
+
+    expect(result.success).toBe(true);
+    const view = result.files.find(
+      (f) => f.path === "Sources/Views/CadabraPresetLibraryView.swift"
+    );
+    expect(view).toBeDefined();
+    expect(view!.content).toContain('Text("Preset library")');
+    expect(view!.content).toContain('["Better", "Outfit", "Wild"]');
+    expect(view!.content).toContain('Picker("Default lane"');
+    expect(view!.content).toContain("Magic Level");
+    expect(view!.content).toContain("Debug controls hidden");
+    expect(view!.content).not.toContain("Transcription Engine");
+    expect(view!.content).not.toContain("Keyboard Shortcuts");
+    expect(view!.content).not.toContain('["Fast", "Pro", "Perfect"]');
+    expect(validateSwiftSource(view!.content, view!.path).diagnostics).toEqual([]);
+  });
+
   it("keeps operating-model settings prompts out of generic feed-card output", () => {
     const result = generateFeature({
       description:

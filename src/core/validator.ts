@@ -568,6 +568,8 @@ function checkDefaultAgainst(
         suggestion:
           "Remove the default — entity values are resolved at runtime by the entity query.",
       };
+    case "native":
+      return null;
   }
 }
 

@@ -24,6 +24,7 @@ import type {
   IRPreviewProofConfig,
 } from "./types.js";
 import { irTypeToSwift } from "./types.js";
+import { normalizeIOS27Beta3Schema } from "../apple/ios27-beta3.js";
 
 // ─── String Escaping ─────────────────────────────────────────────────
 
@@ -121,7 +122,7 @@ export function generateSwift(intent: IRIntent): string {
 
   // Struct declaration
   if (safeIntent.schema) {
-    lines.push(`@AppIntent(schema: ${safeIntent.schema})`);
+    lines.push(`@AppIntent(schema: ${normalizeIOS27Beta3Schema(safeIntent.schema)})`);
   }
   lines.push(
     `struct ${safeIntent.name}Intent: ${intentConformances(safeIntent).join(", ")} {`
@@ -145,6 +146,16 @@ export function generateSwift(intent: IRIntent): string {
   if (safeIntent.allowedExecutionTargets) {
     lines.push(
       `    static var allowedExecutionTargets: ExecutionTargets { ${safeIntent.allowedExecutionTargets} }`
+    );
+  }
+  if (safeIntent.execution?.authenticationPolicy) {
+    lines.push(
+      `    static var authenticationPolicy: IntentAuthenticationPolicy { ${safeIntent.execution.authenticationPolicy} }`
+    );
+  }
+  if (safeIntent.execution?.openAppWhenRun !== undefined) {
+    lines.push(
+      `    static var openAppWhenRun: Bool = ${safeIntent.execution.openAppWhenRun}`
     );
   }
   lines.push(``);
@@ -189,6 +200,24 @@ export function generateSwift(intent: IRIntent): string {
 
   lines.push(generatePerformReturn(safeIntent.returnType, safeIntent.customResultType));
   lines.push(`    }`);
+
+  if (safeIntent.execution?.progressReporting) {
+    lines.push(``);
+    lines.push(`    func performBackgroundTask() async throws {`);
+    lines.push(`        // TODO: Move long-running work here and report progress.`);
+    lines.push(`    }`);
+  }
+
+  if (
+    safeIntent.execution?.cancellationHandler ||
+    safeIntent.conformsTo?.includes("CancellableIntent")
+  ) {
+    lines.push(``);
+    lines.push(`    func onCancel() async {`);
+    lines.push(`        // TODO: Stop any outstanding work and clean up resources.`);
+    lines.push(`    }`);
+  }
+
   lines.push(`}`);
   lines.push(``);
 
