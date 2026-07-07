@@ -302,7 +302,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.34 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1467 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.35 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1467 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is regenerated from the compiler's metrics pipeline on every release (`npm run metrics:emit && npm run metrics:check`).<!-- truth:readme-truth-source:end -->
 

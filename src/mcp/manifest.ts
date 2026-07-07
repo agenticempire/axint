@@ -11,7 +11,7 @@ export const TOOL_MANIFEST = [
     description:
       "Report the exact running Axint MCP server version, package path, uptime, " +
       "registered tool count, and same-thread MCP reload/update instructions. Use this " +
-      "as the first tool in a new Codex, Claude, or Xcode agent chat to prove which Axint process " +
+      "as the first tool in a new AI-agent or Xcode chat to prove which Axint process " +
       "the agent is actually connected to. This answers the running MCP server, " +
       "not a guessed npm, PyPI, or docs version.",
     annotations: {
@@ -63,7 +63,7 @@ export const TOOL_MANIFEST = [
       "Check the latest Axint package and optionally apply the upgrade while preserving " +
       "the current agent thread. Returns exact install commands, optional Xcode MCP " +
       "wiring refresh, .axint/upgrade/latest.* artifacts, and a same-thread resume " +
-      "prompt so Codex, Claude, or Xcode can reload the MCP process without starting " +
+      "prompt so an AI-agent or Xcode host can reload the MCP process without starting " +
       "from scratch.",
     annotations: {
       readOnlyHint: false,
@@ -320,7 +320,7 @@ export const TOOL_MANIFEST = [
       ".axint/session/current.json plus token-scoped session history, refreshes .axint/AXINT_REHYDRATE.md, " +
       "returns compact operating memory, docs context, a session token, and " +
       "the exact axint.workflow.check args. Use " +
-      "this as the first Axint tool in Codex, Claude, or Xcode after a new chat, MCP reload, or " +
+      "this as the first Axint tool in an AI-agent or Xcode host after a new chat, MCP reload, or " +
       "context compaction so the agent cannot silently drift away from Axint.",
     annotations: {
       readOnlyHint: false,
@@ -496,7 +496,7 @@ export const TOOL_MANIFEST = [
     description:
       "Generate the Axint project-start pack for a new Apple app without writing files. " +
       "Returns .mcp.json, AGENTS.md, CLAUDE.md, .axint/AXINT_MEMORY.md, .axint/project.json, and .axint/README.md " +
-      "so an Xcode/Codex/Claude agent can install the exact first-try workflow: read docs, " +
+      "so an Xcode or AI-agent host can install the exact first-try workflow: read docs, " +
       "call axint.status, call axint.activate, run workflow gates, validate Swift, run Cloud Check with evidence, " +
       "and avoid static-only bug claims.",
     annotations: {
@@ -821,21 +821,21 @@ export const TOOL_MANIFEST = [
   {
     name: "axint.workflow.check",
     description:
-      "Read-only agent workflow gate. Requires the current Axint session token " +
+      "Agent workflow gate that records a local freshness stamp. Requires the current Axint session token " +
       "from axint.session.start unless requireSession=false is explicitly set. " +
       "Use this at session start, after context compaction, before planning, writing, " +
       "building, or committing to make sure the agent has actually used the " +
       "right Axint tools: suggest for planning, feature for new surfaces, " +
       "swift.validate for modified Swift, cloud.check for coverage-aware " +
       "repair feedback, and Xcode build/test evidence for runtime proof. " +
-      "For existing dirty SwiftUI files or Codex-style patch edits, it points " +
+      "For existing dirty SwiftUI files or patch-first edits, it points " +
       "agents toward surgical patching plus validation instead of full-file writes. " +
       "A ready result is not a completion stamp: the response includes the next " +
       "Axint action the agent should call before returning to broad Apple-native work.",
     annotations: {
-      readOnlyHint: true,
+      readOnlyHint: false,
       destructiveHint: false,
-      idempotentHint: true,
+      idempotentHint: false,
       openWorldHint: false,
     },
     inputSchema: {
@@ -855,7 +855,7 @@ export const TOOL_MANIFEST = [
           type: "string",
           enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
           description:
-            "Agent host/tool lane for this gate. Codex/Claude/Cowork/Cursor use patch-first lanes; Xcode may use Xcode guard/write.",
+            "Agent host/tool lane for this gate. Patch-first lanes should use native edits; Xcode may use Xcode guard/write.",
         },
         sessionToken: {
           type: "string",
@@ -1319,7 +1319,7 @@ export const TOOL_MANIFEST = [
           type: "string",
           enum: ["all", "claude", "codex", "cowork", "cursor", "xcode"],
           description:
-            "Active host/tool lane. Axint adapts the repair plan so Codex/Claude/Cursor avoid Xcode-only write tools.",
+            "Active host/tool lane. Axint adapts the repair plan so patch-first agents avoid Xcode-only write tools.",
         },
         expectedBehavior: {
           type: "string",
@@ -1462,8 +1462,8 @@ export const TOOL_MANIFEST = [
     name: "axint.agent.install",
     description:
       "Install the local Axint multi-agent project brain. Writes .axint/agent.json, " +
-      ".axint/context/latest.*, and .axint/coordination files so Codex, Claude, Cursor, " +
-      "Xcode, OpenClaw, and humans coordinate through the same local truth layer.",
+      ".axint/context/latest.*, and .axint/coordination files so AI agents, Xcode, " +
+      "and humans coordinate through the same local truth layer.",
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -1515,7 +1515,7 @@ export const TOOL_MANIFEST = [
     description:
       "Ask the local Axint project brain what this agent should do next. Reads project " +
       "context, latest run proof, latest repair plan, and active file claims, then returns " +
-      "host-specific guidance for Codex, Claude, Cursor, Xcode, or another agent lane.",
+      "host-specific guidance for Xcode, patch-first editors, or another agent lane.",
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -1604,7 +1604,7 @@ export const TOOL_MANIFEST = [
     name: "axint.agent.release",
     description:
       "Release active local Axint file claims for this agent after finishing or abandoning " +
-      "a task. This keeps Codex, Claude, Cursor, and Xcode from blocking each other on stale claims.",
+      "a task. This keeps parallel agents and Xcode from blocking each other on stale claims.",
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -2289,12 +2289,12 @@ type CompactManifestOptions = {
   nestedDescriptionChars: number;
 };
 
-const DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS = 156;
-const DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS = 64;
-const DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS = 0;
+const DEFAULT_RUNTIME_TOOL_DESCRIPTION_CHARS = 640;
+const DEFAULT_RUNTIME_SCHEMA_DESCRIPTION_CHARS = 160;
+const DEFAULT_RUNTIME_NESTED_DESCRIPTION_CHARS = 80;
 
 /** Optional params keep a short hint; the full prose stays in full mode. */
-const OPTIONAL_PROPERTY_DESCRIPTION_CHARS = 20;
+const OPTIONAL_PROPERTY_DESCRIPTION_CHARS = 80;
 
 /** Compact mode ships the output contract without the prose around it. */
 const MINIMAL_TEXT_OUTPUT_SCHEMA = {
@@ -2371,8 +2371,10 @@ function compactToolDescription(
   // survive however small the budget gets.
   const effects = RUNTIME_TOOL_EFFECTS[tool.name] ?? defaultEffectSummary(tool);
   const guidance = RUNTIME_TOOL_GUIDANCE[tool.name];
-  const summaryChars = Math.max(60, Math.floor(maxChars * 0.45));
-  const detailChars = Math.max(36, Math.floor((maxChars - summaryChars) / 2));
+  const footerChars =
+    ` Effects: ${effects}`.length + (guidance ? ` Use: ${guidance}`.length : 0);
+  const summaryChars = Math.max(120, maxChars - footerChars - 2);
+  const detailChars = Math.max(48, Math.floor(Math.min(maxChars, 320) / 2));
 
   const parts = [compactDescription(tool.description, summaryChars)];
   if (guidance) parts.push(`Use: ${compactDescription(guidance, detailChars)}`);
@@ -2407,7 +2409,7 @@ const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
   "axint.doctor":
     "call when MCP wiring, package paths, Xcode setup, or project memory may be stale.",
   "axint.xcode.guard":
-    "call around long Xcode tasks, context recovery, broad Swift edits, or before claiming runtime proof.",
+    "call around long Xcode tasks, context recovery, broad Swift edits, or before claiming runtime proof; use workflow.check outside Xcode.",
   "axint.xcode.write":
     "use only for guarded Xcode-project file writes; outside Xcode, patch normally and validate after.",
   "axint.session.start":
@@ -2415,13 +2417,13 @@ const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
   "axint.feature":
     "use for new Apple-native surfaces; not for repairing existing app bugs.",
   "axint.project.pack":
-    "use to bootstrap an Apple project with Axint instructions; not to inspect an existing project.",
+    "use to bootstrap a new Apple project with Axint instructions; use project.index to inspect an existing project.",
   "axint.project.index":
     "use before project-aware repair, multi-file SwiftUI work, or interaction-risk analysis.",
   "axint.project.syncVersion":
     "use after package upgrades so local project-pack hints stop naming old Axint versions.",
   "axint.context.memory":
-    "use after compaction or session restart when the agent needs compact operating rules.",
+    "use after compaction or session restart for compact operating rules; use context.docs for longer workflow docs.",
   "axint.context.docs":
     "use after compaction when the agent needs workflow docs without rereading the whole site.",
   "axint.suggest":
@@ -2429,9 +2431,9 @@ const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
   "axint.registry.search":
     "use before generating code to find reusable packages; not for validating local Swift.",
   "axint.workflow.check":
-    "use at stage gates to prove Axint workflow coverage; not a final build/test substitute.",
+    "use at stage gates to prove workflow coverage; use status for version checks and run for build/test proof.",
   "axint.scaffold":
-    "use to create a small TypeScript intent starter; use templates for richer examples.",
+    "use to create a small TypeScript intent starter; use templates.get for richer examples and compile for Swift output.",
   "axint.compile":
     "use when TypeScript DSL source should become Swift; use validate for cheaper preflight only.",
   "axint.validate":
@@ -2447,11 +2449,11 @@ const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
   "axint.agent.install":
     "use once per project to create local multi-agent coordination; not needed for one-off compile.",
   "axint.agent.advice":
-    "use when multiple tools or agents need the next safest move from local proof.",
+    "use when local proof should choose the next move; use suggest for greenfield ideas and repair for known bugs.",
   "axint.agent.claim":
     "use before editing shared files in parallel-agent work; release claims when done.",
   "axint.agent.release":
-    "use after finishing or abandoning claimed files so other agents are unblocked.",
+    "use after finishing or abandoning claimed files; use agent.claim before edits and agent.advice for next steps.",
   "axint.run":
     "use when the agent must prove Swift validation, Cloud Check, Xcode build/test, and runtime evidence.",
   "axint.run.status":
@@ -2461,14 +2463,14 @@ const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
   "axint.tokens.ingest":
     "use before view/component generation when a design system should be preserved.",
   "axint.schema.compile":
-    "use for token-light JSON-to-Swift generation; use compile for full TypeScript DSL control.",
+    "use for token-light JSON-to-Swift generation; use compile for full TypeScript DSL control and scaffold for TS starters.",
   "axint.swift.validate":
     "use on generated or edited Swift before build; pair with swift.fix for mechanical repairs.",
   "axint.swift.fix":
     "use after swift.validate when errors are mechanical; inspect remaining diagnostics manually.",
   "axint.templates.list": "use to discover valid template ids before templates.get.",
   "axint.templates.get":
-    "use to fetch a complete reference template; edit before compiling into an app.",
+    "use after templates.list to fetch a complete reference template; edit it before calling compile.",
 };
 
 const RUNTIME_TOOL_EFFECTS: Record<string, string> = {
@@ -2500,7 +2502,7 @@ const RUNTIME_TOOL_EFFECTS: Record<string, string> = {
   "axint.registry.search":
     "read-only local registry search using AXINT_REGISTRY_PATH or sibling checkout; no network by default.",
   "axint.workflow.check":
-    "read-only gate but may update tiny workflow freshness stamps; no network.",
+    "writes a local .axint/session workflow freshness stamp; edits no app source and uses no network.",
   "axint.scaffold":
     "read-only generated TypeScript; writes no files and uses no network.",
   "axint.compile":
@@ -2637,12 +2639,39 @@ function fallbackSchemaDescription(value: Record<string, unknown>): string {
 
 function compactDescription(value: string, maxChars: number): string {
   const normalized = value.replace(/\s+/g, " ").trim();
-  if (normalized.length <= maxChars) return normalized;
+  if (normalized.length <= maxChars) return ensureTerminalPunctuation(normalized);
 
   const safeLimit = Math.max(16, maxChars);
-  const wordBoundary = normalized.lastIndexOf(" ", safeLimit - 4);
-  const end = wordBoundary > 16 ? wordBoundary : safeLimit - 3;
-  return `${normalized.slice(0, end).trim()}...`;
+  const sentenceFit = compactToCompleteSentences(normalized, safeLimit);
+  if (sentenceFit) return sentenceFit;
+
+  const wordBoundary = normalized.lastIndexOf(" ", safeLimit - 1);
+  const end = wordBoundary > 16 ? wordBoundary : safeLimit;
+  const trimmed = normalized
+    .slice(0, end)
+    .replace(/[,;:–-]+\s*$/, "")
+    .trim();
+  return ensureTerminalPunctuation(trimmed);
+}
+
+function compactToCompleteSentences(value: string, maxChars: number): string | undefined {
+  const matches = value
+    .split(/(?<=[.!?])\s+(?=[A-Z])/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  let out = "";
+  for (const sentence of matches) {
+    const next = out ? `${out} ${sentence}` : sentence;
+    if (next.length > maxChars) break;
+    out = next;
+  }
+  return out || undefined;
+}
+
+function ensureTerminalPunctuation(value: string): string {
+  if (!value) return value;
+  if (/[.!?)]$/.test(value)) return value;
+  return `${value}.`;
 }
 
 function positiveEnvInt(value: string | undefined, fallback: number): number {
