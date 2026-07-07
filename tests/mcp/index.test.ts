@@ -50,16 +50,22 @@ describe("axint/mcp import surface", () => {
     expect(
       compact.every((tool: { outputSchema?: unknown }) => Boolean(tool.outputSchema))
     ).toBe(true);
-    // The compact manifest is the default agents pay context for — keep
-    // it well under two-thirds of the full prose listing.
+    // The compact manifest is the default agents pay context for. Keep it
+    // smaller than full mode, but preserve complete sentences so MCP
+    // marketplaces can score the tool definitions accurately.
     expect(JSON.stringify(compact).length).toBeLessThan(
-      JSON.stringify(full).length * 0.6
+      JSON.stringify(full).length * 0.9
     );
     expect(
       compact.every((tool: { description?: string }) =>
         Boolean(
           tool.description?.includes("Use:") && tool.description.includes("Effects:")
         )
+      )
+    ).toBe(true);
+    expect(
+      compact.every(
+        (tool: { description?: string }) => !tool.description?.includes("...")
       )
     ).toBe(true);
   });

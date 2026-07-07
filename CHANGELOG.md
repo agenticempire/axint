@@ -6,9 +6,17 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.35] — 2026-07-07
+
+### Changed
+
+- **MCP marketplace tool-card quality** — default runtime tool descriptions now preserve complete `Purpose`, `Use`, and `Effects` signals instead of clipping prose into ellipsis fragments, giving Glama and other MCP directories clearer behavior, side-effect, and sibling-tool guidance without requiring verbose manifest mode.
+- **Release truth advances to v0.4.35** — npm, PyPI, editor extension metadata, Xcode extension metadata, MCP server fallbacks, worker metadata, `server.json`, metrics, README, and roadmap release references are synced.
+
 ### Fixed
 
 - **Security lockfile refresh** — pinned patched transitive floors for `hono` and `vite`, refreshed the pnpm lock, and updated the MCP worker lock so Dependabot security alerts resolve on main.
+- **Workflow gate metadata** — `axint.workflow.check` is now correctly advertised as non-destructive but not read-only, matching its local `.axint/session` freshness-stamp write and removing a marketplace annotation contradiction.
 
 ## [0.4.34] — 2026-07-07
 
