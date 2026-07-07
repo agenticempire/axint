@@ -1,3 +1,8 @@
+---
+name: axint
+description: Use Axint MCP tools to create, compile, validate, and repair Apple App Intents and Swift surfaces from TypeScript definitions.
+---
+
 # Axint — Apple-Native Compiler
 
 You have the Axint MCP server connected. Use the axint tools to help users create, compile, and validate Apple-native capabilities from TypeScript.
@@ -47,16 +52,16 @@ export default defineIntent({
 
 ## Parameter Types
 
-| Helper | Swift Type |
-|--------|-----------|
-| `param.string` | `String` |
-| `param.int` | `Int` |
-| `param.double` | `Double` |
-| `param.float` | `Float` |
-| `param.boolean` | `Bool` |
-| `param.date` | `Date` |
+| Helper           | Swift Type                  |
+| ---------------- | --------------------------- |
+| `param.string`   | `String`                    |
+| `param.int`      | `Int`                       |
+| `param.double`   | `Double`                    |
+| `param.float`    | `Float`                     |
+| `param.boolean`  | `Bool`                      |
+| `param.date`     | `Date`                      |
 | `param.duration` | `Measurement<UnitDuration>` |
-| `param.url` | `URL` |
+| `param.url`      | `URL`                       |
 
 ## Domains
 
