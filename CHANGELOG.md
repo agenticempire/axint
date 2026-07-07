@@ -6,6 +6,10 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+### Fixed
+
+- **Security lockfile refresh** — pinned patched transitive floors for `hono` and `vite`, refreshed the pnpm lock, and updated the MCP worker lock so Dependabot security alerts resolve on main.
+
 ## [0.4.34] — 2026-07-07
 
 ### Added
