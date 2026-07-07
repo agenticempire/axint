@@ -2126,7 +2126,7 @@ export const TOOL_MANIFEST = [
   {
     name: "axint.swift.validate",
     description:
-      "Validate existing Swift source against 150 build-time rules " +
+      "Validate existing Swift source against Axint's Apple-specific build-time rules " +
       "(AX700–AX749) including Swift 6 concurrency and Live Activities. " +
       "Catches bugs Xcode buries behind generic 'type does not conform' " +
       "errors: missing perform() on AppIntent, missing var body on Widget, " +
@@ -2206,7 +2206,7 @@ export const TOOL_MANIFEST = [
   {
     name: "axint.templates.list",
     description:
-      "List all 49 bundled reference templates in the Axint SDK. Returns " +
+      "List all bundled reference templates in the Axint SDK. Returns " +
       "a JSON array of { id, name, description } objects — one per template. " +
       "Templates cover messaging, productivity, health, finance, commerce, " +
       "media, navigation, smart-home, and entity/query patterns. No input " +

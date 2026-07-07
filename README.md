@@ -135,7 +135,7 @@ This creates a premium Apple-native mini app instead of a blank scaffold:
 
 - `intents/create-event.ts` is the App Intent source contract.
 - `intents/create-reminder.ts` and `intents/check-weather.ts` add two more Apple capabilities.
-- `.axint/agent-prompts/` gives Codex, Claude Code, and Cursor the exact proof loop.
+- `.axint/agent-prompts/` gives Claude Code, Cursor, and other coding agents the exact proof loop.
 - `ios/App/DayDashboardView.swift` gives the starter a real SwiftUI app shell.
 - `.axint/run/latest.md` starts the durable proof trail.
 - `share/built-with-axint.html` gives you an interactive proof preview with the generated app shell, contracts, Swift, and proof.
@@ -149,7 +149,7 @@ npm install -g @axint/compiler
 axint activate
 
 # initialize Axint inside an existing Apple/Xcode project
-axint init --apple-project /path/to/MyApp --agent codex
+axint init --apple-project /path/to/MyApp --agent claude
 
 # compile a single file
 axint compile my-intent.ts --out ios/Intents/
@@ -262,7 +262,7 @@ axint repair "comment box is visible but cannot be tapped" \
   --source Sources/HomeComposer.swift \
   --platform ios \
   --actual "visible composer no longer accepts focus or typing" \
-  --agent codex
+  --agent claude
 
 axint feedback latest --format markdown
 axint feedback status
@@ -302,7 +302,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.35 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1467 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.4.36 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1467 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is regenerated from the compiler's metrics pipeline on every release (`npm run metrics:emit && npm run metrics:check`).<!-- truth:readme-truth-source:end -->
 
@@ -326,36 +326,36 @@ axint watch my-intent.ts --out ios/Intents/ --format --swift-build
 `axint run` is the local/BYO-Mac build loop for Apple projects. It exists so agents do not have to remember separate Axint steps after a long chat or context compaction.
 
 ```bash
-axint session start --dir /path/to/MyApp --name MyApp --agent codex
-axint workflow check --dir /path/to/MyApp --agent codex --stage context-recovery --session-token <token> --read-rehydration-context --read-agent-instructions --read-docs-context --ran-status
+axint session start --dir /path/to/MyApp --name MyApp --agent claude
+axint workflow check --dir /path/to/MyApp --agent claude --stage context-recovery --session-token <token> --read-rehydration-context --read-agent-instructions --read-docs-context --ran-status
 axint xcode setup --agent claude --guarded --project /path/to/MyApp --name MyApp
 axint xcode setup --agent claude --guarded --local-build --project /path/to/MyApp --name MyApp
 axint xcode guard --dir /path/to/MyApp --stage context-recovery
-axint agent install --dir /path/to/MyApp --agent codex
-axint agent advice --dir /path/to/MyApp --agent codex --changed Sources/HomeComposer.swift Tests/HomeComposerUITests.swift
+axint agent install --dir /path/to/MyApp --agent claude
+axint agent advice --dir /path/to/MyApp --agent claude --changed Sources/HomeComposer.swift Tests/HomeComposerUITests.swift
 axint memory index --dir /path/to/MyApp --changed Sources/HomeComposer.swift Tests/HomeComposerUITests.swift
 axint appintents test Sources/App/SendMessageIntent.swift --module MyApp --out Tests/AxintAppIntentsReadinessTests.swift
-axint run --dir /path/to/MyApp --agent codex --scheme MyApp --destination "platform=macOS"
-axint run --dir /path/to/MyApp --agent codex --scheme MyApp --changed Sources/HomeComposer.swift --only-testing MyAppUITests/MyAppUITests/testComposerStillAcceptsInput
-axint run --dir /path/to/MyApp --agent codex --scheme MyApp --runtime
+axint run --dir /path/to/MyApp --agent claude --scheme MyApp --destination "platform=macOS"
+axint run --dir /path/to/MyApp --agent claude --scheme MyApp --changed Sources/HomeComposer.swift --only-testing MyAppUITests/MyAppUITests/testComposerStillAcceptsInput
+axint run --dir /path/to/MyApp --agent claude --scheme MyApp --runtime
 axint run status --dir /path/to/MyApp
 axint run cancel --dir /path/to/MyApp --id axrun_...
-axint run --dir /path/to/MyApp --agent codex --scheme MyApp --format json
-axint run --dir /path/to/MyApp --agent codex --scheme MyApp --format json --include-source
-axint runner once --dir /path/to/MyApp --agent codex --scheme MyApp
+axint run --dir /path/to/MyApp --agent claude --scheme MyApp --format json
+axint run --dir /path/to/MyApp --agent claude --scheme MyApp --format json --include-source
+axint runner once --dir /path/to/MyApp --agent claude --scheme MyApp
 ```
 
 `axint xcode setup --guarded` configures the Xcode Claude Agent with durable MCP paths, writes the project memory pack, starts a session, and creates `.axint/guard/latest.json` plus `.axint/guard/latest.md`. That guard report is the audit trail for the problem where an Xcode agent works for a long block, compacts context, and silently stops using Axint.
 
 Use `--local-build` only while dogfooding this checkout before publishing; it points Xcode at the built local MCP server instead of the npm package.
 
-Agent lanes are explicit now. Codex, Claude Code, Cursor, and Cowork should use their native patch/edit tools for existing files, then run `axint workflow check`, `axint validate-swift`, `axint cloud check`, and `axint run`. Xcode-hosted agents can use `axint.xcode.guard` and `axint.xcode.write` because those tools create real Xcode guard proof.
+Agent lanes are explicit now. Claude Code, Cursor, Cowork, and other patch-first agents should use their native patch/edit tools for existing files, then run `axint workflow check`, `axint validate-swift`, `axint cloud check`, and `axint run`. Xcode-hosted agents can use `axint.xcode.guard` and `axint.xcode.write` because those tools create real Xcode guard proof.
 
 When an Xcode MCP agent is creating a new Swift file, use `axint.xcode.write` instead of a raw file write. The tool writes inside the project root, validates Swift, runs Cloud Check, and updates the guard proof in one call. Outside Xcode, do not route routine edits through `axint.xcode.write`; patch surgically in the active client and let Axint validate the result.
 
 The run starts an agent-specific Axint session, refreshes the project recovery context, validates changed Swift, runs Cloud Check, executes `xcodebuild build` and `xcodebuild test`, optionally launches a macOS app for runtime proof, writes `.axint/run/latest.json` plus `.axint/run/latest.md`, and stores source-free Cloud learning packets under `.axint/feedback` when repeated failure shapes appear. Passing focused `--only-testing` selectors are fed back into Cloud Check so stale UI/accessibility warnings do not override real focused test proof. Failing Xcode tests are extracted from command output and `.xcresult` when available, then printed under `## Xcode Test Failures` with test name, file/line, assertion, likely source area, and identifier so the next repair starts from the real failure.
 
-`axint memory index` turns the local proof trail into `.axint/memory/latest.json` and `.axint/memory/latest.md`. It summarizes risky SwiftUI files, changed files, latest run status, failing tests, latest repair packet, and privacy-safe learning packets so Codex, Claude, Cursor, Xcode, and humans can rehydrate the same project state.
+`axint memory index` turns the local proof trail into `.axint/memory/latest.json` and `.axint/memory/latest.md`. It summarizes risky SwiftUI files, changed files, latest run status, failing tests, latest repair packet, and privacy-safe learning packets so Claude, Cursor, Xcode, other agents, and humans can rehydrate the same project state.
 
 For a repeatable first-use demo, inspect `examples/wow/composer-blocker`. It models a real SwiftUI bug where an invisible overlay blocks a composer text field and includes a focused UI-test failure for Axint to diagnose.
 
@@ -372,7 +372,7 @@ Use `--dry-run` to prove the harness and planned `xcodebuild` commands before le
 If an MCP client still lists Axint tools after the transport has closed, use the CLI fallback instead of restarting the whole thread:
 
 ```bash
-axint workflow check --dir /path/to/MyApp --agent codex --stage pre-build --session-token <token> --ran-swift-validate --ran-cloud-check --modified Sources/HomeComposer.swift
+axint workflow check --dir /path/to/MyApp --agent claude --stage pre-build --session-token <token> --ran-swift-validate --ran-cloud-check --modified Sources/HomeComposer.swift
 ```
 
 This open-source repository does not include the proprietary hosted Axint Cloud control plane: job queues, Mac fleet orchestration, billing, signed-in Pro entitlements, stored report history, or learning pipelines live outside the compiler package.
@@ -381,13 +381,13 @@ This open-source repository does not include the proprietary hosted Axint Cloud 
 
 ## Same-thread upgrades
 
-Agent sessions should not have to restart from scratch just because Axint shipped a new version. Use the upgrade flow inside Codex, Claude, Xcode, or any MCP client to check the latest package, install it when ready, refresh optional Xcode wiring, and write a continuation packet under `.axint/upgrade/latest.*`.
+Agent sessions should not have to restart from scratch just because Axint shipped a new version. Use the upgrade flow inside Claude, Xcode, or any MCP client to check the latest package, install it when ready, refresh optional Xcode wiring, and write a continuation packet under `.axint/upgrade/latest.*`.
 
 ```bash
 axint upgrade
 axint upgrade --apply
 axint upgrade --apply --xcode-install
-axint upgrade --target 0.4.31 --apply
+axint upgrade --target 0.4.36 --apply
 ```
 
 From MCP, call `axint.upgrade`. The tool returns the exact command plan plus a same-thread prompt that tells the agent to keep the current conversation, reload or reconnect only the Axint MCP server/tool process, then call `axint.status` and `axint.activate` to prove the running version and first real Axint output before editing code.
@@ -396,7 +396,7 @@ From MCP, call `axint.upgrade`. The tool returns the exact command plan plus a s
 
 ## MCP server
 
-<!-- truth:readme-mcp-support:start -->Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, Codex, VS Code, Windsurf, Xcode, and any MCP client.<!-- truth:readme-mcp-support:end -->
+<!-- truth:readme-mcp-support:start -->Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Xcode, and any MCP client.<!-- truth:readme-mcp-support:end -->
 
 <!-- truth:readme-mcp-json:start -->```json
 {
@@ -448,7 +448,7 @@ MCP tools and built-in prompts:
 | `axint.feedback.create` | Create or read a privacy-safe, source-free feedback packet |
 | `axint feedback status / opt-out / opt-in / sync / list` | Manage automatic source-free feedback, opt out, retry queued packets, and cluster imported feedback into Axint fix queues |
 | `axint telemetry status / opt-out / opt-in` | Inspect and manage source-free adoption telemetry for CLI and MCP usage |
-| `axint.agent.install` | Install the local multi-agent project brain so Codex, Claude, Cursor, Xcode, and humans share one `.axint` truth layer |
+| `axint.agent.install` | Install the local multi-agent project brain so Claude, Cursor, Xcode, other agents, and humans share one `.axint` truth layer |
 | `axint.agent.advice` | Return host-specific next moves from project context, active claims, latest proof, and latest repair artifacts |
 | `axint.agent.claim` | Claim files before an agent edits them so other agents avoid conflicting patches |
 | `axint.agent.release` | Release local file claims after an agent finishes or abandons a task |
@@ -525,7 +525,7 @@ No install required — [cloud.axint.ai](https://cloud.axint.ai) runs the same c
 
 ## Editor extensions
 
-Extensions for [Claude Code](extensions/claude-code), [Claude Desktop](extensions/claude-desktop), [Codex](extensions/codex), [VS Code / Cursor](extensions/vscode), [Windsurf](extensions/windsurf), [JetBrains](extensions/jetbrains), [Neovim](extensions/neovim), and [Xcode](extensions/xcode).
+Extensions for [Claude Code](extensions/claude-code), [Claude Desktop](extensions/claude-desktop), [VS Code / Cursor](extensions/vscode), [Windsurf](extensions/windsurf), [JetBrains](extensions/jetbrains), [Neovim](extensions/neovim), and [Xcode](extensions/xcode).
 
 ---
 

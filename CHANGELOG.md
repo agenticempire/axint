@@ -6,6 +6,13 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.36] — 2026-07-07
+
+### Changed
+
+- **Glama refresh release** — cleaned public README/profile copy for the MCP directory resync, removed stale host-specific public examples, and refreshed package/version metadata so Glama can index a fresh SHA.
+- **MCP tool-card freshness** — removed stale hard-coded rule/template counts from runtime tool descriptions so marketplace tool cards stay accurate as diagnostics and bundled templates grow.
+
 ## [0.4.35] — 2026-07-07
 
 ### Changed
