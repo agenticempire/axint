@@ -249,7 +249,7 @@ type ProjectVersionSyncArgs = {
 };
 
 // Read version from package.json so it stays in sync.
-let pkg: PackageInfo = { version: "0.4.28" };
+let pkg: PackageInfo = { version: "0.4.33" };
 let packageJsonPath = "<bundled>";
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -441,10 +441,7 @@ function toolReportText(
   };
 }
 
-export function buildMcpToolExceptionResult(
-  toolName: string,
-  err: unknown
-): ToolResult {
+export function buildMcpToolExceptionResult(toolName: string, err: unknown): ToolResult {
   const message = err instanceof Error ? err.message : String(err);
   const safeCommand = "axint mcp recover --dir . --agent all";
   return toolReportText(

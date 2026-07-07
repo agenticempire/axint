@@ -29,6 +29,7 @@ from .ir import (
     ViewPropIR,
     ViewStateIR,
     ViewStateKind,
+    WidgetConfigurationIntentIR,
     WidgetEntryIR,
     WidgetFamily,
     WidgetIR,
@@ -309,6 +310,30 @@ def _ir_from_call(call: ast.Call, *, file: str | None) -> IntentIR:
     info_plist_keys = _parse_plist_key_map(
         kwargs.get("info_plist_keys"), diagnostics, file, call.lineno
     )
+    schema_domain = None
+    if "schema_domain" in kwargs:
+        schema_domain = _literal_str(kwargs["schema_domain"], "schema_domain", diagnostics, file, call.lineno)
+
+    schema = None
+    if "schema" in kwargs:
+        schema = _literal_str(kwargs["schema"], "schema", diagnostics, file, call.lineno)
+
+    conforms_to = _parse_str_list(
+        kwargs.get("conforms_to"), "conforms_to", diagnostics, file, call.lineno
+    )
+    supported_modes = _parse_str_list(
+        kwargs.get("supported_modes"), "supported_modes", diagnostics, file, call.lineno
+    )
+    allowed_execution_targets = _parse_str_list(
+        kwargs.get("allowed_execution_targets"),
+        "allowed_execution_targets",
+        diagnostics,
+        file,
+        call.lineno,
+    )
+    execution = _parse_literal_dict(
+        kwargs.get("execution"), "execution", diagnostics, file, call.lineno
+    )
 
     is_discoverable = True
     if "is_discoverable" in kwargs:
@@ -328,6 +353,12 @@ def _ir_from_call(call: ast.Call, *, file: str | None) -> IntentIR:
         entitlements=tuple(entitlements),
         info_plist_keys=tuple(info_plist_keys),
         is_discoverable=is_discoverable,
+        schema_domain=schema_domain,
+        schema=schema,
+        conforms_to=tuple(conforms_to),
+        supported_modes=tuple(supported_modes),
+        allowed_execution_targets=tuple(allowed_execution_targets),
+        execution=execution,
         source_file=file,
         source_line=call.lineno,
     )
@@ -721,6 +752,9 @@ def _widget_ir_from_call(call: ast.Call, *, file: str | None) -> WidgetIR:
     families = _parse_widget_families(require("families"), diagnostics, file, call.lineno)
     entry = _parse_widget_entry(kwargs.get("entry"), diagnostics, file, call.lineno)
     body = _parse_view_body(kwargs.get("body"), diagnostics, file, call.lineno)
+    configuration_intent = _parse_widget_configuration_intent(
+        kwargs.get("configuration_intent"), diagnostics, file, call.lineno
+    )
 
     refresh_interval: int | None = None
     if "refresh_interval" in kwargs:
@@ -746,6 +780,7 @@ def _widget_ir_from_call(call: ast.Call, *, file: str | None) -> WidgetIR:
         body=tuple(body),
         refresh_interval=refresh_interval,
         refresh_policy=refresh_policy,
+        configuration_intent=configuration_intent,
         source_file=file,
         source_line=call.lineno,
     )
@@ -880,6 +915,50 @@ def _parse_widget_entry_call(
         default=default_val,
         description=description,
     )
+
+
+def _parse_widget_configuration_intent(
+    node: ast.expr | None,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> WidgetConfigurationIntentIR | None:
+    if node is None:
+        return None
+    if not isinstance(node, ast.Dict):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP208",
+                severity="error",
+                message="`configuration_intent=` must be a dict literal",
+                file=file,
+                line=line,
+            )
+        )
+        return None
+
+    values: dict[str, ast.expr] = {}
+    for key_node, value_node in zip(node.keys, node.values, strict=False):
+        if isinstance(key_node, ast.Constant) and isinstance(key_node.value, str):
+            values[key_node.value] = value_node
+
+    name = ""
+    if "name" in values:
+        name = _literal_str(values["name"], "configuration_intent name", diagnostics, file, line)
+    else:
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP209",
+                severity="error",
+                message="`configuration_intent=` requires a string `name` field",
+                file=file,
+                line=line,
+            )
+        )
+
+    params_node = values.get("parameters") or values.get("params")
+    parameters = _parse_params(params_node, diagnostics, file, line) if params_node is not None else []
+    return WidgetConfigurationIntentIR(name=name, parameters=tuple(parameters))
 
 
 def _app_ir_from_call(call: ast.Call, *, file: str | None) -> AppIR:
@@ -1159,7 +1238,7 @@ def _parse_param_call(
                 message=f"Parameter `{param_name}` must be a `param.<type>(...)` call",
                 file=file,
                 line=getattr(node, "lineno", None),
-                suggestion="Use one of param.string, param.int, param.boolean, param.date, param.duration, param.url, param.entity, param.enum.",
+                suggestion="Use one of param.string, param.int, param.boolean, param.date, param.duration, param.url, param.entity, param.enum, param.native, param.union_value.",
             )
         )
         return None
@@ -1175,6 +1254,13 @@ def _parse_param_call(
         "date",
         "duration",
         "url",
+        "attributed_string",
+        "attributedString",
+        "person_name_components",
+        "personNameComponents",
+        "native",
+        "union_value",
+        "unionValue",
         "entity",
         "enum",
     }
@@ -1186,10 +1272,99 @@ def _parse_param_call(
                 message=f"Unknown param type `param.{attr}` for parameter `{param_name}`",
                 file=file,
                 line=node.lineno,
-                suggestion="Valid types: string, int, double, float, boolean, date, duration, url, entity, enum.",
+                suggestion="Valid types: string, int, double, float, boolean, date, duration, url, entity, enum, native, union_value.",
             )
         )
         return None
+
+    if attr in {"attributed_string", "attributedString", "person_name_components", "personNameComponents"}:
+        description = ""
+        if node.args:
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                description = first.value
+            else:
+                diagnostics.append(
+                    ParserDiagnostic(
+                        code="AXP007",
+                        severity="error",
+                        message=f"Parameter `{param_name}` description must be a string literal",
+                        file=file,
+                        line=getattr(first, "lineno", node.lineno),
+                    )
+                )
+        optional = False
+        default: Any = None
+        for kw in node.keywords:
+            if kw.arg == "optional" and isinstance(kw.value, ast.Constant):
+                optional = bool(kw.value.value)
+            elif kw.arg == "default" and isinstance(kw.value, ast.Constant):
+                default = kw.value.value
+
+        swift_type = "AttributedString" if attr in {"attributed_string", "attributedString"} else "PersonNameComponents"
+        return IntentParameter(
+            name=param_name,
+            type="native",
+            description=description,
+            optional=optional,
+            default=default,
+            swift_type=swift_type,
+        )
+
+    if attr in {"native", "union_value", "unionValue"}:
+        if len(node.args) < 2:
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP012",
+                    severity="error",
+                    message=f"param.{attr}() requires a Swift type name and description",
+                    file=file,
+                    line=node.lineno,
+                    suggestion='Use: param.native("AttributedString", "description") or param.union_value("PlaceOrString", "description")',
+                )
+            )
+            return None
+        swift_type_node = node.args[0]
+        desc_node = node.args[1]
+        if not isinstance(swift_type_node, ast.Constant) or not isinstance(swift_type_node.value, str):
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP012",
+                    severity="error",
+                    message=f"param.{attr}() Swift type name must be a string literal",
+                    file=file,
+                    line=getattr(swift_type_node, "lineno", node.lineno),
+                )
+            )
+            return None
+        if not isinstance(desc_node, ast.Constant) or not isinstance(desc_node.value, str):
+            diagnostics.append(
+                ParserDiagnostic(
+                    code="AXP012",
+                    severity="error",
+                    message=f"param.{attr}() description must be a string literal",
+                    file=file,
+                    line=getattr(desc_node, "lineno", node.lineno),
+                )
+            )
+            return None
+        optional = False
+        native_default: Any = None
+        for kw in node.keywords:
+            if kw.arg == "optional" and isinstance(kw.value, ast.Constant):
+                optional = bool(kw.value.value)
+            elif kw.arg == "default" and isinstance(kw.value, ast.Constant):
+                native_default = kw.value.value
+
+        return IntentParameter(
+            name=param_name,
+            type="native",
+            description=desc_node.value,
+            optional=optional,
+            default=native_default,
+            swift_type=swift_type_node.value,
+            union_value=attr in {"union_value", "unionValue"},
+        )
 
     # Handle param.entity("EntityName", "description")
     if attr == "entity":
@@ -1304,19 +1479,19 @@ def _parse_param_call(
         description = desc_node.value
 
         optional = False
-        default: Any = None
+        enum_default: Any = None
         for kw in node.keywords:
             if kw.arg == "optional" and isinstance(kw.value, ast.Constant):
                 optional = bool(kw.value.value)
             elif kw.arg == "default" and isinstance(kw.value, ast.Constant):
-                default = kw.value.value
+                enum_default = kw.value.value
 
         return IntentParameter(
             name=param_name,
             type="enum",
             description=description,
             optional=optional,
-            default=default,
+            default=enum_default,
             enum_cases=tuple(enum_cases),
         )
 
@@ -1451,6 +1626,53 @@ def _parse_plist_key_map(
                 )
             )
     return legacy_keys
+
+
+def _parse_literal_dict(
+    node: ast.expr | None,
+    field: str,
+    diagnostics: list[ParserDiagnostic],
+    file: str | None,
+    line: int,
+) -> dict[str, Any] | None:
+    if node is None:
+        return None
+    if not isinstance(node, ast.Dict):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP013",
+                severity="error",
+                message=f"`{field}=` must be a dict literal",
+                file=file,
+                line=line,
+            )
+        )
+        return None
+    try:
+        value = ast.literal_eval(node)
+    except (ValueError, SyntaxError):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP013",
+                severity="error",
+                message=f"`{field}=` must contain only literal values",
+                file=file,
+                line=line,
+            )
+        )
+        return None
+    if not isinstance(value, dict):
+        diagnostics.append(
+            ParserDiagnostic(
+                code="AXP013",
+                severity="error",
+                message=f"`{field}=` must evaluate to a dictionary",
+                file=file,
+                line=line,
+            )
+        )
+        return None
+    return dict(value)
 
 
 def _literal_str(

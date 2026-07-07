@@ -179,6 +179,49 @@ x = define_intent(
     assert any(d.code == "AXP006" for d in excinfo.value.diagnostics)
 
 
+def test_parser_supports_ios27_schema_execution_and_native_params() -> None:
+    src = '''
+from axint import define_intent, param
+
+x = define_intent(
+    name="CreateNoteIntent",
+    title="Create Note",
+    description="Creates a rich note",
+    domain="productivity",
+    schema_domain="notes",
+    schema=".notes.createNote",
+    conforms_to=["AudioPlaybackIntent"],
+    supported_modes=["foreground", "background"],
+    allowed_execution_targets=["app", "extension"],
+    execution={
+        "authenticationPolicy": ".requiresAuthentication",
+        "openAppWhenRun": True,
+    },
+    params={
+        "name": param.attributed_string("Rich note title"),
+        "recipient": param.person_name_components("Recipient", optional=True),
+        "asset": param.native("PHAsset", "Selected asset"),
+        "destination": param.union_value("PlaceOrString", "Place or text"),
+    },
+)
+'''
+    ir = parse_source(src)[0]
+    assert ir.schema_domain == "notes"
+    assert ir.schema == ".notes.createNote"
+    assert ir.conforms_to == ("AudioPlaybackIntent",)
+    assert ir.supported_modes == ("foreground", "background")
+    assert ir.allowed_execution_targets == ("app", "extension")
+    assert ir.execution == {
+        "authenticationPolicy": ".requiresAuthentication",
+        "openAppWhenRun": True,
+    }
+    assert ir.parameters[0].type == "native"
+    assert ir.parameters[0].swift_type == "AttributedString"
+    assert ir.parameters[1].swift_type == "PersonNameComponents"
+    assert ir.parameters[3].swift_type == "PlaceOrString"
+    assert ir.parameters[3].union_value is True
+
+
 def test_parser_reports_syntax_error() -> None:
     with pytest.raises(ParserError) as excinfo:
         parse_source("def broken(:\n    pass", file="bad.py")

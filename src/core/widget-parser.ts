@@ -13,6 +13,7 @@ import type {
   IRWidgetEntry,
   IRType,
   IRPrimitiveType,
+  IRParameter,
   ViewBodyNode,
   WidgetFamily,
   WidgetRefreshPolicy,
@@ -94,6 +95,11 @@ export function parseWidgetSource(
   const families = extractWidgetFamilies(props.get("families"), filePath, sourceFile);
   const entry = extractWidgetEntry(props.get("entry"), filePath, sourceFile);
   const body = extractWidgetBody(props.get("body"), filePath, sourceFile);
+  const configurationIntent = extractConfigurationIntent(
+    props.get("configurationIntent"),
+    filePath,
+    sourceFile
+  );
 
   const refreshPolicyExpr = props.get("refreshPolicy");
   const refreshPolicy: WidgetRefreshPolicy = refreshPolicyExpr
@@ -115,6 +121,7 @@ export function parseWidgetSource(
     body,
     refreshInterval,
     refreshPolicy,
+    configurationIntent,
     sourceFile: filePath,
   };
 }
@@ -156,7 +163,7 @@ function extractWidgetFamilies(
         `Invalid widget family: ${fam}`,
         filePath,
         posOf(sourceFile, el),
-        "Valid families: systemSmall, systemMedium, systemLarge, systemExtraLarge, accessoryCircular, accessoryRectangular, accessoryInline"
+        "Valid families: systemSmall, systemMedium, systemLarge, systemExtraLarge, systemExtraLargePortrait, accessoryCircular, accessoryRectangular, accessoryInline"
       );
     }
   }
@@ -170,10 +177,95 @@ function isValidWidgetFamily(family: string): boolean {
     "systemMedium",
     "systemLarge",
     "systemExtraLarge",
+    "systemExtraLargePortrait",
     "accessoryCircular",
     "accessoryRectangular",
     "accessoryInline",
   ].includes(family);
+}
+
+function extractConfigurationIntent(
+  node: ts.Node | undefined,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRWidget["configurationIntent"] | undefined {
+  if (!node) return undefined;
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX417",
+      "configurationIntent must be an object literal",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const props = propertyMap(node);
+  const name = readStringLiteral(props.get("name"));
+  if (!name) {
+    throw new ParserError(
+      "AX417",
+      "configurationIntent requires a name",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const paramsNode = props.get("params");
+  const parameters = paramsNode
+    ? extractWidgetConfigurationParams(paramsNode, filePath, sourceFile)
+    : [];
+  return { name, parameters };
+}
+
+function extractWidgetConfigurationParams(
+  node: ts.Node,
+  filePath: string,
+  sourceFile: ts.SourceFile
+): IRParameter[] {
+  if (!ts.isObjectLiteralExpression(node)) {
+    throw new ParserError(
+      "AX417",
+      "configurationIntent.params must be an object literal",
+      filePath,
+      posOf(sourceFile, node)
+    );
+  }
+  const parameters: IRParameter[] = [];
+  for (const prop of node.properties) {
+    if (!ts.isPropertyAssignment(prop)) continue;
+    const name = propertyKeyName(prop.name);
+    if (!name) continue;
+    if (
+      !ts.isCallExpression(prop.initializer) ||
+      !ts.isPropertyAccessExpression(prop.initializer.expression) ||
+      !ts.isIdentifier(prop.initializer.expression.expression) ||
+      prop.initializer.expression.expression.text !== "param"
+    ) {
+      continue;
+    }
+    const helper = prop.initializer.expression.name.text;
+    const isUnionValue = helper === "unionValue";
+    const swiftType = isUnionValue
+      ? readStringLiteral(prop.initializer.arguments[0]) || "String"
+      : helper === "attributedString"
+        ? "AttributedString"
+        : helper === "personNameComponents"
+          ? "PersonNameComponents"
+          : null;
+    const descriptionArg = isUnionValue
+      ? prop.initializer.arguments[1]
+      : prop.initializer.arguments[0];
+    const description = descriptionArg ? readStringLiteral(descriptionArg) || "" : "";
+    parameters.push({
+      name,
+      type: swiftType
+        ? { kind: "native", swiftType }
+        : { kind: "primitive", value: normalizeWidgetPrimitive(helper) },
+      title: widgetPrettyTitle(name),
+      description,
+      isOptional: false,
+      unionValue: isUnionValue,
+    });
+  }
+  return parameters;
 }
 
 // ─── Entry Extraction ───────────────────────────────────────────────
@@ -442,4 +534,13 @@ function resolvePrimitiveType(name: string): IRType {
     return { kind: "primitive", value: name as IRPrimitiveType };
   }
   return { kind: "primitive", value: "string" };
+}
+
+function normalizeWidgetPrimitive(name: string): IRPrimitiveType {
+  return PARAM_TYPES.has(name as IRPrimitiveType) ? (name as IRPrimitiveType) : "string";
+}
+
+function widgetPrettyTitle(name: string): string {
+  const spaced = name.replace(/([A-Z])/g, " $1").trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }

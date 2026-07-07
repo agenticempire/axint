@@ -35,6 +35,7 @@ from .ir import (
     ViewPropIR,
     ViewStateIR,
     ViewStateKind,
+    WidgetConfigurationIntentIR,
     WidgetEntryIR,
     WidgetFamily,
     WidgetIR,
@@ -53,6 +54,8 @@ class IntentParameterSpec:
     entity_name: str | None = None
     enum_cases: tuple[str, ...] | None = None
     provider_name: str | None = None
+    swift_type: str | None = None
+    union_value: bool = False
 
     def to_parameter(self, name: str) -> IntentParameter:
         return IntentParameter(
@@ -64,6 +67,8 @@ class IntentParameterSpec:
             entity_name=self.entity_name,
             enum_cases=self.enum_cases,
             provider_name=self.provider_name,
+            swift_type=self.swift_type,
+            union_value=self.union_value,
         )
 
 
@@ -136,6 +141,39 @@ class _ParamFactory:
     def url(self, description: str, *, optional: bool = False) -> IntentParameterSpec:
         return IntentParameterSpec("url", description, optional, None)
 
+    def attributed_string(self, description: str, *, optional: bool = False, default: str | None = None) -> IntentParameterSpec:
+        return IntentParameterSpec("native", description, optional, default, swift_type="AttributedString")
+
+    def person_name_components(self, description: str, *, optional: bool = False) -> IntentParameterSpec:
+        return IntentParameterSpec("native", description, optional, None, swift_type="PersonNameComponents")
+
+    def native(
+        self,
+        swift_type: str,
+        description: str,
+        *,
+        optional: bool = False,
+        default: Any = None,
+    ) -> IntentParameterSpec:
+        return IntentParameterSpec("native", description, optional, default, swift_type=swift_type)
+
+    def union_value(
+        self,
+        union_value_name: str,
+        description: str,
+        *,
+        optional: bool = False,
+        default: Any = None,
+    ) -> IntentParameterSpec:
+        return IntentParameterSpec(
+            "native",
+            description,
+            optional,
+            default,
+            swift_type=union_value_name,
+            union_value=True,
+        )
+
     def entity(self, entity_name: str, description: str, *, optional: bool = False) -> IntentParameterSpec:
         """Entity reference parameter — the entity must be defined with `define_entity()`."""
         return IntentParameterSpec("entity", description, optional, None, entity_name=entity_name)
@@ -183,6 +221,12 @@ class IntentDefinition:
     entitlements: tuple[str, ...] = ()
     info_plist_keys: tuple[tuple[str, str], ...] = ()
     is_discoverable: bool = True
+    schema_domain: str | None = None
+    schema: str | None = None
+    conforms_to: tuple[str, ...] = ()
+    supported_modes: tuple[str, ...] = ()
+    allowed_execution_targets: tuple[str, ...] = ()
+    execution: dict[str, Any] | None = None
 
     def to_ir(self, *, source_file: str | None = None, source_line: int | None = None) -> IntentIR:
         return_type = _infer_return_type(self.perform)
@@ -198,6 +242,12 @@ class IntentDefinition:
             info_plist_keys=self.info_plist_keys,
             is_discoverable=self.is_discoverable,
             return_type=return_type,
+            schema_domain=self.schema_domain,
+            schema=self.schema,
+            conforms_to=self.conforms_to,
+            supported_modes=self.supported_modes,
+            allowed_execution_targets=self.allowed_execution_targets,
+            execution=dict(self.execution) if self.execution is not None else None,
             source_file=source_file,
             source_line=source_line,
         )
@@ -303,6 +353,12 @@ def define_intent(
     entitlements: list[str] | tuple[str, ...] | None = None,
     info_plist_keys: dict[str, str] | list[str] | tuple[str, ...] | None = None,
     is_discoverable: bool = True,
+    schema_domain: str | None = None,
+    schema: str | None = None,
+    conforms_to: list[str] | tuple[str, ...] | None = None,
+    supported_modes: list[str] | tuple[str, ...] | None = None,
+    allowed_execution_targets: list[str] | tuple[str, ...] | None = None,
+    execution: dict[str, Any] | None = None,
 ) -> IntentDefinition:
     """
     Declare an Apple App Intent from Python.
@@ -333,6 +389,18 @@ def define_intent(
         for the legacy placeholder behavior.
     is_discoverable
         Whether Siri can surface this intent proactively.
+    schema_domain
+        Optional Apple App Intent schema domain, such as "notes" or "calendar".
+    schema
+        Optional Apple App Intent schema identifier.
+    conforms_to
+        Additional App Intent protocol conformances to emit in Swift.
+    supported_modes
+        Foreground/background execution modes advertised to App Intents.
+    allowed_execution_targets
+        App/extension execution targets advertised to App Intents.
+    execution
+        Advanced execution settings such as authenticationPolicy and openAppWhenRun.
     """
     return IntentDefinition(
         name=name,
@@ -344,6 +412,12 @@ def define_intent(
         entitlements=tuple(entitlements or ()),
         info_plist_keys=_normalize_info_plist_keys(info_plist_keys),
         is_discoverable=is_discoverable,
+        schema_domain=schema_domain,
+        schema=schema,
+        conforms_to=tuple(conforms_to or ()),
+        supported_modes=tuple(supported_modes or ()),
+        allowed_execution_targets=tuple(allowed_execution_targets or ()),
+        execution=dict(execution) if execution is not None else None,
     )
 
 
@@ -660,8 +734,23 @@ class WidgetDefinition:
     body: list[dict[str, Any]] = field(default_factory=list)
     refresh_interval: int | None = None
     refresh_policy: WidgetRefreshPolicy = "atEnd"
+    configuration_intent: dict[str, Any] | None = None
 
     def to_ir(self, *, source_file: str | None = None, source_line: int | None = None) -> WidgetIR:
+        configuration_intent: WidgetConfigurationIntentIR | None = None
+        if self.configuration_intent is not None:
+            raw_params = self.configuration_intent.get("parameters", {})
+            parameters: tuple[IntentParameter, ...] = ()
+            if isinstance(raw_params, dict):
+                parameters = tuple(
+                    spec.to_parameter(param_name)
+                    for param_name, spec in raw_params.items()
+                    if isinstance(spec, IntentParameterSpec)
+                )
+            configuration_intent = WidgetConfigurationIntentIR(
+                name=str(self.configuration_intent.get("name", f"{self.name}ConfigurationIntent")),
+                parameters=parameters,
+            )
         return WidgetIR(
             name=self.name,
             display_name=self.display_name,
@@ -671,6 +760,7 @@ class WidgetDefinition:
             body=tuple(self.body),
             refresh_interval=self.refresh_interval,
             refresh_policy=self.refresh_policy,
+            configuration_intent=configuration_intent,
             source_file=source_file,
             source_line=source_line,
         )
@@ -689,6 +779,7 @@ def define_widget(
     body: list[dict[str, Any]] | None = None,
     refresh_interval: int | None = None,
     refresh_policy: WidgetRefreshPolicy = "atEnd",
+    configuration_intent: dict[str, Any] | None = None,
 ) -> WidgetDefinition:
     """
     Define a WidgetKit widget for compilation to Swift.
@@ -711,6 +802,8 @@ def define_widget(
         Refresh interval in minutes (required if refreshPolicy is "after").
     refresh_policy
         Widget refresh policy: "atEnd" (default), "after", "never".
+    configuration_intent
+        Optional AppIntent-backed widget configuration, with a name and param specs.
     """
     return WidgetDefinition(
         name=name,
@@ -721,6 +814,7 @@ def define_widget(
         body=list(body or []),
         refresh_interval=refresh_interval,
         refresh_policy=refresh_policy,
+        configuration_intent=dict(configuration_intent) if configuration_intent is not None else None,
     )
 
 

@@ -553,6 +553,8 @@ function literalMatchesType(
       if (literal.kind !== "IdentLiteral") return false;
       return type.cases.includes(literal.name);
     }
+    case "native":
+      return false;
   }
 }
 

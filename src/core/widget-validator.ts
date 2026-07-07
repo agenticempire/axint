@@ -99,6 +99,20 @@ export function validateWidget(widget: IRWidget): Diagnostic[] {
     });
   }
 
+  for (const parameter of widget.configurationIntent?.parameters ?? []) {
+    if (parameter.unionValue) {
+      diagnostics.push({
+        code: "AX417",
+        severity: "warning",
+        message:
+          "iOS 27 Beta 3 WidgetKit can fail to render timelines when WidgetConfigurationIntent uses a @UnionValue parameter",
+        file: widget.sourceFile,
+        suggestion:
+          "Use a single AppEntity with a kind discriminator instead of a @UnionValue property.",
+      });
+    }
+  }
+
   return diagnostics;
 }
 

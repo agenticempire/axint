@@ -40,6 +40,7 @@ import {
   buildSmartViewBody,
   reservedViewPropertyName,
   usesMagicPassBlueprint,
+  usesPresetLibraryBlueprint,
   usesSettingsBlueprint,
   usesOperatingModelSettings,
   usesProfileCardBlueprint,
@@ -588,6 +589,12 @@ function buildView(
       "Make the shot cinematic, whimsical, and polished while preserving identity."
     );
     ensureState(state, "promptPreview", "string", "Ready to apply Magic Pass.");
+  }
+
+  if (usesPresetLibraryBlueprint(`${name} ${description}`)) {
+    ensureState(state, "defaultLane", "string", "Better");
+    ensureState(state, "magicLevel", "int", 3);
+    ensureState(state, "debugControlsHidden", "boolean", true);
   }
 
   if (!usesMagicPassControls && usesSettingsBlueprint(description)) {
@@ -1298,6 +1305,7 @@ function usesDescriptionDrivenViewBlueprint(description: string): boolean {
   return (
     usesSettingsBlueprint(description) ||
     usesMagicPassBlueprint(description) ||
+    usesPresetLibraryBlueprint(description) ||
     usesProfileCardBlueprint(description) ||
     usesInboxBlueprint(description) ||
     usesSemanticLayout(description) ||

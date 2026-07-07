@@ -8,6 +8,8 @@ defineEntity({
   indexed: true,
   indexedQuery: true,
   ownership: "shared",
+  valueRepresentation: "ValueRepresentation(exporting: \\.name)",
+  relevantContexts: ["AppEntityContext.messages"],
   display: {
     title: "name",
     subtitle: "thread",
@@ -33,6 +35,10 @@ export default defineIntent({
   allowedExecutionTargets: ".main",
   params: {
     message: param.entity("TravelMessage", "Message to summarize"),
+    relatedMessages: param.entityCollection(
+      "TravelMessage",
+      "Related message identifiers to consider"
+    ),
     audience: param.string("Who the summary is for", { required: false }),
   },
   perform: async ({ message }) => {

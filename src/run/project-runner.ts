@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { runCloudCheck, type CloudCheckReport } from "../cloud/check.js";
 import { writeCloudFeedbackSignal } from "../cloud/feedback-store.js";
 import {
@@ -350,7 +351,7 @@ export async function runAxintProject(
   const commands: AxintRunReport["commands"] = {};
   let plan: XcodePlan | undefined;
   try {
-    plan = createXcodePlan(cwd, input, platform);
+    plan = createXcodePlan(cwd, input, platform, runId);
   } catch (err) {
     steps.push({
       name: "Xcode plan",
@@ -1169,7 +1170,8 @@ function writeRunFeedbackSignals(cwd: string, cloudChecks: CloudCheckReport[]): 
 function createXcodePlan(
   cwd: string,
   input: AxintRunInput,
-  platform: AxintRunPlatform
+  platform: AxintRunPlatform,
+  runId: string
 ): XcodePlan {
   const workspace = input.workspace
     ? resolve(cwd, input.workspace)
@@ -1192,10 +1194,24 @@ function createXcodePlan(
     scheme,
     destination: input.destination ?? defaultDestination(platform),
     configuration: input.configuration,
-    derivedDataPath: input.derivedDataPath,
+    derivedDataPath:
+      input.derivedDataPath ?? defaultRunDerivedDataPath(cwd, scheme, runId),
     testPlan: input.testPlan,
     onlyTesting: normalizeOnlyTesting(input.onlyTesting),
   };
+}
+
+function defaultRunDerivedDataPath(
+  cwd: string,
+  scheme: string | undefined,
+  runId: string
+): string {
+  const label = sanitizeDerivedDataLabel((scheme ?? basename(cwd)) || "Project");
+  return join(tmpdir(), "axint-derived-data", `${label}-${runId}`);
+}
+
+function sanitizeDerivedDataLabel(value: string): string {
+  return value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "Project";
 }
 
 function buildXcodeArgs(
@@ -1305,6 +1321,7 @@ async function runCommand(
     const child = spawn(command, args, {
       cwd: options.cwd,
       detached: true,
+      env: { ...process.env, COPYFILE_DISABLE: process.env.COPYFILE_DISABLE ?? "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
 

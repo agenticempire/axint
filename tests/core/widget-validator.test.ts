@@ -217,6 +217,57 @@ describe("widget generator: TimelineEntry date ownership", () => {
   });
 });
 
+describe("widget modernization: iOS 27", () => {
+  it("supports systemExtraLargePortrait family", () => {
+    const src = `
+      import { defineWidget, view } from "@axint/sdk";
+      export default defineWidget({
+        name: "DashboardWidget",
+        displayName: "Dashboard",
+        description: "Shows status",
+        families: ["systemExtraLargePortrait"],
+        entry: {},
+        body: [view.text("Dashboard")],
+      });
+    `;
+
+    const result = compileWidgetSource(src);
+
+    expect(result.success).toBe(true);
+    expect(result.output?.swiftCode).toContain(".systemExtraLargePortrait");
+  });
+
+  it("warns when a WidgetConfigurationIntent uses a UnionValue parameter", () => {
+    const ir: IRWidget = {
+      name: "ConfigurableDashboard",
+      displayName: "Dashboard",
+      description: "Shows status",
+      sourceFile: "dashboard.ts",
+      families: ["systemSmall"],
+      entry: [],
+      body: [{ kind: "text", content: "Dashboard" }],
+      refreshPolicy: "atEnd",
+      configurationIntent: {
+        name: "ConfigureDashboardIntent",
+        parameters: [
+          {
+            name: "target",
+            type: { kind: "native", swiftType: "DashboardTarget" },
+            title: "Target",
+            description: "Target",
+            isOptional: false,
+            unionValue: true,
+          },
+        ],
+      },
+    };
+
+    const result = compileWidgetFromIR(ir);
+
+    expect(result.diagnostics.some((d) => d.code === "AX417")).toBe(true);
+  });
+});
+
 describe("widget validator: entry fields", () => {
   it("accepts valid Swift identifier entry names", () => {
     const src = `
