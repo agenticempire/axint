@@ -249,7 +249,7 @@ type ProjectVersionSyncArgs = {
 };
 
 // Read version from package.json so it stays in sync.
-let pkg: PackageInfo = { version: "0.4.35" };
+let pkg: PackageInfo = { version: "0.4.36" };
 let packageJsonPath = "<bundled>";
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
