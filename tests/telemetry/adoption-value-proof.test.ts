@@ -37,7 +37,7 @@ describe("adoption value telemetry", () => {
     const result = await recordAdoptionEvent({
       source: "cli",
       eventName: "cli_command_completed",
-      version: "0.4.28",
+      version: "0.4.29",
       command: "run",
       host: "codex",
       result: "ok",
@@ -91,7 +91,7 @@ describe("adoption value telemetry", () => {
     const result = await recordAdoptionEvent({
       source: "mcp",
       eventName: "mcp_tool_completed",
-      version: "0.4.28",
+      version: "0.4.29",
       toolName: "axint.workflow.check",
       host: "cursor",
       result: "ok",

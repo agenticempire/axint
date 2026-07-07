@@ -27,7 +27,30 @@ export const SURFACES = [
   pyproject("python/pyproject.toml"),
   pyModule("python/axint/__init__.py"),
   pkgJson("extensions/vscode/package.json"),
+  packageLock("extensions/vscode/package-lock.json"),
+  jsonVersion("extensions/claude-desktop/manifest.json"),
   pkgJson("extensions/claude-desktop/server/package.json"),
+  regexVersion(
+    "extensions/xcode/source-editor-extension/project.yml",
+    /(\bMARKETING_VERSION:\s*")([^"]+)(")/,
+    "MARKETING_VERSION"
+  ),
+  regexVersion(
+    "extensions/xcode/README.md",
+    /(\.package\(url:\s*"https:\/\/github\.com\/agenticempire\/axint",\s*from:\s*")([^"]+)(")/,
+    "Package.swift dependency"
+  ),
+  regexVersion(
+    "src/mcp/server.ts",
+    /(let\s+pkg:\s+PackageInfo\s*=\s*\{\s*version:\s*")([^"]+)("\s*\};)/,
+    "fallback MCP version"
+  ),
+  regexVersion(
+    "src/repair/fix-packet.ts",
+    /(let\s+compilerVersion\s*=\s*")([^"]+)(")/,
+    "fallback compilerVersion"
+  ),
+  roadmapRelease("ROADMAP.md"),
   serverJson("server.json"),
   workerConst("workers/mcp-http/src/worker.ts"),
 ];
@@ -50,6 +73,42 @@ function pkgJson(relPath) {
   };
 }
 
+function packageLock(relPath) {
+  const abs = resolve(ROOT, relPath);
+  return {
+    file: relPath,
+    read() {
+      const data = JSON.parse(readFileSync(abs, "utf-8"));
+      return [
+        { where: "version", value: data.version },
+        { where: 'packages[""].version', value: data.packages?.[""]?.version },
+      ];
+    },
+    write(version) {
+      const data = JSON.parse(readFileSync(abs, "utf-8"));
+      data.version = version;
+      if (data.packages?.[""]) data.packages[""].version = version;
+      writeFileSync(abs, JSON.stringify(data, null, 2) + "\n");
+    },
+  };
+}
+
+function jsonVersion(relPath) {
+  const abs = resolve(ROOT, relPath);
+  return {
+    file: relPath,
+    read() {
+      const data = JSON.parse(readFileSync(abs, "utf-8"));
+      return [{ where: "version", value: data.version }];
+    },
+    write(version) {
+      const data = JSON.parse(readFileSync(abs, "utf-8"));
+      data.version = version;
+      writeFileSync(abs, JSON.stringify(data, null, 2) + "\n");
+    },
+  };
+}
+
 function pyproject(relPath) {
   const abs = resolve(ROOT, relPath);
   const pattern = /^version\s*=\s*"([^"]+)"/m;
@@ -64,6 +123,45 @@ function pyproject(relPath) {
       const text = readFileSync(abs, "utf-8");
       if (!pattern.test(text)) throw new Error(`${relPath} has no version line`);
       writeFileSync(abs, text.replace(pattern, `version = "${version}"`));
+    },
+  };
+}
+
+function regexVersion(relPath, pattern, where) {
+  const abs = resolve(ROOT, relPath);
+  return {
+    file: relPath,
+    read() {
+      const match = readFileSync(abs, "utf-8").match(pattern);
+      if (!match) throw new Error(`${relPath} has no ${where} version`);
+      return [{ where, value: match[2] }];
+    },
+    write(version) {
+      const text = readFileSync(abs, "utf-8");
+      if (!pattern.test(text)) throw new Error(`${relPath} has no ${where} version`);
+      writeFileSync(abs, text.replace(pattern, `$1${version}$3`));
+    },
+  };
+}
+
+function roadmapRelease(relPath) {
+  const abs = resolve(ROOT, relPath);
+  const pattern =
+    /(Current release:\s*(?:<!-- metrics:roadmap-release:start -->)?\[v)([^\\\]]+)(\]\(https:\/\/github\.com\/agenticempire\/axint\/releases\/tag\/v)([^)]+)(\)(?:<!-- metrics:roadmap-release:end -->)?)/;
+  return {
+    file: relPath,
+    read() {
+      const match = readFileSync(abs, "utf-8").match(pattern);
+      if (!match) throw new Error(`${relPath} has no current release line`);
+      return [
+        { where: "current release label", value: match[2] },
+        { where: "current release link", value: match[4] },
+      ];
+    },
+    write(version) {
+      const text = readFileSync(abs, "utf-8");
+      if (!pattern.test(text)) throw new Error(`${relPath} has no current release line`);
+      writeFileSync(abs, text.replace(pattern, `$1${version}$3${version}$5`));
     },
   };
 }

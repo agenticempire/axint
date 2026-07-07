@@ -240,6 +240,28 @@ export const param = {
   duration: make("duration"),
   /** URL parameter → Swift `URL` */
   url: make("url"),
+  /** AttributedString parameter → Swift `AttributedString` */
+  attributedString: make("attributedString"),
+  /** PersonNameComponents parameter → Swift `PersonNameComponents` */
+  personNameComponents: make("personNameComponents"),
+  /** Native Swift parameter type by name. */
+  native: (swiftType: string, description: string, config?: Partial<ParamConfig>) => ({
+    type: "native" as const,
+    swiftType,
+    description,
+    ...config,
+  }),
+  /** Parameter backed by a generated @UnionValue enum. */
+  unionValue: (
+    unionValueName: string,
+    description: string,
+    config?: Partial<ParamConfig>
+  ) => ({
+    type: "unionValue" as const,
+    swiftType: unionValueName,
+    description,
+    ...config,
+  }),
   /**
    * @deprecated Use `param.int` (or `param.double` / `param.float`) for
    * explicit Swift numeric fidelity. `param.number` is kept as an alias
@@ -726,6 +748,7 @@ export type WidgetFamily =
   | "systemMedium"
   | "systemLarge"
   | "systemExtraLarge"
+  | "systemExtraLargePortrait"
   | "accessoryCircular"
   | "accessoryRectangular"
   | "accessoryInline";
@@ -751,6 +774,11 @@ export interface WidgetDefinition {
   refreshInterval?: number;
   /** Refresh policy: "atEnd" (default), "after" (interval-based), "never". */
   refreshPolicy?: WidgetRefreshPolicy;
+  /** Optional AppIntent-backed configuration for WidgetKit configurable widgets. */
+  configurationIntent?: {
+    name: string;
+    params?: Record<string, ReturnType<(typeof param)[keyof typeof param]>>;
+  };
 }
 
 /**
@@ -998,6 +1026,48 @@ export interface LiveActivityDefinition {
 export function defineLiveActivity(
   config: LiveActivityDefinition
 ): LiveActivityDefinition {
+  return config;
+}
+
+// ─── Union Value Definition ────────────────────────────────────────────────
+
+/** A single case in an App Intents @UnionValue enum. */
+export interface UnionValueCaseConfig {
+  /** Lower-camel Swift enum case name. */
+  name: string;
+  /** Associated Swift type, e.g. String, URL, Int, or TaskEntity. */
+  type: string;
+  /** Human-readable label shown in Shortcuts and Siri. */
+  title: string;
+  /** Optional SF Symbol name for the case display representation. */
+  image?: string;
+}
+
+/** A @UnionValue definition for heterogeneous App Intents parameters. */
+export interface UnionValueDefinition {
+  /** PascalCase Swift enum name. */
+  name: string;
+  /** Optional display title for the type. */
+  title?: string;
+  cases: UnionValueCaseConfig[];
+}
+
+/**
+ * Define an App Intents @UnionValue enum.
+ *
+ * @example
+ * ```typescript
+ * export default defineUnionValue({
+ *   name: "SearchTarget",
+ *   title: "Search Target",
+ *   cases: [
+ *     { name: "task", type: "TaskEntity", title: "Task" },
+ *     { name: "query", type: "String", title: "Search Query" },
+ *   ],
+ * });
+ * ```
+ */
+export function defineUnionValue(config: UnionValueDefinition): UnionValueDefinition {
   return config;
 }
 

@@ -17,6 +17,7 @@ import { parseWidgetSource } from "./widget-parser.js";
 import { parseAppSource } from "./app-parser.js";
 import { parseLiveActivitySource } from "./live-activity-parser.js";
 import { parseAppEnumSource } from "./app-enum-parser.js";
+import { parseUnionValueSource } from "./union-value-parser.js";
 import { parseAppShortcutSource } from "./app-shortcut-parser.js";
 import { parseExtensionSource } from "./extension-parser.js";
 import { detectSurface, type Surface } from "./surface.js";
@@ -38,6 +39,7 @@ import { generateSwiftWidget } from "./widget-generator.js";
 import { generateSwiftApp } from "./app-generator.js";
 import { generateSwiftLiveActivity } from "./live-activity-generator.js";
 import { generateSwiftAppEnum } from "./app-enum-generator.js";
+import { generateSwiftUnionValue } from "./union-value-generator.js";
 import { generateSwiftAppShortcut } from "./app-shortcut-generator.js";
 import {
   generateSwiftExtension,
@@ -52,6 +54,10 @@ import {
   validateSwiftLiveActivitySource,
 } from "./live-activity-validator.js";
 import { validateAppEnum, validateSwiftAppEnumSource } from "./app-enum-validator.js";
+import {
+  validateSwiftUnionValueSource,
+  validateUnionValue,
+} from "./union-value-validator.js";
 import {
   validateAppShortcut,
   validateSwiftAppShortcutSource,
@@ -71,6 +77,7 @@ import type {
   IRApp,
   IRLiveActivity,
   IRAppEnum,
+  IRUnionValue,
   IRAppShortcut,
   IRExtension,
   IRType,
@@ -446,6 +453,17 @@ export interface AppEnumCompileResult {
   diagnostics: Diagnostic[];
 }
 
+export interface UnionValueCompileResult {
+  success: boolean;
+  output?: {
+    outputPath: string;
+    swiftCode: string;
+    ir: IRUnionValue;
+    diagnostics: Diagnostic[];
+  };
+  diagnostics: Diagnostic[];
+}
+
 /**
  * Compile a TypeScript `defineAppEnum()` source string into Swift.
  */
@@ -477,6 +495,46 @@ export function compileAppEnumFromIR(
     generateSwift: generateSwiftAppEnum,
     validateGeneratedSwift: (swiftCode) => validateSwiftAppEnumSource(swiftCode),
     outputFileName: (appEnum) => `${appEnum.name}.swift`,
+    buildOutput: ({ outputPath, swiftCode, diagnostics }) => ({
+      outputPath,
+      swiftCode,
+      ir,
+      diagnostics,
+    }),
+  });
+}
+
+/**
+ * Compile a TypeScript `defineUnionValue()` source string into Swift.
+ */
+export function compileUnionValueSource(
+  source: string,
+  fileName: string = "<stdin>",
+  options: Partial<CompilerOptions> = {}
+): UnionValueCompileResult {
+  return compileSourceWithParser({
+    source,
+    fileName,
+    options,
+    parse: parseUnionValueSource,
+    compileFromIR: compileUnionValueFromIR,
+  });
+}
+
+/**
+ * Compile from a pre-built IRUnionValue (skips parsing).
+ */
+export function compileUnionValueFromIR(
+  ir: IRUnionValue,
+  options: Partial<CompilerOptions> = {}
+): UnionValueCompileResult {
+  return runCompilePipeline({
+    ir,
+    options,
+    validateIR: validateUnionValue,
+    generateSwift: generateSwiftUnionValue,
+    validateGeneratedSwift: (swiftCode) => validateSwiftUnionValueSource(swiftCode),
+    outputFileName: (unionValue) => `${unionValue.name}.swift`,
     buildOutput: ({ outputPath, swiftCode, diagnostics }) => ({
       outputPath,
       swiftCode,
@@ -613,6 +671,7 @@ export type AnyCompileResult =
   | ({ surface: "app" } & AppCompileResult)
   | ({ surface: "liveActivity" } & LiveActivityCompileResult)
   | ({ surface: "appEnum" } & AppEnumCompileResult)
+  | ({ surface: "unionValue" } & UnionValueCompileResult)
   | ({ surface: "appShortcut" } & AppShortcutCompileResult)
   | ({ surface: "extension" } & ExtensionCompileResult);
 
@@ -636,10 +695,10 @@ export function compileAnySource(
         {
           code: "AX001",
           severity: "error",
-          message: `No defineIntent, defineEntity, defineView, defineWidget, defineApp, defineLiveActivity, defineAppEnum, defineAppShortcut, or defineExtension call found in ${fileName}`,
+          message: `No defineIntent, defineEntity, defineView, defineWidget, defineApp, defineLiveActivity, defineAppEnum, defineUnionValue, defineAppShortcut, or defineExtension call found in ${fileName}`,
           file: fileName,
           suggestion:
-            "Add a top-level `defineIntent({ ... })`, `defineEntity({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, `defineApp({ ... })`, `defineLiveActivity({ ... })`, `defineAppEnum({ ... })`, `defineAppShortcut({ ... })`, or `defineExtension({ ... })` call.",
+            "Add a top-level `defineIntent({ ... })`, `defineEntity({ ... })`, `defineView({ ... })`, `defineWidget({ ... })`, `defineApp({ ... })`, `defineLiveActivity({ ... })`, `defineAppEnum({ ... })`, `defineUnionValue({ ... })`, `defineAppShortcut({ ... })`, or `defineExtension({ ... })` call.",
         },
       ],
     };
@@ -688,6 +747,8 @@ function dispatchCompile(
       return { surface, ...compileLiveActivitySource(source, fileName, options) };
     case "appEnum":
       return { surface, ...compileAppEnumSource(source, fileName, options) };
+    case "unionValue":
+      return { surface, ...compileUnionValueSource(source, fileName, options) };
     case "appShortcut":
       return { surface, ...compileAppShortcutSource(source, fileName, options) };
     case "extension":

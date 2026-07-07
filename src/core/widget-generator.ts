@@ -5,7 +5,7 @@
  * Generates TimelineEntry, TimelineProvider, Widget struct, and Preview.
  */
 
-import type { IRWidget, IRType, ViewBodyNode } from "./types.js";
+import type { IRWidget, IRType, ViewBodyNode, IRParameter } from "./types.js";
 import { irTypeToSwift } from "./types.js";
 import { escapeSwiftString, generatedFileHeader } from "./generator.js";
 
@@ -20,7 +20,15 @@ export function generateSwiftWidget(widget: IRWidget): string {
   lines.push(``);
   lines.push(`import WidgetKit`);
   lines.push(`import SwiftUI`);
+  if (widget.configurationIntent) {
+    lines.push(`import AppIntents`);
+  }
   lines.push(``);
+
+  if (widget.configurationIntent) {
+    lines.push(generateWidgetConfigurationIntent(widget.configurationIntent));
+    lines.push(``);
+  }
 
   // Timeline entry struct
   lines.push(`struct ${widget.name}Entry: TimelineEntry {`);
@@ -39,7 +47,14 @@ export function generateSwiftWidget(widget: IRWidget): string {
   lines.push(``);
 
   // Timeline provider
-  lines.push(`struct ${widget.name}Provider: TimelineProvider {`);
+  const providerProtocol = widget.configurationIntent
+    ? "AppIntentTimelineProvider"
+    : "TimelineProvider";
+  lines.push(`struct ${widget.name}Provider: ${providerProtocol} {`);
+  if (widget.configurationIntent) {
+    lines.push(`    typealias Intent = ${widget.configurationIntent.name}`);
+    lines.push(``);
+  }
   lines.push(`    func placeholder(in context: Context) -> ${widget.name}Entry {`);
   const placeholderFields = entryFields
     .map((e) => `${e.name}: ${getDefaultValue(e.defaultValue, e.type)}`)
@@ -50,19 +65,35 @@ export function generateSwiftWidget(widget: IRWidget): string {
   lines.push(`    }`);
   lines.push(``);
 
-  lines.push(
-    `    func getSnapshot(in context: Context, completion: @escaping (${widget.name}Entry) -> Void) {`
-  );
+  if (widget.configurationIntent) {
+    lines.push(
+      `    func snapshot(for configuration: ${widget.configurationIntent.name}, in context: Context) async -> ${widget.name}Entry {`
+    );
+  } else {
+    lines.push(
+      `    func getSnapshot(in context: Context, completion: @escaping (${widget.name}Entry) -> Void) {`
+    );
+  }
   lines.push(
     `        let entry = ${widget.name}Entry(date: Date()${placeholderFields ? ", " + placeholderFields : ""})`
   );
-  lines.push(`        completion(entry)`);
+  if (widget.configurationIntent) {
+    lines.push(`        return entry`);
+  } else {
+    lines.push(`        completion(entry)`);
+  }
   lines.push(`    }`);
   lines.push(``);
 
-  lines.push(
-    `    func getTimeline(in context: Context, completion: @escaping (Timeline<${widget.name}Entry>) -> Void) {`
-  );
+  if (widget.configurationIntent) {
+    lines.push(
+      `    func timeline(for configuration: ${widget.configurationIntent.name}, in context: Context) async -> Timeline<${widget.name}Entry> {`
+    );
+  } else {
+    lines.push(
+      `    func getTimeline(in context: Context, completion: @escaping (Timeline<${widget.name}Entry>) -> Void) {`
+    );
+  }
   lines.push(
     `        let entry = ${widget.name}Entry(date: Date()${placeholderFields ? ", " + placeholderFields : ""})`
   );
@@ -80,7 +111,11 @@ export function generateSwiftWidget(widget: IRWidget): string {
   lines.push(
     `        let timeline = Timeline(entries: [entry], policy: .after(${nextRefresh}))`
   );
-  lines.push(`        completion(timeline)`);
+  if (widget.configurationIntent) {
+    lines.push(`        return timeline`);
+  } else {
+    lines.push(`        completion(timeline)`);
+  }
   lines.push(`    }`);
   lines.push(`}`);
   lines.push(``);
@@ -103,9 +138,16 @@ export function generateSwiftWidget(widget: IRWidget): string {
   lines.push(`    let kind: String = "${widget.name}"`);
   lines.push(``);
   lines.push(`    var body: some WidgetConfiguration {`);
-  lines.push(`        StaticConfiguration(`);
-  lines.push(`            kind: kind,`);
-  lines.push(`            provider: ${widget.name}Provider()`);
+  if (widget.configurationIntent) {
+    lines.push(`        AppIntentConfiguration(`);
+    lines.push(`            kind: kind,`);
+    lines.push(`            intent: ${widget.configurationIntent.name}.self,`);
+    lines.push(`            provider: ${widget.name}Provider()`);
+  } else {
+    lines.push(`        StaticConfiguration(`);
+    lines.push(`            kind: kind,`);
+    lines.push(`            provider: ${widget.name}Provider()`);
+  }
   lines.push(`        ) { entry in`);
   lines.push(`            ${widget.name}EntryView(entry: entry)`);
   lines.push(`        }`);
@@ -135,6 +177,32 @@ export function generateSwiftWidget(widget: IRWidget): string {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+function generateWidgetConfigurationIntent(
+  configurationIntent: NonNullable<IRWidget["configurationIntent"]>
+): string {
+  const lines: string[] = [];
+  lines.push(`struct ${configurationIntent.name}: WidgetConfigurationIntent {`);
+  lines.push(
+    `    static var title: LocalizedStringResource = "${escapeSwiftString(configurationIntent.name)}"`
+  );
+  if (configurationIntent.parameters.length > 0) {
+    lines.push(``);
+  }
+  for (const parameter of configurationIntent.parameters) {
+    lines.push(...generateConfigurationParameter(parameter));
+  }
+  lines.push(`}`);
+  return lines.join("\n");
+}
+
+function generateConfigurationParameter(parameter: IRParameter): string[] {
+  return [
+    `    @Parameter(title: "${escapeSwiftString(parameter.title)}", description: "${escapeSwiftString(parameter.description)}")`,
+    `    var ${parameter.name}: ${irTypeToSwift(parameter.type)}`,
+    ``,
+  ];
+}
 
 function normalizeEntryFields(entries: IRWidget["entry"]): IRWidget["entry"] {
   const seen = new Set<string>(["date"]);

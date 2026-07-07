@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.29] - 2026-05-24
+
+- Align marketplace copy with `@axint/compiler` v0.4.29.
+
 ## [0.4.28] - 2026-05-12
 
 - Align marketplace copy with `@axint/compiler` v0.4.28

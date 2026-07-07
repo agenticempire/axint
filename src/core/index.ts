@@ -10,6 +10,8 @@ export {
   compileViewFromIR,
   compileWidgetSource,
   compileWidgetFromIR,
+  compileUnionValueSource,
+  compileUnionValueFromIR,
   compileAppSource,
   compileAppFromIR,
   irFromJSON,
@@ -20,11 +22,13 @@ export type {
   EntityCompileOutput,
   ViewCompileResult,
   WidgetCompileResult,
+  UnionValueCompileResult,
   AppCompileResult,
 } from "./compiler.js";
 export { parseEntitySource, parseIntentSource, ParserError } from "./parser.js";
 export { parseViewSource } from "./view-parser.js";
 export { parseWidgetSource } from "./widget-parser.js";
+export { parseUnionValueSource } from "./union-value-parser.js";
 export { parseAppSource } from "./app-parser.js";
 export {
   generateSwift,
@@ -37,10 +41,12 @@ export {
 } from "./generator.js";
 export { generateSwiftUIView } from "./view-generator.js";
 export { generateSwiftWidget } from "./widget-generator.js";
+export { generateSwiftUnionValue } from "./union-value-generator.js";
 export { generateSwiftApp } from "./app-generator.js";
 export { validateIntent, validateEntity, validateSwiftSource } from "./validator.js";
 export { validateView, validateSwiftUISource } from "./view-validator.js";
 export { validateWidget, validateSwiftWidgetSource } from "./widget-validator.js";
+export { validateUnionValue } from "./union-value-validator.js";
 export { validateApp, validateSwiftAppSource } from "./app-validator.js";
 export { fixSwiftSource } from "./swift-fixer.js";
 export {
@@ -78,6 +84,7 @@ export {
   defineEntity,
   defineView,
   defineWidget,
+  defineUnionValue,
   defineApp,
   defineLiveActivity,
   defineAppEnum,
@@ -120,6 +127,8 @@ export type {
   WidgetEntryConfig,
   WidgetFamily,
   WidgetRefreshPolicy,
+  UnionValueDefinition,
+  UnionValueCaseConfig,
   AppDefinition,
   AppSceneConfig,
   AppSceneKind,

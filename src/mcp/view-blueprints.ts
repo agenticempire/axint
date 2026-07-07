@@ -69,6 +69,20 @@ export function usesMagicPassBlueprint(description: string): boolean {
   return controlIntent && creativeControls.length >= 2;
 }
 
+export function usesPresetLibraryBlueprint(description: string): boolean {
+  const lower = description.toLowerCase();
+  const compact = lower.replace(/[\s_-]+/g, "");
+  return (
+    (/\b(preset library|preset lanes?|product hierarchy|magic level|default lane)\b/.test(
+      lower
+    ) ||
+      compact.includes("cadabrapresetlibrary")) &&
+    /\b(better|outfit|wild|preset|presets|lane|lanes|magic level|debug|dogfood)\b/.test(
+      lower
+    )
+  );
+}
+
 export function usesInboxBlueprint(description: string): boolean {
   const lower = description.toLowerCase();
   return (
@@ -110,6 +124,7 @@ export function buildSmartViewBody(input: ViewBlueprintInput): string | null {
   const description = input.description ?? "";
   const semanticHaystack = `${input.name} ${description}`;
   const explicitKind = normalizeKind(input.componentKind);
+  if (usesPresetLibraryBlueprint(semanticHaystack)) return buildPresetLibraryBody(input);
   if (usesMagicPassBlueprint(semanticHaystack)) return buildMagicPassBody(input);
   if (explicitKind === "settingsView") return buildComponentBody(explicitKind, input);
   if (usesTrustPostureBlueprint(semanticHaystack)) return buildTrustPostureBody(input);
@@ -187,7 +202,68 @@ function inferComponentKind(name: string, description: string): string | undefin
     return "settingsView";
   if (haystack.includes("profile card") || haystack.includes("profilecard"))
     return "profileCard";
+  if (usesPresetLibraryBlueprint(haystack)) return "presetLibrary";
   return undefined;
+}
+
+function buildPresetLibraryBody(input: ViewBlueprintInput): string {
+  const lanes = swiftStringArray(["Better", "Outfit", "Wild"]);
+  return `VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Preset library")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textPrimary", ".primary")})
+                Text("Product-facing presets stay organized by promise: Better for the default glow-up, Outfit for style direction, and Wild for high-variance creative shots.")
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Public lanes")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                Picker("Default lane", selection: $defaultLane) {
+                    ForEach(${lanes}, id: \\.self) { lane in
+                        Text(lane).tag(lane)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(defaultLane == "Better" ? "Better is the default product promise." : defaultLane == "Outfit" ? "Outfit carries wardrobe-aware style presets." : "Wild unlocks high-variance creative presets.")
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Magic Level")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textMuted", ".secondary")})
+                    .textCase(.uppercase)
+
+                Stepper("Magic Level: \\(magicLevel)", value: $magicLevel, in: 1...5)
+
+                Text("The public copy says Magic Level; provider routing stays out of the normal customer surface.")
+                    .font(.caption)
+                    .foregroundStyle(${colorRef(input.tokenNamespace, "textSecondary", ".secondary")})
+            }
+            .padding(16)
+            .background(${colorRef(input.tokenNamespace, "surfaceRaised", "Color.secondary.opacity(0.10)")}, in: RoundedRectangle(cornerRadius: ${radiusRef(input.tokenNamespace, "card", "14")}, style: .continuous))
+
+            Label("Debug controls hidden", systemImage: debugControlsHidden ? "eye.slash.fill" : "ladybug.fill")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(${colorRef(input.tokenNamespace, "surface", "Color.secondary.opacity(0.08)")}, in: Capsule())
+
+            Spacer()
+        }
+        .padding(20)
+        .frame(maxWidth: 620, maxHeight: .infinity, alignment: .topLeading)`;
 }
 
 function buildMagicPassBody(input: ViewBlueprintInput): string {
@@ -310,6 +386,8 @@ function normalizeKind(kind: string | undefined): string | undefined {
   if (lower === "settingsview" || lower === "settings" || lower === "preferences")
     return "settingsView";
   if (lower === "profilecard") return "profileCard";
+  if (lower === "presetlibrary" || lower === "cadabrapresetlibrary")
+    return "presetLibrary";
   if (lower === "semanticcard" || lower === "generativecard") return "semanticCard";
   if (lower === "semanticrow" || lower === "generativerow") return "semanticRow";
   if (lower === "semanticpill" || lower === "semanticbadge") return "semanticPill";
@@ -842,6 +920,9 @@ function buildComponentBody(kind: string, input: ViewBlueprintInput): string {
 
     case "profileCard":
       return buildProfileCardBody(input.platform);
+
+    case "presetLibrary":
+      return buildPresetLibraryBody(input);
 
     case "semanticCard":
       return buildSemanticCardBody(input);

@@ -33,6 +33,12 @@ struct SendMessageIntent: AppIntent {
     expect(harness).toContain('@Suite("Axint App Intents readiness")');
     expect(harness).toContain("SendMessageIntent");
     expect(harness).toContain("Message");
+    expect(harness).toContain('IntentDefinitions(bundleIdentifier: "DemoApp")');
+    expect(harness).toContain('definitions.intents["SendMessageIntent"]');
+    expect(harness).toContain(".makeIntent(");
+    expect(harness).toContain(".run()");
+    expect(harness).toContain('definitions.entities["Message"]');
+    expect(harness).not.toContain("#expect(true)");
     expect(harness).toContain("appEntityIdentifier");
     expect(harness).toContain("Spotlight");
     expect(harness).toContain("Shortcuts");

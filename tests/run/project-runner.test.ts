@@ -48,6 +48,11 @@ describe("runAxintProject", () => {
     expect(report.commands.test?.dryRun).toBe(true);
     expect(report.commands.build?.args).toContain("-project");
     expect(report.commands.build?.args).toContain("Swarm");
+    expect(report.commands.build?.args).toContain("-derivedDataPath");
+    const derivedDataFlag = report.commands.build?.args.indexOf("-derivedDataPath") ?? -1;
+    expect(report.commands.build?.args[derivedDataFlag + 1]).toContain(
+      join(tmpdir(), "axint-derived-data")
+    );
     expect(report.job.id).toBe(report.id);
     expect(report.job.statusCommand).toContain("axint run status");
     expect(report.job.cancelCommand).toContain("axint run cancel");
@@ -65,6 +70,43 @@ describe("runAxintProject", () => {
       "Xcode build",
       "Xcode test",
     ]);
+  });
+
+  it("runs xcodebuild with Finder metadata disabled for device-safe DerivedData", async () => {
+    const dir = makeFakeXcodeProject();
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      [
+        "#!/bin/sh",
+        'echo "COPYFILE_DISABLE=$COPYFILE_DISABLE"',
+        'echo "$*"',
+        "exit 0",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    try {
+      const report = await runAxintProject({
+        cwd: dir,
+        writeReport: false,
+      });
+
+      expect(report.commands.build?.stdout).toContain("COPYFILE_DISABLE=1");
+      expect(report.commands.build?.args).toContain("-derivedDataPath");
+      const derivedDataFlag =
+        report.commands.build?.args.indexOf("-derivedDataPath") ?? -1;
+      expect(report.commands.build?.args[derivedDataFlag + 1]).toContain(
+        join(tmpdir(), "axint-derived-data")
+      );
+    } finally {
+      process.env.PATH = previousPath;
+    }
   });
 
   it("renders a repair prompt for agents", async () => {

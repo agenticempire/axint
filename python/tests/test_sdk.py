@@ -116,6 +116,47 @@ def test_ir_round_trip() -> None:
     assert IntentIR.from_dict(ir.to_dict()) == ir
 
 
+def test_ios27_native_params_and_execution_shape() -> None:
+    intent = define_intent(
+        name="CreateNoteIntent",
+        title="Create Note",
+        description="Creates a rich note",
+        domain="productivity",
+        schema_domain="notes",
+        schema=".notes.createNote",
+        conforms_to=["AudioPlaybackIntent"],
+        supported_modes=["foreground", "background"],
+        allowed_execution_targets=["app", "extension"],
+        execution={
+            "authenticationPolicy": ".requiresAuthentication",
+            "openAppWhenRun": True,
+        },
+        params={
+            "name": param.attributed_string("Rich note title"),
+            "recipient": param.person_name_components("Recipient name", optional=True),
+            "asset": param.native("PHAsset", "Selected asset"),
+            "destination": param.union_value("PlaceOrString", "Place or fallback text"),
+        },
+    )
+
+    ir = intent.to_ir()
+    d = ir.to_dict()
+    assert d["schemaDomain"] == "notes"
+    assert d["schema"] == ".notes.createNote"
+    assert d["conformsTo"] == ["AudioPlaybackIntent"]
+    assert d["supportedModes"] == ["foreground", "background"]
+    assert d["allowedExecutionTargets"] == ["app", "extension"]
+    assert d["execution"]["authenticationPolicy"] == ".requiresAuthentication"
+    assert d["execution"]["openAppWhenRun"] is True
+    assert d["parameters"][0]["type"] == "native"
+    assert d["parameters"][0]["swiftType"] == "AttributedString"
+    assert d["parameters"][1]["swiftType"] == "PersonNameComponents"
+    assert d["parameters"][3]["type"] == "native"
+    assert d["parameters"][3]["swiftType"] == "PlaceOrString"
+    assert d["parameters"][3]["unionValue"] is True
+    assert IntentIR.from_dict(d) == ir
+
+
 # ─── View Tests ─────────────────────────────────────────────────────────
 
 
@@ -257,6 +298,30 @@ def test_widget_ir_to_dict() -> None:
     assert "families" in d
     assert d["families"] == ["systemSmall"]
     assert "entry" in d
+
+
+def test_widget_ios27_configuration_intent() -> None:
+    from axint import define_widget, param, view
+
+    widget = define_widget(
+        name="TaskWidget",
+        display_name="Task",
+        description="Shows a task",
+        families=["systemExtraLargePortrait"],
+        configuration_intent={
+            "name": "TaskWidgetConfigurationIntent",
+            "parameters": {
+                "destination": param.union_value("PlaceOrString", "Place or text"),
+            },
+        },
+        body=[view.text("Task")],
+    )
+
+    d = widget.to_ir().to_dict()
+    assert d["families"] == ["systemExtraLargePortrait"]
+    assert d["configurationIntent"]["name"] == "TaskWidgetConfigurationIntent"
+    assert d["configurationIntent"]["parameters"][0]["swiftType"] == "PlaceOrString"
+    assert d["configurationIntent"]["parameters"][0]["unionValue"] is True
 
 
 # ─── App Tests ───────────────────────────────────────────────────────────

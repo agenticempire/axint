@@ -26,9 +26,10 @@ ParamType = Literal[
     "entity",
     "enum",
     "dynamicOptions",
+    "native",
 ]
 
-AppleTarget = Literal["ios17", "ios18", "ios26", "macos14", "macos15", "macos26"]
+AppleTarget = Literal["ios17", "ios18", "ios26", "ios27", "macos14", "macos15", "macos26", "macos27", "visionos27"]
 
 ViewStateKind = Literal["state", "binding", "environment", "observed"]
 WidgetFamily = Literal[
@@ -36,6 +37,7 @@ WidgetFamily = Literal[
     "systemMedium",
     "systemLarge",
     "systemExtraLarge",
+    "systemExtraLargePortrait",
     "accessoryCircular",
     "accessoryRectangular",
     "accessoryInline",
@@ -67,6 +69,8 @@ class IntentParameter:
     entity_name: str | None = None  # for param.entity("EntityName")
     enum_cases: tuple[str, ...] | None = None  # for param.enum(["case1", "case2"])
     provider_name: str | None = None  # for param.dynamicOptions("ProviderName")
+    swift_type: str | None = None  # for native Swift / @UnionValue-backed parameters
+    union_value: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -84,7 +88,26 @@ class IntentParameter:
             out["enumCases"] = list(self.enum_cases)
         if self.provider_name is not None:
             out["providerName"] = self.provider_name
+        if self.swift_type is not None:
+            out["swiftType"] = self.swift_type
+        if self.union_value:
+            out["unionValue"] = True
         return out
+
+
+def _parameter_from_dict(data: dict[str, Any]) -> IntentParameter:
+    return IntentParameter(
+        name=data["name"],
+        type=data["type"],
+        description=data["description"],
+        optional=data.get("optional", False),
+        default=data.get("default"),
+        entity_name=data.get("entityName"),
+        enum_cases=tuple(data["enumCases"]) if "enumCases" in data else None,
+        provider_name=data.get("providerName"),
+        swift_type=data.get("swiftType"),
+        union_value=data.get("unionValue", False),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,19 +160,7 @@ class EntityIR:
             subtitle=display_repr_data.get("subtitle"),
             image=display_repr_data.get("image"),
         )
-        props = tuple(
-            IntentParameter(
-                name=p["name"],
-                type=p["type"],
-                description=p["description"],
-                optional=p.get("optional", False),
-                default=p.get("default"),
-                entity_name=p.get("entityName"),
-                enum_cases=tuple(p["enumCases"]) if "enumCases" in p else None,
-                provider_name=p.get("providerName"),
-            )
-            for p in data.get("properties", [])
-        )
+        props = tuple(_parameter_from_dict(p) for p in data.get("properties", []))
         return cls(
             name=data["name"],
             display_representation=display_repr,
@@ -180,6 +191,12 @@ class IntentIR:
     info_plist_keys: tuple[tuple[str, str], ...] = ()
     is_discoverable: bool = True
     return_type: str | None = None
+    schema_domain: str | None = None
+    schema: str | None = None
+    conforms_to: tuple[str, ...] = ()
+    supported_modes: tuple[str, ...] = ()
+    allowed_execution_targets: tuple[str, ...] = ()
+    execution: dict[str, Any] | None = None
     source_file: str | None = None
     source_line: int | None = None
 
@@ -198,6 +215,18 @@ class IntentIR:
             out["infoPlistKeys"] = dict(self.info_plist_keys)
         if self.return_type is not None:
             out["returnType"] = self.return_type
+        if self.schema_domain is not None:
+            out["schemaDomain"] = self.schema_domain
+        if self.schema is not None:
+            out["schema"] = self.schema
+        if self.conforms_to:
+            out["conformsTo"] = list(self.conforms_to)
+        if self.supported_modes:
+            out["supportedModes"] = list(self.supported_modes)
+        if self.allowed_execution_targets:
+            out["allowedExecutionTargets"] = list(self.allowed_execution_targets)
+        if self.execution is not None:
+            out["execution"] = dict(self.execution)
         if self.source_file is not None:
             out["sourceFile"] = self.source_file
         if self.source_line is not None:
@@ -206,16 +235,7 @@ class IntentIR:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> IntentIR:
-        params = tuple(
-            IntentParameter(
-                name=p["name"],
-                type=p["type"],
-                description=p["description"],
-                optional=p.get("optional", False),
-                default=p.get("default"),
-            )
-            for p in data.get("parameters", [])
-        )
+        params = tuple(_parameter_from_dict(p) for p in data.get("parameters", []))
         return cls(
             name=data["name"],
             title=data["title"],
@@ -226,6 +246,12 @@ class IntentIR:
             info_plist_keys=_parse_plist_keys(data.get("infoPlistKeys")),
             is_discoverable=data.get("isDiscoverable", True),
             return_type=data.get("returnType"),
+            schema_domain=data.get("schemaDomain"),
+            schema=data.get("schema"),
+            conforms_to=tuple(data.get("conformsTo", ())),
+            supported_modes=tuple(data.get("supportedModes", ())),
+            allowed_execution_targets=tuple(data.get("allowedExecutionTargets", ())),
+            execution=dict(data["execution"]) if isinstance(data.get("execution"), dict) else None,
             source_file=data.get("sourceFile"),
             source_line=data.get("sourceLine"),
         )
@@ -363,6 +389,27 @@ class WidgetEntryIR:
 
 
 @dataclass(frozen=True, slots=True)
+class WidgetConfigurationIntentIR:
+    """A WidgetKit AppIntent-backed configuration surface."""
+
+    name: str
+    parameters: tuple[IntentParameter, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"name": self.name}
+        if self.parameters:
+            out["parameters"] = [p.to_dict() for p in self.parameters]
+        return out
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> WidgetConfigurationIntentIR:
+        return cls(
+            name=data["name"],
+            parameters=tuple(_parameter_from_dict(p) for p in data.get("parameters", [])),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class WidgetIR:
     """Language-agnostic representation of a WidgetKit widget definition."""
 
@@ -374,6 +421,7 @@ class WidgetIR:
     body: tuple[dict[str, Any], ...] = ()
     refresh_interval: int | None = None
     refresh_policy: WidgetRefreshPolicy = "atEnd"
+    configuration_intent: WidgetConfigurationIntentIR | None = None
     source_file: str | None = None
     source_line: int | None = None
 
@@ -391,6 +439,8 @@ class WidgetIR:
             out["refreshPolicy"] = self.refresh_policy
         if self.refresh_interval is not None:
             out["refreshInterval"] = self.refresh_interval
+        if self.configuration_intent is not None:
+            out["configurationIntent"] = self.configuration_intent.to_dict()
         if self.source_file is not None:
             out["sourceFile"] = self.source_file
         if self.source_line is not None:
@@ -417,6 +467,9 @@ class WidgetIR:
             body=tuple(data.get("body", [])),
             refresh_interval=data.get("refreshInterval"),
             refresh_policy=data.get("refreshPolicy", "atEnd"),
+            configuration_intent=WidgetConfigurationIntentIR.from_dict(data["configurationIntent"])
+            if isinstance(data.get("configurationIntent"), dict)
+            else None,
             source_file=data.get("sourceFile"),
             source_line=data.get("sourceLine"),
         )
