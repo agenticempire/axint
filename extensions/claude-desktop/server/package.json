@@ -1,6 +1,6 @@
 {
   "name": "axint-desktop-extension-server",
-  "version": "0.4.33",
+  "version": "0.4.34",
   "private": true,
   "type": "module",
   "dependencies": {
