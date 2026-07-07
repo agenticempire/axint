@@ -6,6 +6,24 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.4.34] — 2026-07-07
+
+### Added
+
+- **Apple platform capability registry** — added typed capability metadata for iOS, iPadOS, macOS, watchOS, and visionOS 27-era App Intents, AppIntentsTesting, Foundation Models, Core AI, BackgroundTasks, MetricKit, SwiftUI, WidgetKit, and Xcode agent/plugin surfaces.
+- **iOS 27 Beta 3 readiness rules** — added a volatile-rule registry for the latest App Intents, Siri, WidgetKit, UIKit, Core AI, Foundation Models, MetricKit, launch-screen, and scene-lifecycle changes, including schema renames and workarounds for UnionValue/entity-resolution edge cases.
+- **UnionValue and configurable WidgetKit support** — added TypeScript, Python, schema-compile, parser, generator, validator, and MCP coverage for `@UnionValue` and App Intent-backed widget configuration paths.
+- **Apple Intelligence proof helpers** — added Foundation Models proof scaffolds, privacy-manifest helpers, richer view blueprints, and an Apple platform audit/implementation roadmap for the next support phases.
+
+### Changed
+
+- **Release truth advances to v0.4.34** — npm, PyPI, editor extension metadata, Xcode extension metadata, MCP server fallbacks, worker metadata, `server.json`, metrics, README, and roadmap release references are synced.
+- **WWDC nightly workflow cache action** — updated the nightly Apple snapshot workflow from `actions/cache@v5` to `actions/cache@v6` after fresh CI and CodeQL checks.
+
+### Fixed
+
+- **Community plugin validation** — the plugin manifest now uses the object-shaped `mcpServers` schema, the bundled skill includes required marketplace frontmatter, and regression tests keep the manifest valid.
+
 ## [0.4.33] — 2026-06-25
 
 ### Added

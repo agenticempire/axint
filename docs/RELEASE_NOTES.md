@@ -1,5 +1,38 @@
 # Release Notes
 
+## 2026-07-07 — Apple platform refresh and marketplace validation
+
+This release consolidates the July Apple modernization work, the marketplace
+manifest fix reported by Anthropic, and the final open dependency PR so main is
+clean before publishing.
+
+### Added
+
+- A typed Apple capability registry for iOS, iPadOS, macOS, watchOS, and
+  visionOS 27-era App Intents, AppIntentsTesting, Foundation Models, Core AI,
+  BackgroundTasks, MetricKit, SwiftUI, WidgetKit, and Xcode surfaces.
+- iOS 27 Beta 3 readiness rules for Siri/App Intents schema renames,
+  EntityStringQuery resolution, UnionValue edge cases, WidgetKit configuration
+  risk, Photos transfer imports, UIKit drag-resource loading, Core AI
+  background inference entitlement proof, Foundation Models PCC/tool-calling
+  caveats, launch screens, scene lifecycle, and MetricKit migration.
+- UnionValue and App Intent-backed WidgetKit configuration support across
+  TypeScript, Python, schema compile, generator, validator, and MCP paths.
+- Foundation Models and Apple Intelligence proof helpers, privacy-manifest
+  helpers, richer Apple view blueprints, and a detailed platform audit roadmap.
+
+### Changed
+
+- Public truth advances to v0.4.34 with 36 MCP tools, 5 prompts, 225
+  diagnostic codes, 1467 tests, 58 live packages, and 53 bundled templates.
+- The WWDC nightly workflow now uses `actions/cache@v6` after refreshed CI and
+  CodeQL checks.
+
+### Fixed
+
+- The community plugin manifest now validates with an object-shaped
+  `mcpServers` block, required skill frontmatter, and regression coverage.
+
 ## 2026-06-25 — AppIntentsTesting harness and Apple Intelligence proof gaps
 
 This release keeps the repo clean after the Dependabot sweep and ships the

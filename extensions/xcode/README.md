@@ -125,7 +125,7 @@ Add Axint to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/agenticempire/axint", from: "0.4.33"),
+    .package(url: "https://github.com/agenticempire/axint", from: "0.4.34"),
 ],
 targets: [
     .target(
