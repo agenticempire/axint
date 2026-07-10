@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Diagnostic } from "../core/types.js";
+import {
+  isDiagnosticBlocking,
+  normalizeDiagnosticEvidence,
+} from "../core/diagnostic-evidence.js";
 
 export type FixPacketVerdict = "pass" | "needs_review" | "fail";
 export type FixPacketSurface = "intent" | "view" | "widget" | "app" | "swift";
@@ -12,6 +16,11 @@ export type FixPacketConfidence = "high" | "low";
 export interface FixPacketDiagnostic {
   code: string;
   severity: "error" | "warning" | "info";
+  originalSeverity?: "error" | "warning" | "info";
+  confidence?: "confirmed" | "probable" | "advisory";
+  status?: "active" | "suppressed";
+  blocking?: boolean;
+  evidence?: Diagnostic["evidence"];
   message: string;
   file?: string;
   line?: number;
@@ -87,7 +96,7 @@ export interface FixPacketArtifacts {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-let compilerVersion = "0.4.36";
+let compilerVersion = "0.5.0";
 try {
   const pkg = JSON.parse(
     readFileSync(resolve(__dirname, "../../package.json"), "utf-8")
@@ -118,13 +127,19 @@ function severityWeight(severity: FixPacketDiagnostic["severity"]): number {
 }
 
 function serializeDiagnostic(diagnostic: Diagnostic): FixPacketDiagnostic {
+  const normalized = normalizeDiagnosticEvidence(diagnostic);
   return {
-    code: diagnostic.code,
-    severity: diagnostic.severity,
-    message: diagnostic.message,
-    file: diagnostic.file,
-    line: diagnostic.line,
-    suggestion: diagnostic.suggestion,
+    code: normalized.code,
+    severity: normalized.severity,
+    originalSeverity: normalized.originalSeverity,
+    confidence: normalized.confidence,
+    status: normalized.status,
+    blocking: isDiagnosticBlocking(normalized),
+    evidence: normalized.evidence,
+    message: normalized.message,
+    file: normalized.file,
+    line: normalized.line,
+    suggestion: normalized.suggestion,
   };
 }
 
@@ -223,6 +238,12 @@ function buildCoverageAssessment(
 }
 
 function buildFindingImpact(finding: FixPacketDiagnostic): string {
+  if (finding.status === "suppressed") {
+    return "This finding is preserved for audit, but contradictory build evidence removed it from the current gate.";
+  }
+  if (finding.confidence === "advisory") {
+    return "This is a heuristic review lead, not a compiler-confirmed failure.";
+  }
   switch (finding.severity) {
     case "error":
       return "This blocks the Apple-native validation/build path until it is fixed.";
@@ -339,7 +360,10 @@ function buildXcodeChecklist(packet: FixPacket): string[] {
 }
 
 function renderFindingLines(finding: FixPacketDiagnostic): string[] {
-  const lines = [`- ${finding.code} [${finding.severity}] ${finding.message}`];
+  const state = finding.status === "suppressed" ? "suppressed" : finding.confidence;
+  const lines = [
+    `- ${finding.code} [${finding.severity}${state ? ` · ${state}` : ""}] ${finding.message}`,
+  ];
   if (finding.file || finding.line) {
     lines.push(
       `  Location: ${finding.file ?? "unknown"}${finding.line ? `:${finding.line}` : ""}`
@@ -347,6 +371,11 @@ function renderFindingLines(finding: FixPacketDiagnostic): string[] {
   }
   if (finding.suggestion) {
     lines.push(`  Suggestion: ${finding.suggestion}`);
+  }
+  for (const evidence of finding.evidence ?? []) {
+    lines.push(
+      `  Evidence: ${evidence.source}/${evidence.relation} — ${evidence.summary}`
+    );
   }
   return lines;
 }
@@ -365,12 +394,19 @@ export function buildFixPacket(
   }
 ): FixPacket {
   const diagnostics = input.diagnostics.map(serializeDiagnostic);
-  const errors = diagnostics.filter((d) => d.severity === "error").length;
-  const warnings = diagnostics.filter((d) => d.severity === "warning").length;
-  const infos = diagnostics.filter((d) => d.severity === "info").length;
+  const errors = input.diagnostics.filter(isDiagnosticBlocking).length;
+  const warnings = diagnostics.filter(
+    (d) => d.status !== "suppressed" && d.severity === "warning"
+  ).length;
+  const infos = diagnostics.filter(
+    (d) => d.status !== "suppressed" && d.severity === "info"
+  ).length;
   const verdict = getVerdict(input.success, errors, warnings);
   const outcomeCopy = buildOutcomeCopy(verdict);
   const orderedFindings = [...diagnostics].sort((left, right) => {
+    if (left.status === "suppressed" && right.status !== "suppressed") return 1;
+    if (left.status !== "suppressed" && right.status === "suppressed") return -1;
+    if (left.blocking !== right.blocking) return left.blocking ? -1 : 1;
     const severityDelta = severityWeight(left.severity) - severityWeight(right.severity);
     if (severityDelta !== 0) return severityDelta;
     return left.code.localeCompare(right.code);

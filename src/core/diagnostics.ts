@@ -20,6 +20,20 @@ export interface DiagnosticInfo {
   severity: "error" | "warning" | "info";
   message: string;
   category: string;
+  /** Optional rule-level override for existing Swift source analysis. */
+  defaultConfidence?: "confirmed" | "probable" | "advisory";
+  evidenceClass?:
+    | "parser"
+    | "syntax"
+    | "semantic"
+    | "project"
+    | "concurrency"
+    | "accessibility"
+    | "interaction"
+    | "design"
+    | "runtime";
+  /** A successful Swift/Xcode compile disproves this rule for that build context. */
+  compilerContradictable?: boolean;
 }
 
 export const DIAGNOSTIC_CODES: Record<string, DiagnosticInfo> = {
@@ -1132,4 +1146,77 @@ export function getDiagnostic(code: string): DiagnosticInfo | undefined {
 
 export function getCodesByCategory(category: string): DiagnosticInfo[] {
   return Object.values(DIAGNOSTIC_CODES).filter((d) => d.category === category);
+}
+
+const ADVISORY_SWIFT_CATEGORIES = new Set([
+  "swift-accessibility",
+  "swiftui-hit-testing",
+  "swiftui-information-density",
+  "swiftui-layout",
+  "swiftui-reachability",
+  "swift-state-machine",
+  "swift-observation",
+]);
+
+// Warning severity can describe user impact while the claim itself is still
+// compiler-shaped. Keep this list narrow and regression-backed.
+const COMPILER_SHAPED_SWIFT_CODES = new Set(["AX768"]);
+
+/**
+ * Central confidence policy for diagnostics emitted against existing Swift.
+ * Parser/compiler diagnostics outside the brownfield validator stay confirmed.
+ */
+export function getDiagnosticEvidencePolicy(code: string): {
+  confidence: "confirmed" | "probable" | "advisory";
+  evidenceClass: NonNullable<DiagnosticInfo["evidenceClass"]>;
+  compilerContradictable: boolean;
+} {
+  const info = getDiagnostic(code);
+  if (!info) {
+    return {
+      confidence: "probable",
+      evidenceClass: "semantic",
+      compilerContradictable: true,
+    };
+  }
+
+  const isSwiftSourceRule =
+    info.category.startsWith("swift") ||
+    info.category.startsWith("swiftui") ||
+    (Number(code.slice(2)) >= 700 && Number(code.slice(2)) < 900);
+  if (!isSwiftSourceRule) {
+    return {
+      confidence: info.defaultConfidence ?? "confirmed",
+      evidenceClass: info.evidenceClass ?? "parser",
+      compilerContradictable: info.compilerContradictable ?? false,
+    };
+  }
+
+  const compilerShaped = COMPILER_SHAPED_SWIFT_CODES.has(code);
+  const advisory =
+    !compilerShaped &&
+    (info.defaultConfidence === "advisory" ||
+      info.severity !== "error" ||
+      ADVISORY_SWIFT_CATEGORIES.has(info.category));
+  const evidenceClass =
+    info.evidenceClass ??
+    (info.category.includes("accessibility")
+      ? "accessibility"
+      : info.category.includes("hit-testing") || info.category.includes("layout")
+        ? "interaction"
+        : info.category.includes("concurrency")
+          ? "concurrency"
+          : info.category.includes("cross-file") || info.category.includes("member")
+            ? "project"
+            : info.category.includes("density")
+              ? "design"
+              : "semantic");
+
+  return {
+    confidence: advisory ? "advisory" : "probable",
+    evidenceClass,
+    compilerContradictable:
+      info.compilerContradictable ??
+      (compilerShaped || (!advisory && info.severity === "error")),
+  };
 }

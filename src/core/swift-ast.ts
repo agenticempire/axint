@@ -8,7 +8,7 @@
  */
 
 import type { Diagnostic } from "./types.js";
-import { getDiagnostic } from "./diagnostics.js";
+import { getDiagnostic, getDiagnosticEvidencePolicy } from "./diagnostics.js";
 
 export interface SwiftDeclaration {
   kind: "struct" | "class" | "actor" | "enum" | "extension";
@@ -244,9 +244,26 @@ export function makeDiagnostic(
   overrides: { message?: string; suggestion?: string }
 ): Diagnostic {
   const info = getDiagnostic(code);
+  const policy = getDiagnosticEvidencePolicy(code);
+  const severity = info?.severity ?? "error";
   return {
     code,
-    severity: info?.severity ?? "error",
+    severity,
+    originalSeverity: severity,
+    confidence: policy.confidence,
+    status: "active",
+    blocking: severity === "error" && policy.confidence !== "advisory",
+    evidenceClass: policy.evidenceClass,
+    evidence: [
+      {
+        source: policy.evidenceClass === "project" ? "project-index" : "axint-static",
+        relation: "supports",
+        summary:
+          policy.confidence === "advisory"
+            ? "Axint heuristic identified a review lead; Apple compiler or runtime proof has not confirmed it."
+            : "Axint static analysis identified this finding; Apple compiler proof has not confirmed it yet.",
+      },
+    ],
     message: overrides.message ?? info?.message ?? code,
     file,
     line,

@@ -9,14 +9,7 @@
 
 /** Primitive types supported by App Intents */
 export type IRPrimitiveType =
-  | "string"
-  | "int"
-  | "double"
-  | "float"
-  | "boolean"
-  | "date"
-  | "duration"
-  | "url";
+  "string" | "int" | "double" | "float" | "boolean" | "date" | "duration" | "url";
 
 /** Type node in the IR */
 export type IRType =
@@ -124,9 +117,7 @@ export interface IRIntentExecution {
 }
 
 export type IRFoundationModelProvider =
-  | "apple-on-device"
-  | "private-cloud-compute"
-  | "custom-language-model";
+  "apple-on-device" | "private-cloud-compute" | "custom-language-model";
 
 export interface IRFoundationModelGenerable {
   name: string;
@@ -625,10 +616,7 @@ export interface IRAppShortcut {
  * class family.
  */
 export type IRExtensionKind =
-  | "share"
-  | "action"
-  | "notificationService"
-  | "notificationContent";
+  "share" | "action" | "notificationService" | "notificationContent";
 
 /** A single App Extension target — one Xcode extension bundle. */
 export interface IRExtensionTarget {
@@ -705,9 +693,57 @@ export interface CompilerOutput {
 
 export type DiagnosticSeverity = "error" | "warning" | "info";
 
+/**
+ * How strongly the available evidence supports a diagnostic.
+ *
+ * `confirmed` requires compiler, test, runtime, or deterministic parser evidence.
+ * `probable` is a strong static finding that has not yet been proved by Apple tooling.
+ * `advisory` is a heuristic lead that requires human or runtime review.
+ */
+export type DiagnosticConfidence = "confirmed" | "probable" | "advisory";
+
+export type DiagnosticStatus = "active" | "suppressed";
+
+export type DiagnosticEvidenceSource =
+  | "axint-parser"
+  | "axint-static"
+  | "project-index"
+  | "swift-compiler"
+  | "xcode-build"
+  | "xcode-test"
+  | "runtime";
+
+export interface DiagnosticEvidence {
+  source: DiagnosticEvidenceSource;
+  relation: "supports" | "contradicts" | "context";
+  summary: string;
+  command?: string;
+  artifactPath?: string;
+}
+
 export interface Diagnostic {
   code: string;
   severity: DiagnosticSeverity;
+  /** Severity before evidence reconciliation changed the effective result. */
+  originalSeverity?: DiagnosticSeverity;
+  /** Evidence strength. Older consumers may omit this field. */
+  confidence?: DiagnosticConfidence;
+  /** Suppressed findings remain in receipts with the reason they no longer gate. */
+  status?: DiagnosticStatus;
+  /** Explicit gate behavior. Defaults to true only for active errors. */
+  blocking?: boolean;
+  /** Static-analysis family used to explain the rule's proof boundary. */
+  evidenceClass?:
+    | "parser"
+    | "syntax"
+    | "semantic"
+    | "project"
+    | "concurrency"
+    | "accessibility"
+    | "interaction"
+    | "design"
+    | "runtime";
+  evidence?: DiagnosticEvidence[];
   message: string;
   file?: string;
   line?: number;

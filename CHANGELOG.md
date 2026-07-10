@@ -6,6 +6,21 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-10
+
+### Added
+
+- **Evidence-aware Swift diagnostics** — every finding now carries confidence, status, blocking behavior, provenance, and supporting or contradicting evidence instead of presenting heuristic output as compiler truth.
+- **Xcode reconciliation** — build and test evidence can confirm matching findings or suppress compiler-shaped claims contradicted by a successful selected build while preserving accessibility, interaction, privacy, and runtime advisories.
+- **Brownfield minimal mode** — `axint run --integration=minimal --local-only --advisory --no-fix` performs a local, non-mutating project check with no network, generated source, project instructions, memory installation, automatic fixes, or persistent Axint state.
+- **Brownfield benchmark gate** — a transparent labeled corpus now measures precision, recall, and clean-project abstention without presenting a small curated benchmark as a production-wide claim.
+
+### Changed
+
+- **Fix Packets expose evidence state** — JSON and Markdown receipts include original severity, confidence, active or suppressed status, blocking behavior, and evidence records; verdicts now follow blocking findings instead of raw severity alone.
+- **Run and MCP contracts** — CLI and MCP run inputs expose the same integration, locality, advisory, fix, and output-directory controls, with persisted background jobs disabled when minimal mode promises no Axint state.
+- **Product positioning** — README and documentation now present Generate, Check, Run, Team, and Cloud as focused jobs within one proof-and-repair system, with generation remaining optional for existing Swift projects.
+
 ## [0.4.36] — 2026-07-07
 
 ### Changed

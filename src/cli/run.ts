@@ -3,6 +3,7 @@ import {
   renderAxintRunReport,
   runAxintProject,
   type AxintRunFormat,
+  type AxintRunIntegration,
   type AxintRunPlatform,
 } from "../run/project-runner.js";
 import { normalizeAxintAgent } from "../project/agent-profile.js";
@@ -57,6 +58,22 @@ export function registerRun(program: Command, version: string) {
     .option("--expected <text>", "Expected runtime or UI behavior")
     .option("--actual <text>", "Actual runtime or UI behavior")
     .option("--runtime-failure <text>", "Runtime, freeze, crash, or hang evidence")
+    .option(
+      "--integration <profile>",
+      "Integration profile: full or minimal. Minimal is local-only, non-mutating, advisory, and writes nothing unless --output-dir is supplied.",
+      parseIntegration,
+      "full" as AxintRunIntegration
+    )
+    .option("--local-only", "Deny hosted/network checks for this run")
+    .option(
+      "--advisory",
+      "Keep unconfirmed static findings non-blocking while preserving them in the receipt"
+    )
+    .option("--no-fix", "Disable automatic fix behavior for this run")
+    .option(
+      "--output-dir <dir>",
+      "Write durable run artifacts only to this directory (minimal mode otherwise writes none)"
+    )
     .option("--dry-run", "Plan the xcodebuild commands without executing them")
     .option("--no-write-report", "Do not write .axint/run/latest artifacts")
     .option(
@@ -97,6 +114,11 @@ export function registerRun(program: Command, version: string) {
         expected?: string;
         actual?: string;
         runtimeFailure?: string;
+        integration: AxintRunIntegration;
+        localOnly?: boolean;
+        advisory?: boolean;
+        fix?: boolean;
+        outputDir?: string;
         dryRun?: boolean;
         writeReport?: boolean;
         includeSource?: boolean;
@@ -130,6 +152,11 @@ export function registerRun(program: Command, version: string) {
           expectedBehavior: options.expected,
           actualBehavior: options.actual,
           runtimeFailure: options.runtimeFailure,
+          integration: options.integration,
+          localOnly: options.integration === "minimal" || options.localOnly,
+          advisory: options.integration === "minimal" || options.advisory,
+          fix: options.integration === "minimal" ? false : options.fix,
+          outputDir: options.outputDir,
           dryRun: options.dryRun,
           writeReport: options.writeReport,
         });
@@ -276,6 +303,11 @@ export function registerRun(program: Command, version: string) {
 function parseFormat(value: string): AxintRunFormat {
   if (value === "markdown" || value === "json" || value === "prompt") return value;
   throw new Error(`invalid run format: ${value}`);
+}
+
+function parseIntegration(value: string): AxintRunIntegration {
+  if (value === "full" || value === "minimal") return value;
+  throw new Error(`invalid integration profile: ${value}`);
 }
 
 function parseJobFormat(value: string): AxintRunJobOutputFormat {

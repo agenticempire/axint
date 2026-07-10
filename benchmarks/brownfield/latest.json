@@ -1,0 +1,145 @@
+{
+  "schema": "https://axint.ai/schemas/brownfield-benchmark.v1.json",
+  "corpus": {
+    "name": "Axint curated brownfield regression corpus",
+    "version": "1.0.0",
+    "scope": "Small, transparent rule-level regression corpus. It is not a representative estimate for arbitrary production Swift projects.",
+    "cases": 8,
+    "cleanCases": 2,
+    "findingCases": 6
+  },
+  "metrics": {
+    "precision": 1,
+    "recall": 1,
+    "cleanAbstentionRate": 1,
+    "truePositives": 6,
+    "falsePositives": 0,
+    "falseNegatives": 0
+  },
+  "cases": [
+    {
+      "id": "clean-swiftui-view",
+      "title": "Ordinary compiling SwiftUI view",
+      "expectation": "clean",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "valid-app-intent",
+      "title": "Complete App Intent",
+      "expectation": "clean",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "container-accessibility-identifier",
+      "title": "Container identifier can hide child identifiers",
+      "expectation": "finding",
+      "expectedCodes": [
+        "AX736"
+      ],
+      "emittedCodes": [
+        "AX736"
+      ],
+      "truePositives": [
+        "AX736"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "input-overlay-hit-testing",
+      "title": "Text input overlay without hit-testing policy",
+      "expectation": "finding",
+      "expectedCodes": [
+        "AX764"
+      ],
+      "emittedCodes": [
+        "AX764"
+      ],
+      "truePositives": [
+        "AX764"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "invalid-frame-overload",
+      "title": "Invalid SwiftUI frame overload",
+      "expectation": "finding",
+      "expectedCodes": [
+        "AX765"
+      ],
+      "emittedCodes": [
+        "AX765"
+      ],
+      "truePositives": [
+        "AX765"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "missing-swiftui-import",
+      "title": "View without SwiftUI import",
+      "expectation": "finding",
+      "expectedCodes": [
+        "AX718"
+      ],
+      "emittedCodes": [
+        "AX718"
+      ],
+      "truePositives": [
+        "AX718"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "undeclared-view-property",
+      "title": "View body references an undeclared property",
+      "expectation": "finding",
+      "expectedCodes": [
+        "AX739"
+      ],
+      "emittedCodes": [
+        "AX739"
+      ],
+      "truePositives": [
+        "AX739"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "observable-object-isolation",
+      "title": "UI ObservableObject without explicit isolation",
+      "expectation": "finding",
+      "expectedCodes": [
+        "AX721"
+      ],
+      "emittedCodes": [
+        "AX721"
+      ],
+      "truePositives": [
+        "AX721"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    }
+  ]
+}

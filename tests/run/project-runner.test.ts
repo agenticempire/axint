@@ -1,4 +1,11 @@
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
@@ -27,6 +34,50 @@ function makeFakeXcodeProject() {
 }
 
 describe("runAxintProject", () => {
+  it("keeps the minimal integration local, advisory, and mutation-free", async () => {
+    const dir = makeFakeXcodeProject();
+    const report = await runAxintProject({
+      cwd: dir,
+      integration: "minimal",
+      localOnly: true,
+      advisory: true,
+      fix: false,
+      dryRun: true,
+    });
+
+    expect(report.executionProfile).toMatchObject({
+      integration: "minimal",
+      localOnly: true,
+      advisoryOnly: true,
+      automaticFixes: false,
+      network: "denied",
+      projectMutation: "denied",
+      artifactPolicy: "none",
+    });
+    expect(report.session.path).toBe("not-written");
+    expect(report.artifacts.json).toBeUndefined();
+    expect(report.artifacts.markdown).toBeUndefined();
+    expect(report.swiftValidation.evidenceSummary.blocking).toBe(0);
+    expect(existsSync(join(dir, ".axint"))).toBe(false);
+  });
+
+  it("writes minimal integration artifacts only to the selected directory", async () => {
+    const dir = makeFakeXcodeProject();
+    const output = join(dir, "proof-output");
+    const report = await runAxintProject({
+      cwd: dir,
+      integration: "minimal",
+      dryRun: true,
+      outputDir: output,
+    });
+
+    expect(report.executionProfile.artifactPolicy).toBe("selected-directory");
+    expect(report.artifacts.json).toBe(join(output, "latest.json"));
+    expect(report.artifacts.markdown).toBe(join(output, "latest.md"));
+    expect(existsSync(join(output, "latest.json"))).toBe(true);
+    expect(existsSync(join(dir, ".axint"))).toBe(false);
+  });
+
   it("plans the enforced Axint build loop in dry-run mode", async () => {
     const dir = makeFakeXcodeProject();
     const report = await runAxintProject({
