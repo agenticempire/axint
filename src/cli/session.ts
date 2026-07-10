@@ -9,7 +9,7 @@ import {
 export function registerSession(program: Command, version: string) {
   const session = program
     .command("session")
-    .description("Start and enforce an Axint agent session for Xcode/Codex work");
+    .description("Start and enforce an Axint agent session for Apple project work");
 
   session
     .command("start")
