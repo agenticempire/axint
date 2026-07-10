@@ -19,6 +19,7 @@ import {
   type AxintAgentToolProfile,
 } from "../project/agent-profile.js";
 import {
+  buildProjectContextIndex,
   writeProjectContextIndex,
   type ProjectContextIndex,
 } from "../project/context-index.js";
@@ -29,6 +30,13 @@ import {
 import { startAxintSession } from "../project/session.js";
 import { validateSwiftSources } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
+import {
+  diagnosticConfidenceLabel,
+  isDiagnosticBlocking,
+  reconcileDiagnosticsWithEvidence,
+  summarizeDiagnosticEvidence,
+  type DiagnosticEvidenceSummary,
+} from "../core/diagnostic-evidence.js";
 import {
   buildToolContract,
   renderToolContractMarkdown,
@@ -55,6 +63,7 @@ export type AxintRunFormat = "markdown" | "json" | "prompt";
 export type AxintRunPlatform = "macOS" | "iOS" | "watchOS" | "visionOS" | "all";
 export type AxintRunStepState = "pass" | "warn" | "fail" | "skipped";
 export type AxintRunKind = "local" | "byo-runner";
+export type AxintRunIntegration = "full" | "minimal";
 
 export interface AxintRunRenderOptions {
   includeSource?: boolean;
@@ -87,6 +96,11 @@ export interface AxintRunInput {
   runtimeFailure?: string;
   dryRun?: boolean;
   writeReport?: boolean;
+  advisory?: boolean;
+  integration?: AxintRunIntegration;
+  localOnly?: boolean;
+  fix?: boolean;
+  outputDir?: string;
 }
 
 const DEFAULT_CLOUD_SWEEP_LIMIT = 8;
@@ -178,6 +192,16 @@ export interface AxintRunReport {
   id: string;
   kind: AxintRunKind;
   status: "pass" | "needs_review" | "fail";
+  executionProfile: {
+    integration: AxintRunIntegration;
+    localOnly: boolean;
+    advisoryOnly: boolean;
+    automaticFixes: boolean;
+    network: "allowed" | "denied";
+    projectMutation: "allowed" | "denied";
+    artifactPolicy: "project-default" | "selected-directory" | "none";
+    outputDirectory?: string;
+  };
   toolContract?: AxintToolContract;
   gate: {
     decision: "ready_to_ship" | "fix_required" | "evidence_required";
@@ -205,6 +229,7 @@ export interface AxintRunReport {
   swiftValidation: {
     filesChecked: number;
     diagnostics: Diagnostic[];
+    evidenceSummary: DiagnosticEvidenceSummary;
   };
   cloudChecks: CloudCheckReport[];
   commands: {
@@ -253,39 +278,73 @@ export async function runAxintProject(
   const platform = input.platform ?? inferPlatform(input.destination);
   const projectName = input.projectName ?? inferProjectName(cwd);
   const agentProfile = buildAgentToolProfile(input.agent);
-  const job = createRunJobRecord({
-    id: runId,
-    cwd,
-    kind: input.kind ?? "local",
-    projectName,
-  });
-  const session = startAxintSession({
-    targetDir: cwd,
-    projectName,
-    expectedVersion: input.expectedVersion ?? "unknown",
-    platform,
-    agent: agentProfile.agent,
-  });
-  const projectContext = writeProjectContextIndex({
-    targetDir: cwd,
-    projectName,
-    changedFiles: input.modifiedFiles,
-  });
+  const minimal = input.integration === "minimal";
+  const outputDirectory = input.outputDir ? resolve(cwd, input.outputDir) : undefined;
+  const job = minimal
+    ? undefined
+    : createRunJobRecord({
+        id: runId,
+        cwd,
+        kind: input.kind ?? "local",
+        projectName,
+      });
+  const session = minimal
+    ? {
+        session: { token: "minimal-local" },
+        sessionPath: "not-written",
+      }
+    : startAxintSession({
+        targetDir: cwd,
+        projectName,
+        expectedVersion: input.expectedVersion ?? "unknown",
+        platform,
+        agent: agentProfile.agent,
+      });
+  const projectContext = minimal
+    ? {
+        index: buildProjectContextIndex({
+          targetDir: cwd,
+          projectName,
+          changedFiles: input.modifiedFiles,
+          includeGit: false,
+        }),
+        jsonPath: undefined,
+        markdownPath: undefined,
+      }
+    : writeProjectContextIndex({
+        targetDir: cwd,
+        projectName,
+        changedFiles: input.modifiedFiles,
+      });
   const swiftFiles = resolveSwiftFiles(cwd, input.modifiedFiles);
   const validationDiagnostics: Diagnostic[] = [];
   const cloudChecks: CloudCheckReport[] = [];
-  const steps: AxintRunStep[] = [
-    {
-      name: "Axint session",
-      state: "pass",
-      detail: `Started session ${session.session.token}.`,
-    },
-    {
-      name: "Project context index",
-      state: "pass",
-      detail: `Indexed ${projectContext.index.files.swift} Swift files and wrote ${relativeOrAbsolute(cwd, projectContext.jsonPath)}.`,
-    },
-  ];
+  const steps: AxintRunStep[] = minimal
+    ? [
+        {
+          name: "Minimal integration contract",
+          state: "pass",
+          detail:
+            "Local-only, non-mutating, advisory execution is active. No session, instructions, memory, MCP config, hosted check, feedback, or automatic fix will be written.",
+        },
+        {
+          name: "In-memory project context",
+          state: "pass",
+          detail: `Indexed ${projectContext.index.files.swift} Swift files in memory without writing project context artifacts.`,
+        },
+      ]
+    : [
+        {
+          name: "Axint session",
+          state: "pass",
+          detail: `Started session ${session.session.token}.`,
+        },
+        {
+          name: "Project context index",
+          state: "pass",
+          detail: `Indexed ${projectContext.index.files.swift} Swift files and wrote ${relativeOrAbsolute(cwd, projectContext.jsonPath!)}.`,
+        },
+      ];
 
   validationDiagnostics.push(
     ...validateSwiftSources(
@@ -309,12 +368,14 @@ export async function runAxintProject(
         : `Validated ${swiftFiles.length} Swift file${swiftFiles.length === 1 ? "" : "s"}.`,
   });
 
-  const cloudTargets = selectCloudCheckTargets({
-    cwd,
-    swiftFiles,
-    modifiedFiles: input.modifiedFiles,
-    projectContext: projectContext.index,
-  });
+  const cloudTargets = minimal
+    ? []
+    : selectCloudCheckTargets({
+        cwd,
+        swiftFiles,
+        modifiedFiles: input.modifiedFiles,
+        projectContext: projectContext.index,
+      });
   const cloudTargetsWereLimited =
     swiftFiles.length > cloudTargets.length && !input.modifiedFiles?.length;
   for (const file of cloudTargets) {
@@ -332,16 +393,18 @@ export async function runAxintProject(
 
   steps.push({
     name: "Cloud Check",
-    state:
-      cloudChecks.length === 0
+    state: minimal
+      ? "pass"
+      : cloudChecks.length === 0
         ? "skipped"
         : cloudChecks.some((check) => check.status === "fail")
           ? "fail"
           : cloudChecks.some((check) => check.status === "needs_review")
             ? "warn"
             : "pass",
-    detail:
-      cloudChecks.length === 0
+    detail: minimal
+      ? "Hosted checks are disabled by the minimal local-only integration contract."
+      : cloudChecks.length === 0
         ? "No source file was available for Cloud Check."
         : cloudTargetsWereLimited
           ? `Ran ${cloudChecks.length} compact Cloud Check report${cloudChecks.length === 1 ? "" : "s"} from the highest-risk project files. Pass --changed for a focused full sweep.`
@@ -367,6 +430,7 @@ export async function runAxintProject(
       timeoutSeconds: input.timeoutSeconds ?? 600,
       dryRun: input.dryRun,
       job,
+      artifactRoot: minimal ? (outputDirectory ?? false) : undefined,
     });
     steps.push(stepFromCommand("Xcode build", commands.build));
   } else if (input.skipBuild) {
@@ -378,13 +442,18 @@ export async function runAxintProject(
   }
 
   if (plan && !input.skipTests && !input.skipBuild) {
-    const resultBundlePath = runResultBundlePath(cwd, runId, "XcodeTest");
+    const resultBundlePath = minimal
+      ? outputDirectory
+        ? runResultBundlePath(outputDirectory, runId, "XcodeTest", true)
+        : undefined
+      : runResultBundlePath(cwd, runId, "XcodeTest");
     const testArgs = buildXcodeArgs(plan, "test", { resultBundlePath });
     commands.test = await runCommand("Xcode test", "xcodebuild", testArgs, {
       cwd,
       timeoutSeconds: input.timeoutSeconds ?? 900,
       dryRun: input.dryRun,
       job,
+      artifactRoot: minimal ? (outputDirectory ?? false) : undefined,
     });
     steps.push(stepFromCommand("Xcode test", commands.test));
   } else if (input.skipTests) {
@@ -396,7 +465,9 @@ export async function runAxintProject(
   }
 
   if (plan && input.runtime && platform === "macOS" && !input.dryRun) {
-    const runtime = await runMacRuntimeProbe(cwd, plan, input, job);
+    const runtime = await runMacRuntimeProbe(cwd, plan, input, job, {
+      artifactRoot: minimal ? (outputDirectory ?? false) : undefined,
+    });
     commands.buildSettings = runtime.buildSettings;
     commands.runtime = runtime.launch;
     steps.push(
@@ -455,6 +526,34 @@ export async function runAxintProject(
     });
   }
   const proofReconciliation = buildProofReconciliation(commands, plan);
+  validationDiagnostics.splice(
+    0,
+    validationDiagnostics.length,
+    ...reconcileDiagnosticsWithEvidence(validationDiagnostics, {
+      advisoryOnly: input.advisory === true,
+      build: commands.build
+        ? {
+            command: [commands.build.command, ...commands.build.args].join(" "),
+            exitCode: commands.build.exitCode,
+            stdout: commands.build.stdout,
+            stderr: commands.build.stderr,
+            artifactPath: commands.build.logPath,
+            dryRun: commands.build.dryRun,
+          }
+        : undefined,
+      tests: commands.test
+        ? {
+            command: [commands.test.command, ...commands.test.args].join(" "),
+            exitCode: commands.test.exitCode,
+            stdout: commands.test.stdout,
+            stderr: commands.test.stderr,
+            artifactPath: commands.test.resultBundlePath ?? commands.test.logPath,
+            dryRun: commands.test.dryRun,
+          }
+        : undefined,
+    })
+  );
+  updateSwiftValidationStepWithEvidence(steps, validationDiagnostics);
   reconcileSwiftValidationStepWithXcodeProof(
     steps,
     validationDiagnostics,
@@ -462,22 +561,35 @@ export async function runAxintProject(
   );
   reconcileCloudCheckStepWithFocusedProof(steps, cloudChecks, proofReconciliation);
 
-  const workflow = runWorkflowCheck({
-    cwd,
-    stage: "pre-build",
-    agent: agentProfile.agent,
-    sessionStarted: true,
-    sessionToken: session.session.token,
-    readAgentInstructions: true,
-    readDocsContext: true,
-    readRehydrationContext: true,
-    ranStatus: true,
-    ranSwiftValidate: swiftFiles.length > 0,
-    ranCloudCheck: cloudChecks.length > 0,
-    xcodeBuildPassed: commandPassed(commands.build),
-    xcodeTestsPassed: commandPassed(commands.test),
-    modifiedFiles: swiftFiles.map((file) => relativeOrAbsolute(cwd, file)),
-  });
+  const workflow: WorkflowCheckReport = minimal
+    ? {
+        status: "ready",
+        stage: "pre-build",
+        summary: "Minimal local-only proof ran without project integration or mutation.",
+        score: 100,
+        required: [],
+        recommended: [],
+        checked: [
+          "No session, project instructions, memory, MCP configuration, hosted check, feedback signal, or automatic fix was created.",
+          "Swift analysis and Xcode commands ran locally.",
+        ],
+      }
+    : runWorkflowCheck({
+        cwd,
+        stage: "pre-build",
+        agent: agentProfile.agent,
+        sessionStarted: true,
+        sessionToken: session.session.token,
+        readAgentInstructions: true,
+        readDocsContext: true,
+        readRehydrationContext: true,
+        ranStatus: true,
+        ranSwiftValidate: swiftFiles.length > 0,
+        ranCloudCheck: cloudChecks.length > 0,
+        xcodeBuildPassed: commandPassed(commands.build),
+        xcodeTestsPassed: commandPassed(commands.test),
+        modifiedFiles: swiftFiles.map((file) => relativeOrAbsolute(cwd, file)),
+      });
 
   const status = summarizeStatus(
     steps,
@@ -497,11 +609,25 @@ export async function runAxintProject(
     xcodeTestFailures,
     runnerHealth,
   });
-  const feedbackSignals = writeRunFeedbackSignals(cwd, cloudChecks);
+  const feedbackSignals = minimal ? [] : writeRunFeedbackSignals(cwd, cloudChecks);
   let report: AxintRunReport = {
     id: runId,
     kind: input.kind ?? "local",
     status,
+    executionProfile: {
+      integration: minimal ? "minimal" : "full",
+      localOnly: minimal || input.localOnly === true,
+      advisoryOnly: input.advisory === true || minimal,
+      automaticFixes: !minimal && input.fix !== false,
+      network: minimal || input.localOnly ? "denied" : "allowed",
+      projectMutation: minimal ? "denied" : "allowed",
+      artifactPolicy: minimal
+        ? outputDirectory
+          ? "selected-directory"
+          : "none"
+        : "project-default",
+      outputDirectory,
+    },
     gate: gateForStatus(status, steps, proofReconciliation),
     cwd,
     projectName,
@@ -516,14 +642,23 @@ export async function runAxintProject(
     },
     job: {
       id: runId,
-      path: resolve(cwd, ".axint/run/jobs", `${runId}.json`),
-      statusCommand: `axint run status --dir ${shellQuote(cwd)} --id ${runId}`,
-      cancelCommand: `axint run cancel --dir ${shellQuote(cwd)} --id ${runId}`,
+      path: minimal
+        ? outputDirectory
+          ? resolve(outputDirectory, "jobs", `${runId}.json`)
+          : "not-written"
+        : resolve(cwd, ".axint/run/jobs", `${runId}.json`),
+      statusCommand: minimal
+        ? "unavailable (minimal runs do not persist job state)"
+        : `axint run status --dir ${shellQuote(cwd)} --id ${runId}`,
+      cancelCommand: minimal
+        ? "unavailable (minimal runs do not persist job state)"
+        : `axint run cancel --dir ${shellQuote(cwd)} --id ${runId}`,
     },
     workflow,
     swiftValidation: {
       filesChecked: swiftFiles.length,
       diagnostics: validationDiagnostics,
+      evidenceSummary: summarizeDiagnosticEvidence(validationDiagnostics),
     },
     cloudChecks,
     xcodeTestFailures,
@@ -562,23 +697,25 @@ export async function runAxintProject(
     }),
   };
 
-  if (input.writeReport !== false) {
-    const artifacts = writeRunArtifacts(report);
+  if (input.writeReport !== false && (!minimal || outputDirectory)) {
+    const artifacts = writeRunArtifacts(report, outputDirectory);
     report.artifacts = artifacts;
   }
 
-  const agentAdvice = buildAxintAgentAdvice({
-    cwd,
-    agent: agentProfile.agent,
-    changedFiles:
-      input.modifiedFiles ??
-      swiftFiles.map((file) => relativeOrAbsolute(cwd, file)).slice(0, 20),
-    issue:
-      input.runtimeFailure ??
-      input.actualBehavior ??
-      input.expectedBehavior ??
-      "Axint run proof loop",
-  });
+  const agentAdvice = minimal
+    ? undefined
+    : buildAxintAgentAdvice({
+        cwd,
+        agent: agentProfile.agent,
+        changedFiles:
+          input.modifiedFiles ??
+          swiftFiles.map((file) => relativeOrAbsolute(cwd, file)).slice(0, 20),
+        issue:
+          input.runtimeFailure ??
+          input.actualBehavior ??
+          input.expectedBehavior ??
+          "Axint run proof loop",
+      });
   report = {
     ...report,
     agentAdvice,
@@ -607,8 +744,8 @@ export async function runAxintProject(
   });
   report.toolContract = buildRunToolContract(report);
 
-  if (input.writeReport !== false) {
-    const artifacts = writeRunArtifacts(report);
+  if (input.writeReport !== false && (!minimal || outputDirectory)) {
+    const artifacts = writeRunArtifacts(report, outputDirectory);
     report.artifacts = artifacts;
   }
 
@@ -643,6 +780,10 @@ export function renderAxintRunReport(
     `- Destination: ${report.destination}`,
     `- Gate: ${report.gate.decision}`,
     `- Reason: ${report.gate.reason}`,
+    `- Integration: ${report.executionProfile.integration}`,
+    `- Network: ${report.executionProfile.network}`,
+    `- Project mutation: ${report.executionProfile.projectMutation}`,
+    `- Artifact policy: ${report.executionProfile.artifactPolicy}${report.executionProfile.outputDirectory ? ` (${report.executionProfile.outputDirectory})` : ""}`,
     `- Session: ${report.session.token}`,
     `- Job: ${report.job.id}`,
     `- Status command: \`${report.job.statusCommand}\``,
@@ -689,12 +830,13 @@ export function renderAxintRunReport(
       : ["- Local brain: not requested."]),
     "",
     "## Swift Diagnostics",
+    `- Evidence: ${report.swiftValidation.evidenceSummary.confirmed} confirmed · ${report.swiftValidation.evidenceSummary.probable} probable · ${report.swiftValidation.evidenceSummary.advisory} advisory · ${report.swiftValidation.evidenceSummary.suppressed} suppressed`,
     ...(report.swiftValidation.diagnostics.length > 0
       ? report.swiftValidation.diagnostics
           .slice(0, 20)
           .map(
             (diagnostic) =>
-              `- ${diagnostic.severity.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}`
+              `- ${diagnostic.severity.toUpperCase()} ${diagnostic.code} [${diagnosticConfidenceLabel(diagnostic)}]: ${diagnostic.message}`
           )
       : ["- None."]),
     "",
@@ -936,13 +1078,16 @@ function buildRunFailureIntelligence(input: {
     };
   }
 
-  const swiftError = input.validationDiagnostics.find(
-    (diagnostic) => diagnostic.severity === "error"
-  );
+  const swiftError = input.validationDiagnostics.find(isDiagnosticBlocking);
   if (swiftError) {
     return {
       status: "ready",
-      confidence: "high",
+      confidence:
+        swiftError.confidence === "confirmed"
+          ? "high"
+          : swiftError.confidence === "probable"
+            ? "medium"
+            : "low",
       category: "swift-validation",
       summary: `${swiftError.code}: ${swiftError.message}`,
       likelyCause:
@@ -956,7 +1101,13 @@ function buildRunFailureIntelligence(input: {
       nextProofCommand: swiftError.file
         ? `axint swift validate ${shellQuote(swiftError.file)}`
         : "axint swift validate <file>",
-      evidence: [`Severity: ${swiftError.severity}`],
+      evidence: [
+        `Severity: ${swiftError.originalSeverity ?? swiftError.severity}`,
+        `Confidence: ${swiftError.confidence ?? "probable"}`,
+        ...(swiftError.evidence ?? []).map(
+          (evidence) => `${evidence.source}/${evidence.relation}: ${evidence.summary}`
+        ),
+      ],
     };
   }
 
@@ -1262,6 +1413,7 @@ async function runCommand(
     timeoutSeconds: number;
     dryRun?: boolean;
     job?: AxintRunJobRecord;
+    artifactRoot?: string | false;
   }
 ): Promise<AxintRunCommandResult> {
   const started = Date.now();
@@ -1303,7 +1455,13 @@ async function runCommand(
     let settled = false;
     let spawnError: Error | undefined;
     const resultBundlePath = expectedResultBundlePath(args);
-    const logPath = commandLogPath(options.cwd, options.job?.id, label, commandId);
+    const logPath = commandLogPath(
+      options.cwd,
+      options.job?.id,
+      label,
+      commandId,
+      options.artifactRoot
+    );
     appendToCommandLog(
       logPath,
       [
@@ -1403,7 +1561,8 @@ async function runMacRuntimeProbe(
   cwd: string,
   plan: XcodePlan,
   input: AxintRunInput,
-  job?: AxintRunJobRecord
+  job?: AxintRunJobRecord,
+  options: { artifactRoot?: string | false } = {}
 ): Promise<{
   buildSettings?: AxintRunCommandResult;
   launch?: AxintRunCommandResult;
@@ -1417,6 +1576,7 @@ async function runMacRuntimeProbe(
       cwd,
       timeoutSeconds: 90,
       job,
+      artifactRoot: options.artifactRoot,
     }
   );
   if (settings.exitCode !== 0) {
@@ -1436,7 +1596,8 @@ async function runMacRuntimeProbe(
     cwd,
     appPath,
     input.runtimeTimeoutSeconds ?? 8,
-    job
+    job,
+    options
   );
   return {
     buildSettings: settings,
@@ -1449,7 +1610,8 @@ async function runRuntimeLaunchProbe(
   cwd: string,
   appPath: string,
   waitSeconds: number,
-  job?: AxintRunJobRecord
+  job?: AxintRunJobRecord,
+  options: { artifactRoot?: string | false } = {}
 ): Promise<AxintRunCommandResult> {
   const started = Date.now();
   const appName = basename(appPath, ".app");
@@ -1457,6 +1619,7 @@ async function runRuntimeLaunchProbe(
     cwd,
     timeoutSeconds: 15,
     job,
+    artifactRoot: options.artifactRoot,
   });
   if (openResult.exitCode !== 0) return openResult;
 
@@ -1470,6 +1633,7 @@ async function runRuntimeLaunchProbe(
       cwd,
       timeoutSeconds: 5,
       job,
+      artifactRoot: options.artifactRoot,
     }
   );
   return {
@@ -1685,13 +1849,9 @@ function buildProofReconciliation(
 
 function validationDiagnosticReconciledByXcode(
   diagnostic: Diagnostic,
-  proof: ProofReconciliation
+  _proof: ProofReconciliation
 ): boolean {
-  return (
-    proof.xcodeBuildPassed &&
-    diagnostic.severity === "warning" &&
-    diagnostic.code === "AX768"
-  );
+  return diagnostic.status === "suppressed";
 }
 
 function cloudCheckReconciledByFocusedProof(
@@ -1713,15 +1873,29 @@ function reconcileSwiftValidationStepWithXcodeProof(
   proof: ProofReconciliation
 ) {
   if (!proof.xcodeBuildPassed) return;
-  const warnings = diagnostics.filter((d) => d.severity === "warning");
-  if (warnings.length === 0) return;
-  if (!warnings.every((d) => validationDiagnosticReconciledByXcode(d, proof))) {
-    return;
-  }
+  const suppressed = diagnostics.filter(
+    (diagnostic) => diagnostic.status === "suppressed"
+  );
+  if (suppressed.length === 0) return;
   const step = steps.find((item) => item.name === "Swift validation");
-  if (!step || step.state !== "warn") return;
-  step.state = "pass";
-  step.detail = `${step.detail} Xcode build passed, so Axint downgraded ${warnings.length} partial-context AX768 warning${warnings.length === 1 ? "" : "s"} from the final gate.`;
+  if (!step) return;
+  step.detail = `${step.detail} Xcode build evidence suppressed ${suppressed.length} contradicted compiler-shaped finding${suppressed.length === 1 ? "" : "s"}; the receipt preserves each reason.`;
+}
+
+function updateSwiftValidationStepWithEvidence(
+  steps: AxintRunStep[],
+  diagnostics: Diagnostic[]
+) {
+  const step = steps.find((item) => item.name === "Swift validation");
+  if (!step) return;
+  const summary = summarizeDiagnosticEvidence(diagnostics);
+  step.state =
+    summary.blocking > 0
+      ? "fail"
+      : summary.probable > 0 || summary.advisory > 0
+        ? "warn"
+        : "pass";
+  step.detail = `${step.detail} Evidence: ${summary.confirmed} confirmed, ${summary.probable} probable, ${summary.advisory} advisory, ${summary.suppressed} suppressed.`;
 }
 
 function reconcileCloudCheckStepWithFocusedProof(
@@ -2529,17 +2703,21 @@ function commandLogPath(
   cwd: string,
   runId: string | undefined,
   label: string,
-  commandId: string
-): string {
+  commandId: string,
+  artifactRoot?: string | false
+): string | undefined {
+  if (artifactRoot === false) return undefined;
   const id = runId ?? "untracked";
   const slug = label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-  return join(cwd, ".axint", "run", "logs", `${id}-${slug}-${commandId}.log`);
+  const root = artifactRoot ?? join(cwd, ".axint", "run");
+  return join(root, "logs", `${id}-${slug}-${commandId}.log`);
 }
 
-function appendToCommandLog(path: string, text: string): void {
+function appendToCommandLog(path: string | undefined, text: string): void {
+  if (!path) return;
   try {
     mkdirSync(dirname(path), { recursive: true });
     appendFileSync(path, text, "utf-8");
@@ -2554,9 +2732,15 @@ function expectedResultBundlePath(args: string[]): string | undefined {
   return value && !value.startsWith("-") ? value : undefined;
 }
 
-function runResultBundlePath(cwd: string, runId: string, label: string): string {
+function runResultBundlePath(
+  cwd: string,
+  runId: string,
+  label: string,
+  directRoot = false
+): string {
   const safeLabel = label.replace(/[^A-Za-z0-9_.-]+/g, "-");
-  return join(cwd, ".axint", "run", "results", runId, `${safeLabel}.xcresult`);
+  const root = directRoot ? cwd : join(cwd, ".axint", "run");
+  return join(root, "results", runId, `${safeLabel}.xcresult`);
 }
 
 function killProcessGroup(pid: number, signal: NodeJS.Signals): void {
@@ -2592,14 +2776,18 @@ function summarizeStatus(
   if (
     steps.some((step) => step.state === "fail") ||
     workflow.status === "needs_action" ||
-    blockingDiagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    blockingDiagnostics.some(isDiagnosticBlocking) ||
     blockingCloudChecks.some((check) => check.status === "fail")
   ) {
     return "fail";
   }
   if (
     steps.some((step) => step.state === "warn" || step.state === "skipped") ||
-    blockingDiagnostics.some((diagnostic) => diagnostic.severity === "warning") ||
+    blockingDiagnostics.some(
+      (diagnostic) =>
+        diagnostic.status !== "suppressed" &&
+        (diagnostic.severity === "warning" || diagnostic.confidence === "advisory")
+    ) ||
     blockingCloudChecks.some((check) => check.status === "needs_review")
   ) {
     return "needs_review";
@@ -2788,7 +2976,7 @@ function buildRunRepairPrompt(input: {
           .slice(0, 12)
           .map(
             (diagnostic) =>
-              `- ${diagnostic.severity.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}`
+              `- ${diagnostic.severity.toUpperCase()} ${diagnostic.code} [${diagnosticConfidenceLabel(diagnostic)}]: ${diagnostic.message}`
           )
       : ["- None."]),
     "",
@@ -2869,8 +3057,8 @@ function buildRunRepairPrompt(input: {
   return lines.filter(Boolean).join("\n");
 }
 
-function writeRunArtifacts(report: AxintRunReport) {
-  const dir = join(report.cwd, ".axint", "run");
+function writeRunArtifacts(report: AxintRunReport, outputDirectory?: string) {
+  const dir = outputDirectory ?? join(report.cwd, ".axint", "run");
   mkdirSync(dir, { recursive: true });
   const jsonPath = join(dir, "latest.json");
   const markdownPath = join(dir, "latest.md");

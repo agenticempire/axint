@@ -76,6 +76,43 @@ describe("Fix Packet", () => {
     expect(packet.nextSteps[0]).toContain("Copy the AI fix prompt");
   });
 
+  it("preserves suppressed findings without failing the receipt", () => {
+    const packet = buildFixPacket({
+      success: true,
+      surface: "swift",
+      fileName: "Feature.swift",
+      diagnostics: [
+        {
+          code: "AX765",
+          severity: "info",
+          originalSeverity: "error",
+          confidence: "probable",
+          status: "suppressed",
+          blocking: false,
+          message: "Invalid SwiftUI frame overload",
+          evidence: [
+            {
+              source: "xcode-build",
+              relation: "contradicts",
+              summary: "The selected Xcode build succeeded.",
+            },
+          ],
+        },
+      ],
+      packetJsonPath: "/tmp/latest.json",
+      packetMarkdownPath: "/tmp/latest.md",
+    });
+
+    expect(packet.outcome.verdict).toBe("pass");
+    expect(packet.outcome.errors).toBe(0);
+    expect(packet.diagnostics[0]).toMatchObject({
+      originalSeverity: "error",
+      status: "suppressed",
+      blocking: false,
+    });
+    expect(renderFixPacketMarkdown(packet)).toContain("xcode-build/contradicts");
+  });
+
   it("marks unknown Swift snippets as low confidence instead of bluffing", () => {
     const packet = buildFixPacket({
       success: true,

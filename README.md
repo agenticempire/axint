@@ -5,12 +5,12 @@
 </p>
 
 <p align="center">
-  <strong>Axint is the Apple-native execution layer for AI coding agents.</strong>
+  <strong>Axint is proof and repair infrastructure for Apple coding agents.</strong>
 </p>
 
 <p align="center">
-  Describe App Intents, SwiftUI views, widgets, and app shells in TypeScript, Python, JSON, or the preview <code>.axint</code> surface.<br>
-  Axint emits ordinary Swift, validates Apple-specific rules, and gives agents a repair packet when something needs work.
+  Check existing Swift without changing the project, or generate App Intents, SwiftUI views, widgets, and app shells from a smaller contract.<br>
+  Axint reconciles static findings with Xcode evidence and gives agents a compact receipt they can repair and rerun.
 </p>
 
 <p align="center">
@@ -43,29 +43,38 @@ Axint exists because Apple-native software is becoming a set of structured syste
 capabilities: App Intents, Siri, Shortcuts, Spotlight, widgets, SwiftUI views,
 privacy copy, entitlements, and generated metadata.
 
-General coding agents can produce Swift. Axint makes them operate through a
-smaller contract, validates the Apple-specific parts, coordinates the project
-proof loop, and writes a repair artifact the next agent run can use.
+General coding agents can produce Swift. Axint makes the proof loop explicit:
+static analysis proposes, Apple tooling supplies evidence, and the receipt
+records what is confirmed, probable, advisory, or suppressed.
 
 ```
-feature definition
-  → Axint IR
-  → Swift + plist + entitlements
-  → local or Cloud Check verdict
-  → project-aware repair plan
-  → Fix Packet
+changed Swift or generated output
+  → static findings with provenance
+  → Xcode build / test / runtime evidence
+  → evidence reconciliation
+  → compact proof receipt
   → agent repair
-  → rerun
+  → rerun with fresh proof
 ```
 
-The compiler is useful on its own. Registry and Cloud extend the same workflow:
+The five product modes share that evidence contract:
 
-- **Compiler** — open-source TypeScript/Python/preview `.axint` to Apple-native Swift.
-- **Fix Packet** — `latest.check.*` for the quick verdict, `latest.*` for the full repair contract.
-- **Repair** — `axint repair` indexes the existing Apple project, ranks likely files, classifies build/UI/runtime evidence, and returns the smallest patch/proof loop.
-- **MCP** — agents call compile, validate, fix, schema compile, templates, and packet tools directly.
-- **Registry** — install reusable Apple capabilities with source, compiler metadata, and package details attached.
-- **Cloud Check + feedback** — free hosted validation for quick results; signed-in Pro checks add the AI-ready repair prompt, history, and a shareable report. Privacy-safe feedback packets help Axint learn repeated Apple failure modes without sending source code.
+- **Generate** — optional TypeScript/Python/JSON/preview `.axint` to Apple-native Swift.
+- **Check** — evidence-aware diagnostics for existing Swift and generated output.
+- **Run** — resumable Xcode build, test, runtime, `.xcresult`, and receipt orchestration.
+- **Team** — sessions, project context, file claims, and durable repair handoff.
+- **Cloud** — hosted checks and shared history when local Apple tooling is unavailable.
+
+### Brownfield-safe first run
+
+```bash
+axint run --integration=minimal --local-only --advisory --no-fix \
+  --dir /path/to/MyApp --scheme MyApp --changed Sources/Feature.swift
+```
+
+Minimal mode generates no source, writes no project instructions, memory,
+session, MCP configuration, feedback, or automatic fix, makes no hosted calls,
+and leaves no durable Axint artifact unless `--output-dir` is supplied.
 
 WWDC26 made App Intents, App Schemas, Siri, Shortcuts, Spotlight, and
 Foundation Models tool calls a single agent-facing execution path. Axint now
@@ -302,7 +311,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.4.36 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1467 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.5.0 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1474 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
 
 <!-- truth:readme-truth-source:start -->Public proof is regenerated from the compiler's metrics pipeline on every release (`npm run metrics:emit && npm run metrics:check`).<!-- truth:readme-truth-source:end -->
 

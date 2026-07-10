@@ -3,6 +3,13 @@ import { readFileSync, statSync, readdirSync } from "node:fs";
 import { resolve, join, extname } from "node:path";
 import { validateSwiftSources } from "../core/swift-validator.js";
 import type { Diagnostic } from "../core/types.js";
+import {
+  diagnosticConfidenceLabel,
+  isDiagnosticBlocking,
+  normalizeDiagnosticEvidence,
+  reconcileDiagnosticsWithEvidence,
+  summarizeDiagnosticEvidence,
+} from "../core/diagnostic-evidence.js";
 import { getAxintLoginState } from "../core/credentials.js";
 import { shouldUseColor } from "./color.js";
 import {
@@ -23,6 +30,14 @@ export function registerValidateSwift(program: Command) {
       "Print Fix Packet paths and sign-in tips even when validation passes"
     )
     .option("--json", "Emit a machine-readable JSON report to stdout")
+    .option(
+      "--advisory",
+      "Report static findings without making unconfirmed findings fail the command"
+    )
+    .option(
+      "--xcode-build-log <path>",
+      "Reconcile static findings with an existing xcodebuild log"
+    )
     .option("--color", "Force ANSI color output even when stdout/stderr are not TTYs")
     .option(
       "--quiet-system-symbols",
@@ -45,6 +60,8 @@ export function registerValidateSwift(program: Command) {
           verbose?: boolean;
           json?: boolean;
           color?: boolean;
+          advisory?: boolean;
+          xcodeBuildLog?: string;
           quietSystemSymbols?: boolean;
           fixPacket?: boolean;
           fixPacketDir: string;
@@ -101,10 +118,27 @@ export function registerValidateSwift(program: Command) {
           }
         }
 
-        const errors = all.filter((d) => d.severity === "error");
+        const buildLog = options.xcodeBuildLog
+          ? readFileSync(resolve(options.xcodeBuildLog), "utf-8")
+          : undefined;
+        const reconciled = reconcileDiagnosticsWithEvidence(
+          all.map(normalizeDiagnosticEvidence),
+          {
+            advisoryOnly: options.advisory === true,
+            build: buildLog
+              ? {
+                  exitCode: inferXcodeBuildExitCode(buildLog),
+                  stdout: buildLog,
+                  artifactPath: resolve(options.xcodeBuildLog!),
+                }
+              : undefined,
+          }
+        );
+        all.splice(0, all.length, ...reconciled);
+        const errors = all.filter(isDiagnosticBlocking);
+        const evidenceSummary = summarizeDiagnosticEvidence(all);
         let repairArtifacts:
-          | ReturnType<typeof tryEmitRepairArtifacts>["artifacts"]
-          | null = null;
+          ReturnType<typeof tryEmitRepairArtifacts>["artifacts"] | null = null;
 
         if (options.fixPacket !== false) {
           const repairResult = tryEmitRepairArtifacts(
@@ -146,6 +180,8 @@ export function registerValidateSwift(program: Command) {
           const payload = {
             ok: errors.length === 0,
             filesScanned: filesToScan.length,
+            mode: options.advisory ? "advisory" : "standard",
+            evidenceSummary,
             diagnostics: all,
             fixPacketPath: repairArtifacts?.packet.jsonPath ?? null,
             checkSummaryPath: repairArtifacts?.check.jsonPath ?? null,
@@ -164,7 +200,7 @@ export function registerValidateSwift(program: Command) {
           }
           printLine(
             "error",
-            `${errors.length} error${errors.length === 1 ? "" : "s"} in ${filesToScan.length} file${filesToScan.length === 1 ? "" : "s"}`,
+            `${errors.length} blocking finding${errors.length === 1 ? "" : "s"} in ${filesToScan.length} file${filesToScan.length === 1 ? "" : "s"}`,
             color,
             console.error,
             "\n"
@@ -178,7 +214,7 @@ export function registerValidateSwift(program: Command) {
           }
           printLine(
             "success",
-            `${filesToScan.length} Swift file${filesToScan.length === 1 ? "" : "s"} passed axint validation`,
+            `${filesToScan.length} Swift file${filesToScan.length === 1 ? "" : "s"} passed axint validation · ${evidenceSummary.confirmed} confirmed · ${evidenceSummary.probable} probable · ${evidenceSummary.advisory} advisory · ${evidenceSummary.suppressed} suppressed`,
             color,
             console.log
           );
@@ -228,12 +264,20 @@ function printDiagnostic(d: Diagnostic, color: boolean) {
         ? "\x1b[33m"
         : "\x1b[36m";
   const severityLabel = color ? `${severityColor}${d.severity}\x1b[0m` : d.severity;
-  console.error(`${loc ? loc + " " : ""}${severityLabel}[${d.code}]: ${d.message}`);
+  const confidence = diagnosticConfidenceLabel(d);
+  console.error(
+    `${loc ? loc + " " : ""}${severityLabel}[${d.code}] ${confidence}: ${d.message}`
+  );
   if (d.suggestion) {
     console.error(
       color ? `  \x1b[2mhelp:\x1b[0m ${d.suggestion}` : `  help: ${d.suggestion}`
     );
   }
+}
+
+function inferXcodeBuildExitCode(log: string): number {
+  if (/\*\* BUILD SUCCEEDED \*\*/.test(log)) return 0;
+  return /\*\* BUILD FAILED \*\*/.test(log) || /:\s*error:\s*/m.test(log) ? 1 : 1;
 }
 
 function printRepairArtifactLinesWithColor(

@@ -1647,7 +1647,8 @@ export const TOOL_MANIFEST = [
       "the Axint session, validates Swift, runs Cloud Check, executes xcodebuild build/test " +
       "when a project or workspace is present, optionally launches a macOS app for runtime " +
       "evidence, writes .axint/run/latest artifacts, and returns an agent-ready repair prompt. " +
-      "Use this when the agent might forget the Axint workflow: one tool call owns the gate.",
+      "Use integration=minimal for a local-only, non-mutating brownfield proof that writes " +
+      "nothing unless outputDir is supplied. Use full when one tool call should own the project gate.",
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -1754,6 +1755,30 @@ export const TOOL_MANIFEST = [
         runtimeFailure: {
           type: "string",
           description: "Crash, freeze, hang, launch timeout, or UI failure evidence.",
+        },
+        integration: {
+          type: "string",
+          enum: ["full", "minimal"],
+          description:
+            "Execution profile. minimal denies network/project mutation, disables automatic fixes, treats unconfirmed static findings as advisory, and writes no durable artifacts unless outputDir is supplied.",
+        },
+        localOnly: {
+          type: "boolean",
+          description: "Deny hosted/network checks for this run.",
+        },
+        advisory: {
+          type: "boolean",
+          description:
+            "Keep unconfirmed static findings non-blocking while preserving them in the receipt.",
+        },
+        fix: {
+          type: "boolean",
+          description: "Allow automatic fix behavior. Forced false by minimal mode.",
+        },
+        outputDir: {
+          type: "string",
+          description:
+            "Explicit artifact directory. Minimal mode otherwise writes no durable run artifacts.",
         },
         dryRun: {
           type: "boolean",

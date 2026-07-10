@@ -249,7 +249,7 @@ type ProjectVersionSyncArgs = {
 };
 
 // Read version from package.json so it stays in sync.
-let pkg: PackageInfo = { version: "0.4.36" };
+let pkg: PackageInfo = { version: "0.5.0" };
 let packageJsonPath = "<bundled>";
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -377,6 +377,11 @@ type AxintRunArgs = {
   expectedBehavior?: string;
   actualBehavior?: string;
   runtimeFailure?: string;
+  integration?: "full" | "minimal";
+  localOnly?: boolean;
+  advisory?: boolean;
+  fix?: boolean;
+  outputDir?: string;
   dryRun?: boolean;
   writeReport?: boolean;
   background?: boolean;
@@ -1228,11 +1233,22 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       expectedBehavior: a.expectedBehavior,
       actualBehavior: a.actualBehavior,
       runtimeFailure: a.runtimeFailure,
+      integration: a.integration,
+      localOnly: a.integration === "minimal" || a.localOnly,
+      advisory: a.integration === "minimal" || a.advisory,
+      fix: a.integration === "minimal" ? false : a.fix,
+      outputDir: a.outputDir,
       dryRun: a.dryRun,
       writeReport: a.writeReport,
     } as const;
 
-    const autoBackground = shouldAutoBackgroundMcpRun(a);
+    if (a.integration === "minimal" && a.background) {
+      return errorText(
+        "integration=minimal cannot background because the minimal contract does not persist resumable job state. Run synchronously or use integration=full."
+      );
+    }
+    const autoBackground =
+      a.integration === "minimal" ? false : shouldAutoBackgroundMcpRun(a);
     if (a.background || autoBackground) {
       const cwd = resolve(a.cwd ?? process.cwd());
       const id = `axrun_${randomUUID()}`;

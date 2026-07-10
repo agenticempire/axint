@@ -1,12 +1,12 @@
 # Axint Roadmap
 
-_Last updated: June 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.4.36](https://github.com/agenticempire/axint/releases/tag/v0.4.36)<!-- metrics:roadmap-release:end -->_
+_Last updated: June 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.5.0](https://github.com/agenticempire/axint/releases/tag/v0.5.0)<!-- metrics:roadmap-release:end -->_
 
 Axint is the Apple-native execution layer for AI coding agents. The open-source package gives agents a smaller contract for Apple surfaces, emits ordinary Swift, validates Apple-specific rules, writes Fix Packets, and coordinates proof loops across CLI, MCP, Xcode, Registry, and Cloud-facing workflows.
 
 The thesis is simple: agents can write code, but Apple-native software needs proof. Axint turns agent output into validated, repairable, inspectable Apple work.
 
-<!-- metrics:roadmap-snapshot:start -->Current compiler snapshot: v0.4.36 · 36 MCP tools + 5 prompts · 53 templates · 225 diagnostic codes · 1467 tests.<!-- metrics:roadmap-snapshot:end -->
+<!-- metrics:roadmap-snapshot:start -->Current compiler snapshot: v0.5.0 · 36 MCP tools + 5 prompts · 53 templates · 225 diagnostic codes · 1474 tests.<!-- metrics:roadmap-snapshot:end -->
 
 ---
 

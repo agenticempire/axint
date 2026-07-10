@@ -56,6 +56,19 @@ export {
   getCodesByCategory,
 } from "./diagnostics.js";
 export type { DiagnosticInfo } from "./diagnostics.js";
+export {
+  diagnosticConfidenceLabel,
+  effectiveDiagnosticSeverity,
+  isDiagnosticBlocking,
+  normalizeDiagnosticEvidence,
+  reconcileDiagnosticsWithEvidence,
+  strongestDiagnosticConfidence,
+  summarizeDiagnosticEvidence,
+} from "./diagnostic-evidence.js";
+export type {
+  DiagnosticEvidenceInput,
+  DiagnosticEvidenceSummary,
+} from "./diagnostic-evidence.js";
 export { ejectIntent } from "./eject.js";
 export { buildToolContract, renderToolContractMarkdown } from "./tool-contract.js";
 export { generateAppIntentsTestingHarness } from "../apple-intelligence/appintents-testing.js";
