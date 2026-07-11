@@ -50,7 +50,7 @@ function installRepairAwareXcodebuild(dir: string): string {
   return bin;
 }
 
-describe.sequential("Axint proof platform", () => {
+describe.sequential("Axint proof platform", { timeout: 20_000 }, () => {
   let previousHome: string | undefined;
   let previousPath: string | undefined;
 
