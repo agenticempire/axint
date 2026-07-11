@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -14,9 +14,27 @@ import {
   listAxintFeedbackInbox,
   renderFeedbackInboxReport,
 } from "../../src/feedback/inbox.js";
+import { setAdoptionTelemetrySharingLevel } from "../../src/telemetry/adoption.js";
 
 describe("Axint feedback inbox", () => {
-  it("queues source-free Cloud feedback automatically while preserving opt-out", () => {
+  it("enables remote source-free feedback only after enhanced consent", () => {
+    const root = mkdtempSync(join(tmpdir(), "axint-enhanced-feedback-"));
+    const previousConfig = process.env.AXINT_TELEMETRY_CONFIG;
+    try {
+      process.env.AXINT_TELEMETRY_CONFIG = join(root, "telemetry.json");
+      expect(resolveAutoFeedbackPolicy(root).mode).toBe("local_only");
+      setAdoptionTelemetrySharingLevel("enhanced");
+      expect(resolveAutoFeedbackPolicy(root)).toMatchObject({
+        mode: "on",
+        reason: "enhanced diagnostics sharing is enabled",
+      });
+    } finally {
+      process.env.AXINT_TELEMETRY_CONFIG = previousConfig;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps source-free Cloud feedback local until enhanced sharing is enabled", () => {
     const root = mkdtempSync(join(tmpdir(), "axint-auto-feedback-"));
     try {
       const report = runCloudCheck({
@@ -36,7 +54,14 @@ struct BrokenIntent: AppIntent {
       expect(stored.autoFeedback?.queued).toBe(true);
       expect(stored.autoFeedback?.queuePath).toBeTruthy();
       expect(existsSync(stored.autoFeedback!.queuePath!)).toBe(true);
-      expect(resolveAutoFeedbackPolicy(root).mode).toBe("on");
+      const envelope = JSON.parse(
+        readFileSync(stored.autoFeedback!.queuePath!, "utf-8")
+      ) as { projectId?: string };
+      const projectConfig = JSON.parse(
+        readFileSync(join(root, ".axint/telemetry-project.json"), "utf-8")
+      ) as { projectId: string };
+      expect(envelope.projectId).toBe(projectConfig.projectId);
+      expect(resolveAutoFeedbackPolicy(root).mode).toBe("local_only");
 
       writeAutoFeedbackPolicy(root, "off");
       const second = writeCloudFeedbackSignal(report.learningSignal!, { cwd: root });

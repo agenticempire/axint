@@ -1,28 +1,143 @@
 {
-  "schema": "https://axint.ai/schemas/brownfield-benchmark.v1.json",
+  "schema": "https://axint.ai/schemas/brownfield-benchmark.v2.json",
+  "methodology": {
+    "unit": "diagnostic-code-per-labeled-case",
+    "sourceDisclosure": "sha256-only",
+    "compilerEvidence": "not-included-in-static-corpus",
+    "interpretation": "This report measures rule-level precision, recall, and abstention on its disclosed labeled corpus. It is not a production-wide accuracy claim. Xcode evidence reconciliation is tested separately."
+  },
   "corpus": {
     "name": "Axint curated brownfield regression corpus",
-    "version": "1.0.0",
-    "scope": "Small, transparent rule-level regression corpus. It is not a representative estimate for arbitrary production Swift projects.",
-    "cases": 8,
-    "cleanCases": 2,
-    "findingCases": 6
+    "version": "2.0.0",
+    "scope": "Transparent rule-level fixtures across common Apple project surfaces. Private project manifests can be evaluated locally without publishing source.",
+    "cases": 20,
+    "cleanCases": 8,
+    "findingCases": 12,
+    "categories": [
+      "accessibility",
+      "app-intents",
+      "concurrency",
+      "interaction",
+      "swiftui",
+      "uikit",
+      "widgetkit"
+    ],
+    "provenance": {
+      "hand-labeled-regression": 20
+    }
+  },
+  "thresholds": {
+    "minimumCases": 20,
+    "minimumCategories": 6,
+    "precision": 0.95,
+    "recall": 0.95,
+    "cleanAbstentionRate": 0.95,
+    "passed": true,
+    "failures": []
   },
   "metrics": {
+    "cases": 20,
+    "cleanCases": 8,
+    "findingCases": 12,
     "precision": 1,
     "recall": 1,
     "cleanAbstentionRate": 1,
-    "truePositives": 6,
+    "truePositives": 12,
     "falsePositives": 0,
-    "falseNegatives": 0
+    "falseNegatives": 0,
+    "falsePositiveRate": 0,
+    "byCategory": {
+      "accessibility": {
+        "cases": 1,
+        "cleanCases": 0,
+        "findingCases": 1,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      },
+      "app-intents": {
+        "cases": 2,
+        "cleanCases": 1,
+        "findingCases": 1,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      },
+      "concurrency": {
+        "cases": 6,
+        "cleanCases": 3,
+        "findingCases": 3,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      },
+      "interaction": {
+        "cases": 2,
+        "cleanCases": 1,
+        "findingCases": 1,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      },
+      "swiftui": {
+        "cases": 6,
+        "cleanCases": 2,
+        "findingCases": 4,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 4,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      },
+      "uikit": {
+        "cases": 1,
+        "cleanCases": 1,
+        "findingCases": 0,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      },
+      "widgetkit": {
+        "cases": 2,
+        "cleanCases": 0,
+        "findingCases": 2,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      }
+    }
   },
   "cases": [
     {
       "id": "clean-swiftui-view",
       "title": "Ordinary compiling SwiftUI view",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
       "expectation": "clean",
+      "sourceSha256": "3decb1b101ed51c05d625de1f0c92c3c2197239e24a414dda8d698fb92e82f9d",
       "expectedCodes": [],
       "emittedCodes": [],
+      "emittedFindings": [],
       "truePositives": [],
       "falsePositives": [],
       "falseNegatives": [],
@@ -31,9 +146,14 @@
     {
       "id": "valid-app-intent",
       "title": "Complete App Intent",
+      "category": "app-intents",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
       "expectation": "clean",
+      "sourceSha256": "88ab7e76202dad680851d8f40cd32c683781492ebcf208b76a934cc7205adaa5",
       "expectedCodes": [],
       "emittedCodes": [],
+      "emittedFindings": [],
       "truePositives": [],
       "falsePositives": [],
       "falseNegatives": [],
@@ -42,12 +162,24 @@
     {
       "id": "container-accessibility-identifier",
       "title": "Container identifier can hide child identifiers",
+      "category": "accessibility",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
       "expectation": "finding",
+      "sourceSha256": "214b9322ccb4ce5a84509ac72f08b51389af9360acf93734c3ea08914d5e253e",
       "expectedCodes": [
         "AX736"
       ],
       "emittedCodes": [
         "AX736"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX736",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
       ],
       "truePositives": [
         "AX736"
@@ -59,12 +191,24 @@
     {
       "id": "input-overlay-hit-testing",
       "title": "Text input overlay without hit-testing policy",
+      "category": "interaction",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
       "expectation": "finding",
+      "sourceSha256": "d8091a062ed59d3e11446fae3c34e170df1a965004a4de3b125792e5ef7b2f2a",
       "expectedCodes": [
         "AX764"
       ],
       "emittedCodes": [
         "AX764"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX764",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
       ],
       "truePositives": [
         "AX764"
@@ -76,12 +220,24 @@
     {
       "id": "invalid-frame-overload",
       "title": "Invalid SwiftUI frame overload",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
       "expectation": "finding",
+      "sourceSha256": "30ddfc7733150858d5e2f16e71fa8a6113d5ffad20d03522f1b2811e8eb9ee76",
       "expectedCodes": [
         "AX765"
       ],
       "emittedCodes": [
         "AX765"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX765",
+          "confidence": "probable",
+          "status": "active",
+          "blocking": true
+        }
       ],
       "truePositives": [
         "AX765"
@@ -93,12 +249,24 @@
     {
       "id": "missing-swiftui-import",
       "title": "View without SwiftUI import",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
       "expectation": "finding",
+      "sourceSha256": "4d4692ff46102324320abcac0d0a92366b15836fc3da3e21c42a4691c765bc9a",
       "expectedCodes": [
         "AX718"
       ],
       "emittedCodes": [
         "AX718"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX718",
+          "confidence": "probable",
+          "status": "active",
+          "blocking": true
+        }
       ],
       "truePositives": [
         "AX718"
@@ -110,12 +278,24 @@
     {
       "id": "undeclared-view-property",
       "title": "View body references an undeclared property",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
       "expectation": "finding",
+      "sourceSha256": "88ea3d115f772ab8b1b7873b76018c3a8fdc614f89b2d562ec5f5d273032eea6",
       "expectedCodes": [
         "AX739"
       ],
       "emittedCodes": [
         "AX739"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX739",
+          "confidence": "probable",
+          "status": "active",
+          "blocking": true
+        }
       ],
       "truePositives": [
         "AX739"
@@ -127,15 +307,297 @@
     {
       "id": "observable-object-isolation",
       "title": "UI ObservableObject without explicit isolation",
+      "category": "concurrency",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
       "expectation": "finding",
+      "sourceSha256": "607e4866dc9a21e353056b2f01ac2c342097126596a33968c5ac2d0e40bb0010",
       "expectedCodes": [
         "AX721"
       ],
       "emittedCodes": [
         "AX721"
       ],
+      "emittedFindings": [
+        {
+          "code": "AX721",
+          "confidence": "probable",
+          "status": "active",
+          "blocking": true
+        }
+      ],
       "truePositives": [
         "AX721"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-uikit-controller",
+      "title": "Ordinary UIKit view controller",
+      "category": "uikit",
+      "platform": "iOS",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "dcd8bc5839a1d3828e832751836bf2e53be78a633c2b75ca9e06e85c7a5c37b7",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-main-actor-model",
+      "title": "Explicitly isolated observable model",
+      "category": "concurrency",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "584d621c6570e04d07fc96b6c2ee0955fd483b5cf8e384e3364179c8b42f9faf",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-actor-state",
+      "title": "Actor with immutable nonisolated identifier",
+      "category": "concurrency",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "96fb5c9fcb471ce41e9b8b08e8c05c8d55d202c1f8e8b3a03b983b33323a948a",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-input-overlay",
+      "title": "Decorative input overlay disables hit testing",
+      "category": "interaction",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "99f59a0405459d375b7cb5674f08571db01cf86041e8573b464571ab59674d79",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-frame-chain",
+      "title": "Valid split SwiftUI frame modifiers",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "301bf3cd0db9233919889851a61ecc772c557cc706997f924f398914ef1fd855",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-sendable-value",
+      "title": "Immutable Sendable value",
+      "category": "concurrency",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "4a4aad05778df6c3f9bb45f000f23de52913ecdae2a0ae05d036705c53a7534e",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "app-intent-missing-perform",
+      "title": "App Intent missing perform",
+      "category": "app-intents",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "3ec244e4220caaaf5525f59bbb9ff6fd027262b75f999a9a82e736ad8c4a46df",
+      "expectedCodes": [
+        "AX701"
+      ],
+      "emittedCodes": [
+        "AX701"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX701",
+          "confidence": "probable",
+          "status": "active",
+          "blocking": true
+        }
+      ],
+      "truePositives": [
+        "AX701"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "state-wrapper-let",
+      "title": "SwiftUI State declared as let",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "9e5d45c47671afc725c81545ba228eb6b868160a6c2af014645d85add8d32d42",
+      "expectedCodes": [
+        "AX703"
+      ],
+      "emittedCodes": [
+        "AX703"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX703",
+          "confidence": "probable",
+          "status": "active",
+          "blocking": true
+        }
+      ],
+      "truePositives": [
+        "AX703"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "widget-missing-body",
+      "title": "Widget missing configuration body",
+      "category": "widgetkit",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "0011cdfedebf2e497a2fdab64571688dd2902f847f229b3c6066f9fd5902f5e5",
+      "expectedCodes": [
+        "AX702"
+      ],
+      "emittedCodes": [
+        "AX702"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX702",
+          "confidence": "probable",
+          "status": "active",
+          "blocking": true
+        }
+      ],
+      "truePositives": [
+        "AX702"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "timeline-entry-missing-date",
+      "title": "Timeline entry missing date",
+      "category": "widgetkit",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "d1aa369c252094e2634c05fad02310d616b0c9ba468c49bede0680bcea0df5a8",
+      "expectedCodes": [
+        "AX713"
+      ],
+      "emittedCodes": [
+        "AX713"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX713",
+          "confidence": "probable",
+          "status": "active",
+          "blocking": true
+        }
+      ],
+      "truePositives": [
+        "AX713"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "unchecked-sendable",
+      "title": "Unchecked Sendable reference type",
+      "category": "concurrency",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "07bf11d8c55b3ca755050d42df69625cbe397009671031ee89f07236bf2d6a7d",
+      "expectedCodes": [
+        "AX723"
+      ],
+      "emittedCodes": [
+        "AX723"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX723",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX723"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "detached-task-context-loss",
+      "title": "Detached task loses actor context",
+      "category": "concurrency",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "69ab3018609f1297fd35ebe143fcd70cf884b9ad4d76b1780a38db6caf676980",
+      "expectedCodes": [
+        "AX726"
+      ],
+      "emittedCodes": [
+        "AX726"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX726",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX726"
       ],
       "falsePositives": [],
       "falseNegatives": [],

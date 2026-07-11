@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import { getDiagnosticEvidencePolicy } from "./diagnostics.js";
+import { diagnosticFingerprint } from "./diagnostic-id.js";
 import type {
   Diagnostic,
   DiagnosticConfidence,
@@ -50,6 +51,7 @@ export function normalizeDiagnosticEvidence(diagnostic: Diagnostic): Diagnostic 
   const status = diagnostic.status ?? "active";
   return {
     ...diagnostic,
+    id: diagnostic.id ?? diagnosticFingerprint(diagnostic),
     originalSeverity,
     confidence,
     status,

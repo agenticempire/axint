@@ -45,7 +45,8 @@ privacy copy, entitlements, and generated metadata.
 
 General coding agents can produce Swift. Axint makes the proof loop explicit:
 static analysis proposes, Apple tooling supplies evidence, and the receipt
-records what is confirmed, probable, advisory, or suppressed.
+records what is confirmed, probable, advisory, or suppressed. `axint prove`
+turns that loop into one local command and signs the source-free result.
 
 ```
 changed Swift or generated output
@@ -68,13 +69,35 @@ The five product modes share that evidence contract:
 ### Brownfield-safe first run
 
 ```bash
-axint run --integration=minimal --local-only --advisory --no-fix \
-  --dir /path/to/MyApp --scheme MyApp --changed Sources/Feature.swift
+npx -y @axint/compiler prove --dir /path/to/MyApp
 ```
 
-Minimal mode generates no source, writes no project instructions, memory,
-session, MCP configuration, feedback, or automatic fix, makes no hosted calls,
-and leaves no durable Axint artifact unless `--output-dir` is supplied.
+No account or configuration is required. Axint discovers the Xcode container and
+scheme, checks existing Swift, runs the available build and tests locally,
+reconciles findings against Apple tooling, and writes a signed receipt under
+`.axint/proof`. If the project has no test target, the result is
+`evidence_required`, never a false shipping pass.
+
+The default command does not change Swift. When the receipt proposes a
+deterministic rewrite, review it and opt in explicitly:
+
+```bash
+axint prove --dir /path/to/MyApp --fix
+axint receipt verify /path/to/MyApp/.axint/proof/latest.proof.json
+```
+
+`--fix` applies only Axint's deterministic Swift rewrites and then reruns the
+complete proof. The receipt records every applied file and diagnostic code.
+Hosted checks, source upload, project instructions, memory installation, and
+MCP configuration are not part of this local-first path.
+
+For CI or team verification, pin the expected signer instead of trusting the
+public key embedded in the receipt alone:
+
+```bash
+axint receipt verify latest.proof.json \
+  --trusted-fingerprint sha256:0123456789abcdef...
+```
 
 WWDC26 made App Intents, App Schemas, Siri, Shortcuts, Spotlight, and
 Foundation Models tool calls a single agent-facing execution path. Axint now
@@ -128,6 +151,33 @@ the same facts.
 ---
 
 ## Quick start
+
+### Prove an existing Apple project
+
+```bash
+cd /path/to/MyApp
+npx -y @axint/compiler prove
+```
+
+The portable `latest.proof.json` receipt contains the Git commit, Xcode and
+Swift versions, build/test outcomes, evidence classes, stable finding IDs,
+repairs, artifact hashes, and an Ed25519 signature. It contains no source,
+command output, private key, or absolute local path.
+
+Review one finding without suppressing the rest of its rule:
+
+```bash
+axint feedback finding axf_... \
+  --receipt .axint/proof/latest.proof.json \
+  --verdict false-positive \
+  --note "Covered by the focused interaction test"
+
+axint prove
+```
+
+Future runs preserve that finding in the receipt but keep it non-blocking unless
+stronger compiler evidence confirms it. Use `accurate`, `irrelevant`, or
+`false-positive`; inspect decisions with `axint feedback findings`.
 
 ### Create the Apple Day Agent starter
 
@@ -282,21 +332,48 @@ axint feedback status
 diagnostic codes, issue class, redacted evidence, and likely Axint product owner,
 but not source code.
 
-Axint also queues source-free feedback automatically when Cloud Check, Run, or
-Repair finds an Axint learning signal. The default endpoint is
+Axint queues source-free feedback locally when Cloud Check, Run, Repair, or
+Prove finds an Axint learning signal. Enable enhanced sharing with
+`axint telemetry enhanced` (or `axint feedback opt-in`) to submit issue classes,
+diagnostic codes, project shape, redacted evidence excerpts, and proof outcomes.
+The default endpoint is
 `https://registry.axint.ai/api/v1/feedback`; packets declare
-`source_not_included`, never include source by default, and can be turned off with
+`source_not_included`, never include source, and can be turned off with
 `axint feedback opt-out`, `AXINT_FEEDBACK=off`, or `AXINT_DISABLE_FEEDBACK=1`.
 Use `axint feedback list` on a maintainer inbox to cluster imported edge cases
 into the next Axint fixes.
 
-Axint also sends a tiny source-free adoption heartbeat so the project can see
-which install paths are actually working: CLI command class, MCP tool name,
-version, coarse host hint, OS family, Node major version, CI flag, and a random
-anonymous install ID. It never sends source code, prompts, generated Swift,
-arguments, file names, local paths, credentials, or machine IDs. Inspect it with
-`axint telemetry status`, turn it off with `axint telemetry opt-out`, or disable
-it per process with `AXINT_TELEMETRY=off` / `AXINT_DISABLE_TELEMETRY=1`.
+Adoption telemetry is off until you explicitly choose a sharing level. Standard
+sharing sends a tiny source-free heartbeat so the project can see which install
+paths are actually working: CLI command class, MCP tool name, version, coarse
+host hint, OS family, Node major version, CI flag, and random anonymous install
+and project IDs. It never sends source code, prompts, generated Swift, arguments,
+file names, local paths, credentials, or machine IDs. Inspect it with
+`axint telemetry status`, enable it with `axint telemetry standard`, turn it off
+with `axint telemetry opt-out`, or disable it per process with
+`AXINT_TELEMETRY=off` / `AXINT_DISABLE_TELEMETRY=1`.
+Registry searches and project briefs may also emit a coarse product-interest
+signal containing only allowlisted project category, goal, Apple capability,
+feature areas, project lifecycle, delivery target, complexity, query-length, and
+result-count buckets. Source-free repair feedback separately includes issue
+class, diagnostic codes, project shape, hypotheses, status, and suggested Axint
+product action. Raw searches, full project descriptions, project names, source,
+and local paths are never included.
+
+The hosted Registry retains anonymous adoption and project-interest events for
+90 days and source-free enhanced diagnostic and proof packets for 180 days. A
+nightly cleanup job enforces both windows.
+
+Enhanced repair packets may include redacted, truncated issue text,
+expected/actual behavior, build or test failure excerpts, and runtime failure
+excerpts. This richer evidence is only submitted after enhanced sharing or
+feedback opt-in is enabled; standard telemetry does not submit it.
+
+Use `axint telemetry standard` for product signals only, or
+`axint telemetry enhanced` to help improve repair and proof intelligence. Both
+commands record the sharing choice and `axint telemetry status` shows it. Axint's
+own internal projects can set `AXINT_DOGFOOD=1` so Pulse separates internal
+dogfood from external enhanced diagnostics without weakening redaction.
 
 The same senior repair read is shared by `axint.suggest`, `axint.feature`,
 `axint.cloud.check`, and `axint.repair`. If a prompt describes a broken existing
@@ -311,7 +388,14 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.5.0 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1474 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.5.1 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1485 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
+
+The published [brownfield benchmark](benchmarks/brownfield/README.md) currently
+covers 20 hand-labeled cases across seven Apple development categories and is a
+release gate for precision, recall, and clean-case abstention. It is a disclosed
+rule-level corpus, not a production-wide accuracy claim. Teams can run the same
+harness against private local manifests; reports contain source hashes and
+labels, never the Swift source itself.
 
 <!-- truth:readme-truth-source:start -->Public proof is regenerated from the compiler's metrics pipeline on every release (`npm run metrics:emit && npm run metrics:check`).<!-- truth:readme-truth-source:end -->
 
@@ -456,7 +540,7 @@ MCP tools and built-in prompts:
 | `axint.repair` | Plan a project-aware Apple repair loop for existing app bugs, with likely files, root causes, host-aware patch guidance, proof commands, and feedback packet |
 | `axint.feedback.create` | Create or read a privacy-safe, source-free feedback packet |
 | `axint feedback status / opt-out / opt-in / sync / list` | Manage automatic source-free feedback, opt out, retry queued packets, and cluster imported feedback into Axint fix queues |
-| `axint telemetry status / opt-out / opt-in` | Inspect and manage source-free adoption telemetry for CLI and MCP usage |
+| `axint telemetry status / standard / enhanced / opt-out` | Inspect and manage explicit source-free product and diagnostic sharing |
 | `axint.agent.install` | Install the local multi-agent project brain so Claude, Cursor, Xcode, other agents, and humans share one `.axint` truth layer |
 | `axint.agent.advice` | Return host-specific next moves from project context, active claims, latest proof, and latest repair artifacts |
 | `axint.agent.claim` | Claim files before an agent edits them so other agents avoid conflicting patches |

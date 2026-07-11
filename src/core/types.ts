@@ -711,7 +711,18 @@ export type DiagnosticEvidenceSource =
   | "swift-compiler"
   | "xcode-build"
   | "xcode-test"
+  | "developer-feedback"
   | "runtime";
+
+export type DiagnosticFeedbackVerdict = "accurate" | "irrelevant" | "false-positive";
+
+export interface DiagnosticFeedback {
+  verdict: DiagnosticFeedbackVerdict;
+  recordedAt: string;
+  note?: string;
+  receiptId?: string;
+  applied: boolean;
+}
 
 export interface DiagnosticEvidence {
   source: DiagnosticEvidenceSource;
@@ -722,6 +733,8 @@ export interface DiagnosticEvidence {
 }
 
 export interface Diagnostic {
+  /** Stable, source-free finding identity used by receipts and local feedback. */
+  id?: string;
   code: string;
   severity: DiagnosticSeverity;
   /** Severity before evidence reconciliation changed the effective result. */
@@ -744,6 +757,8 @@ export interface Diagnostic {
     | "design"
     | "runtime";
   evidence?: DiagnosticEvidence[];
+  /** Project-local review decision, when one has been recorded for this finding. */
+  feedback?: DiagnosticFeedback;
   message: string;
   file?: string;
   line?: number;

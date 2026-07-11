@@ -1,12 +1,12 @@
 # Axint Roadmap
 
-_Last updated: June 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.5.0](https://github.com/agenticempire/axint/releases/tag/v0.5.0)<!-- metrics:roadmap-release:end -->_
+_Last updated: June 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.5.1](https://github.com/agenticempire/axint/releases/tag/v0.5.1)<!-- metrics:roadmap-release:end -->_
 
 Axint is the Apple-native execution layer for AI coding agents. The open-source package gives agents a smaller contract for Apple surfaces, emits ordinary Swift, validates Apple-specific rules, writes Fix Packets, and coordinates proof loops across CLI, MCP, Xcode, Registry, and Cloud-facing workflows.
 
 The thesis is simple: agents can write code, but Apple-native software needs proof. Axint turns agent output into validated, repairable, inspectable Apple work.
 
-<!-- metrics:roadmap-snapshot:start -->Current compiler snapshot: v0.5.0 · 36 MCP tools + 5 prompts · 53 templates · 225 diagnostic codes · 1474 tests.<!-- metrics:roadmap-snapshot:end -->
+<!-- metrics:roadmap-snapshot:start -->Current compiler snapshot: v0.5.1 · 36 MCP tools + 5 prompts · 53 templates · 225 diagnostic codes · 1485 tests.<!-- metrics:roadmap-snapshot:end -->
 
 ---
 
@@ -42,8 +42,9 @@ The thesis is simple: agents can write code, but Apple-native software needs pro
 ### Privacy-safe learning and adoption proof
 
 - Source-free telemetry records command class, MCP tool name, version, coarse host hint, OS family, Node major, CI flag, and anonymous install ID so Axint can understand which install paths actually work.
-- Source-free feedback packets capture diagnostic codes, issue class, redacted evidence, and likely Axint ownership without sending source code, prompts, generated Swift, file names, file paths, credentials, or machine IDs.
-- Users can inspect or disable these paths with `axint telemetry status`, `axint telemetry opt-out`, `axint feedback status`, and `axint feedback opt-out`.
+- Standard product signals classify project lifecycle, delivery target, complexity, feature areas, Apple surfaces, and Registry demand gaps without storing raw searches or project descriptions.
+- Enhanced source-free feedback packets correlate diagnostic codes, issue class, redacted evidence, project shape, suggested Axint ownership, deterministic repairs, and proof outcomes without sending source code, generated Swift, credentials, or local paths.
+- Users can choose `axint telemetry standard`, opt into `axint telemetry enhanced`, inspect `axint telemetry status`, or disable telemetry and feedback independently. Axint-owned projects use `AXINT_DOGFOOD=1` for explicit internal attribution.
 - Fresh installs can prove first real value with `axint activate` or the `axint.activate` MCP tool, so Pulse can separate setup/server-start events from activation.
 
 ---

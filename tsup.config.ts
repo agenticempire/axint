@@ -24,7 +24,7 @@ export default defineConfig([
     format: ["esm"],
     dts: false,
     splitting: false,
-    sourcemap: true,
+    sourcemap: false,
     target: "node22",
     noExternal: bundledMcpDependencies,
     banner: {
@@ -39,7 +39,7 @@ export default defineConfig([
     format: ["esm"],
     dts: true,
     splitting: false,
-    sourcemap: true,
+    sourcemap: false,
     target: "node22",
     noExternal: bundledMcpDependencies,
   },
@@ -51,7 +51,7 @@ export default defineConfig([
     format: ["esm"],
     dts: false,
     splitting: false,
-    sourcemap: true,
+    sourcemap: false,
     target: "node22",
     noExternal: bundledMcpDependencies,
     banner: {
@@ -66,7 +66,7 @@ export default defineConfig([
     format: ["esm"],
     dts: false,
     splitting: false,
-    sourcemap: true,
+    sourcemap: false,
     target: "node22",
     noExternal: bundledMcpDependencies,
     banner: {

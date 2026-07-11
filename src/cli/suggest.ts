@@ -4,12 +4,13 @@ import {
   type FeatureSuggestion,
   type SuggestInput,
 } from "../mcp/suggest.js";
+import { recordProductInterestEventSoon } from "../telemetry/product-insights.js";
 
 const SUGGEST_MODES = ["local", "auto", "ai", "pro"] as const;
 const SUGGEST_PLATFORMS = ["iOS", "macOS", "watchOS", "visionOS", "multi"] as const;
 const STAGES = ["idea", "prototype", "mvp", "growth", "enterprise", "unknown"] as const;
 
-export function registerSuggest(program: Command) {
+export function registerSuggest(program: Command, version: string) {
   program
     .command("suggest")
     .description(
@@ -63,6 +64,15 @@ export function registerSuggest(program: Command) {
       try {
         const input = buildSuggestInput(descriptionParts, options);
         const suggestions = await suggestFeaturesSmart(input);
+        recordProductInterestEventSoon({
+          text: input.appDescription,
+          insightKind: "project_brief",
+          querySource: "suggest-cli",
+          source: "cli",
+          version,
+          resultCount: suggestions.length,
+          targetPlatform: input.platform,
+        });
 
         if (options.json) {
           console.log(JSON.stringify({ input, suggestions }, null, 2));

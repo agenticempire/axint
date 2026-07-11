@@ -37,6 +37,7 @@ import {
   summarizeDiagnosticEvidence,
   type DiagnosticEvidenceSummary,
 } from "../core/diagnostic-evidence.js";
+import { applyFindingFeedback } from "../feedback/findings.js";
 import {
   buildToolContract,
   renderToolContractMarkdown,
@@ -553,6 +554,11 @@ export async function runAxintProject(
         : undefined,
     })
   );
+  validationDiagnostics.splice(
+    0,
+    validationDiagnostics.length,
+    ...applyFindingFeedback(validationDiagnostics, cwd)
+  );
   updateSwiftValidationStepWithEvidence(steps, validationDiagnostics);
   reconcileSwiftValidationStepWithXcodeProof(
     steps,
@@ -836,7 +842,7 @@ export function renderAxintRunReport(
           .slice(0, 20)
           .map(
             (diagnostic) =>
-              `- ${diagnostic.severity.toUpperCase()} ${diagnostic.code} [${diagnosticConfidenceLabel(diagnostic)}]: ${diagnostic.message}`
+              `- ${diagnostic.severity.toUpperCase()} ${diagnostic.code} ${diagnostic.id ?? "unidentified"} [${diagnosticConfidenceLabel(diagnostic)}]: ${diagnostic.message}`
           )
       : ["- None."]),
     "",
@@ -1798,8 +1804,11 @@ function stepFromCommand(name: string, result: AxintRunCommandResult): AxintRunS
   const printable = [result.command, ...result.args].map(shellQuote).join(" ");
   return {
     name,
-    state:
-      result.exitCode === 0 && !result.timedOut && !result.cancelled ? "pass" : "fail",
+    state: result.dryRun
+      ? "skipped"
+      : result.exitCode === 0 && !result.timedOut && !result.cancelled
+        ? "pass"
+        : "fail",
     detail: result.dryRun
       ? "Dry run planned the command without executing it."
       : result.cancelled

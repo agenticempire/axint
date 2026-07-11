@@ -6,6 +6,7 @@ const CLI = resolve(__dirname, "../../dist/cli/index.js");
 
 const ALL_COMMANDS = [
   "init",
+  "prove",
   "compile",
   "activate",
   "validate",
@@ -56,6 +57,7 @@ describe("axint --help", () => {
     const coreSection = stdout.slice(core, stdout.indexOf("Authoring:"));
     for (const name of [
       "init",
+      "prove",
       "compile",
       "validate",
       "validate-swift",
