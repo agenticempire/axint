@@ -6,6 +6,24 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-07-11
+
+### Added
+
+- **One-command local proof** — `axint prove` discovers an Apple project, validates Swift, runs the available Xcode build and tests, reconciles evidence, and writes a compact signed receipt without requiring an account or configuration.
+- **Portable signed receipts** — proof receipts use canonical JSON, SHA-256 payload and artifact hashes, and Ed25519 signatures backed by an automatically generated local identity or an explicitly configured team signing key. `axint receipt verify` detects payload tampering independently.
+- **Finding-level feedback** — every Swift diagnostic has a stable source-free ID. `axint feedback finding` records accurate, irrelevant, or false-positive decisions, and later runs preserve but suppress reviewed findings unless stronger evidence confirms them.
+- **Opt-in deterministic repair** — `axint prove --fix` applies only supported deterministic Swift rewrites and reruns the complete proof; the signed receipt records proposed or applied files and diagnostic codes.
+- **Brownfield benchmark v2** — the release gate now covers 20 labeled cases across seven categories, publishes per-category metrics and source hashes, enforces minimum precision/recall/abstention thresholds, and accepts private local corpus manifests without publishing source.
+- **Help improve Axint program** — `axint telemetry standard` records product-signal consent, while `axint telemetry enhanced` enables and immediately syncs source-free repair and proof diagnostics. `AXINT_DOGFOOD=1` explicitly marks Axint-owned internal runs for separate Pulse attribution.
+- **Proof outcome learning** — `axint prove` now queues a source-free outcome packet with gate decision, diagnostic codes, deterministic-repair result, and build/test/runtime evidence so repair reports can be correlated with what actually passed.
+- **Product-learning taxonomy** — Registry searches and project briefs now classify lifecycle, delivery target, complexity, feature areas, Apple surfaces, and demand gaps; raw searches and project descriptions remain excluded.
+
+### Fixed
+
+- **Dry-run evidence honesty** — planned Xcode commands are now marked skipped and can only produce `evidence_required`; they can no longer be mistaken for passing build or test proof.
+- **Projects without tests** — `axint prove` detects whether an Xcode unit or UI test target exists, proves the build when possible, and reports missing test evidence without misclassifying the absent test action as a product failure.
+
 ## [0.5.0] — 2026-07-10
 
 ### Added

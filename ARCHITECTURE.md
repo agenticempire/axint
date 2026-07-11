@@ -43,6 +43,39 @@ The same repair contract now spans the whole loop:
 
 That matters because Axint should not explain one diagnostic format in the CLI, a different one in Xcode, and a third one to AI tools. The packet is the bridge.
 
+## Proof platform
+
+`axint prove` is the local-first orchestration layer above the existing run
+engine. It discovers the Xcode project, runs evidence-aware Swift validation,
+executes build and available tests, applies project-local finding feedback, and
+emits a signed source-free receipt.
+
+```mermaid
+flowchart LR
+    A["axint prove"] --> B["Project and test discovery"]
+    B --> C["Static findings with stable IDs"]
+    C --> D["Xcode build and test evidence"]
+    D --> E["Evidence reconciliation"]
+    E --> F["Optional deterministic repair"]
+    F --> D
+    E --> G["Canonical source-free payload"]
+    G --> H["SHA-256 + Ed25519 receipt"]
+    H --> I["axint receipt verify"]
+```
+
+The private signing key is stored outside the project under the Axint home
+directory with owner-only permissions. Receipts include only the public key and
+fingerprint. Teams can provide a managed key through `AXINT_PROOF_SIGNING_KEY`
+and identify it with `AXINT_PROOF_SIGNER_NAME`.
+CI and external reviewers can pass `--trusted-fingerprint` during verification;
+without a pinned fingerprint, a local receipt proves integrity but not an
+externally trusted identity.
+
+Finding feedback is deliberately narrower than rule suppression. A decision is
+keyed by a source-free fingerprint derived from diagnostic code, project-relative
+file, evidence class, and normalized message. Compiler-confirmed evidence always
+wins over a previous false-positive or irrelevant decision.
+
 ## Intermediate Representation (IR)
 
 The IR is a language-agnostic JSON schema that both the TypeScript and Python SDKs produce. The compiler only sees IR; it has no knowledge of the original source language. This decoupling means:
@@ -69,7 +102,7 @@ Walks `defineWidget()` extracting widget family configuration, timeline provider
 **App** (`app-parser.ts` → `app-validator.ts` → `app-generator.ts`)
 Walks `defineApp()` extracting app metadata, scenes, navigation stacks, and app-level dependencies. Generates a SwiftUI `App` struct with scene definitions and top-level navigation. Validator checks app delegates are Codable, scene hierarchies are acyclic, and primary scene is defined.
 
-Each validator emits structured diagnostics from the shared diagnostic registry. The current public metrics snapshot tracks 204 diagnostic codes across parser, IR, Swift, Xcode, Cloud, Registry, and repair-loop checks. The compiler collects diagnostics and returns them through the CLI, MCP server, Fix Packet, and Xcode-facing paths.
+Each validator emits structured diagnostics from the shared diagnostic registry. The current public metrics snapshot tracks 225 diagnostic codes across parser, IR, Swift, Xcode, Cloud, Registry, and repair-loop checks. The compiler collects diagnostics and returns them through the CLI, MCP server, Fix Packet, and Xcode-facing paths.
 
 ## Cross-Language Bridge
 
@@ -132,7 +165,13 @@ src/mcp/
   server.ts, scaffold.ts
 
 src/cli/
-  index.ts, scaffold.ts
+  index.ts, prove.ts, receipt.ts, feedback.ts, scaffold.ts
+
+src/proof/
+  prove.ts, receipt.ts
+
+src/feedback/
+  findings.ts, auto.ts, inbox.ts
 
 python/axint/
   sdk.py, ir.py, generator.py, validator.py, cli.py, parser.py

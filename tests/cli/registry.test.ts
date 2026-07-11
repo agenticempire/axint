@@ -59,6 +59,7 @@ describe("registry CLI commands", () => {
   const originalHome = process.env.HOME;
   const originalCwd = process.cwd();
   const originalRegistryUrl = process.env.AXINT_REGISTRY_URL;
+  const originalTelemetry = process.env.AXINT_TELEMETRY;
   const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
   const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   const fetchMock =
@@ -72,6 +73,7 @@ describe("registry CLI commands", () => {
     tempRoot = mkdtempSync(join(tmpdir(), "axint-registry-cli-"));
     process.env.HOME = join(tempRoot, "home");
     process.env.AXINT_REGISTRY_URL = "https://registry.example.test";
+    process.env.AXINT_TELEMETRY = "standard";
     mkdirSync(process.env.HOME, { recursive: true });
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
@@ -87,6 +89,8 @@ describe("registry CLI commands", () => {
     else process.env.HOME = originalHome;
     if (originalRegistryUrl === undefined) delete process.env.AXINT_REGISTRY_URL;
     else process.env.AXINT_REGISTRY_URL = originalRegistryUrl;
+    if (originalTelemetry === undefined) delete process.env.AXINT_TELEMETRY;
+    else process.env.AXINT_TELEMETRY = originalTelemetry;
     vi.unstubAllGlobals();
   });
 
@@ -265,6 +269,16 @@ describe("registry CLI commands", () => {
 
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining('"package_name": "@axint/create-event"')
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/search?"),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "X-Axint-Version": "0.3.9",
+          "X-Axint-Insights": "structured-v2",
+          "X-Axint-Sharing-Level": "standard",
+        }),
+      })
     );
   });
 });

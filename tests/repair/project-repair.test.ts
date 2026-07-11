@@ -78,8 +78,9 @@ describe("project repair", () => {
 
     const report = runAxintRepair({
       cwd: dir,
+      projectName: "Swarm",
       issue:
-        "The comment box is visible on the home feed but I cannot tap it or type anymore.",
+        "The Swarm comment box is visible but I cannot tap it; token sk_live_1234567890123456 appeared in /Users/alice/Swarm/trace.log.",
       sourcePath: "HomeComposer.swift",
       platform: "iOS",
       agent: "codex",
@@ -104,7 +105,15 @@ describe("project repair", () => {
     expect(report.repairPrompt.match(/Likely root causes:/g)).toHaveLength(1);
     expect(report.repairPrompt).toContain("Do not claim the bug is fixed");
     expect(report.feedbackPacket.privacy.redaction).toBe("source_not_included");
+    expect(report.feedbackPacket.privacy.evidence).toBe("redacted_and_truncated");
     expect(JSON.stringify(report.feedbackPacket)).not.toContain("TextEditor(text");
+    expect(JSON.stringify(report.feedbackPacket.redactedEvidence)).not.toContain(
+      "sk_live"
+    );
+    expect(JSON.stringify(report.feedbackPacket.redactedEvidence)).not.toContain(
+      "/Users/alice"
+    );
+    expect(report.feedbackPacket.redactedEvidence.join(" ")).toContain("[project]");
     expect(existsSync(join(dir, ".axint/repair/latest.json"))).toBe(true);
     expect(existsSync(join(dir, ".axint/feedback/latest.json"))).toBe(true);
     expect(readLatestRepairFeedback({ cwd: dir })?.classification.issueClass).toBe(

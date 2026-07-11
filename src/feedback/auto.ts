@@ -10,9 +10,42 @@ import {
 import { join, resolve } from "node:path";
 import type { CloudLearningSignal } from "../cloud/check.js";
 import type { AxintRepairFeedbackPacket } from "../repair/project-repair.js";
+import {
+  getAdoptionTelemetryStatus,
+  getOrCreateAnonymousProjectId,
+} from "../telemetry/adoption.js";
 
 export type AxintAutoFeedbackMode = "on" | "off" | "local_only";
-export type AxintAutoFeedbackPacketType = "cloud" | "repair";
+export type AxintAutoFeedbackPacketType = "cloud" | "repair" | "proof";
+
+export interface AxintProofLearningSignal {
+  schema: "https://axint.ai/schemas/proof-feedback.v1.json";
+  fingerprint: string;
+  createdAt: string;
+  compilerVersion: string;
+  redaction: "source_not_included";
+  kind: string;
+  priority: "p0" | "p1" | "p2" | "p3";
+  status: string;
+  diagnosticCodes: string[];
+  signals: string[];
+  suggestedOwner: string;
+  suggestedAction: string;
+  projectShape: {
+    platform: string;
+    changedFiles: number;
+    evidenceSteps: number;
+  };
+  outcome: {
+    decision: string;
+    repairsApplied: number;
+    repairsProposed: number;
+    reranAfterRepair: boolean;
+    buildPassed: boolean | null;
+    testsPassed: boolean | null;
+    runtimePassed: boolean | null;
+  };
+}
 
 export interface AxintAutoFeedbackPolicy {
   mode: AxintAutoFeedbackMode;
@@ -33,7 +66,9 @@ export interface AxintAutoFeedbackEnvelope {
     sourceSharing: "never_by_default";
     optOut: "AXINT_FEEDBACK=off or axint feedback opt-out";
   };
-  packet: AxintRepairFeedbackPacket | CloudLearningSignal;
+  dogfood: boolean;
+  projectId?: string;
+  packet: AxintRepairFeedbackPacket | CloudLearningSignal | AxintProofLearningSignal;
 }
 
 export interface AxintAutoFeedbackQueueResult {
@@ -55,11 +90,18 @@ export function resolveAutoFeedbackPolicy(cwd = process.cwd()): AxintAutoFeedbac
   if (envMode) {
     return policy(envMode, `configured by environment`);
   }
+  if (isDogfoodMode()) {
+    return policy("on", "internal dogfood mode is enabled");
+  }
 
   const localPolicy = readLocalPolicy(cwd);
   if (localPolicy) return localPolicy;
 
-  return policy("on", "default source-free diagnostics feedback");
+  const telemetry = getAdoptionTelemetryStatus();
+  if (telemetry.enabled && telemetry.sharingLevel === "enhanced") {
+    return policy("on", "enhanced diagnostics sharing is enabled");
+  }
+  return policy("local_only", "enhanced diagnostics sharing is not enabled");
 }
 
 export function writeAutoFeedbackPolicy(
@@ -89,7 +131,7 @@ export function writeAutoFeedbackPolicy(
 }
 
 export function queueAutomaticFeedback(
-  packet: AxintRepairFeedbackPacket | CloudLearningSignal,
+  packet: AxintRepairFeedbackPacket | CloudLearningSignal | AxintProofLearningSignal,
   options: { cwd?: string; packetType: AxintAutoFeedbackPacketType } = {
     packetType: "cloud",
   }
@@ -104,7 +146,11 @@ export function queueAutomaticFeedback(
     };
   }
 
-  const envelope = buildAutoFeedbackEnvelope(packet, options.packetType);
+  const envelope = buildAutoFeedbackEnvelope(
+    packet,
+    options.packetType,
+    getOrCreateAnonymousProjectId(cwd)
+  );
   const outboxDir = resolve(cwd, ".axint/feedback/outbox");
   mkdirSync(outboxDir, { recursive: true });
   const queuePath = join(outboxDir, `${envelope.id}.json`);
@@ -132,7 +178,7 @@ export function queueAutomaticFeedback(
 }
 
 export async function syncAutomaticFeedback(
-  options: { cwd?: string; endpoint?: string } = {}
+  options: { cwd?: string; endpoint?: string; maxPackets?: number } = {}
 ): Promise<{
   policy: AxintAutoFeedbackPolicy;
   attempted: number;
@@ -151,22 +197,21 @@ export async function syncAutomaticFeedback(
   if (!existsSync(outboxDir)) {
     return { policy: currentPolicy, attempted: 0, sent: 0, failed: 0 };
   }
-  const files = readdirSync(outboxDir).filter(
-    (file) => file.endsWith(".json") && !file.endsWith(".sent.json")
+  const files = readdirSync(outboxDir)
+    .filter((file) => file.endsWith(".json") && !file.endsWith(".sent.json"))
+    .slice(0, Math.max(1, options.maxPackets ?? Number.MAX_SAFE_INTEGER));
+  const outcomes = await Promise.all(
+    files.map((file) => submitFeedbackEnvelope(join(outboxDir, file), currentPolicy))
   );
-  let sent = 0;
-  let failed = 0;
-  for (const file of files) {
-    const ok = await submitFeedbackEnvelope(join(outboxDir, file), currentPolicy);
-    if (ok) sent += 1;
-    else failed += 1;
-  }
+  const sent = outcomes.filter(Boolean).length;
+  const failed = outcomes.length - sent;
   return { policy: currentPolicy, attempted: files.length, sent, failed };
 }
 
 function buildAutoFeedbackEnvelope(
-  packet: AxintRepairFeedbackPacket | CloudLearningSignal,
-  packetType: AxintAutoFeedbackPacketType
+  packet: AxintRepairFeedbackPacket | CloudLearningSignal | AxintProofLearningSignal,
+  packetType: AxintAutoFeedbackPacketType,
+  projectId?: string
 ): AxintAutoFeedbackEnvelope {
   const createdAt = new Date().toISOString();
   const stable = "fingerprint" in packet ? packet.fingerprint : packet.id;
@@ -181,6 +226,8 @@ function buildAutoFeedbackEnvelope(
       sourceSharing: "never_by_default",
       optOut: "AXINT_FEEDBACK=off or axint feedback opt-out",
     },
+    dogfood: isDogfoodMode(),
+    ...(projectId ? { projectId } : {}),
     packet,
   };
 }
@@ -261,6 +308,12 @@ function normalizeMode(value?: string): AxintAutoFeedbackMode | undefined {
 function isOptOutEnv(): boolean {
   return ["1", "true", "yes", "on"].includes(
     (process.env.AXINT_DISABLE_FEEDBACK ?? "").trim().toLowerCase()
+  );
+}
+
+function isDogfoodMode(): boolean {
+  return ["1", "true", "yes", "on"].includes(
+    (process.env.AXINT_DOGFOOD ?? "").trim().toLowerCase()
   );
 }
 

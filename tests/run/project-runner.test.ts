@@ -97,6 +97,8 @@ describe("runAxintProject", () => {
     expect(report.cloudChecks).toHaveLength(1);
     expect(report.commands.build?.dryRun).toBe(true);
     expect(report.commands.test?.dryRun).toBe(true);
+    expect(report.status).toBe("needs_review");
+    expect(report.gate.decision).toBe("evidence_required");
     expect(report.commands.build?.args).toContain("-project");
     expect(report.commands.build?.args).toContain("Swarm");
     expect(report.commands.build?.args).toContain("-derivedDataPath");

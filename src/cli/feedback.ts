@@ -19,6 +19,12 @@ import {
   writeAutoFeedbackPolicy,
 } from "../feedback/auto.js";
 import {
+  listFindingFeedback,
+  removeFindingFeedback,
+  writeFindingFeedbackFromReceipt,
+} from "../feedback/findings.js";
+import type { DiagnosticFeedbackVerdict } from "../core/types.js";
+import {
   normalizeAxintAgent,
   type AxintAgentProfileName,
 } from "../project/agent-profile.js";
@@ -29,6 +35,93 @@ export function registerFeedback(program: Command) {
     .description(
       "Create or inspect privacy-safe Axint feedback packets that help improve repair intelligence without sending source code"
     );
+
+  feedback
+    .command("finding")
+    .description(
+      "Record a source-free review decision for one finding in a proof receipt"
+    )
+    .argument("<id-or-code>", "Stable finding id, or a diagnostic code when unique")
+    .requiredOption(
+      "--verdict <verdict>",
+      "Review decision: accurate, irrelevant, or false-positive",
+      parseFindingVerdict
+    )
+    .option("--dir <dir>", "Project directory", ".")
+    .option("--receipt <path>", "Proof receipt JSON", ".axint/proof/latest.proof.json")
+    .option("--note <text>", "Optional source-free review note")
+    .option("--json", "Render JSON")
+    .action(
+      (
+        identifier: string,
+        options: {
+          dir: string;
+          receipt: string;
+          verdict: DiagnosticFeedbackVerdict;
+          note?: string;
+          json?: boolean;
+        }
+      ) => {
+        const result = writeFindingFeedbackFromReceipt({
+          cwd: options.dir,
+          receiptPath: options.receipt,
+          identifier,
+          verdict: options.verdict,
+          note: options.note,
+        });
+        if (options.json) {
+          console.log(`${JSON.stringify(result, null, 2)}\n`);
+          return;
+        }
+        console.log(
+          [
+            `Recorded ${result.record.verdict} for ${result.record.code} (${result.record.findingId}).`,
+            `Future project runs will read ${result.path}.`,
+            result.record.verdict === "accurate"
+              ? "The finding remains visible with developer-review evidence."
+              : "The finding remains visible but becomes non-blocking unless stronger evidence confirms it.",
+          ].join("\n")
+        );
+      }
+    );
+
+  feedback
+    .command("findings")
+    .description("List or remove project-local finding review decisions")
+    .option("--dir <dir>", "Project directory", ".")
+    .option("--remove <finding-id>", "Remove one review decision")
+    .option("--json", "Render JSON")
+    .action((options: { dir: string; remove?: string; json?: boolean }) => {
+      if (options.remove) {
+        const removed = removeFindingFeedback(options.dir, options.remove);
+        if (!removed) {
+          console.error(`No finding feedback exists for ${options.remove}.`);
+          process.exitCode = 1;
+          return;
+        }
+      }
+      const report = listFindingFeedback(options.dir);
+      if (options.json) {
+        console.log(`${JSON.stringify(report, null, 2)}\n`);
+        return;
+      }
+      console.log(
+        [
+          "# Axint Finding Feedback",
+          "",
+          `- Decisions: ${report.records.length}`,
+          `- Directory: ${report.directory}`,
+          "- Privacy: source code is never included",
+          "",
+          ...(report.records.length
+            ? report.records.map(
+                (record) =>
+                  `- ${record.findingId} · ${record.code} · ${record.verdict}${record.file ? ` · ${record.file}` : ""}`
+              )
+            : ["- No finding decisions recorded."]),
+        ].join("\n")
+      );
+    });
 
   feedback
     .command("create")
@@ -353,6 +446,15 @@ export function registerFeedback(program: Command) {
         );
       }
     );
+}
+
+function parseFindingVerdict(value: string): DiagnosticFeedbackVerdict {
+  if (value === "accurate" || value === "irrelevant" || value === "false-positive") {
+    return value;
+  }
+  throw new Error(
+    `invalid finding verdict: ${value} (expected accurate, irrelevant, or false-positive)`
+  );
 }
 
 function parseFormat(value: string): AxintFeedbackFormat {

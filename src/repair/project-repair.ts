@@ -82,7 +82,7 @@ export interface AxintRepairFeedbackPacket {
   privacy: {
     redaction: "source_not_included";
     localPaths: "project_relative_only";
-    evidence: "summarized_and_truncated";
+    evidence: "redacted_and_truncated";
     userCanInspectBeforeSending: true;
   };
   classification: {
@@ -937,7 +937,7 @@ function buildRepairFeedbackPacket(input: {
     input.input.runtimeFailure,
   ]
     .filter(Boolean)
-    .map((value) => redactEvidence(String(value), input.cwd))
+    .map((value) => redactEvidence(String(value), input.cwd, input.input.projectName))
     .slice(0, 8);
 
   return {
@@ -948,7 +948,7 @@ function buildRepairFeedbackPacket(input: {
     privacy: {
       redaction: "source_not_included",
       localPaths: "project_relative_only",
-      evidence: "summarized_and_truncated",
+      evidence: "redacted_and_truncated",
       userCanInspectBeforeSending: true,
     },
     classification: {
@@ -1209,15 +1209,25 @@ function suggestProductAction(
   return "Cluster repeated feedback packets into a new diagnostic or repair-pack rule.";
 }
 
-function redactEvidence(value: string, cwd: string): string {
-  return value
+function redactEvidence(value: string, cwd: string, projectName?: string): string {
+  let redacted = value
     .replaceAll(cwd, "$PROJECT")
     .replace(new RegExp(process.env.HOME ?? "__NO_HOME__", "g"), "~")
+    .replace(/(?:\/Users|\/home)\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9 ._@%+=,-]+)+/g, "[path]")
+    .replace(/[A-Za-z]:\\(?:[^\\\s]+\\)*[^\\\s]*/g, "[path]")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
+    .replace(
+      /\b(?:Bearer\s+)?(?:sk|ghp|github_pat|xox[baprs]|AKIA)[-_A-Za-z0-9]{12,}\b/gi,
+      "[secret]"
+    )
+    .replace(/([?&](?:token|key|secret|password)=)[^&\s]+/gi, "$1[secret]")
     .replace(/\b[A-Fa-f0-9]{24,}\b/g, "[hex]")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 1200);
+    .trim();
+  if (projectName?.trim()) {
+    redacted = redacted.replaceAll(projectName.trim(), "[project]");
+  }
+  return redacted.slice(0, 1200);
 }
 
 function projectContextPath(cwd: string): string {

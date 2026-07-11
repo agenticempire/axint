@@ -170,6 +170,7 @@ import {
   type AxintRunJobOutputFormat,
 } from "../run/job-store.js";
 import { inferAxintHost, recordAdoptionEventSoon } from "../telemetry/adoption.js";
+import { recordProductInterestEventSoon } from "../telemetry/product-insights.js";
 
 type PackageInfo = {
   name?: string;
@@ -249,7 +250,7 @@ type ProjectVersionSyncArgs = {
 };
 
 // Read version from package.json so it stays in sync.
-let pkg: PackageInfo = { version: "0.5.0" };
+let pkg: PackageInfo = { version: "0.5.1" };
 let packageJsonPath = "<bundled>";
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -837,6 +838,17 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       return errorText("Error: 'appDescription' is required for axint.suggest");
     }
     const suggestions = await suggestFeaturesSmart(a);
+    recordProductInterestEventSoon({
+      text: a.appDescription,
+      insightKind: "project_brief",
+      querySource: "suggest-mcp",
+      source: "mcp",
+      version: pkg.version,
+      resultCount: suggestions.length,
+      host: inferAxintHost(),
+      transport: process.env.AXINT_MCP_TRANSPORT ?? "stdio",
+      targetPlatform: a.platform,
+    });
     const domainSummary = summarizeSuggestionDomains(suggestions);
     const output = suggestions
       .map((s, i) => {
@@ -869,6 +881,17 @@ export async function handleToolCall(name: string, args: unknown): Promise<ToolR
       return errorText("Error: 'query' is required for axint.registry.search");
     }
     const hits = searchRegistry(a);
+    recordProductInterestEventSoon({
+      text: a.query,
+      insightKind: "registry_search",
+      querySource: "registry-mcp",
+      source: "mcp",
+      version: pkg.version,
+      resultCount: hits.length,
+      host: inferAxintHost(),
+      transport: process.env.AXINT_MCP_TRANSPORT ?? "stdio",
+      targetPlatform: a.platform,
+    });
     if (hits.length === 0) {
       return diagnosticsText(
         `No matching packages in the Axint Registry for query: "${a.query}".\n` +

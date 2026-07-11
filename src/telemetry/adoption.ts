@@ -6,6 +6,9 @@ import { dirname, join } from "node:path";
 
 export type AdoptionTelemetrySource = "cli" | "mcp" | "mcp-http";
 export type AdoptionTelemetryFormat = "markdown" | "json";
+export type AdoptionSharingLevel = "standard" | "enhanced";
+
+const TELEMETRY_CONSENT_VERSION = "2026-07";
 
 type TelemetryConfig = {
   anonymousId: string;
@@ -14,6 +17,9 @@ type TelemetryConfig = {
   updatedAt: string;
   initializedAt?: string;
   activatedAt?: string;
+  sharingLevel?: AdoptionSharingLevel;
+  consentAt?: string;
+  consentVersion?: string;
 };
 
 type ProjectTelemetryConfig = {
@@ -24,7 +30,7 @@ type ProjectTelemetryConfig = {
   lastValueAt?: string;
 };
 
-type RecordAdoptionEventInput = {
+export type RecordAdoptionEventInput = {
   source: AdoptionTelemetrySource;
   eventName: string;
   version: string;
@@ -34,6 +40,19 @@ type RecordAdoptionEventInput = {
   transport?: string;
   result?: string;
   failureEvent?: string;
+  insightKind?: string;
+  projectCategory?: string;
+  projectGoal?: string;
+  appleSurfaces?: string[];
+  featureAreas?: string[];
+  projectLifecycle?: string;
+  deliveryTarget?: string;
+  complexityBucket?: string;
+  queryLengthBucket?: string;
+  resultBucket?: string;
+  querySource?: string;
+  targetPlatform?: string;
+  taxonomyVersion?: string;
 };
 
 type ProjectTelemetryState = {
@@ -42,13 +61,7 @@ type ProjectTelemetryState = {
 };
 
 type AdoptionValueStage =
-  | "setup"
-  | "value"
-  | "repeat"
-  | "rehydration"
-  | "repair"
-  | "health"
-  | "error";
+  "setup" | "value" | "repeat" | "rehydration" | "repair" | "health" | "error";
 
 export type AdoptionTelemetryStatus = {
   enabled: boolean;
@@ -58,7 +71,13 @@ export type AdoptionTelemetryStatus = {
   anonymousIdSuffix: string | null;
   projectConfigPath: string;
   projectIdSuffix: string | null;
+  sharingLevel: "off" | AdoptionSharingLevel;
+  explicitConsent: boolean;
+  consentAt: string | null;
+  consentVersion: string | null;
+  dogfood: boolean;
   sends: string[];
+  enhancedSends: string[];
   neverSends: string[];
 };
 
@@ -69,7 +88,9 @@ const processSessionId = `axs_${randomUUID()}`;
 
 const NEVER_SENDS = [
   "source code",
-  "prompts",
+  "full generation prompts",
+  "raw search queries or full app descriptions in standard telemetry",
+  "project names",
   "generated Swift bodies",
   "local file paths",
   "command arguments",
@@ -83,10 +104,20 @@ const SENDS = [
   "MCP tool name",
   "first install and first activation lifecycle markers",
   "anonymous per-project id plus first-value, repeat-value, and remembered-agent markers",
+  "allowlisted project category, lifecycle, delivery target, feature areas, Apple surfaces, complexity, and search-result buckets",
   "source-free failure markers when a command or MCP tool returns an error",
   "coarse host hint, such as terminal, Codex, Claude, Cursor, or Xcode when detectable",
   "operating system family, architecture, Node major version, and CI flag",
   "anonymous random install id that can be reset or disabled",
+];
+
+const ENHANCED_SENDS = [
+  "source-free issue class, priority, status, and diagnostic codes",
+  "project shape counts and target platform",
+  "redacted and truncated issue, expected/actual behavior, and failure excerpts",
+  "repair hypotheses and suggested Axint product action",
+  "proof decision plus build, test, runtime, and deterministic-repair outcomes",
+  "explicit internal dogfood marker when AXINT_DOGFOOD=1",
 ];
 
 const SETUP_ONLY_CLI_COMMANDS = new Set([
@@ -162,11 +193,11 @@ function telemetryConfigPath(): string {
   return join(homedir(), ".axint", "telemetry.json");
 }
 
-function projectTelemetryConfigPath(): string {
+function projectTelemetryConfigPath(cwd = process.cwd()): string {
   if (process.env.AXINT_PROJECT_TELEMETRY_CONFIG) {
     return process.env.AXINT_PROJECT_TELEMETRY_CONFIG;
   }
-  return join(process.cwd(), ".axint", "telemetry-project.json");
+  return join(cwd, ".axint", "telemetry-project.json");
 }
 
 function readTelemetryConfig(): TelemetryConfig | null {
@@ -189,8 +220,8 @@ function writeTelemetryConfig(config: TelemetryConfig): void {
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
 }
 
-function readProjectTelemetryConfig(): ProjectTelemetryConfig | null {
-  const path = projectTelemetryConfigPath();
+function readProjectTelemetryConfig(cwd = process.cwd()): ProjectTelemetryConfig | null {
+  const path = projectTelemetryConfigPath(cwd);
   if (!existsSync(path)) return null;
   try {
     const parsed = JSON.parse(readFileSync(path, "utf-8")) as ProjectTelemetryConfig;
@@ -203,17 +234,21 @@ function readProjectTelemetryConfig(): ProjectTelemetryConfig | null {
   return null;
 }
 
-function writeProjectTelemetryConfig(config: ProjectTelemetryConfig): void {
-  const path = projectTelemetryConfigPath();
+function writeProjectTelemetryConfig(
+  config: ProjectTelemetryConfig,
+  cwd = process.cwd()
+): void {
+  const path = projectTelemetryConfigPath(cwd);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
 }
 
 function readOrCreateProjectTelemetry(
-  now = new Date().toISOString()
+  now = new Date().toISOString(),
+  cwd = process.cwd()
 ): ProjectTelemetryState | null {
   try {
-    const existing = readProjectTelemetryConfig();
+    const existing = readProjectTelemetryConfig(cwd);
     if (existing) return { config: existing, createdNow: false };
 
     const created: ProjectTelemetryConfig = {
@@ -221,19 +256,42 @@ function readOrCreateProjectTelemetry(
       createdAt: now,
       updatedAt: now,
     };
-    writeProjectTelemetryConfig(created);
+    writeProjectTelemetryConfig(created, cwd);
     return { config: created, createdNow: true };
   } catch {
     return null;
   }
 }
 
+export function getOrCreateAnonymousProjectId(cwd = process.cwd()): string | undefined {
+  return readOrCreateProjectTelemetry(new Date().toISOString(), cwd)?.config.projectId;
+}
+
 function createTelemetryConfig(now = new Date().toISOString()): TelemetryConfig {
+  const environmentLevel = environmentSharingLevel();
   return {
     anonymousId: `axa_${randomUUID()}`,
     createdAt: now,
     updatedAt: now,
+    ...(environmentLevel || envFlagOn(process.env.AXINT_DOGFOOD)
+      ? {
+          sharingLevel: envFlagOn(process.env.AXINT_DOGFOOD)
+            ? ("enhanced" as const)
+            : environmentLevel,
+          consentAt: now,
+          consentVersion: TELEMETRY_CONSENT_VERSION,
+        }
+      : {}),
   };
+}
+
+function environmentSharingLevel(): AdoptionSharingLevel | undefined {
+  const value = process.env.AXINT_TELEMETRY?.trim().toLowerCase();
+  if (value === "enhanced") return "enhanced";
+  if (value && ["1", "true", "on", "yes", "standard"].includes(value)) {
+    return "standard";
+  }
+  return undefined;
 }
 
 function telemetryDisabledReason(config?: TelemetryConfig | null): string | null {
@@ -249,10 +307,18 @@ function telemetryDisabledReason(config?: TelemetryConfig | null): string | null
   if (config?.optedOut) {
     return "local telemetry opt-out is enabled";
   }
+  if (
+    !config?.consentAt &&
+    !environmentSharingLevel() &&
+    !envFlagOn(process.env.AXINT_DOGFOOD)
+  ) {
+    return "explicit telemetry consent is not recorded";
+  }
   return null;
 }
 
 export function setAdoptionTelemetryOptOut(optedOut: boolean): TelemetryConfig {
+  if (!optedOut) return setAdoptionTelemetrySharingLevel("standard");
   const current = readTelemetryConfig();
   const now = new Date().toISOString();
   const next: TelemetryConfig = {
@@ -262,6 +328,26 @@ export function setAdoptionTelemetryOptOut(optedOut: boolean): TelemetryConfig {
     initializedAt: current?.initializedAt ?? now,
     activatedAt: current?.activatedAt,
     optedOut,
+  };
+  writeTelemetryConfig(next);
+  return next;
+}
+
+export function setAdoptionTelemetrySharingLevel(
+  sharingLevel: AdoptionSharingLevel
+): TelemetryConfig {
+  const current = readTelemetryConfig();
+  const now = new Date().toISOString();
+  const next: TelemetryConfig = {
+    anonymousId: current?.anonymousId ?? `axa_${randomUUID()}`,
+    createdAt: current?.createdAt ?? now,
+    updatedAt: now,
+    initializedAt: current?.initializedAt,
+    activatedAt: current?.activatedAt,
+    optedOut: false,
+    sharingLevel,
+    consentAt: now,
+    consentVersion: TELEMETRY_CONSENT_VERSION,
   };
   writeTelemetryConfig(next);
   return next;
@@ -360,12 +446,66 @@ function metadataFor(
         }
       : {}),
     ...(valueStage ? { value_stage: valueStage } : {}),
+    ...(input.insightKind
+      ? { insight_kind: safeValue(input.insightKind, 32) ?? "unknown" }
+      : {}),
+    ...(input.projectCategory
+      ? { project_category: safeValue(input.projectCategory, 48) ?? "unknown" }
+      : {}),
+    ...(input.projectGoal
+      ? { project_goal: safeValue(input.projectGoal, 48) ?? "unknown" }
+      : {}),
+    ...(input.appleSurfaces?.length
+      ? {
+          apple_surfaces:
+            safeValue(input.appleSurfaces.slice(0, 4).join(","), 128) ?? "unknown",
+        }
+      : {}),
+    ...(input.featureAreas?.length
+      ? {
+          feature_areas:
+            safeValue(input.featureAreas.slice(0, 6).join(","), 192) ?? "unknown",
+        }
+      : {}),
+    ...(input.projectLifecycle
+      ? { project_lifecycle: safeValue(input.projectLifecycle, 24) ?? "unknown" }
+      : {}),
+    ...(input.deliveryTarget
+      ? { delivery_target: safeValue(input.deliveryTarget, 32) ?? "unknown" }
+      : {}),
+    ...(input.complexityBucket
+      ? { complexity_bucket: safeValue(input.complexityBucket, 24) ?? "unknown" }
+      : {}),
+    ...(input.queryLengthBucket
+      ? {
+          query_length_bucket: safeValue(input.queryLengthBucket, 16) ?? "unknown",
+        }
+      : {}),
+    ...(input.resultBucket
+      ? { result_bucket: safeValue(input.resultBucket, 16) ?? "unknown" }
+      : {}),
+    ...(input.querySource
+      ? { query_source: safeValue(input.querySource, 48) ?? "unknown" }
+      : {}),
+    ...(input.targetPlatform
+      ? { target_platform: safeValue(input.targetPlatform, 16) ?? "unknown" }
+      : {}),
+    ...(input.taxonomyVersion
+      ? { taxonomy_version: safeValue(input.taxonomyVersion, 24) ?? "unknown" }
+      : {}),
     os: platform(),
     arch: arch(),
     node: process.versions.node.split(".")[0] ?? "unknown",
     package_manager: packageManagerHint(),
     ci: Boolean(process.env.CI),
+    sharing_level: inputSharingLevel(),
+    dogfood: envFlagOn(process.env.AXINT_DOGFOOD),
   };
+}
+
+function inputSharingLevel(): AdoptionSharingLevel {
+  if (envFlagOn(process.env.AXINT_DOGFOOD)) return "enhanced";
+  return environmentSharingLevel() ?? readTelemetryConfig()?.sharingLevel ?? "standard";
 }
 
 function isAgentRehydrationEvent(input: RecordAdoptionEventInput): boolean {
@@ -612,6 +752,8 @@ export function getAdoptionTelemetryStatus(): AdoptionTelemetryStatus {
   const config = readTelemetryConfig();
   const project = readProjectTelemetryConfig();
   const disabled = telemetryDisabledReason(config);
+  const environmentLevel = environmentSharingLevel();
+  const dogfood = envFlagOn(process.env.AXINT_DOGFOOD);
   return {
     enabled: !disabled,
     reason: disabled ?? "source-free adoption telemetry is enabled",
@@ -620,7 +762,19 @@ export function getAdoptionTelemetryStatus(): AdoptionTelemetryStatus {
     anonymousIdSuffix: config?.anonymousId ? config.anonymousId.slice(-8) : null,
     projectConfigPath: projectTelemetryConfigPath(),
     projectIdSuffix: project?.projectId ? project.projectId.slice(-8) : null,
+    sharingLevel: disabled
+      ? "off"
+      : dogfood
+        ? "enhanced"
+        : (environmentLevel ?? config?.sharingLevel ?? "standard"),
+    explicitConsent: Boolean(config?.consentAt || environmentLevel || dogfood),
+    consentAt: config?.consentAt ?? null,
+    consentVersion:
+      config?.consentVersion ??
+      (environmentLevel || dogfood ? TELEMETRY_CONSENT_VERSION : null),
+    dogfood,
     sends: SENDS,
+    enhancedSends: ENHANCED_SENDS,
     neverSends: NEVER_SENDS,
   };
 }
@@ -643,13 +797,25 @@ export function renderAdoptionTelemetryStatus(
     `Anonymous install id: ${status.anonymousIdSuffix ? `...${status.anonymousIdSuffix}` : "not created yet"}`,
     `Project config: ${status.projectConfigPath}`,
     `Anonymous project id: ${status.projectIdSuffix ? `...${status.projectIdSuffix}` : "not created yet"}`,
+    `Sharing level: ${status.sharingLevel}`,
+    `Explicit consent: ${
+      status.explicitConsent
+        ? status.consentAt
+          ? `yes (${status.consentAt})`
+          : "yes (environment)"
+        : "not recorded"
+    }`,
+    `Internal dogfood marker: ${status.dogfood ? "on" : "off"}`,
     ``,
     `## Sent`,
     ...status.sends.map((item) => `- ${item}`),
     ``,
+    `## Enhanced Diagnostics`,
+    ...status.enhancedSends.map((item) => `- ${item}`),
+    ``,
     `## Never Sent`,
     ...status.neverSends.map((item) => `- ${item}`),
     ``,
-    `Opt out with \`axint telemetry opt-out\`, \`AXINT_TELEMETRY=off\`, or \`AXINT_DISABLE_TELEMETRY=1\`.`,
+    `Choose \`axint telemetry standard\`, \`axint telemetry enhanced\`, or \`axint telemetry opt-out\`.`,
   ].join("\n");
 }

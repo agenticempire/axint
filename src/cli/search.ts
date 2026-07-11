@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { getAdoptionTelemetryStatus } from "../telemetry/adoption.js";
 
 export function registerSearch(program: Command, version: string) {
   program
@@ -23,9 +24,15 @@ export function registerSearch(program: Command, version: string) {
         try {
           const params = new URLSearchParams({ limit: String(limit) });
           if (query) params.set("q", query);
+          const telemetry = getAdoptionTelemetryStatus();
 
           const res = await fetch(`${registryUrl}/api/v1/search?${params}`, {
-            headers: { "X-Axint-Version": version },
+            headers: {
+              "X-Axint-Version": version,
+              "X-Axint-Insights": telemetry.enabled ? "structured-v2" : "off",
+              "X-Axint-Sharing-Level": telemetry.sharingLevel,
+              ...(telemetry.dogfood ? { "X-Axint-Dogfood": "1" } : {}),
+            },
           });
 
           if (!res.ok) {

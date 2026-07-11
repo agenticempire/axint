@@ -10,12 +10,14 @@ import { createHash } from "node:crypto";
 import { basename, dirname, join, resolve } from "node:path";
 import type { CloudLearningSignal } from "../cloud/check.js";
 import type { AxintRepairFeedbackPacket } from "../repair/project-repair.js";
+import type { AxintProofLearningSignal } from "./auto.js";
 
 export type AxintFeedbackFormat = "json" | "markdown";
 
 export type AxintFeedbackPacket =
   | { kind: "repair"; packet: AxintRepairFeedbackPacket }
-  | { kind: "cloud"; packet: CloudLearningSignal };
+  | { kind: "cloud"; packet: CloudLearningSignal }
+  | { kind: "proof"; packet: AxintProofLearningSignal };
 
 export interface AxintFeedbackBundle {
   schema: "https://axint.ai/schemas/feedback-bundle.v1.json";
@@ -30,12 +32,14 @@ export interface AxintFeedbackBundle {
     userCanInspectBeforeSending: true;
     transport: "manual_export" | "manual_import";
   };
-  packets: Array<AxintRepairFeedbackPacket | CloudLearningSignal>;
+  packets: Array<
+    AxintRepairFeedbackPacket | CloudLearningSignal | AxintProofLearningSignal
+  >;
 }
 
 export interface AxintFeedbackInboxItem {
   id: string;
-  packetType: "repair" | "cloud";
+  packetType: "repair" | "cloud" | "proof";
   importedAt: string;
   projectLabel?: string;
   contact?: string;
@@ -390,6 +394,9 @@ function expandFeedbackPayload(payload: unknown): AxintFeedbackPacket[] {
   if (isRepairFeedbackPacket(record)) {
     return [{ kind: "repair", packet: record as unknown as AxintRepairFeedbackPacket }];
   }
+  if (isProofLearningSignal(record)) {
+    return [{ kind: "proof", packet: record as unknown as AxintProofLearningSignal }];
+  }
   if (isCloudLearningSignal(record)) {
     return [{ kind: "cloud", packet: record as unknown as CloudLearningSignal }];
   }
@@ -492,7 +499,7 @@ function itemFromPacket(
   const packet = entry.packet;
   return {
     id: packetStableId(packet),
-    packetType: "cloud",
+    packetType: entry.kind,
     importedAt: meta.importedAt,
     projectLabel: meta.projectLabel,
     contact: meta.contact,
@@ -529,6 +536,16 @@ function isCloudLearningSignal(value: Record<string, unknown>): boolean {
   );
 }
 
+function isProofLearningSignal(value: Record<string, unknown>): boolean {
+  return (
+    value.schema === "https://axint.ai/schemas/proof-feedback.v1.json" &&
+    typeof value.fingerprint === "string" &&
+    value.redaction === "source_not_included" &&
+    Array.isArray(value.diagnosticCodes) &&
+    typeof value.suggestedAction === "string"
+  );
+}
+
 function isInboxItem(value: unknown): value is AxintFeedbackInboxItem {
   return (
     Boolean(value) &&
@@ -539,19 +556,23 @@ function isInboxItem(value: unknown): value is AxintFeedbackInboxItem {
   );
 }
 
-function packetStableId(packet: AxintRepairFeedbackPacket | CloudLearningSignal): string {
+function packetStableId(
+  packet: AxintRepairFeedbackPacket | CloudLearningSignal | AxintProofLearningSignal
+): string {
   if ("fingerprint" in packet) return packet.fingerprint;
   return packet.id;
 }
 
 function firstCompilerVersion(
-  packets: Array<AxintRepairFeedbackPacket | CloudLearningSignal>
+  packets: Array<
+    AxintRepairFeedbackPacket | CloudLearningSignal | AxintProofLearningSignal
+  >
 ): string | undefined {
   return packets.find((packet) => packet.compilerVersion)?.compilerVersion;
 }
 
 function privacyWarningsForPacket(
-  packet: AxintRepairFeedbackPacket | CloudLearningSignal
+  packet: AxintRepairFeedbackPacket | CloudLearningSignal | AxintProofLearningSignal
 ): string[] {
   const warnings: string[] = [];
   const text = JSON.stringify(packet);

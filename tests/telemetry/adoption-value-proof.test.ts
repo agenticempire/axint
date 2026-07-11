@@ -17,6 +17,7 @@ describe("adoption value telemetry", () => {
       AXINT_TELEMETRY_CONFIG: join(dir, "user-telemetry.json"),
       AXINT_PROJECT_TELEMETRY_CONFIG: join(dir, "project-telemetry.json"),
       AXINT_TELEMETRY_ENDPOINT: "https://example.test/adoption",
+      AXINT_TELEMETRY: "standard",
     };
     vi.stubGlobal(
       "fetch",

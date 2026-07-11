@@ -5,6 +5,7 @@
  *
  *   axint init [dir]              Scaffold a new Axint project
  *   axint compile <file>          Compile TS intent → Swift App Intent
+ *   axint prove                   Build, test, reconcile, and sign an Apple project proof
  *   axint activate                Run a source-free compiler smoke test after install
  *   axint create [dir]            Create a premium Apple-native agent launchpad
  *   axint validate <file>         Validate a compiled intent
@@ -97,6 +98,8 @@ import { registerProject } from "./project.js";
 import { registerSession } from "./session.js";
 import { registerWorkflow } from "./workflow.js";
 import { registerRun } from "./run.js";
+import { registerProve } from "./prove.js";
+import { registerReceipt } from "./receipt.js";
 import { registerPaintTest } from "./paint-test.js";
 import { registerXcodeGuard } from "./xcode-guard.js";
 import {
@@ -160,9 +163,7 @@ function parseChoice<T extends string>(
 
 program
   .name("axint")
-  .description(
-    "The open-source compiler that transforms AI agent definitions into native Apple App Intents."
-  )
+  .description("Proof and repair infrastructure for AI-built Apple software.")
   .enablePositionalOptions()
   .version(VERSION)
   .addHelpText(
@@ -343,6 +344,7 @@ program
 
 // ─── subcommands ──────────────────────────────────────────────────────
 
+registerProve(program, VERSION);
 registerCompile(program);
 registerActivate(program);
 registerValidate(program);
@@ -356,7 +358,7 @@ registerLogin(program);
 registerCloud(program);
 registerTokens(program);
 registerSchema(program);
-registerSuggest(program);
+registerSuggest(program, VERSION);
 registerFeature(program);
 registerRepair(program);
 registerAgent(program);
@@ -374,6 +376,7 @@ registerProject(program, VERSION);
 registerSession(program, VERSION);
 registerWorkflow(program);
 registerRun(program, VERSION);
+registerReceipt(program);
 registerPaintTest(program);
 
 // ─── mcp ─────────────────────────────────────────────────────────────
@@ -680,7 +683,16 @@ xcodeExtension
 const HELP_SECTIONS: ReadonlyArray<readonly [string, ReadonlyArray<string>]> = [
   [
     "Core:",
-    ["init", "compile", "validate", "validate-swift", "templates", "suggest", "mcp"],
+    [
+      "init",
+      "prove",
+      "compile",
+      "validate",
+      "validate-swift",
+      "templates",
+      "suggest",
+      "mcp",
+    ],
   ],
   [
     "Authoring:",
@@ -710,6 +722,7 @@ const HELP_SECTIONS: ReadonlyArray<readonly [string, ReadonlyArray<string>]> = [
       "session",
       "workflow",
       "run",
+      "receipt",
       "runner",
       "status",
       "upgrade",
