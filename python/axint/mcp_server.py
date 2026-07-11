@@ -1475,7 +1475,7 @@ def build_server() -> Server:
     return server
 
 
-async def main() -> None:
+async def run_server() -> None:
     if MCP_IMPORT_ERROR is not None:  # pragma: no cover - exercised without optional dep
         print("error: mcp package not installed. Install with: pip install 'axint[mcp]'", file=sys.stderr)
         raise SystemExit(1)
@@ -1487,5 +1487,10 @@ async def main() -> None:
         await server.connect(transport)
 
 
+def main() -> None:
+    """Synchronous console-script boundary for the async MCP transport."""
+    asyncio.run(run_server())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

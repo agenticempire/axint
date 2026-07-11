@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import inspect
+
 from axint.mcp_server import (
     generate_feature_package,
     handle_compile_from_schema,
+    main,
+    run_server,
     scaffold_intent,
     suggest_features,
 )
+
+
+def test_console_entrypoint_wraps_the_async_server() -> None:
+    assert not inspect.iscoroutinefunction(main)
+    assert inspect.iscoroutinefunction(run_server)
 
 
 def test_suggest_features_prefers_explicit_domain() -> None:

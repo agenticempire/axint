@@ -96,6 +96,21 @@ jobs:
         working-directory: python
         run: python -m build
 
+      - name: Smoke-test installed Python wheel
+        working-directory: python
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/axint-wheel-smoke
+          /tmp/axint-wheel-smoke/bin/pip install dist/*.whl
+          /tmp/axint-wheel-smoke/bin/axint-py --version
+
+          set +e
+          OUTPUT=$(/tmp/axint-wheel-smoke/bin/axint-mcp-py 2>&1)
+          STATUS=$?
+          set -e
+          [ "$STATUS" -eq 1 ]
+          echo "$OUTPUT" | grep -F "pip install 'axint[mcp]'"
+
       # ── Publish ──────────────────────────────────────────────────
       - name: Publish to npm
         env:

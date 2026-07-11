@@ -6,6 +6,13 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-07-11
+
+### Fixed
+
+- **Python MCP console entrypoint** — `axint-mcp-py` now enters the async stdio server through a synchronous `asyncio.run(...)` boundary instead of returning an un-awaited coroutine and exiting immediately.
+- **Installed-package verification** — the Python test suite now asserts that console entrypoints remain synchronous even when their transport implementation is asynchronous.
+
 ## [0.5.1] — 2026-07-11
 
 ### Added
