@@ -1,6 +1,6 @@
 # Axint Roadmap
 
-_Last updated: June 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.5.1](https://github.com/agenticempire/axint/releases/tag/v0.5.1)<!-- metrics:roadmap-release:end -->_
+_Last updated: June 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.5.2](https://github.com/agenticempire/axint/releases/tag/v0.5.2)<!-- metrics:roadmap-release:end -->_
 
 Axint is the Apple-native execution layer for AI coding agents. The open-source package gives agents a smaller contract for Apple surfaces, emits ordinary Swift, validates Apple-specific rules, writes Fix Packets, and coordinates proof loops across CLI, MCP, Xcode, Registry, and Cloud-facing workflows.
 

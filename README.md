@@ -388,7 +388,7 @@ the CLI fallback, then continue the same workflow check with `--ran-suggest`.
 
 ## Public truth
 
-<!-- truth:readme-proof-line:start -->v0.5.1 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1485 tests · 58 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
+<!-- truth:readme-proof-line:start -->v0.5.2 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1486 tests · 60 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
 
 The published [brownfield benchmark](benchmarks/brownfield/README.md) currently
 covers 20 hand-labeled cases across seven Apple development categories and is a
