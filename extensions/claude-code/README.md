@@ -16,7 +16,7 @@ Or add the marketplace:
 
 ## What You Get
 
-Claude Code can use the current 35-tool Axint MCP surface plus five built-in prompts:
+The integration exposes the MCP tools and built-in prompts from the installed Axint release:
 
 - Project and session tools: `axint.status`, `axint.upgrade`, `axint.doctor`, `axint.session.start`, `axint.project.pack`, `axint.project.index`, `axint.project.syncVersion`
 - Apple generation tools: `axint.feature`, `axint.suggest`, `axint.scaffold`, `axint.compile`, `axint.schema.compile`

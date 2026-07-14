@@ -76,13 +76,12 @@ export function buildProjectStartPack(
   const files: ProjectStartPackFile[] = [
     {
       path: ".mcp.json",
-      purpose:
-        "Project-local MCP wiring for Xcode, Claude, Codex, and other MCP clients.",
+      purpose: "Project-local MCP wiring for Xcode, Claude, and other MCP clients.",
       content: `${JSON.stringify(mcpConfig, null, 2)}\n`,
     },
     {
       path: "AGENTS.md",
-      purpose: "Agent workflow contract for Codex-style coding agents.",
+      purpose: "Workflow contract for standards-compatible coding agents.",
       content: buildAgentInstructions({ projectName, version, agent }),
     },
     {

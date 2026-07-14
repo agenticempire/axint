@@ -1,36 +1,44 @@
-# Axint — Claude Desktop Extension
+# Axint for Claude Desktop
 
-Run the Axint Apple-native execution layer directly from Claude Desktop.
+Agents can write Swift. Axint makes them prove it.
+
+Axint is the proof and repair layer for Apple coding agents. This extension
+connects Claude Desktop to the installed Axint MCP server for Swift validation,
+repair planning, proof orchestration, project context, and optional generation.
 
 ## Install
 
 Double-click the `.mcpb` file, or drag it onto Claude Desktop.
 
-## What It Does
+## What it does
 
-Axint gives Claude the current 35-tool MCP surface plus five built-in prompts for Apple-native work:
+- **Check** generated or existing Swift with evidence-aware diagnostics.
+- **Repair** failures through compact Fix Packets and exact next actions.
+- **Run** project-aware checks and Xcode-facing proof loops.
+- **Generate** App Intents, SwiftUI views, widgets, templates, and feature packages when a smaller contract helps.
+- **Coordinate** project context, memory, run status, and source-free feedback packets.
 
-- **Generate** — create intents, SwiftUI views, widgets, templates, and full feature packages
-- **Compile** — turn TypeScript, Python, or compact schema input into production-ready Swift
-- **Validate** — catch Apple-specific issues before you touch Xcode
-- **Repair** — read Fix Packets and run agent-ready repair loops
-- **Prove** — run Cloud Check, Swift validation, Xcode guardrails, and project-aware checks
-- **Coordinate** — keep project packs, memory, docs context, run status, and feedback packets aligned
+After installation, call `axint.status` and `axint.activate` to verify the MCP
+server and compiler are connected.
 
 ## Example
 
-> "Create an App Intent that lets users send a message to a contact"
+> Check the Swift I changed, identify what still needs Apple-tooling evidence,
+> and give me the smallest repair and rerun plan.
 
-Claude scaffolds the contract, compiles it to Swift, validates the Apple-specific details, and hands you the next proof step for your Xcode project.
+Axint returns structured findings and the next proof step. On a Mac project,
+finish the loop with `axint prove --dir /path/to/MyApp`.
 
 ## Privacy
 
-Axint runs entirely on your machine. No data leaves your device. The compiler processes TypeScript locally and emits Swift — nothing is sent to any server.
-
-See the [LICENSE](https://github.com/agenticempire/axint/blob/main/LICENSE) for details.
+The default compiler, validation, and proof paths run locally. Axint does not
+upload project source unless the user explicitly chooses a hosted Cloud action.
+Source-free telemetry and feedback have inspectable opt-out controls documented
+in the [security policy](https://github.com/agenticempire/axint/blob/main/SECURITY.md).
 
 ## Links
 
 - [axint.ai](https://axint.ai)
+- [Documentation](https://docs.axint.ai)
 - [GitHub](https://github.com/agenticempire/axint)
 - [Apache-2.0 License](https://github.com/agenticempire/axint/blob/main/LICENSE)

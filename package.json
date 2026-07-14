@@ -6,7 +6,7 @@
     "access": "public"
   },
   "type": "module",
-  "description": "Apple-native execution layer for AI coding agents: compile, validate, repair, and prove Swift surfaces.",
+  "description": "Proof and repair for Apple coding agents: validate Swift, run Xcode evidence, repair failures, and generate inspectable Apple-native capabilities.",
   "author": "Axint contributors",
   "license": "Apache-2.0",
   "homepage": "https://axint.ai",
@@ -88,11 +88,12 @@
     "versions:sync": "node scripts/sync-versions.mjs",
     "versions:check": "node scripts/check-versions.mjs",
     "release:check": "node scripts/check-release-parity.mjs",
+    "release:notes": "tsx scripts/render-release-notes.ts",
     "install:gauntlet": "node scripts/install-gauntlet.mjs",
     "metrics:emit": "node scripts/emit-metrics.mjs",
     "metrics:check": "node scripts/check-metrics.mjs",
     "boundary:check": "node scripts/check-public-boundary.mjs",
-    "docs:check": "node scripts/check-readme-mcp-docs.mjs",
+    "docs:check": "node scripts/check-readme-mcp-docs.mjs && node scripts/sync-roadmap-metrics.mjs --check && node scripts/check-public-docs.mjs && node scripts/check-local-links.mjs",
     "roadmap:sync": "node scripts/sync-roadmap-metrics.mjs",
     "prepublishOnly": "npm run versions:check && npm run metrics:check && npm run docs:check && npm run clean && npm run build",
     "prepare": "husky"

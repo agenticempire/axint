@@ -79,7 +79,7 @@ ${profile.xcodeToolsAllowed ? "For Xcode work, prefer `axint.xcode.guard` as the
 
 ## What Axint Is
 
-Axint is the Apple-native execution layer for AI-built software. It helps agents describe an Apple-native surface once, generate the required Swift and support fragments, validate Apple-specific rules, produce repair guidance, and then prove the result with Xcode.
+Axint is the proof and repair layer for Apple coding agents. It checks generated or existing Swift, reconciles findings with Apple tooling, returns exact repair guidance, and can generate inspectable Apple-native capabilities when a smaller contract helps.
 
 Use Axint for:
 
@@ -183,7 +183,7 @@ axint.tokens.ingest -> axint.suggest -> axint.feature with context -> axint.swif
 - \`axint.doctor\`: checks version truth, Node/npm/npx paths, MCP config, Xcode Claude config, and project memory files.
 - \`axint.session.start\`: starts the enforced session, writes \`.axint/session/current.json\`, and returns the token required by workflow gates.
 - \`axint.xcode.guard\`: Xcode-only drift guard that enforces fresh Axint evidence and writes \`.axint/guard/latest.json\` plus \`.axint/guard/latest.md\`.
-- \`axint.xcode.write\`: Xcode-only guarded write lane for files inside the project; Codex/Claude/Cursor/Cowork should use their native patch/edit lane unless they are actually running inside Xcode.
+- \`axint.xcode.write\`: Xcode-only guarded write lane for files inside the project; patch-first clients should use their native edit lane unless they are actually running inside Xcode.
 - \`axint.project.pack\`: returns first-try project setup files without writing.
 - \`axint.project.syncVersion\`: updates Axint-owned project-pack version hints after an upgrade so stale local truth does not mislead agents.
 - \`axint.context.memory\`: returns compact operating memory for context recovery.

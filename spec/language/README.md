@@ -1,49 +1,84 @@
-# Axint App-Definition Language — Specification
+# Axint App-Definition Language Specification
 
-Axint adds a compact declarative authoring surface for App Intents and App Entities that compiles 1:1 into the existing IR and validated Swift. That is the whole pitch. It is not a general-purpose programming language, not a replacement for the TypeScript or Python surfaces, and not an attempt to grow a new ecosystem. It is a capture mechanism — a low-entropy syntax that agents can write, read, diff, and correct in a single prompt — pointed at the same compiler, the same diagnostics, and the same validated Swift output everything else already targets.
+The `.axint` language is an experimental, compact authoring surface for agents.
+It captures declarative Apple feature shape with a small grammar, then lowers to
+the same intent and entity IR contracts used elsewhere in Axint. It is not a
+general-purpose language, a Swift replacement, or the primary Axint product.
 
-The existing TS and Python SDKs remain the primary authoring surfaces. The app-definition language is a third surface sitting next to them. All three lower to the same `IRIntent` / `IREntity` nodes, so every intent written in any surface is fungible with every intent written in every other surface.
-
-This directory is the specification. The language itself ships as part of `@axint/compiler` starting in `v0.4.0-alpha`, behind an experimental flag.
+The proof and repair runtime remains the product boundary. The language is one
+optional way to create structured input for that system.
 
 ## Status
 
-- **Version:** draft 1 (pre-implementation)
-- **Scope v1:** `intent`, `entity`, and `enum` declarations. An enum is a closed set of named cases used as a param type. Files may contain any combination of the three; a file with only enums is valid and compiles to the enum's Swift form with no intent output.
-- **IR target:** existing `IRIntent`, `IREntity`, and the inline `enum` IR form — no new IR nodes
-- **Diagnostics v1:** reuses existing `AX001`–`AX113` and `AX200`–`AX202` codes — no new codes
-- **File extension:** `.axint`
-- **Reserved for later:** additional top-level surfaces (`view`, `widget`, `app`) and cross-file composition (`use`, `from`) — deferred to v0.5.0+. User-defined functions, types beyond `entity` and `enum`, and macros are permanent non-goals (see [`non-goals.md`](./non-goals.md)).
+**Implemented experimental surface.** The first parser implementation shipped
+in `v0.4.0-alpha` and is present in the current package.
+
+Implemented today:
+
+- lexer and token model
+- recovery-aware parser with structured diagnostics
+- canonical formatter exposed through `axint format`
+- lowering for `intent`, `entity`, and `enum` declarations
+- lowering for safe `page` manifests and host-rendered modules
+- parser, lowering, printer, round-trip, and broken-input corpus tests
+- canonical `.axint` and paired Swift examples for the intent/entity subset
+
+Current boundaries:
+
+- The parser, formatter, and lowering APIs do not require an experimental flag.
+- Direct `.axint` input is not yet wired through the main `axint compile` command.
+- `view`, `widget`, and `app` declarations remain specification-only future work.
+- Cross-file composition with `use` and `from` remains specification-only.
+- User-defined functions, arbitrary types, macros, and embedded application logic are permanent non-goals.
+- The model-based four-surface benchmark is a proposed protocol, not an implemented release gate.
+
+The TypeScript and Python SDKs remain the production authoring surfaces. Their
+capabilities are not implied by the `.axint` implementation status, and vice
+versa.
+
+## Implemented data path
+
+```text
+.axint source
+  -> tokenize
+  -> parse with recovery
+  -> canonical format or lower
+  -> IRIntent / IREntity / enum IR / IRPublicPage
+```
+
+Intent IR can be passed to the existing `compileFromIR()` API. That is an API
+composition point, not yet a dedicated end-to-end `.axint` CLI compile path.
 
 ## Contents
 
-- [`why-agents.md`](./why-agents.md) — the thesis: smallest valid search space, measured on seven metrics
-- [`principles.md`](./principles.md) — design principles and the seven agent-first criteria
-- [`grammar.md`](./grammar.md) — lexical rules and full EBNF
-- [`parser-recovery.md`](./parser-recovery.md) — single-pass recovery contract: one parse, all diagnostics
-- [`keywords.md`](./keywords.md) — keyword and type catalog
-- [`ir-mapping.md`](./ir-mapping.md) — every production mapped to an IR node
-- [`non-goals.md`](./non-goals.md) — what the language deliberately refuses to express
-- [`diagnostics.md`](./diagnostics.md) — which AX codes a `.axint` file can trigger
-- [`diagnostic-protocol.md`](./diagnostic-protocol.md) — machine-readable diagnostic schema and fix-kind taxonomy
-- [`benchmark.md`](./benchmark.md) — 20-task agent benchmark matrix across `.axint`, TS, Python, and raw Swift
-- [`failures.md`](./failures.md) — canonical broken-input corpus, one entry per author-side AX code
-- [`examples/`](./examples) — canonical `.axint` files with paired Swift outputs
+- [`why-agents.md`](./why-agents.md) states the design hypothesis and measurable criteria.
+- [`principles.md`](./principles.md) defines the agent-first design principles.
+- [`grammar.md`](./grammar.md) contains the lexical rules and EBNF.
+- [`parser-recovery.md`](./parser-recovery.md) defines single-pass recovery boundaries.
+- [`keywords.md`](./keywords.md) catalogs keywords and primitive types.
+- [`ir-mapping.md`](./ir-mapping.md) maps productions to implemented or proposed IR.
+- [`non-goals.md`](./non-goals.md) records deliberate exclusions.
+- [`diagnostics.md`](./diagnostics.md) maps language failures to AX diagnostics.
+- [`diagnostic-protocol.md`](./diagnostic-protocol.md) defines machine-readable diagnostics.
+- [`benchmark.md`](./benchmark.md) preserves the proposed model benchmark design.
+- [`failures.md`](./failures.md) describes the broken-input corpus.
+- [`examples/`](./examples) contains canonical sources and paired outputs.
 
 ## Versioning
 
-The spec ships three version lines. Most releases touch one; they bump independently.
+The specification tracks three independently changing contracts:
 
-| Line                         | Lives in                           | Bumps when                                                                                   |
-|------------------------------|------------------------------------|----------------------------------------------------------------------------------------------|
-| Language spec                | this directory                     | Grammar, keyword set, IR mapping, or field-order rules change                                  |
-| Diagnostic protocol          | `schemaVersion` in `diagnostic-protocol.md` (pinned to `1`) | JSON record shape, the closed fix-kind set, or `Fix` object fields change       |
-| Parser recovery boundaries   | `parser-recovery.md`               | The closed four-point boundary set gains or loses a recovery point                            |
+| Contract | Source | Changes when |
+| --- | --- | --- |
+| Language grammar | this directory | Grammar, keyword, mapping, or field-order rules change |
+| Diagnostic protocol | `schemaVersion` in `diagnostic-protocol.md` | JSON shape, fix kinds, or fix fields change |
+| Parser recovery | `parser-recovery.md` | The recovery boundary set changes |
 
-Diagnostic wording changes bump nothing.
+Diagnostic wording alone does not change a contract version.
 
 ## One rule above everything else
 
 > The language is not the product. The language is the capture mechanism.
 
-Every decision in this spec is evaluated against that frame. If a feature makes the surface richer but harder for an agent to emit correctly, it does not ship. The compiler's IR, the validator, and the Swift generator are the product. The language exists so a model can hand us a single file and we can hand back a working Apple feature.
+Features belong here only when they reduce authoring ambiguity without creating
+new unsupported states in the compiler or proof loop.

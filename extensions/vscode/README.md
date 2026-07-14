@@ -1,63 +1,58 @@
-# Axint — VS Code Extension
+# Axint for VS Code
 
-Compile TypeScript into native Apple capabilities from VS Code. Axint now does more than register MCP: it can preview generated Swift, validate the current file, browse bundled templates, and jump directly into the registry and docs.
+Agents can write Swift. Axint makes them prove it.
+
+Axint is the proof and repair layer for Apple coding agents. The VS Code
+extension previews generated Swift, validates the current file, exposes repair
+diagnostics in Problems, browses bundled templates, and connects compatible
+agents to the Axint MCP server.
 
 ## Install
 
-Search for "Axint" in the VS Code Extensions view, or:
+Search for "Axint" in the VS Code Extensions view, or run:
 
-```
+```text
 ext install agenticempire.axint
 ```
 
-## What It Does
+## Commands
 
-Registers the Axint MCP server so VS Code agents can call the current 35-tool
-surface and five built-in prompts available in the CLI integrations.
+- **Axint: Preview Swift for Current File** compiles the active Axint source and opens generated Swift beside it.
+- **Axint: Validate Current File** runs the compiler and validator, then publishes diagnostics to Problems.
+- **Axint: Browse Bundled Templates** opens the installed release's template catalog.
+- **Axint: Open Current File in Cloud** explicitly sends the active TypeScript or Python source to Axint Cloud for a shareable report.
+- **Axint: Open Registry** opens `registry.axint.ai`.
+- **Axint: Open Docs** opens `docs.axint.ai`.
 
-It also adds command-palette workflows for:
+The MCP connection adds the installed Axint tool and prompt surface for
+generation, validation, repair, proof orchestration, and project context. Call
+`axint.status` and `axint.activate` after connecting to verify the runtime.
 
-- **Axint: Preview Swift for Current File** — compile the active Axint source and open generated Swift beside it
-- **Axint: Validate Current File** — run the compiler/validator and surface diagnostics in Problems
-- **Axint: Browse Bundled Templates** — explore built-in Axint templates from inside VS Code
-- **Axint: Open Current File in Cloud** — send the active TypeScript or Python source into Axint Cloud for a shareable validation report
-- **Axint: Open Registry** — jump straight to `registry.axint.ai`
-- **Axint: Open Docs** — open `docs.axint.ai`
-
-Key tools:
-
-- **axint.feature** — Generate a complete Apple-native feature package
-- **axint.compile** — Compile TypeScript to Swift
-- **axint.validate** — Check for issues
-- **axint.schema.compile** — Compile minimal JSON directly to Swift
-- **axint.templates.list** — Browse pre-built patterns
-- **axint.templates.get** — Pull a complete working example
-- **axint.swift.validate** / **axint.swift.fix** — Verify and repair Swift output
-
-Works with GitHub Copilot in agent mode and any VS Code AI feature that supports MCP.
-
-## Editor Workflow
+## Editor workflow
 
 1. Open an Axint TypeScript file.
-2. Run `Axint: Preview Swift for Current File` from the command palette.
-3. Axint compiles the file with `@axint/compiler`, shows diagnostics in Problems, and opens generated Swift in a split editor.
-4. Use `Axint: Validate Current File` for a fast validation-only pass while editing.
-5. Use `Axint: Open Current File in Cloud` when you want a shareable Cloud report, saved baseline, or a handoff into the private validation workflow.
+2. Run **Axint: Preview Swift for Current File**.
+3. Review generated Swift and any Problems diagnostics.
+4. Run **Axint: Validate Current File** after edits.
+5. Use Cloud only when a shareable hosted report is appropriate.
+6. Run `axint prove --dir /path/to/MyApp` from the project when you need Xcode build and test evidence.
 
-This gives you a tighter `edit -> compile -> inspect Swift -> open Cloud report` loop without leaving VS Code.
+Local preview and validation run through `@axint/compiler`. The Cloud command is
+an explicit hosted action, not part of the default local workflow.
 
 ## Requirements
 
 - VS Code 1.102 or later
 - Node.js 22+
 
-The extension runs `npx -y -p @axint/compiler axint-mcp` under the hood for MCP, and `npx -y -p @axint/compiler axint compile ... --json` for editor commands. No global install needed.
+The extension runs `npx -y -p @axint/compiler axint-mcp` for MCP and
+`npx -y -p @axint/compiler axint compile ... --json` for editor commands. No
+global install is required.
 
 ## Links
 
 - [axint.ai](https://axint.ai)
+- [Documentation](https://docs.axint.ai)
 - [GitHub](https://github.com/agenticempire/axint)
 
-## License
-
-Apache-2.0
+Apache-2.0 licensed.

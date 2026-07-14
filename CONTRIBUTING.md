@@ -83,6 +83,7 @@ Please do not open PRs that add private product materials or internal operating 
 - Private website or registry implementation details
 - Hosted service playbooks or commercial planning docs
 - Internal analytics, sales, or partnership materials
+- Local-machine paths, internal agent instructions, or private implementation plans
 
 ## Development Setup
 
@@ -241,4 +242,4 @@ Be respectful. Be constructive. We're building something together. Toxic behavio
 
 ---
 
-Thanks for helping build the bridge between agentic AI and Apple.
+Thanks for helping Apple coding agents produce work that can be checked, repaired, and proved.

@@ -87,7 +87,7 @@ claude mcp add --transport stdio axint -- npx -y -p @axint/compiler axint-mcp
 
 ## Tools Available
 
-Once connected, agents gain the current 35-tool Axint MCP surface plus five built-in prompts:
+Once connected, agents gain the MCP tools and built-in prompts from the installed Axint release:
 
 - Project and session tools: `axint.status`, `axint.upgrade`, `axint.doctor`, `axint.session.start`, `axint.project.pack`, `axint.project.index`, `axint.project.syncVersion`
 - Apple generation tools: `axint.feature`, `axint.suggest`, `axint.scaffold`, `axint.compile`, `axint.schema.compile`

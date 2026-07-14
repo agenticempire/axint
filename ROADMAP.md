@@ -1,12 +1,12 @@
 # Axint Roadmap
 
-_Last updated: June 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.5.2](https://github.com/agenticempire/axint/releases/tag/v0.5.2)<!-- metrics:roadmap-release:end -->_
+_Last updated: July 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.5.2](https://github.com/agenticempire/axint/releases/tag/v0.5.2)<!-- metrics:roadmap-release:end -->_
 
-Axint is the Apple-native execution layer for AI coding agents. The open-source package gives agents a smaller contract for Apple surfaces, emits ordinary Swift, validates Apple-specific rules, writes Fix Packets, and coordinates proof loops across CLI, MCP, Xcode, Registry, and Cloud-facing workflows.
+**Agents can write Swift. Axint makes them prove it.**
 
-The thesis is simple: agents can write code, but Apple-native software needs proof. Axint turns agent output into validated, repairable, inspectable Apple work.
+Axint is the proof and repair layer for Apple coding agents. It checks the Swift an agent wrote, runs real Xcode build and test evidence, reconciles static findings with Apple tooling, and returns signed proof with the exact repairs to make next. The compiler, SDKs, MCP server, Registry, Team features, and Cloud all support that shared proof contract.
 
-<!-- metrics:roadmap-snapshot:start -->Current compiler snapshot: v0.5.1 · 36 MCP tools + 5 prompts · 53 templates · 225 diagnostic codes · 1485 tests.<!-- metrics:roadmap-snapshot:end -->
+<!-- metrics:roadmap-snapshot:start -->Current verified snapshot: 36 MCP tools + 5 prompts · 53 templates · 225 diagnostic codes · 1489 tests.<!-- metrics:roadmap-snapshot:end -->
 
 ---
 
@@ -24,20 +24,20 @@ The thesis is simple: agents can write code, but Apple-native software needs pro
 
 - TypeScript, Python, JSON schema mode, and preview `.axint` inputs compile into Apple-native Swift.
 - Supported surfaces include App Intents, SwiftUI views, WidgetKit widgets, app scaffolds, plist fragments, entitlements, and Apple metadata.
-- The validator covers 214 diagnostic codes across compiler, intent, view, widget, app, Swift build, SwiftUI, accessibility, concurrency, and Live Activity rules.
-- The suite currently tracks 1372 tests across TypeScript and Python paths.
+- The validator covers compiler, intent, view, widget, app, Swift build, SwiftUI, accessibility, concurrency, Live Activity, and repair-loop rules.
+- TypeScript and Python checks are both included in the generated public metrics snapshot above.
 
 ### Agent distribution
 
-- 36 MCP tools and 5 prompts expose compile, validate, activate, repair, suggest, feature generation, project packs, memory, docs context, workflow gates, run status, run cancel, telemetry controls, feedback packets, and template access.
+- The MCP surface exposes compile, validate, activate, repair, suggest, feature generation, project packs, memory, docs context, workflow gates, run status, run cancel, feedback, and template access. Its generated tool and prompt totals are recorded in the snapshot above.
 - MCP marketplace bundles now start directly through `node dist/mcp/index.js` and ship clearer runtime tool descriptions for security/quality scanners.
-- Agent lanes distinguish Xcode-hosted work from Claude, Cursor, Cowork, VS Code, Windsurf, and other clients so routine edits use the active client's native patch lane while Axint handles proof.
+- Agent lanes distinguish Xcode-hosted work from patch-first clients so routine edits use the active client's native write lane while Axint handles proof.
 - Same-thread upgrades let agents update Axint without losing the current project conversation.
 
 ### First-use and templates
 
 - `create-axint-app` / `axint create` generates the Apple Day Agent starter: multiple App Intent contracts, generated Swift, plist and entitlement fragments, agent prompts, proof artifacts, and an interactive local proof preview.
-- 46 bundled templates and 58 live Registry packages give agents reusable starting points instead of asking them to hallucinate every Apple surface from scratch.
+- Bundled templates and Registry packages give agents reusable starting points instead of asking them to invent every Apple surface from scratch. Their current totals come from the canonical metrics bundle.
 
 ### Privacy-safe learning and adoption proof
 
@@ -60,9 +60,9 @@ Goal: the first command should create a real, inspectable Apple-native capabilit
 - Add more end-to-end example repos for App Intent, SwiftUI widget, menu bar app, and existing-project repair flows.
 - Keep `npm run install:gauntlet` green before release: local dist activation, packed fresh install activation, and create-axint-app launchpad creation.
 
-### 2. Make existing-product repair feel senior
+### 2. Make existing-project repair feel senior
 
-Goal: Axint should act like a senior Apple engineer watching the loop.
+Goal: Axint should provide the evidence and repair context a senior Apple engineer expects from the loop.
 
 - Expand UI repair classifiers for blocked taps, invisible overlays, scroll/hittability failures, state drift, navigation regressions, and accessibility identifier mismatches.
 - Improve `.xcresult` parsing and attach focused failure context directly to repair packets.
@@ -110,7 +110,7 @@ The best open-source contributions right now are:
 
 - new Apple templates with tests
 - validator rules for real Swift/App Intent failures
-- smaller reproductions for existing-product repair bugs
+- smaller reproductions for existing-project repair bugs
 - docs that make agent setup easier
 - MCP marketplace metadata improvements
 - examples that prove one Apple capability end to end

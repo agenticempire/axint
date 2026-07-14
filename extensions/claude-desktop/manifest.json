@@ -1,10 +1,10 @@
 {
   "manifest_version": "0.3",
   "name": "axint",
-  "display_name": "Axint — Apple-Native Execution Layer",
+  "display_name": "Axint - Apple Proof and Repair",
   "version": "0.5.2",
-  "description": "Compile, validate, repair, and prove Apple-native Swift surfaces from Claude Desktop.",
-  "long_description": "Axint turns TypeScript, Python, and compact schema input into validated Swift for Apple-native features. Compile App Intents, SwiftUI views, WidgetKit widgets, and full app scaffolds from Claude Desktop, then use Fix Packets, Cloud Check, and Xcode-facing proof loops to repair and ship ordinary generated Swift.\n\nIncludes 36 MCP tools, five built-in prompts, and 26 bundled templates spanning messaging, productivity, health, commerce, media, navigation, smart home, and more.",
+  "description": "Check Swift, repair failures, run Apple evidence, and generate inspectable capabilities from Claude Desktop.",
+  "long_description": "Axint is the proof and repair layer for Apple coding agents. Check generated or existing Swift, run project-aware validation and Xcode-facing proof loops, preserve compact repair evidence, and generate App Intents, SwiftUI views, WidgetKit widgets, and app scaffolds when a smaller contract helps.\n\nThe extension exposes the current MCP tool and prompt surface from the installed Axint package, so capabilities and metadata stay tied to the same release truth.",
   "author": {
     "name": "Axint contributors",
     "url": "https://axint.ai"
@@ -20,12 +20,7 @@
     "entry_point": "server/index.js",
     "mcp_config": {
       "command": "npx",
-      "args": [
-        "-y",
-        "-p",
-        "@axint/compiler",
-        "axint-mcp"
-      ]
+      "args": ["-y", "-p", "@axint/compiler", "axint-mcp"]
     }
   },
   "tools": [

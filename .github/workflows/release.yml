@@ -144,15 +144,13 @@ jobs:
           done
           npm run release:check -- --require-both-live
 
+      - name: Render release-specific notes
+        if: github.event_name == 'push'
+        run: npm run release:notes -- "${GITHUB_REF_NAME#v}" --output "$RUNNER_TEMP/release-notes.md"
+
       - name: Create GitHub Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
-          body: |
-            See [CHANGELOG.md](https://github.com/agenticempire/axint/blob/main/CHANGELOG.md) for details.
-
-            **Install:**
-            ```bash
-            npm install -g @axint/compiler
-            ```
+          body_path: ${{ runner.temp }}/release-notes.md
