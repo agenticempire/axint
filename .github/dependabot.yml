@@ -14,6 +14,12 @@ updates:
       - "javascript"
     commit-message:
       prefix: "deps"
+    # typescript-eslint 8 currently declares TypeScript support below 6.1.
+    # Keep receiving 6.x updates without reopening an uninstallable 7.x group.
+    ignore:
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
     groups:
       javascript-runtime:
         patterns:
