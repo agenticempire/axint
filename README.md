@@ -5,183 +5,90 @@
 </p>
 
 <p align="center">
-  <strong>Axint is proof and repair infrastructure for Apple coding agents.</strong>
+  <strong>The proof and repair layer for Apple coding agents.</strong>
 </p>
 
 <p align="center">
-  Check existing Swift without changing the project, or generate App Intents, SwiftUI views, widgets, and app shells from a smaller contract.<br>
-  Axint reconciles static findings with Xcode evidence and gives agents a compact receipt they can repair and rerun.
+  Generate Apple-native capabilities from smaller contracts. Check existing Swift without rewriting the project.<br />
+  Reconcile static findings with Xcode evidence, then hand the agent a compact receipt it can repair and rerun.
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@axint/compiler"><img src="https://img.shields.io/npm/v/@axint/compiler?color=f05138&label=npm" alt="npm" /></a>
-  <a href="https://github.com/agenticempire/axint/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License" /></a>
-  <a href="https://github.com/agenticempire/axint/actions/workflows/ci.yml"><img src="https://github.com/agenticempire/axint/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://glama.ai/mcp/servers/agenticempire/axint"><img src="https://glama.ai/mcp/servers/agenticempire/axint/badges/score.svg" alt="axint MCP server" /></a>
-  <a href="https://axint.ai"><img src="https://img.shields.io/badge/playground-axint.ai-7c3aed" alt="Playground" /></a>
+  <a href="https://www.npmjs.com/package/@axint/compiler"><img src="https://img.shields.io/npm/v/@axint/compiler?color=f05138&label=npm" alt="npm package" /></a>
+  <a href="https://www.npmjs.com/package/@axint/compiler"><img src="https://img.shields.io/npm/dm/@axint/compiler?color=2f3431&label=downloads" alt="monthly npm downloads" /></a>
+  <a href="https://pypi.org/project/axint/"><img src="https://img.shields.io/pypi/v/axint?color=3775a9&label=PyPI" alt="PyPI package" /></a>
+  <a href="https://github.com/agenticempire/axint/actions/workflows/ci.yml"><img src="https://github.com/agenticempire/axint/actions/workflows/ci.yml/badge.svg" alt="continuous integration" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-2f3431" alt="Apache 2.0 license" /></a>
 </p>
 
 <p align="center">
-  <a href="https://axint.ai">Website</a> ·
-  <a href="https://cloud.axint.ai">Playground</a> ·
-  <a href="#create-the-apple-day-agent-starter">Create App</a> ·
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#mcp-server">MCP Server</a> ·
+  <a href="https://cloud.axint.ai">Try in browser</a> ·
+  <a href="#start-in-60-seconds">Prove a project</a> ·
+  <a href="#connect-your-agent">Connect an agent</a> ·
   <a href="https://docs.axint.ai">Docs</a> ·
-  <a href="https://registry.axint.ai">Registry</a>
+  <a href="https://github.com/agenticempire/axint-examples">Examples</a> ·
+  <a href="#contribute">Contribute</a>
 </p>
 
 <p align="center">
-  <img src="media/intro.gif" alt="axint loop — compile, validate, fix packet, repair, ship" width="640" />
+  <img src="media/intro.gif" alt="Axint discovers an Apple project, checks Swift, runs Xcode proof, reconciles findings, and produces a signed source-free receipt" width="960" />
+</p>
+
+<p align="center">
+  <sub>If Apple coding agents should prove their work, star Axint and help shape the execution layer.</sub>
 </p>
 
 ---
 
-## The loop
+## Agents can write Swift. Shipping requires evidence.
 
-Axint exists because Apple-native software is becoming a set of structured system
-capabilities: App Intents, Siri, Shortcuts, Spotlight, widgets, SwiftUI views,
-privacy copy, entitlements, and generated metadata.
+Apple development is a graph of contracts: SwiftUI state, App Intents, Siri and
+Shortcuts metadata, widgets, entitlements, privacy declarations, concurrency,
+build settings, tests, and runtime behavior. A plausible patch is not proof that
+those contracts still agree.
 
-General coding agents can produce Swift. Axint makes the proof loop explicit:
-static analysis proposes, Apple tooling supplies evidence, and the receipt
-records what is confirmed, probable, advisory, or suppressed. `axint prove`
-turns that loop into one local command and signs the source-free result.
+Axint gives agents one evidence model across generation and brownfield work:
 
-```
-changed Swift or generated output
-  → static findings with provenance
-  → Xcode build / test / runtime evidence
-  → evidence reconciliation
-  → compact proof receipt
-  → agent repair
-  → rerun with fresh proof
-```
+| When you need to...                | Axint provides...                                                            |
+| ---------------------------------- | ---------------------------------------------------------------------------- |
+| Change an existing Swift project   | Non-destructive validation with provenance and confidence                    |
+| Add an Apple-native capability     | TypeScript, Python, JSON, or preview contracts compiled to inspectable Swift |
+| Run builds and tests from an agent | Resumable Xcode jobs with compact logs and `.xcresult` extraction            |
+| Repair a failure                   | Stable findings, likely files, exact next actions, and a Fix Packet          |
+| Hand work across agents or CI      | Signed, source-free receipts that can be verified and rerun                  |
 
-The five product modes share that evidence contract:
+Static analysis proposes. Apple tooling supplies evidence. Axint records what is
+**confirmed**, **probable**, **advisory**, or **suppressed** instead of presenting
+every heuristic as compiler truth.
 
-- **Generate** — optional TypeScript/Python/JSON/preview `.axint` to Apple-native Swift.
-- **Check** — evidence-aware diagnostics for existing Swift and generated output.
-- **Run** — resumable Xcode build, test, runtime, `.xcresult`, and receipt orchestration.
-- **Team** — sessions, project context, file claims, and durable repair handoff.
-- **Cloud** — hosted checks and shared history when local Apple tooling is unavailable.
+## Start in 60 seconds
 
-### Brownfield-safe first run
+### Prove an existing Apple project
 
 ```bash
-npx -y @axint/compiler prove --dir /path/to/MyApp
+npx -y -p @axint/compiler axint prove --dir /path/to/MyApp
 ```
 
-No account or configuration is required. Axint discovers the Xcode container and
-scheme, checks existing Swift, runs the available build and tests locally,
-reconciles findings against Apple tooling, and writes a signed receipt under
-`.axint/proof`. If the project has no test target, the result is
-`evidence_required`, never a false shipping pass.
+Axint discovers the Xcode container and scheme, checks existing Swift, runs the
+available build and tests, reconciles findings, and writes a signed receipt to
+`.axint/proof`.
 
-The default command does not change Swift. When the receipt proposes a
-deterministic rewrite, review it and opt in explicitly:
+The default first run is deliberately conservative:
+
+- no account or configuration required
+- no Swift changes
+- no source upload
+- no project instructions, memory, or MCP installation
+- no automatic fixes
+
+Review a proposed deterministic rewrite before opting in:
 
 ```bash
 axint prove --dir /path/to/MyApp --fix
 axint receipt verify /path/to/MyApp/.axint/proof/latest.proof.json
 ```
 
-`--fix` applies only Axint's deterministic Swift rewrites and then reruns the
-complete proof. The receipt records every applied file and diagnostic code.
-Hosted checks, source upload, project instructions, memory installation, and
-MCP configuration are not part of this local-first path.
-
-For CI or team verification, pin the expected signer instead of trusting the
-public key embedded in the receipt alone:
-
-```bash
-axint receipt verify latest.proof.json \
-  --trusted-fingerprint sha256:0123456789abcdef...
-```
-
-WWDC26 made App Intents, App Schemas, Siri, Shortcuts, Spotlight, and
-Foundation Models tool calls a single agent-facing execution path. Axint now
-validates that path with schema continuity, entity freshness, execution-target,
-model-proof, and security-boundary checks.
-
-[Read the thesis](https://axint.ai/thesis) · [Open proof](https://axint.ai/proof) · [View Fix Packet](https://axint.ai/fix-packet)
-
----
-
-## License and trademarks
-
-Axint is open-source software licensed under Apache-2.0. The Axint name,
-wordmark, axis mark, logo, hosted service names, domains, and related Agentic
-Empire brand assets are not licensed for use by forks or unaffiliated products.
-
-Forks are welcome under the Apache-2.0 license, but they should use distinct
-names and branding. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
-
----
-
-## Why Axint
-
-Apple's API surfaces — App Intents, SwiftUI, WidgetKit — are verbose and
-contract-heavy. A single widget needs a TimelineEntry, a TimelineProvider, an
-EntryView, and a Widget struct before you've written a line of business logic.
-An App Intent needs parameters, metadata, privacy assumptions, and Swift that
-fits Apple's expectations.
-
-Axint gives agents and developers a smaller authoring surface. One
-`defineIntent()` call can replace the intent boilerplate an agent would otherwise
-regenerate token by token. One `defineWidget()` can replace the WidgetKit stack.
-The compiler handles the struct conformances, `@Parameter` wrappers,
-`LocalizedStringResource` literals, plist fragments, entitlements, diagnostics,
-and repair artifacts around the generated Swift.
-
-Four surfaces, one pipeline:
-
-```
-defineIntent()  →  App Intent for Siri & Shortcuts
-defineView()    →  SwiftUI view
-defineWidget()  →  WidgetKit widget
-defineApp()     →  Full app scaffold
-```
-
-The result: teams and AI tools can author Apple-native features in a smaller
-surface than hand-written Swift, inspect ordinary generated Swift when it
-matters, then use Axint Check and Fix Packets to keep the repair loop grounded in
-the same facts.
-
----
-
-## Quick start
-
-### Prove an existing Apple project
-
-```bash
-cd /path/to/MyApp
-npx -y @axint/compiler prove
-```
-
-The portable `latest.proof.json` receipt contains the Git commit, Xcode and
-Swift versions, build/test outcomes, evidence classes, stable finding IDs,
-repairs, artifact hashes, and an Ed25519 signature. It contains no source,
-command output, private key, or absolute local path.
-
-Review one finding without suppressing the rest of its rule:
-
-```bash
-axint feedback finding axf_... \
-  --receipt .axint/proof/latest.proof.json \
-  --verdict false-positive \
-  --note "Covered by the focused interaction test"
-
-axint prove
-```
-
-Future runs preserve that finding in the receipt but keep it non-blocking unless
-stronger compiler evidence confirms it. Use `accurate`, `irrelevant`, or
-`false-positive`; inspect decisions with `axint feedback findings`.
-
-### Create the Apple Day Agent starter
-
-If you want the fastest shareable proof path, start here:
+### Create a working Apple-native starter
 
 ```bash
 npx -y -p @axint/compiler create-axint-app apple-day-agent
@@ -190,486 +97,167 @@ npm run proof
 open share/built-with-axint.html
 ```
 
-This creates a premium Apple-native mini app instead of a blank scaffold:
+The starter includes multiple App Intent contracts, a SwiftUI app shell, agent
+prompts, proof artifacts, and an interactive preview. It is designed to show the
+complete author, compile, check, and repair loop instead of generating an empty
+project.
 
-- `intents/create-event.ts` is the App Intent source contract.
-- `intents/create-reminder.ts` and `intents/check-weather.ts` add two more Apple capabilities.
-- `.axint/agent-prompts/` gives Claude Code, Cursor, and other coding agents the exact proof loop.
-- `ios/App/DayDashboardView.swift` gives the starter a real SwiftUI app shell.
-- `.axint/run/latest.md` starts the durable proof trail.
-- `share/built-with-axint.html` gives you an interactive proof preview with the generated app shell, contracts, Swift, and proof.
+## One system, five modes
 
-The point is to make the first run feel real: agent writes Apple-native
-contracts, Axint compiles multiple capabilities, validates them, renders a
-usable app preview, and hands the agent a repair path when something breaks.
+| Mode         | Job                                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Generate** | Compile smaller contracts into App Intents, SwiftUI views, WidgetKit widgets, Live Activities, app shells, metadata, and tests |
+| **Check**    | Validate generated or existing Swift with evidence-aware diagnostics and brownfield abstention                                 |
+| **Run**      | Orchestrate resumable build, test, runtime, and `.xcresult` proof on a local or BYO Mac                                        |
+| **Team**     | Preserve project context, sessions, file claims, repair packets, and handoffs across agents                                    |
+| **Cloud**    | Run hosted checks and keep shared proof history when local Apple tooling is unavailable                                        |
 
-```bash
-npm install -g @axint/compiler
-axint activate
+Every mode returns the same compact contract: verdict, evidence, findings, next
+actions, and artifact paths. Full logs stay on disk instead of flooding the
+agent context.
 
-# initialize Axint inside an existing Apple/Xcode project
-axint init --apple-project /path/to/MyApp --agent claude
+```text
+PROOF COMPLETE
 
-# compile a single file
-axint compile my-intent.ts --out ios/Intents/
+build       PASS
+tests       PASS
+verdict     REVIEWABLE
 
-# or pipe to stdout
-npx -y -p @axint/compiler axint compile my-intent.ts --stdout
+confirmed   0
+probable    0
+advisory    1
+suppressed  1
+
+receipt     .axint/proof/latest.proof.json
+signature   Ed25519 verified
 ```
 
-### Intent
+## Build Apple capabilities from smaller contracts
 
 ```typescript
 import { defineIntent, param } from "@axint/compiler";
 
 export default defineIntent({
-  name: "CreateEvent",
+  name: "CreateCalendarEvent",
   title: "Create Calendar Event",
-  description: "Creates a new event in the user's calendar.",
+  description: "Creates a calendar event for the user.",
   domain: "productivity",
   params: {
     title: param.string("Event title"),
     date: param.date("Event date"),
-    duration: param.duration("Event duration", { default: "1h" }),
+    duration: param.duration("Event duration"),
     location: param.string("Location", { required: false }),
   },
+  perform: async ({ title, date }) => ({
+    success: true,
+    message: `Created ${title} on ${date}`,
+  }),
 });
 ```
 
-### View
-
-```typescript
-import { defineView, prop, state, view } from "@axint/compiler";
-
-export default defineView({
-  name: "EventCard",
-  props: {
-    title: prop.string(),
-    date: prop.date(),
-  },
-  state: {
-    isExpanded: state.boolean(false),
-  },
-  body: [
-    view.vstack({ alignment: "leading", spacing: 8 }, [
-      view.text("entry.title"),
-      view.conditional("isExpanded", [view.text("entry.date")]),
-    ]),
-  ],
-});
-```
-
-### Widget
-
-```typescript
-import { defineWidget, entry, view } from "@axint/compiler";
-
-export default defineWidget({
-  name: "EventCountdown",
-  displayName: "Event Countdown",
-  description: "Shows time until the next event.",
-  families: ["systemSmall", "systemMedium"],
-  entry: {
-    eventName: entry.string("Untitled"),
-    minutesUntil: entry.int(0),
-  },
-  body: [
-    view.vstack({ alignment: "center", spacing: 4 }, [
-      view.text("entry.eventName"),
-      view.text("entry.minutesUntil"),
-    ]),
-  ],
-});
-```
-
-### App
-
-```typescript
-import { defineApp, scene, storage } from "@axint/compiler";
-
-export default defineApp({
-  name: "WeatherApp",
-  scenes: [
-    scene.windowGroup("WeatherDashboard"),
-    scene.settings("SettingsView", { platform: "macOS" }),
-  ],
-  appStorage: {
-    useCelsius: storage.boolean("use_celsius", true),
-    lastCity: storage.string("last_city", "Cupertino"),
-  },
-});
-```
-
-Compile any surface the same way:
-
 ```bash
-axint compile my-intent.ts --out ios/Intents/
-axint compile my-view.ts --out ios/Views/
-axint compile my-widget.ts --out ios/Widgets/
-axint compile my-app.ts --out ios/App/
+axint compile create-calendar-event.ts --out ios/Intents/
 ```
 
-### Repair an existing Apple app
+The compiler emits ordinary Swift plus the plist, entitlement, localization,
+and diagnostic artifacts required by the selected Apple surfaces. The same
+pipeline supports `defineView()`, `defineWidget()`, `defineApp()`, schema JSON,
+and the Python SDK.
 
-When the Swift already exists and something subtle breaks, use the project-aware
-repair loop instead of asking an agent to guess from one file:
+## Connect your agent
 
-```bash
-axint project index --changed Sources/HomeComposer.swift Sources/FeedScreen.swift
+Axint ships a compact MCP server for Claude, Cursor, VS Code, Windsurf, Xcode,
+and any standards-compatible MCP host:
 
-axint repair "comment box is visible but cannot be tapped" \
-  --source Sources/HomeComposer.swift \
-  --platform ios \
-  --actual "visible composer no longer accepts focus or typing" \
-  --agent claude
-
-axint feedback latest --format markdown
-axint feedback status
-```
-
-`axint repair` writes `.axint/repair/latest.*` and a privacy-safe
-`.axint/feedback/latest.json` packet. The feedback packet includes project shape,
-diagnostic codes, issue class, redacted evidence, and likely Axint product owner,
-but not source code.
-
-Axint queues source-free feedback locally when Cloud Check, Run, Repair, or
-Prove finds an Axint learning signal. Enable enhanced sharing with
-`axint telemetry enhanced` (or `axint feedback opt-in`) to submit issue classes,
-diagnostic codes, project shape, redacted evidence excerpts, and proof outcomes.
-The default endpoint is
-`https://registry.axint.ai/api/v1/feedback`; packets declare
-`source_not_included`, never include source, and can be turned off with
-`axint feedback opt-out`, `AXINT_FEEDBACK=off`, or `AXINT_DISABLE_FEEDBACK=1`.
-Use `axint feedback list` on a maintainer inbox to cluster imported edge cases
-into the next Axint fixes.
-
-Adoption telemetry is off until you explicitly choose a sharing level. Standard
-sharing sends a tiny source-free heartbeat so the project can see which install
-paths are actually working: CLI command class, MCP tool name, version, coarse
-host hint, OS family, Node major version, CI flag, and random anonymous install
-and project IDs. It never sends source code, prompts, generated Swift, arguments,
-file names, local paths, credentials, or machine IDs. Inspect it with
-`axint telemetry status`, enable it with `axint telemetry standard`, turn it off
-with `axint telemetry opt-out`, or disable it per process with
-`AXINT_TELEMETRY=off` / `AXINT_DISABLE_TELEMETRY=1`.
-Registry searches and project briefs may also emit a coarse product-interest
-signal containing only allowlisted project category, goal, Apple capability,
-feature areas, project lifecycle, delivery target, complexity, query-length, and
-result-count buckets. Source-free repair feedback separately includes issue
-class, diagnostic codes, project shape, hypotheses, status, and suggested Axint
-product action. Raw searches, full project descriptions, project names, source,
-and local paths are never included.
-
-The hosted Registry retains anonymous adoption and project-interest events for
-90 days and source-free enhanced diagnostic and proof packets for 180 days. A
-nightly cleanup job enforces both windows.
-
-Enhanced repair packets may include redacted, truncated issue text,
-expected/actual behavior, build or test failure excerpts, and runtime failure
-excerpts. This richer evidence is only submitted after enhanced sharing or
-feedback opt-in is enabled; standard telemetry does not submit it.
-
-Use `axint telemetry standard` for product signals only, or
-`axint telemetry enhanced` to help improve repair and proof intelligence. Both
-commands record the sharing choice and `axint telemetry status` shows it. Axint's
-own internal projects can set `AXINT_DOGFOOD=1` so Pulse separates internal
-dogfood from external enhanced diagnostics without weakening redaction.
-
-The same senior repair read is shared by `axint.suggest`, `axint.feature`,
-`axint.cloud.check`, and `axint.repair`. If a prompt describes a broken existing
-SwiftUI flow, Axint routes toward the smallest repair/proof loop instead of
-generating a replacement screen. New-component prompts can still reference
-existing app types as context without being blocked.
-
-When MCP transport is stale or closed, use `axint suggest <app-description>` as
-the CLI fallback, then continue the same workflow check with `--ran-suggest`.
-
----
-
-## Public truth
-
-<!-- truth:readme-proof-line:start -->v0.5.2 · 36 MCP tools + 5 prompts · 225 diagnostic codes · 1486 tests · 60 live packages · 53 bundled templates<!-- truth:readme-proof-line:end -->
-
-The published [brownfield benchmark](benchmarks/brownfield/README.md) currently
-covers 20 hand-labeled cases across seven Apple development categories and is a
-release gate for precision, recall, and clean-case abstention. It is a disclosed
-rule-level corpus, not a production-wide accuracy claim. Teams can run the same
-harness against private local manifests; reports contain source hashes and
-labels, never the Swift source itself.
-
-<!-- truth:readme-truth-source:start -->Public proof is regenerated from the compiler's metrics pipeline on every release (`npm run metrics:emit && npm run metrics:check`).<!-- truth:readme-truth-source:end -->
-
-If release numbers, diagnostics, package counts, or MCP surfaces change, update the canonical truth layer and re-run the sync instead of editing proof values by hand.
-
----
-
-## Watch mode
-
-Recompiles on every save with 150ms debounce, inline errors, and optional `swift build` after each successful compile:
-
-```bash
-axint watch ./intents/ --out ios/Intents/ --emit-info-plist --emit-entitlements
-axint watch my-intent.ts --out ios/Intents/ --format --swift-build
-```
-
----
-
-## Axint Run
-
-`axint run` is the local/BYO-Mac build loop for Apple projects. It exists so agents do not have to remember separate Axint steps after a long chat or context compaction.
-
-```bash
-axint session start --dir /path/to/MyApp --name MyApp --agent claude
-axint workflow check --dir /path/to/MyApp --agent claude --stage context-recovery --session-token <token> --read-rehydration-context --read-agent-instructions --read-docs-context --ran-status
-axint xcode setup --agent claude --guarded --project /path/to/MyApp --name MyApp
-axint xcode setup --agent claude --guarded --local-build --project /path/to/MyApp --name MyApp
-axint xcode guard --dir /path/to/MyApp --stage context-recovery
-axint agent install --dir /path/to/MyApp --agent claude
-axint agent advice --dir /path/to/MyApp --agent claude --changed Sources/HomeComposer.swift Tests/HomeComposerUITests.swift
-axint memory index --dir /path/to/MyApp --changed Sources/HomeComposer.swift Tests/HomeComposerUITests.swift
-axint appintents test Sources/App/SendMessageIntent.swift --module MyApp --out Tests/AxintAppIntentsReadinessTests.swift
-axint run --dir /path/to/MyApp --agent claude --scheme MyApp --destination "platform=macOS"
-axint run --dir /path/to/MyApp --agent claude --scheme MyApp --changed Sources/HomeComposer.swift --only-testing MyAppUITests/MyAppUITests/testComposerStillAcceptsInput
-axint run --dir /path/to/MyApp --agent claude --scheme MyApp --runtime
-axint run status --dir /path/to/MyApp
-axint run cancel --dir /path/to/MyApp --id axrun_...
-axint run --dir /path/to/MyApp --agent claude --scheme MyApp --format json
-axint run --dir /path/to/MyApp --agent claude --scheme MyApp --format json --include-source
-axint runner once --dir /path/to/MyApp --agent claude --scheme MyApp
-```
-
-`axint xcode setup --guarded` configures the Xcode Claude Agent with durable MCP paths, writes the project memory pack, starts a session, and creates `.axint/guard/latest.json` plus `.axint/guard/latest.md`. That guard report is the audit trail for the problem where an Xcode agent works for a long block, compacts context, and silently stops using Axint.
-
-Use `--local-build` only while dogfooding this checkout before publishing; it points Xcode at the built local MCP server instead of the npm package.
-
-Agent lanes are explicit now. Claude Code, Cursor, Cowork, and other patch-first agents should use their native patch/edit tools for existing files, then run `axint workflow check`, `axint validate-swift`, `axint cloud check`, and `axint run`. Xcode-hosted agents can use `axint.xcode.guard` and `axint.xcode.write` because those tools create real Xcode guard proof.
-
-When an Xcode MCP agent is creating a new Swift file, use `axint.xcode.write` instead of a raw file write. The tool writes inside the project root, validates Swift, runs Cloud Check, and updates the guard proof in one call. Outside Xcode, do not route routine edits through `axint.xcode.write`; patch surgically in the active client and let Axint validate the result.
-
-The run starts an agent-specific Axint session, refreshes the project recovery context, validates changed Swift, runs Cloud Check, executes `xcodebuild build` and `xcodebuild test`, optionally launches a macOS app for runtime proof, writes `.axint/run/latest.json` plus `.axint/run/latest.md`, and stores source-free Cloud learning packets under `.axint/feedback` when repeated failure shapes appear. Passing focused `--only-testing` selectors are fed back into Cloud Check so stale UI/accessibility warnings do not override real focused test proof. Failing Xcode tests are extracted from command output and `.xcresult` when available, then printed under `## Xcode Test Failures` with test name, file/line, assertion, likely source area, and identifier so the next repair starts from the real failure.
-
-`axint memory index` turns the local proof trail into `.axint/memory/latest.json` and `.axint/memory/latest.md`. It summarizes risky SwiftUI files, changed files, latest run status, failing tests, latest repair packet, and privacy-safe learning packets so Claude, Cursor, Xcode, other agents, and humans can rehydrate the same project state.
-
-For a repeatable first-use demo, inspect `examples/wow/composer-blocker`. It models a real SwiftUI bug where an invisible overlay blocks a composer text field and includes a focused UI-test failure for Axint to diagnose.
-
-Long runs also write `.axint/run/jobs/<id>.json` and `.axint/run/latest-active.json`. If a client disconnects, an MCP transport times out, or an agent needs to rejoin a build in the same thread, use `axint run status` to see active process IDs and `axint run cancel` to stop the child process group without restarting the whole chat.
-
-Rendered `axint run --format json` is compact by default: it keeps verdict, evidence, diagnostics, artifact paths, feedback packet paths, and next actions visible while omitting full Swift source and trimming long command output. Use `--include-source` only when the active agent explicitly needs inline Swift/code output in the response.
-
-Agent-token safety is also built into the default run loop. `axint run` keeps full command logs on disk under `.axint/run/logs`, while the agent-facing report keeps compact tails and artifact paths. If you omit `--changed`, Axint validates the project but Cloud Checks only the highest-risk Swift files instead of pushing every source file into the next agent turn. Pass `--changed <files>` when you want a focused full proof loop.
-
-The MCP tool listing is compact by default for the same reason: agents receive tool names, schemas, enums, and short summaries instead of the full prose-heavy manifest. Set `AXINT_MCP_MANIFEST_MODE=full` or `AXINT_MCP_FULL_MANIFEST=1` only when debugging tool documentation.
-
-Use `--dry-run` to prove the harness and planned `xcodebuild` commands before letting a local or BYO Mac runner execute the job.
-
-If an MCP client still lists Axint tools after the transport has closed, use the CLI fallback instead of restarting the whole thread:
-
-```bash
-axint workflow check --dir /path/to/MyApp --agent claude --stage pre-build --session-token <token> --ran-swift-validate --ran-cloud-check --modified Sources/HomeComposer.swift
-```
-
-This open-source repository does not include the proprietary hosted Axint Cloud control plane: job queues, Mac fleet orchestration, billing, signed-in Pro entitlements, stored report history, or learning pipelines live outside the compiler package.
-
----
-
-## Same-thread upgrades
-
-Agent sessions should not have to restart from scratch just because Axint shipped a new version. Use the upgrade flow inside Claude, Xcode, or any MCP client to check the latest package, install it when ready, refresh optional Xcode wiring, and write a continuation packet under `.axint/upgrade/latest.*`.
-
-```bash
-axint upgrade
-axint upgrade --apply
-axint upgrade --apply --xcode-install
-axint upgrade --target 0.4.36 --apply
-```
-
-From MCP, call `axint.upgrade`. The tool returns the exact command plan plus a same-thread prompt that tells the agent to keep the current conversation, reload or reconnect only the Axint MCP server/tool process, then call `axint.status` and `axint.activate` to prove the running version and first real Axint output before editing code.
-
----
-
-## MCP server
-
-<!-- truth:readme-mcp-support:start -->Axint ships an MCP server for Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Xcode, and any MCP client.<!-- truth:readme-mcp-support:end -->
-
-<!-- truth:readme-mcp-json:start -->```json
+```json
 {
   "mcpServers": {
     "axint": {
       "command": "npx",
-      "args": [
-        "-y",
-        "-p",
-        "@axint/compiler",
-        "axint-mcp"
-      ]
+      "args": ["-y", "-p", "@axint/compiler", "axint-mcp"]
     }
   }
 }
-```<!-- truth:readme-mcp-json:end -->
-
-MCP tools and built-in prompts:
-
-| Tool | What it does |
-| --- | --- |
-| `axint.status` | Report the running MCP server version, package path, uptime, and same-thread reload/update instructions |
-| `axint.activate` | Run a source-free compiler smoke test so a fresh install proves first real Axint use |
-| `axint.upgrade` | Check or apply an Axint upgrade, refresh optional Xcode wiring, and return a same-thread continuation prompt |
-| `axint.doctor` | Audit version truth, Node/npm/npx paths, project MCP wiring, and agent start-pack files |
-| `axint.xcode.guard` | Guard Xcode agent sessions against context compaction and Axint drift, then write `.axint/guard/latest.*` proof artifacts |
-| `axint.xcode.write` | Write a project file through Axint, then validate Swift, run Cloud Check, and update guard proof for Swift files |
-| `axint.session.start` | Start an enforced agent session, refresh `.axint/AXINT_REHYDRATE.md`, write `.axint/session/current.json`, and return the token required by workflow gates |
-| `axint.compile` | Full pipeline: TypeScript → Swift + plist + entitlements |
-| `axint.schema.compile` | Minimal JSON → Swift (token-saving mode for agents) |
-| `axint.validate` | Dry-run validation with diagnostics |
-| `axint.feature` | Generate an editable feature package: intents, views, widgets, components, app shells, stores, tests, and support fragments |
-| `axint.project.pack` | Generate `.mcp.json`, `AGENTS.md`, `CLAUDE.md`, `.axint` rehydration/memory/docs/project files, and the session-first workflow for first-try agent setup |
-| `axint.project.index` | Scan the local Apple project and write a compact `.axint/context` pack so Cloud Check can reason over changed files and nearby SwiftUI surfaces |
-| `axint.project.syncVersion` | Refresh Axint-owned project-pack version hints after an upgrade so local agent truth does not point at an older package |
-| `axint.context.memory` | Return the compact Axint operating memory for new chats and context-compaction recovery |
-| `axint.context.docs` | Return the project-local Axint docs context so agents can reload docs after compaction |
-| `axint.suggest` | Suggest app-specific Apple-native features, reusable components, and shared stores from a product description |
-| `axint suggest` | CLI fallback for the same suggestion pass when MCP transport is stale, closed, or unavailable |
-| `axint.registry.search` | Search the Axint Registry for already-published packages that match a natural-language query — call this before `axint.feature` so agents install existing packages instead of regenerating Swift the community has shipped |
-| `axint.workflow.check` | Check whether an agent rehydrated Axint after compaction, has an active session token, and used suggest, feature, swift.validate, cloud.check, and Xcode proof before moving on |
-| `axint workflow check` | CLI fallback for the same workflow gate when MCP is stale, closed, or unavailable |
-| `axint.scaffold` | Generate a starter TypeScript intent from a description |
-| `axint.swift.validate` | Validate existing Swift against build-time rules |
-| `axint.swift.fix` | Auto-fix mechanical Swift errors (concurrency, Live Activities) |
-| `axint.fix-packet` | Read the latest AI-ready repair packet from a local compile or watch run |
-| `axint.cloud.check` | Run an agent-callable Cloud Check report against Swift or TypeScript source |
-| `axint.repair` | Plan a project-aware Apple repair loop for existing app bugs, with likely files, root causes, host-aware patch guidance, proof commands, and feedback packet |
-| `axint.feedback.create` | Create or read a privacy-safe, source-free feedback packet |
-| `axint feedback status / opt-out / opt-in / sync / list` | Manage automatic source-free feedback, opt out, retry queued packets, and cluster imported feedback into Axint fix queues |
-| `axint telemetry status / standard / enhanced / opt-out` | Inspect and manage explicit source-free product and diagnostic sharing |
-| `axint.agent.install` | Install the local multi-agent project brain so Claude, Cursor, Xcode, other agents, and humans share one `.axint` truth layer |
-| `axint.agent.advice` | Return host-specific next moves from project context, active claims, latest proof, and latest repair artifacts |
-| `axint.agent.claim` | Claim files before an agent edits them so other agents avoid conflicting patches |
-| `axint.agent.release` | Release local file claims after an agent finishes or abandons a task |
-| `axint.run` | Run the enforced Apple build loop: session, workflow gate, Swift validation, Cloud Check, xcodebuild build/test, optional runtime launch, and `.axint/run` artifacts |
-| `axint.run.status` | Read the latest or selected Axint run job, including active child process IDs, after client disconnects or long-running builds |
-| `axint.run.cancel` | Cancel the latest or selected active Axint run by stopping child process groups |
-| `axint.tokens.ingest` | Convert design tokens into SwiftUI token enums for generated views |
-| `axint.templates.list` | List bundled reference templates |
-| `axint.templates.get` | Return the source of a specific template |
-
-Built-in prompts:
-
-| Prompt | What it does |
-| --- | --- |
-| `axint.project-start` | Start an Xcode/Apple project by reading the docs, verifying MCP, and establishing the check/fix loop |
-| `axint.context-recovery` | Recover Axint after a new chat, context compaction, or long coding drift |
-| `axint.quick-start` | Get a quick-start guide |
-| `axint.create-intent` | Start a new intent from guided parameters |
-| `axint.create-widget` | Start a new widget from guided parameters |
-
-`axint.schema.compile` is the key optimization — agents send ~20 tokens of JSON and get compiled Swift back directly, skipping TypeScript entirely.
-
-<!-- truth:readme-discovery-links:start -->Need a working repo instead of a raw snippet? Browse **[axint-examples](https://github.com/agenticempire/axint-examples)**. Still seeing older package names like `@axintai/compiler`? Use the current package identity: `@axint/compiler`.<!-- truth:readme-discovery-links:end -->
-
----
-
-## Diagnostics
-
-Diagnostic codes across the validator surface with fix suggestions and color-coded output:
-
-| Range | Domain |
-| --- | --- |
-| `AX000`–`AX023` | Compiler / Parser |
-| `AX100`–`AX118` | Intent |
-| `AX200`–`AX202` | Swift output |
-| `AX300`–`AX322` | View |
-| `AX400`–`AX422` | Widget |
-| `AX500`–`AX522` | App |
-| `AX700`–`AX750` | Swift build rules |
-| `AX720`–`AX737` | Swift 6, SwiftUI, and accessibility checks |
-| `AX740`–`AX749` | Live Activities |
-
-```text
-error[AX100]: Intent name "sendMessage" must be PascalCase
-  --> src/intents/messaging.ts:5:9
-   = help: rename to "SendMessage"
-````
-
-Full reference: [`docs/ERRORS.md`](docs/ERRORS.md)
-
----
-
-## Type mappings
-
-| TypeScript    | Swift                       | Default value |
-| ------------- | --------------------------- | ------------- |
-| `string`      | `String`                    | ✓             |
-| `int`         | `Int`                       | ✓             |
-| `double`      | `Double`                    | ✓             |
-| `float`       | `Float`                     | ✓             |
-| `boolean`     | `Bool`                      | ✓             |
-| `date`        | `Date`                      | —             |
-| `duration`    | `Measurement<UnitDuration>` | ✓ (`"1h"`)    |
-| `url`         | `URL`                       | —             |
-| `optional<T>` | `T?`                        | ✓             |
-
----
-
-## Playground
-
-No install required — [cloud.axint.ai](https://cloud.axint.ai) runs the same compiler in a server-backed playground, returning Swift live without a local install.
-
----
-
-## Editor extensions
-
-Extensions for [Claude Code](extensions/claude-code), [Claude Desktop](extensions/claude-desktop), [VS Code / Cursor](extensions/vscode), [Windsurf](extensions/windsurf), [JetBrains](extensions/jetbrains), [Neovim](extensions/neovim), and [Xcode](extensions/xcode).
-
----
-
-## Project structure
-
-```text
-axint/
-├── src/
-│   ├── core/        # Parser, validator, generator, compiler, IR
-│   ├── sdk/         # defineIntent(), defineView(), defineWidget(), defineApp()
-│   ├── mcp/         # MCP server and prompt surface
-│   ├── cli/         # CLI (compile, watch, validate, eject, init, xcode)
-│   └── templates/   # Bundled reference templates
-├── python/          # Python SDK
-├── extensions/      # Editor extensions (9 editors)
-├── spm-plugin/      # Xcode SPM build plugin
-├── tests/           # Compiler, CLI, SDK, MCP, and Python coverage
-├── examples/        # Example definitions
-└── docs/            # Error reference, assets
 ```
 
----
+Start a fresh tool session, then call `axint.status` and `axint.activate` to
+prove the server and compiler are actually connected.
 
-## What's next
+<details>
+<summary><strong>MCP tool and prompt inventory</strong></summary>
 
-Current priorities — full roadmap in [`ROADMAP.md`](ROADMAP.md):
+### Start, recover, and inspect
 
-- `IntentDialog` + richer Apple parameter types
-- Swift → TypeScript round-trip for existing Apple projects
-- More surface templates in the registry (Control Widgets, App Shortcuts catalog)
+`axint.status` · `axint.activate` · `axint.upgrade` · `axint.doctor` ·
+`axint.session.start` · `axint.context.memory` · `axint.context.docs` ·
+`axint.workflow.check`
 
----
+### Generate and discover
 
-## Contributing
+`axint.feature` · `axint.project.pack` · `axint.project.index` ·
+`axint.project.syncVersion` · `axint.suggest` · `axint.registry.search` ·
+`axint.scaffold` · `axint.compile` · `axint.validate` · `axint.tokens.ingest` ·
+`axint.schema.compile` · `axint.templates.list` · `axint.templates.get`
 
-PRs reviewed within 48 hours. Browse [`good first issue`](https://github.com/agenticempire/axint/issues?q=is%3Aissue+label%3A%22good+first+issue%22) to get started, or see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+### Check and repair
 
-Apache 2.0, no CLA.
+`axint.xcode.guard` · `axint.xcode.write` · `axint.fix-packet` ·
+`axint.cloud.check` · `axint.repair` · `axint.feedback.create` ·
+`axint.swift.validate` · `axint.swift.fix`
 
----
+### Coordinate and run
 
-## Requirements
+`axint.agent.install` · `axint.agent.advice` · `axint.agent.claim` ·
+`axint.agent.release` · `axint.run` · `axint.run.status` · `axint.run.cancel`
 
-- Node.js 22+
-- Any OS (macOS, Linux, Windows)
-- Xcode 15+ to ship the generated Swift
+### Built-in prompts
 
----
+`axint.quick-start` · `axint.project-start` · `axint.context-recovery` ·
+`axint.create-widget` · `axint.create-intent`
 
-## License
+</details>
 
-[Apache 2.0](LICENSE) — fork it, extend it, ship it.
+## Proof you can inspect
 
----
+Axint publishes the evidence behind its claims instead of freezing marketing
+numbers into this README:
+
+- [Live product metrics](metrics.json) are regenerated from the codebase.
+- [Brownfield benchmark](benchmarks/brownfield/README.md) publishes labeled precision, recall, and abstention cases.
+- [Coverage map](docs/COVERAGE.md) links implementation surfaces to tests and reference docs.
+- [Architecture](ARCHITECTURE.md) explains the compiler, proof, MCP, and runtime boundaries.
+- [Release notes](docs/RELEASE_NOTES.md) record shipped behavior and compatibility changes.
+- [Security policy](SECURITY.md) documents reporting and supported release handling.
+
+## Ecosystem
+
+| Surface                                                     | Use it for                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| [npm](https://www.npmjs.com/package/@axint/compiler)        | CLI, TypeScript SDK, compiler, and MCP server                      |
+| [PyPI](https://pypi.org/project/axint/)                     | Python SDK and Python-native authoring                             |
+| [Playground](https://cloud.axint.ai)                        | Compile and inspect output without a local install                 |
+| [Registry](https://registry.axint.ai)                       | Discover reusable Apple capability packages                        |
+| [Examples](https://github.com/agenticempire/axint-examples) | Run polished App Intent, SwiftUI, and WidgetKit projects           |
+| [Editor integrations](extensions)                           | Connect Xcode, VS Code, Cursor, JetBrains, Neovim, and other hosts |
+
+## Contribute
+
+The most valuable contributions improve trust: fewer brownfield false positives,
+better evidence reconciliation, sharper Fix Packets, broader Apple API coverage,
+and examples that reproduce real project failures.
+
+- Start with a [`good first issue`](https://github.com/agenticempire/axint/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
+- Pick up a [`help wanted`](https://github.com/agenticempire/axint/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) problem.
+- Read the [contribution guide](CONTRIBUTING.md).
+- Ask, propose, or show your work in [Discussions](https://github.com/agenticempire/axint/discussions).
+
+## Requirements and license
+
+The JavaScript package follows the Node.js engine declared in
+[`package.json`](package.json). Swift generation runs anywhere Node runs; Xcode
+build, test, simulator, and runtime proof require macOS with a current Xcode
+toolchain.
+
+Axint is [Apache-2.0 licensed](LICENSE). Fork it, extend it, and ship with it.
+The Axint name and visual identity remain protected; see [NOTICE](NOTICE) and
+[TRADEMARKS.md](TRADEMARKS.md).

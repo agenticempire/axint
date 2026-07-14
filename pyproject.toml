@@ -1,8 +1,0 @@
-
-[[tool.mypy.overrides]]
-module = "axint.mcp_server"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "mcp.*"
-ignore_missing_imports = true
