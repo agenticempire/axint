@@ -13,6 +13,7 @@ const HEIGHT = 720;
 const FPS = 10;
 const DURATION_SECONDS = 12;
 const FRAME_COUNT = FPS * DURATION_SECONDS;
+const SCENE_END_FRAMES = new Set([20, 40, 61, 82, 102]);
 const COLORS = {
   background: "#090B0A",
   surface: "#0F1210",
@@ -371,11 +372,11 @@ function socialPreviewSvg() {
   </g>
   ${text("axint", 128, 82, { size: 34, weight: 720 })}
   ${pill("OPEN SOURCE", 226, 54, 92, { color: COLORS.text })}
-  ${text("PROOF + REPAIR FOR APPLE CODING AGENTS", 58, 166, { size: 12, color: COLORS.accent, family: MONO, weight: 700 })}
+  ${text("THE PROOF AND REPAIR LAYER FOR APPLE CODING AGENTS", 58, 166, { size: 12, color: COLORS.accent, family: MONO, weight: 700 })}
   ${text("Agents can write Swift.", 58, 230, { size: 45, weight: 720 })}
   ${text("Axint makes them prove it.", 58, 286, { size: 45, weight: 720 })}
-  ${text("Generate Apple-native capabilities. Check existing Swift.", 58, 340, { size: 18, color: COLORS.muted })}
-  ${text("Reconcile every finding with Xcode, tests, and runtime evidence.", 58, 370, { size: 18, color: COLORS.muted })}
+  ${text("Check the Swift your agent wrote. Run real Xcode evidence.", 58, 340, { size: 18, color: COLORS.muted })}
+  ${text("Get signed proof and the exact repairs to make next.", 58, 370, { size: 18, color: COLORS.muted })}
   ${line(58, 424, 686, 424, COLORS.line)}
   ${text("GENERATE", 58, 464, { size: 12, color: COLORS.text, family: MONO, weight: 700 })}
   ${text("CHECK", 180, 464, { size: 12, color: COLORS.text, family: MONO, weight: 700 })}
@@ -440,20 +441,14 @@ function run() {
     const posterPath = join(MEDIA_DIR, "intro.png");
     const socialPreviewSvgPath = join(workDir, "social-preview.svg");
     const socialPreviewPath = join(ROOT, "docs", "assets", "social-preview.png");
+    const timedFrames = frames.flatMap((frame, index) => [
+      "-delay",
+      index === FRAME_COUNT - 1 ? "400" : SCENE_END_FRAMES.has(index) ? "240" : "10",
+      frame,
+    ]);
     execFileSync(
       "magick",
-      [
-        "-delay",
-        String(100 / FPS),
-        ...frames,
-        "-loop",
-        "0",
-        "-layers",
-        "Optimize",
-        "-colors",
-        "128",
-        gifPath,
-      ],
+      [...timedFrames, "-loop", "0", "-layers", "Optimize", "-colors", "128", gifPath],
       { stdio: "inherit" }
     );
     copyFileSync(frames[Math.floor(FRAME_COUNT * 0.9)], posterPath);

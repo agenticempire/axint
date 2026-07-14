@@ -1,174 +1,181 @@
-# Benchmark Matrix
+# Proposed Four-Surface Benchmark Protocol
 
-The claim in `why-agents.md` is empirical: authoring in `.axint` moves seven measurable metrics the right way compared to raw Swift, the TS SDK, and the Python SDK. This doc specifies the benchmark that proves or disproves that claim on every release. A spec or grammar change that moves any metric the wrong way rolls back.
+> **Status: Proposed protocol.** This benchmark is not implemented, does not run
+> in CI, has no pinned model configuration or generated results, does not publish
+> a badge, and does not block releases. The CI-gated benchmark that exists today
+> is the [brownfield precision benchmark](../../benchmarks/brownfield/README.md).
 
-The benchmark is deliberately small. Twenty tasks, not two hundred. A small matrix that runs on every PR is more useful than a large matrix that runs once a quarter. The tasks are chosen to cover the grammar's decision points, not to stress-test throughput.
+This document preserves a methodology for testing whether `.axint` reduces
+agent authoring and repair cost compared with the TypeScript SDK, Python SDK,
+and raw Swift. Its claims are hypotheses until the full harness and corpus are
+implemented and results are published.
 
-## The four surfaces under test
+## Surfaces to compare
 
-| Surface     | What the agent emits                                   |
-|-------------|--------------------------------------------------------|
-| `.axint`    | A `.axint` source file                                 |
-| TS SDK      | A `.ts` file using `defineIntent` / `defineEntity`     |
-| Python SDK  | A `.py` file using the `axint` package                 |
-| Raw Swift   | A `.swift` file targeting the Apple `AppIntents` framework directly |
+| Surface | Agent-authored artifact |
+| --- | --- |
+| `.axint` | A `.axint` source file |
+| TypeScript SDK | A `.ts` file using `defineIntent` or `defineEntity` |
+| Python SDK | A `.py` file using the `axint` package |
+| Raw Swift | A `.swift` file using `AppIntents` directly |
 
-All four flow through the same downstream pipeline: the first three lower to IR and emit Swift via the compiler; raw Swift is measured directly. The comparison is at the agent-authored artifact level: what did the model produce on turn 1, and how far was it from a Swift binary that compiles against the Apple SDK.
+The first three surfaces would lower to compatible IR and emit Swift. Raw Swift
+would be measured directly. Every surface would use the same task intent,
+success criteria, selected Apple SDK, and model settings.
 
-## The seven metrics
+## Proposed metrics
 
-Named the same way as `why-agents.md` so the two docs read together. Every task contributes one data point per metric per surface.
+| # | Metric | Definition | Unit |
+| --- | --- | --- | --- |
+| 1 | First-pass parse rate | Share of first outputs that parse without syntax error | percent |
+| 2 | First-pass validator pass rate | Share of parsed first outputs that clear semantic checks | percent |
+| 3 | First-pass Swift compile rate | Share of validated first outputs whose Swift compiles against the selected SDK | percent |
+| 4 | Turns to green | Mean repair turns from first failure to valid, compiling output, capped at five | turns |
+| 5 | Lines changed per repair | Mean unified-diff lines between repair turns | lines |
+| 6 | Tokens per successful feature | Mean generated tokens needed to reach a successful result | tokens |
+| 7 | Output variance | Mean pairwise tree distance over normalized IR for successful runs | unitless |
 
-| # | Metric                          | Definition                                                                 | Unit      |
-|---|---------------------------------|----------------------------------------------------------------------------|-----------|
-| 1 | First-pass parse rate           | Share of turn-1 outputs that parse without syntax error                    | %         |
-| 2 | First-pass validator pass rate  | Share of parsed turn-1 outputs that clear every semantic check (AX001–AX113) | %        |
-| 3 | First-pass Swift compile rate   | Share of validated turn-1 outputs whose emitted Swift compiles against the Apple SDK | %   |
-| 4 | Turns to green                  | Mean agent turns from first broken output to valid-compiling, capped at 5  | turns     |
-| 5 | Lines changed per repair        | Mean unified-diff lines between consecutive repair turns                    | lines     |
-| 6 | Tokens per successful feature   | Mean generated tokens to reach a valid compiling feature (sum across turns) | tokens    |
-| 7 | Output variance                 | Mean pairwise tree-edit distance over the normalized IR across runs         | unitless  |
+Output variance should be measured on normalized IR so whitespace and
+canonically reordered fields do not count as semantic differences.
 
-Metric 7 is measured on IR, not source, so a purely stylistic difference (whitespace, field order that the formatter normalizes) contributes zero. Two agents producing textually different files that lower to byte-identical IR score perfectly on variance.
+## Required harness before results can be claimed
 
-## Harness shape
+An implementation should include all of the following:
 
-For each `(task, surface)` pair, the harness runs `N = 10` independent generations per model, across `M = 3` models (Sonnet-class, Opus-class, one open-weight peer pinned at release time). Models and temperatures are pinned in `benchmark.config.json`; the pin changes in a version-bump PR, not silently.
+- a checked-in benchmark configuration
+- complete prompts and reference artifacts for every task and surface
+- explicit model identifiers, versions, temperatures, and run counts
+- captured raw outputs and token usage
+- a reproducible Apple SDK and Xcode environment
+- scoring code with tests
+- generated machine-readable and human-readable results
+- variance and confidence intervals across repeated runs
+- cost controls and a documented policy for model drift
 
-One generation is:
+The initial design proposes 10 independent generations per task and three pinned
+model classes. Those values should be revisited after a pilot measures variance
+and cost; they are not current repository facts.
 
-1. **Prompt.** Fixed prompt per task. Prompts are identical across surfaces except for the surface-specific preamble — which names the surface, gives one 10-line example, and links the spec. No few-shot beyond the preamble.
-2. **Turn 1 output.** Recorded. Metrics 1, 2, 3 are computed here.
-3. **Repair loop.** If turn 1 failed, the harness feeds the compiler diagnostics back to the agent and records turn 2, then turn 3, up to turn 5. Metrics 4, 5 are computed over this loop.
-4. **Tokens.** Every turn's generated-token count is summed into metric 6.
-5. **Variance.** After all `N × M` runs for a task complete, metric 7 is the mean pairwise tree-edit distance across the successful IRs.
+## Proposed generation and repair loop
 
-The loop caps at 5 turns because in practice agents either converge in ≤3 or diverge. A cap keeps one bad run from dominating the mean.
+For each task and surface, a future harness would:
 
-## Repair-loop contract
+1. Present the same task with a surface-specific preamble and one compact example.
+2. Record the first generated artifact and compute parse, validation, compile, token, and structural scores.
+3. On failure, return only the structured Axint diagnostic or first relevant `swiftc` error.
+4. Record up to five repair turns.
+5. Compare successful normalized IR with the task reference.
+6. Aggregate per-task, per-surface, and per-model results with uncertainty.
 
-The repair loop uses the machine-readable diagnostic protocol in `diagnostic-protocol.md`. The harness feeds the agent exactly what an automated caller would receive: the JSON diagnostic record, with `code`, `message`, `span`, `fix.kind`, and `fix.suggestedEdit.text` where present. No additional human-written hints. If `.axint` wins metric 4 (turns to green), it wins it on the merit of the protocol, not on richer prompting.
+The repair loop should not provide richer human hints to one surface. That would
+measure prompting differences instead of authoring-surface differences.
 
-Raw Swift has no diagnostic protocol. The harness feeds the agent the first `swiftc` error verbatim, one error per turn. This is the realistic counterfactual — `swiftc` does not emit structured repair suggestions.
+## Proposed task matrix
 
-## The 20 tasks
+The matrix contains authoring, repair, and transformation work so the benchmark
+tests both creation and editing.
 
-Three buckets — authoring, repair, transformation. Every task has a fixed prompt, a fixed success criterion, and a reference IR so the harness can score structural correctness beyond "it compiled."
+### Authoring tasks
 
-### Authoring (10 tasks)
+| ID | Task | Grammar area |
+| --- | --- | --- |
+| A1 | Send a message to a recipient with one string parameter. | Minimum intent |
+| A2 | Set brightness to a percentage with a default value. | Defaults |
+| A3 | Toggle a setting with an optional Boolean parameter. | Optional primitives |
+| A4 | Start a workout chosen from a closed activity list. | Enum parameter |
+| A5 | Open a trail represented by an entity with five properties. | Entity declaration and query |
+| A6 | Schedule a calendar event with entitlement and usage-description metadata. | Entitlements and plist keys |
+| A7 | Plan activity with a conditional optional-region summary. | Summary `when` |
+| A8 | Plan activity with nested Boolean and region summary conditions. | Summary `switch` and `when` |
+| A9 | Find tracks with a dynamic options provider. | Dynamic options |
+| A10 | Return a list of recent trail entities. | Entity-array return |
 
-New file from scratch.
+### Repair tasks
 
-| # | Task                                                                                                           | Grammar surface exercised               |
-|---|----------------------------------------------------------------------------------------------------------------|------------------------------------------|
-| A1 | Send a message to a recipient. One string param.                                                              | Minimum viable intent                    |
-| A2 | Set brightness to a percentage. Int param with a default of 100.                                              | Default values                           |
-| A3 | Toggle a boolean setting. Single optional boolean param.                                                      | Optional primitives                      |
-| A4 | Start a workout with a chosen activity from a fixed list (Run, Bike, Swim).                                   | Enum param                               |
-| A5 | Open a trail. Param is a `Trail` entity with five properties and `query: property`.                           | Entity declaration + entity param        |
-| A6 | Schedule a calendar event. Title, start date, optional duration. Requires calendar entitlement + `NSCalendarsUsageDescription`. | entitlements + infoPlistKeys |
-| A7 | Plan activity on a trail near a region. Summary with `when` on the optional region param.                     | `summary when`                           |
-| A8 | Plan activity on a trail with nested `switch` on `includeNearby` and inner `when` on `region`.                 | Nested `summary switch`/`when`           |
-| A9 | Find tracks matching a search. String param with `options: dynamic TrackSearchOptions`.                       | Dynamic options provider                 |
-| A10 | Return a list of recent trails. `returns: [Trail]`.                                                           | Entity array return type                 |
+| ID | Starting defect | Intended diagnostic |
+| --- | --- | --- |
+| R1 | Missing intent description | AX004 |
+| R2 | Description appears before title | AX007 |
+| R3 | Parameter name uses PascalCase | AX105 |
+| R4 | Entity display references an unknown property | AX021 |
+| R5 | Display image uses an invalid symbol | AX113 |
+| R6 | Entity is missing its query clause | AX017 |
 
-### Repair (6 tasks)
+The future corpus should reuse canonical broken examples rather than maintain a
+second set of fixtures with subtly different failures.
 
-Start from a deliberately broken file, reach green.
+### Transformation tasks
 
-| # | Task                                                                                       | Diagnostic exercised  | Corpus entry                              |
-|---|--------------------------------------------------------------------------------------------|-----------------------|-------------------------------------------|
-| R1 | `description` is missing from an otherwise valid intent.                                  | AX004                 | `ax004-missing-description/`              |
-| R2 | An `intent-body` has `description` before `title`.                                        | AX007                 | `ax007-clause-out-of-order/`              |
-| R3 | A `param` name is `Recipient` (PascalCase) instead of `recipient` (camelCase).            | AX105                 | `ax105-param-not-camel/`                  |
-| R4 | An `entity` `display { title: propName }` references a property that doesn't exist.       | AX021                 | `ax021-display-unknown-property/`         |
-| R5 | An `entity` has `display { image: "trail-icon" }` with an SF Symbol that isn't in the catalog. | AX113             | `ax113-invalid-sf-symbol/`                |
-| R6 | An `entity` is missing its `query` clause entirely.                                        | AX017                 | `ax017-entity-missing-query/`             |
+| ID | Edit |
+| --- | --- |
+| T1 | Rename a parameter and update every summary reference. |
+| T2 | Add a required enum parameter to an intent with an existing summary switch. |
+| T3 | Add a HealthKit entitlement and usage-description key. |
+| T4 | Replace a string region with a closed region enum. |
 
-Every row pulls its starting `broken.axint` from the corpus entry in the rightmost column — the benchmark does not define its own broken fixtures. This keeps repair-task diagnostics and corpus diagnostics byte-for-byte in sync.
+## Reference artifacts and scoring
 
-### Transformation (4 tasks)
+Each implemented task should eventually include:
 
-Start from a valid file, apply a change.
-
-| # | Task                                                                                                          | Edit surface                |
-|---|---------------------------------------------------------------------------------------------------------------|-----------------------------|
-| T1 | Rename a param from `activity` to `sport`. Summary template references must update.                          | Cross-clause identifier     |
-| T2 | Add a new required `priority: Priority` enum param to an existing intent that already has a `summary switch`. | Summary + param coupling    |
-| T3 | Add HealthKit entitlement and `NSHealthShareUsageDescription` to an existing intent that has neither block.  | Block insertion             |
-| T4 | Change a `region` param from `string` to an enum of `{ north south east west }`.                              | Type change                 |
-
-### Why this split
-
-The authoring bucket exercises every non-trivial grammar production. The repair bucket exercises the diagnostic protocol and the fix-kind taxonomy end-to-end. The transformation bucket exercises something no other benchmark tests: whether a constrained language is as easy to *edit* as it is to *write*. Metrics 5 and 7 live or die on transformation tasks.
-
-## Reference IR and scoring
-
-Every task ships with a reference IR in `examples/benchmark/<task-id>/reference.ir.json`. Scoring:
-
-- **Structural correctness:** tree-edit distance from the agent's IR to the reference IR, normalized by reference IR size. Zero means structurally identical. This is scored alongside metric 3 — a file that compiles but lowers to a structurally wrong IR does not count as a success for authoring tasks.
-- **Repair tasks:** the reference IR is the *fixed* form. The broken source ships in `broken.<surface>`. Success is the agent reaching an IR that equals the reference IR within tree-edit distance tolerance.
-- **Transformation tasks:** two reference IRs — `before.ir.json` and `after.ir.json`. The agent is given the before state and a plain-English instruction; success is reaching `after.ir.json`.
-
-## Regression budgets
-
-Every release runs the benchmark and publishes the seven metric deltas against the last release. Budgets:
-
-| Metric                      | Regression budget per release           |
-|-----------------------------|-----------------------------------------|
-| First-pass parse rate       | No regression                           |
-| First-pass validator pass   | −2 percentage points maximum             |
-| First-pass Swift compile    | −2 percentage points maximum             |
-| Turns to green              | +0.3 turns maximum                       |
-| Lines changed per repair    | +1 line maximum                          |
-| Tokens per feature          | +10% maximum                             |
-| Output variance             | +5% maximum                              |
-
-A PR that breaches any budget on `.axint` rolls back. A PR that breaches any budget on TS or Python (shared compiler pipeline) gets escalated to the same review. Raw Swift numbers are recorded but not budgeted — Apple owns that surface, we don't.
-
-## What the benchmark does not measure
-
-- **Human ergonomics.** If Axint is worse for humans than Swift, that's fine — `why-agents.md` is explicit about the target. A human-ergonomics benchmark would need a different harness.
-- **Runtime performance of emitted Swift.** The generator is the same across all three SDK surfaces, so there's no differential signal. If there's a regression in the generated Swift, it's caught by the Swift compile rate, not by a performance bench.
-- **Cross-surface mixing.** A project that writes some intents in `.axint` and others in TS is a real-world case, but it doesn't belong in the per-surface bench. A separate integration suite covers it.
-- **Long-context authoring.** Every benchmark file is one intent or one small cluster. Multi-file, multi-feature authoring isn't a v1 concern.
-
-## Source-of-truth layout
-
-```
-spec/language/
-  benchmark.md              # this file
-  examples/benchmark/
-    a1-send-message/
-      prompt.txt
-      reference.ir.json
-      reference.axint
-      reference.ts
-      reference.py
-      reference.swift
-    a2-set-brightness/
-      ...
-    r1-missing-description/
-      prompt.txt
-      broken.axint
-      broken.ts
-      broken.py
-      broken.swift
-      reference.ir.json
-    t1-rename-param/
-      prompt.txt
-      before.axint
-      before.ts
-      before.py
-      before.swift
-      after.ir.json
-    ...
+```text
+spec/language/examples/benchmark/<task-id>/
+  prompt.txt
+  reference.ir.json
+  reference.axint
+  reference.ts
+  reference.py
+  reference.swift
+  broken.* or before.* and after.* when applicable
 ```
 
-Every task has reference artifacts for all four surfaces. The reference is what a principal engineer would write — it anchors the scoring and doubles as the corpus for `examples/`.
+Structural correctness should compare normalized output IR with a reviewed
+reference IR. Compilation alone is not enough because structurally wrong code
+can still compile. Repair tasks should compare against the fixed reference;
+transformation tasks should compare before and after states.
 
-## Cadence
+No directory matching this complete layout exists today. The current
+`spec/language/examples/` corpus primarily supports parser, lowering, printer,
+round-trip, and diagnostic tests.
 
-The benchmark runs on every PR that touches `spec/`, `compiler/`, or `runtime/`. A scheduled nightly run against pinned-tip model versions catches model drift. Results land in `benchmark/results/<date>.json`, and the README badge on the compiler repo links the latest.
+## Candidate regression budgets
 
-A release is blocked until the benchmark passes the regression budgets. There is no "we'll fix it in the next one."
+Budgets should be activated only after repeated baseline runs establish normal
+variance. Candidate limits for discussion are:
+
+| Metric | Candidate budget |
+| --- | --- |
+| First-pass parse rate | no measured regression |
+| First-pass validator pass rate | at most 2 percentage points lower |
+| First-pass Swift compile rate | at most 2 percentage points lower |
+| Turns to green | at most 0.3 turns higher |
+| Lines changed per repair | at most 1 line higher |
+| Tokens per successful feature | at most 10 percent higher |
+| Output variance | at most 5 percent higher |
+
+These numbers are design inputs, not active repository gates.
+
+## What this protocol would not measure
+
+- human ergonomics
+- runtime performance of emitted Swift
+- mixed-surface projects
+- long-context, multi-feature authoring
+- Xcode project repair precision
+
+The last item is deliberately separate. Axint's implemented brownfield
+benchmark evaluates finding precision, recall, and clean-project abstention for
+existing Swift validation. It is reproducible and runs in CI through
+`npm run benchmark:brownfield:check`.
+
+## Implementation milestones
+
+1. Check in a pilot task with all four surface references and scoring tests.
+2. Add a model-provider-neutral result schema and redaction rules.
+3. Run a small non-gating pilot to measure variance, cost, and failure modes.
+4. Complete and review the task corpus.
+5. Pin model and Xcode environments and publish raw result provenance.
+6. Decide, through a separate reviewed change, whether any stable metric should gate releases.
+
+Until those milestones are complete, public docs should describe this file as a
+proposed benchmark protocol and should cite the brownfield benchmark for current
+reproducible evidence.

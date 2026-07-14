@@ -1,9 +1,9 @@
 {
   "name": "axint",
-  "displayName": "Axint — Apple-Native Execution Layer",
+  "displayName": "Axint - Apple Proof and Repair",
   "version": "0.5.2",
   "publisher": "agenticempire",
-  "description": "Preview, validate, browse templates, and open shareable Axint Cloud reports from VS Code. Compile TypeScript or Python into Apple-native surfaces from your editor.",
+  "description": "Validate Swift, inspect repair evidence, browse templates, and generate Apple-native capabilities from VS Code.",
   "license": "Apache-2.0",
   "icon": "icon.png",
   "files": [
@@ -86,7 +86,7 @@
     "mcpServerDefinitionProviders": [
       {
         "id": "axint.mcpServer",
-        "label": "Axint Apple-Native Execution Layer"
+        "label": "Axint Proof and Repair"
       }
     ],
     "menus": {

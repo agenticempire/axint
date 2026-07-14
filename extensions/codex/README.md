@@ -17,7 +17,7 @@ Add to your Codex MCP configuration:
 }
 ```
 
-Codex will discover the current 35-tool Axint MCP surface plus five built-in prompts automatically. Core tools include:
+The host discovers the MCP tools and built-in prompts from the installed Axint release automatically. Core tools include:
 
 - `axint.scaffold` — generate a TypeScript intent from a description
 - `axint.compile` — compile TypeScript → Swift

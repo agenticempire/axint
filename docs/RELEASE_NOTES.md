@@ -1,5 +1,53 @@
 # Release Notes
 
+## 0.5.2 - 2026-07-11
+
+The Python MCP console entrypoint now crosses the async stdio boundary through
+`asyncio.run(...)` instead of returning an un-awaited coroutine and exiting.
+Installed-package tests protect the synchronous console-entrypoint contract.
+
+Why it matters: a successful Python package install now starts the MCP server
+through the same path users invoke from their host configuration.
+
+## 0.5.1 - 2026-07-11
+
+### Added
+
+- `axint prove` discovers an Apple project, checks Swift, runs the available Xcode build and tests, reconciles evidence, and writes a compact signed receipt.
+- Proof receipts use canonical JSON, SHA-256 payload and artifact hashes, and Ed25519 signatures with local or managed signing identities.
+- Finding-level feedback records source-free review decisions while preserving stronger compiler-confirmed evidence.
+- `axint prove --fix` applies only supported deterministic rewrites and reruns the proof loop.
+- Brownfield benchmark v2 covers labeled precision, recall, and abstention cases with source hashes and release thresholds.
+- Source-free proof-outcome learning records gate decisions, diagnostic codes, repair results, and evidence without project source.
+
+### Fixed
+
+- Dry-run Xcode commands are marked skipped and cannot be mistaken for passing build or test evidence.
+- Projects without test targets can prove a build without misclassifying the absent test action as a product failure.
+
+Why it matters: existing Apple projects can produce a portable proof artifact
+from one local command, while static findings remain subordinate to real Apple
+tooling evidence.
+
+## 0.5.0 - 2026-07-10
+
+### Added
+
+- Evidence-aware Swift findings now carry confidence, status, blocking behavior, provenance, and supporting or contradicting evidence.
+- Xcode reconciliation can confirm matching findings or suppress compiler-shaped claims contradicted by a successful selected build.
+- Minimal existing-project mode provides a local, non-mutating check with no network, generated source, project instructions, memory installation, automatic fixes, or persistent Axint state.
+- The reproducible brownfield benchmark measures precision, recall, and clean-project abstention.
+
+### Changed
+
+- Fix Packets expose evidence state and gate on active blocking findings instead of raw severity alone.
+- CLI and MCP run contracts share integration, locality, advisory, fix, and output-directory controls.
+- Product positioning makes generation optional for existing Swift projects and centers proof and repair.
+
+Why it matters: compiler truth can now override a confident heuristic, making
+Axint more appropriate for mature Swift projects where false positives carry a
+real review cost.
+
 ## 2026-07-07 — Apple platform refresh and marketplace validation
 
 This release consolidates the July Apple modernization work, the marketplace

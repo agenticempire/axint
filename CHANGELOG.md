@@ -13,6 +13,10 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 - **Python MCP console entrypoint** — `axint-mcp-py` now enters the async stdio server through a synchronous `asyncio.run(...)` boundary instead of returning an un-awaited coroutine and exiting immediately.
 - **Installed-package verification** — the Python test suite now asserts that console entrypoints remain synchronous even when their transport implementation is asynchronous.
 
+### Why this matters
+
+- A fresh Python package install now starts the MCP server through the same console path users configure in their host.
+
 ## [0.5.1] — 2026-07-11
 
 ### Added
@@ -31,6 +35,10 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 - **Dry-run evidence honesty** — planned Xcode commands are now marked skipped and can only produce `evidence_required`; they can no longer be mistaken for passing build or test proof.
 - **Projects without tests** — `axint prove` detects whether an Xcode unit or UI test target exists, proves the build when possible, and reports missing test evidence without misclassifying the absent test action as a product failure.
 
+### Why this matters
+
+- One local command can produce portable evidence and an exact repair path while keeping static findings subordinate to real Apple tooling.
+
 ## [0.5.0] — 2026-07-10
 
 ### Added
@@ -45,6 +53,10 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 - **Fix Packets expose evidence state** — JSON and Markdown receipts include original severity, confidence, active or suppressed status, blocking behavior, and evidence records; verdicts now follow blocking findings instead of raw severity alone.
 - **Run and MCP contracts** — CLI and MCP run inputs expose the same integration, locality, advisory, fix, and output-directory controls, with persisted background jobs disabled when minimal mode promises no Axint state.
 - **Product positioning** — README and documentation now present Generate, Check, Run, Team, and Cloud as focused jobs within one proof-and-repair system, with generation remaining optional for existing Swift projects.
+
+### Why this matters
+
+- Existing Swift projects can distinguish compiler-supported findings from probable leads and non-blocking advisories instead of treating every heuristic as fact.
 
 ## [0.4.36] — 2026-07-07
 

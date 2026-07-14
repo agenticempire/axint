@@ -1,54 +1,35 @@
 # Axint Architecture
 
-Axint is a multi-language compiler that transforms high-level intent, view, widget, and app definitions into production Swift code for Apple platforms. The compiler decouples input language (TypeScript, Python) from output generation through an intermediate representation, allowing new input languages and output surfaces to be added independently.
+Axint is the proof and repair layer for Apple coding agents. Its architecture
+combines an evidence runtime for existing Apple projects with optional authoring
+pipelines that generate inspectable Swift. Both paths converge on the same
+agent-facing contract: verdict, evidence, findings, next actions, and artifact
+paths.
 
-## Pipeline
-
-The compilation flow is uniform across all surfaces:
+## System shape
 
 ```mermaid
 flowchart LR
-    A["TypeScript / Python / JSON input"] --> B["Parse or normalize into IR"]
-    B --> C["IR validation"]
-    C --> D["Swift generation"]
-    D --> E["Swift validator + safe fixer"]
-    E --> F["Fix Packet"]
-    F --> G["CLI / MCP"]
-    F --> H["Xcode packet / plugin loop"]
-    G --> I["AI tool or local workflow"]
+    A["Existing Swift changes"] --> C["Evidence-aware Swift checks"]
+    B["TypeScript / Python / JSON authoring"] --> D["IR validation and Swift generation"]
+    D --> C
+    C --> E["Xcode build and test evidence"]
+    E --> F["Finding reconciliation"]
+    F --> G["Fix Packet"]
+    F --> H["Signed source-free receipt"]
+    G --> I["CLI / MCP / editor"]
     H --> I
 ```
 
-```
-Source (TS/Python)
-  ↓
-Parse to AST
-  ↓
-Walk AST → IR (JSON)
-  ↓
-Validate IR
-  ↓
-Generate Swift Code
-  ↓
-Validate Swift Output
-  ↓
-Format & Return
-```
+The proof runtime is primary. Generation is one way to create a candidate
+change; it does not replace Xcode evidence.
 
-The entry point is `compiler.ts`, which orchestrates the pipeline. For each surface—Intent, View, Widget, App—there's a dedicated parser, generator, and validator that plugs into this orchestration.
+## Proof runtime
 
-The same repair contract now spans the whole loop:
-
-`compiler -> validator -> Swift -> Fix Packet -> MCP / Xcode / AI tool`
-
-That matters because Axint should not explain one diagnostic format in the CLI, a different one in Xcode, and a third one to AI tools. The packet is the bridge.
-
-## Proof platform
-
-`axint prove` is the local-first orchestration layer above the existing run
-engine. It discovers the Xcode project, runs evidence-aware Swift validation,
-executes build and available tests, applies project-local finding feedback, and
-emits a signed source-free receipt.
+`axint prove` discovers an Apple project, selects the available Xcode container
+and scheme, runs evidence-aware Swift validation, executes a real build and any
+available tests, reconciles the findings, and emits a signed source-free
+receipt.
 
 ```mermaid
 flowchart LR
@@ -63,123 +44,145 @@ flowchart LR
     H --> I["axint receipt verify"]
 ```
 
-The private signing key is stored outside the project under the Axint home
-directory with owner-only permissions. Receipts include only the public key and
-fingerprint. Teams can provide a managed key through `AXINT_PROOF_SIGNING_KEY`
-and identify it with `AXINT_PROOF_SIGNER_NAME`.
-CI and external reviewers can pass `--trusted-fingerprint` during verification;
-without a pinned fingerprint, a local receipt proves integrity but not an
-externally trusted identity.
+Compiler-shaped findings can be confirmed by matching Xcode failures or
+suppressed by a successful selected build. Passing tests provide behavior
+context, but they do not automatically disprove accessibility, interaction,
+privacy, design, or runtime advisories. Gate decisions follow active blocking
+findings rather than raw diagnostic severity.
 
-Finding feedback is deliberately narrower than rule suppression. A decision is
-keyed by a source-free fingerprint derived from diagnostic code, project-relative
-file, evidence class, and normalized message. Compiler-confirmed evidence always
-wins over a previous false-positive or irrelevant decision.
+The local private signing key is stored outside the project under the Axint home
+directory with owner-only permissions. Receipts contain the public key and its
+fingerprint. Teams can provide a managed key through
+`AXINT_PROOF_SIGNING_KEY` and name it with `AXINT_PROOF_SIGNER_NAME`.
+Verification without `--trusted-fingerprint` proves payload integrity against
+the embedded key; it does not establish an externally trusted signer identity.
 
-## Intermediate Representation (IR)
+## Repair artifacts
 
-The IR is a language-agnostic JSON schema that both the TypeScript and Python SDKs produce. The compiler only sees IR; it has no knowledge of the original source language. This decoupling means:
-
-- A Python script can emit IR to JSON, pass it to `compileFromIR()`, and get the same Swift code as a TypeScript definition
-- New input languages (Go, Rust, etc.) only need to produce valid IR
-- The Swift generator is the single source of truth for correctness
-
-IR types live in `types.ts`: `IRIntent`, `IRView`, `IRWidget`, `IRApp`, plus supporting types for parameters, properties, bindings, and Swift type mappings. Each IR type is a data structure with no methods—pure shape. Validation rules (e.g., "an Intent query must have a return type", "a View property can't be computed and readonly simultaneously") live in the corresponding validator, not in the IR type itself.
-
-## Four Surfaces
-
-Each surface follows the same structural pattern:
-
-**Intent** (`parser.ts` → `validator.ts` → `generator.ts`)
-Walks a `defineIntent()` function to extract intent name, parameters, query, actions, and open-in-app behavior. Generates App Intent code with `@Application`, `@Parameter`, `@Dependency`, and `@Execution` attributes. The validator ensures parameters are JSON-serializable, query return types are unambiguous, and action side effects are declared.
-
-**View** (`view-parser.ts` → `view-validator.ts` → `view-generator.ts`)
-Walks a `defineView()` function extracting properties, lifecycle hooks, render blocks, and navigation links. Generates a SwiftUI `View` struct with `@State`, `@ObservedObject`, bindings, and computed properties. Validator checks property types are Codable-compatible, state mutations aren't in computed properties, and navigation targets exist.
-
-**Widget** (`widget-parser.ts` → `widget-validator.ts` → `widget-generator.ts`)
-Walks `defineWidget()` extracting widget family configuration, timeline providers, and entry content. Generates WidgetKit `Widget`, `TimelineProvider`, and SwiftUI `WidgetEntryView`. Validator ensures widget families are valid, timeline entries can be encoded, and sizes match WidgetKit constraints.
-
-**App** (`app-parser.ts` → `app-validator.ts` → `app-generator.ts`)
-Walks `defineApp()` extracting app metadata, scenes, navigation stacks, and app-level dependencies. Generates a SwiftUI `App` struct with scene definitions and top-level navigation. Validator checks app delegates are Codable, scene hierarchies are acyclic, and primary scene is defined.
-
-Each validator emits structured diagnostics from the shared diagnostic registry. The current public metrics snapshot tracks 225 diagnostic codes across parser, IR, Swift, Xcode, Cloud, Registry, and repair-loop checks. The compiler collects diagnostics and returns them through the CLI, MCP server, Fix Packet, and Xcode-facing paths.
-
-## Cross-Language Bridge
-
-The Python SDK (`python/axint/`) produces the same IR JSON as the TypeScript SDK. Both serialize to the same shape. A Python user calls `axint.compile(intent)`, which internally returns IR JSON, which is then fed to the Swift generator (currently via a subprocess call to the TypeScript CLI, but can be refactored to a shared library).
-
-`compileFromIR()` is the key function: it accepts an IR object or JSON string, skips parsing entirely, and goes straight to validation and code generation. This is how non-TypeScript consumers can reuse the compiler without reimplementing generation logic.
-
-## Fix Packet and Xcode loop
-
-Axint now treats the Fix Packet as the repair contract across:
+The [Fix Packet](docs/FIX_PACKET.md) is the local repair contract used by:
 
 - `axint compile`
 - `axint watch`
 - `axint validate-swift`
-- MCP clients through `axint.fix-packet`
-- Xcode build artifacts through `axint xcode packet`
+- `axint.fix-packet` over MCP
+- `axint xcode packet`
+- project-aware repair and proof workflows
 
-The intended loop is:
+It preserves stable finding identity, evidence class, likely files, concrete
+next actions, and rerun guidance without forcing full logs into agent context.
+When coverage is incomplete, the packet lowers confidence instead of treating a
+heuristic as compiler truth.
 
-1. Build or validate
-2. Read one packet
-3. Copy the AI prompt or inspect the markdown
-4. Apply the fix
-5. Rerun until the verdict is clean
+## TypeScript authoring pipeline
 
-When Axint cannot recognize a supported Apple-native Swift surface, the packet drops to low confidence instead of bluffing.
+The TypeScript compiler parses supported `define*()` calls into a language-
+agnostic intermediate representation, validates that IR, generates Swift and
+companion metadata, then validates the generated Swift.
 
-## Extension Points
-
-To add a new surface (e.g., "Views with custom rendering backends"):
-
-1. Create `src/core/custom-parser.ts` — walk the AST to build `IRCustom`
-2. Create `src/core/custom-validator.ts` — check invariants, emit diagnostics
-3. Create `src/core/custom-generator.ts` — transform IR to Swift code
-4. Add the `IRCustom` type to `types.ts`
-5. Wire it into `compiler.ts`: add a case in the surface dispatch, export from the main API
-6. Update the SDK: add `defineCustom()` to `sdk/index.ts`
-
-The pattern is rigid by design—it forces new surfaces to think about parsing, validation, and generation as separate concerns.
-
-## Distribution surfaces
-
-The public compiler repo ships the compiler, SDKs, CLI, MCP server, templates, tests, and editor integrations.
-
-Higher-level distribution and hosted workflows should consume these artifacts, not redefine them.
-
-## Directory Map
-
-```
-src/core/
-  compiler.ts, parser.ts, view-parser.ts, widget-parser.ts, app-parser.ts
-  generator.ts, view-generator.ts, widget-generator.ts, app-generator.ts
-  validator.ts, view-validator.ts, widget-validator.ts, app-validator.ts
-  types.ts, eject.ts, format.ts, sandbox.ts
-
-src/sdk/
-  index.ts — defineIntent(), defineView(), defineWidget(), defineApp(), param.*
-
-src/mcp/
-  server.ts, scaffold.ts
-
-src/cli/
-  index.ts, prove.ts, receipt.ts, feedback.ts, scaffold.ts
-
-src/proof/
-  prove.ts, receipt.ts
-
-src/feedback/
-  findings.ts, auto.ts, inbox.ts
-
-python/axint/
-  sdk.py, ir.py, generator.py, validator.py, cli.py, parser.py
-
-spm-plugin/
-  Plugins/AxintCompilePlugin/
-
-benchmarks/, tests/
+```text
+TypeScript source
+  -> surface parser
+  -> IR
+  -> IR validator
+  -> Swift / plist / entitlement generator
+  -> Swift validator
+  -> Fix Packet and proof workflow
 ```
 
-The CLI is the user-facing entry point (`src/cli/index.ts`). It calls the compiler, formats output, and handles watch mode. The MCP server wraps the compiler for AI agent use. The Python SDK mirrors the TypeScript API but produces IR that feeds into the shared Swift generator.
+The implemented dispatch covers intents, entities, views, widgets, apps, Live
+Activities, App Enums, UnionValue schemas, App Shortcuts, and extension
+scaffolds. Each surface owns its parser, validator, and generator while sharing
+diagnostic and repair contracts.
+
+`compileFromIR()` accepts an intent IR object or JSON payload and skips the
+TypeScript parse step. That is the stable bridge used by JSON workflows and
+other language frontends.
+
+## Python authoring pipeline
+
+The Python SDK is a native implementation, not a subprocess wrapper around the
+TypeScript generator. `python/axint/` parses Python with the Python AST, produces
+compatible IR, validates it, and generates Swift directly through
+`generator.py`.
+
+```text
+Python source
+  -> Python AST parser
+  -> compatible IR
+  -> Python validator
+  -> native Python Swift generator
+```
+
+The Python package therefore has no Node.js dependency for its normal parse,
+validate, and compile commands. Its IR can optionally be piped into the
+TypeScript CLI for an additional cross-surface validation path:
+
+```bash
+axint-py parse intent.py --json | axint compile - --from-ir --stdout
+```
+
+The two generators intentionally mirror shared contracts but are separate
+implementations. Parity tests and compatible IR make divergence visible; the
+documentation does not imply that Python shells out for normal generation.
+
+The focused Python MCP server uses native Python generation. One optional Swift
+validation helper can call the installed Node package when available, so that
+helper is not equivalent to the fully local Python compile path.
+
+## Experimental `.axint` authoring surface
+
+The `.axint` package under `src/core/axint-dsl/` implements tokenization,
+recovery-aware parsing, canonical formatting, and lowering for intents,
+entities, enums, and safe public-page manifests. The APIs and `axint format`
+command are available without a feature flag.
+
+The surface remains experimental because direct `.axint` input is not yet wired
+through the main `axint compile` command, and views, widgets, and apps are not
+implemented in the language. The language specification documents this
+boundary separately from the production proof runtime and the real brownfield
+benchmark.
+
+## MCP and CLI boundary
+
+The CLI is the local process boundary for proof, generation, validation, repair,
+receipts, telemetry controls, and Xcode orchestration. The MCP server wraps the
+same application services for standards-compatible hosts and returns compact
+structured results.
+
+Long-running build and test jobs persist status and log paths under `.axint/run`
+so a caller can reconnect, inspect, or cancel without keeping the original
+request alive. Full logs remain on disk; MCP responses carry summaries and
+artifact references.
+
+## Distribution boundary
+
+The public repository ships the open-source compiler, TypeScript and Python
+SDKs, CLI, proof runtime, MCP servers, templates, tests, Swift Package Manager
+plugins, and editor integrations. Hosted services consume those public
+contracts but do not redefine their implementation status.
+
+## Directory map
+
+```text
+src/core/                 TypeScript parsers, IR, validators, generators
+src/core/axint-dsl/       Experimental .axint lexer, parser, printer, lowering
+src/proof/                Proof orchestration and signed receipts
+src/run/                  Resumable project jobs and Xcode evidence
+src/repair/               Fix Packets and project repair plans
+src/feedback/             Source-free finding review and feedback
+src/mcp/                  MCP server, manifest, and transports
+src/cli/                  Command-line entry points
+python/axint/             Native Python parser, IR, validator, generator, MCP
+spm-plugin/               Xcode build and validation plugins
+benchmarks/brownfield/    Reproducible precision and abstention gate
+tests/                    TypeScript integration and unit coverage
+python/tests/             Python integration and unit coverage
+```
+
+## Extension principles
+
+1. New checks state their evidence boundary and abstain when it is unknown.
+2. New authoring surfaces separate parsing, validation, and generation.
+3. Generated output remains ordinary, inspectable Swift without runtime lock-in.
+4. Agent-facing output stays compact while complete artifacts remain on disk.
+5. Public proof claims require a reproducible test, benchmark, or Apple-tooling artifact.
