@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -37,17 +37,17 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-mcp = ["mcp>=0.1.0"]
-registry = ["pyyaml>=6.0"]
-all = ["mcp>=0.1.0", "pyyaml>=6.0"]
+mcp = ["mcp>=1.28.1"]
+registry = ["pyyaml>=6.0.3"]
+all = ["mcp>=1.28.1", "pyyaml>=6.0.3"]
 dev = [
-    "pytest>=8.0",
-    "pytest-cov>=5.0",
-    "ruff>=0.6",
-    "mypy>=1.11",
-    "pyright>=1.1.400",
-    "pyyaml>=6.0",
-    "types-PyYAML>=6.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.21",
+    "mypy>=2.3.0",
+    "pyright>=1.1.411",
+    "pyyaml>=6.0.3",
+    "types-PyYAML>=6.0.12.20260518",
 ]
 
 [project.urls]
