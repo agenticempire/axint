@@ -2,12 +2,14 @@
 
 ## Supported Versions
 
-| Version | Supported              |
-|---------|------------------------|
-| 0.4.x   | Yes                    |
-| 0.3.x   | Critical fixes only    |
-| 0.2.x   | No (deprecated)        |
-| 0.1.x   | No (deprecated)        |
+Axint supports the current minor release line and reserves the previous minor
+line for critical security fixes. Older minor lines are unsupported.
+
+| Version | Support policy |
+|---------|----------------|
+| 0.5.x   | Full support |
+| 0.4.x   | Critical fixes only |
+| 0.3.x and earlier | Unsupported |
 
 ## Reporting a Vulnerability
 
