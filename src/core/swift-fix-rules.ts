@@ -127,6 +127,20 @@ export const REGEX_FIX_RULES: readonly RegexFix[] = [
       "\\bDispatchQueue\\.global\\([^)]*\\)\\.async\\s*(?:\\(\\s*execute\\s*:\\s*)?\\{",
     replacement: "Task.detached {",
   },
+  {
+    kind: "regex",
+    code: "AX865",
+    description: "toolbarMinimizeBehavior -> toolbarMinimizationBehavior",
+    pattern: "\\.toolbarMinimizeBehavior\\s*\\(",
+    replacement: ".toolbarMinimizationBehavior(",
+  },
+  {
+    kind: "regex",
+    code: "AX866",
+    description: "legacy text field border style -> bordered",
+    pattern: "\\.textFieldStyle\\s*\\(\\s*\\.(?:squareBorder|roundedBorder)\\s*\\)",
+    replacement: ".textFieldStyle(.bordered)",
+  },
 ];
 
 // ─── Struct-inject fixes ────────────────────────────────────────────

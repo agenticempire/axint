@@ -1,5 +1,50 @@
 # Release Notes
 
+## Unreleased
+
+## 0.6.0 - 2026-07-16
+
+### Added
+
+- Complete iOS and iPadOS 27 beta 3 rule catalog, including current Siri,
+  Shortcuts, App Intents, Foundation Models, CoreAI, SwiftUI, UIKit, Background
+  Assets, and document-model changes.
+- Ten low-noise iOS 27 Swift diagnostics with evidence-aware advisory status
+  and two deterministic SwiftUI API migrations shared by the CLI and Xcode
+  extension.
+- Xcode 27 beta 3 build-configuration analysis, duplicate Clang module
+  detection, and bounded Swift test repetition helpers.
+- App Store Connect API 4.4.1 migration analysis for versioned commerce
+  metadata and social-media age-rating attributes.
+- Accessibility Nutrition Label common-task matrices and Markdown proof
+  reports.
+- Hosted MCP support for both legacy initialization and the stateless
+  `2026-07-28` release candidate.
+- Node 24/26, Python 3.14/3.15, Xcode 27, and MCP v2 compatibility canaries,
+  plus a TypeScript 7 compiler API canary that records the current upstream
+  package-entry migration blocker without weakening supported TypeScript 6
+  release gates.
+- Brownfield benchmark v3 with 38 paired cases across 10 categories.
+
+### Changed
+
+- All compact MCP tool cards now state how non-obvious inputs interact, which
+  defaults matter, when a sibling tool is more appropriate, and what local or
+  network effects can occur.
+- npm artifacts, all Python extras, wheel/source distributions, and the hosted
+  Worker are audited and smoke-tested as coordinated release gates.
+
+### Fixed
+
+- The hosted MCP server now deploys and verifies from the release workflow, so
+  package, server, tool, and prompt versions cannot silently drift.
+- Python MCP startup now uses the stable SDK's supported stdio context and
+  server-run boundary across both console entrypoints.
+- The WWDC SDK scanner no longer follows compatibility symlinks or performs an
+  unbounded recursive walk.
+- Private Cloud Compute simulator guidance now reflects the issue Apple marked
+  resolved in beta 3, while the active greedy-decoding workaround is generated.
+
 ## 0.5.2 - 2026-07-11
 
 The Python MCP console entrypoint now crosses the async stdio boundary through

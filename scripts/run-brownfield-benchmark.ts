@@ -97,8 +97,8 @@ export interface BrownfieldCorpusManifest {
 }
 
 const DEFAULT_THRESHOLDS = {
-  minimumCases: 20,
-  minimumCategories: 6,
+  minimumCases: 38,
+  minimumCategories: 10,
   precision: 0.95,
   recall: 0.95,
   cleanAbstentionRate: 0.95,
@@ -117,7 +117,9 @@ export function runBrownfieldBenchmark(
       fixture.source,
       `benchmarks/brownfield/${fixture.id}.swift`
     ).diagnostics.map(normalizeDiagnosticEvidence);
-    const emittedCodes = [...new Set(diagnostics.map((diagnostic) => diagnostic.code))].sort();
+    const emittedCodes = [
+      ...new Set(diagnostics.map((diagnostic) => diagnostic.code)),
+    ].sort();
     const expected = new Set(fixture.expectedCodes);
     const emitted = new Set(emittedCodes);
     const truePositives = emittedCodes.filter((code) => expected.has(code));
@@ -183,7 +185,7 @@ export function runBrownfieldBenchmark(
     },
     corpus: {
       name: metadata.name ?? "Axint curated brownfield regression corpus",
-      version: metadata.version ?? "2.0.0",
+      version: metadata.version ?? "3.0.0",
       scope:
         metadata.scope ??
         "Transparent rule-level fixtures across common Apple project surfaces. Private project manifests can be evaluated locally without publishing source.",
@@ -264,7 +266,9 @@ function metricsForCases(cases: CaseResult[]): CategoryMetrics {
   const falsePositives = sum(cases.map((item) => item.falsePositives.length));
   const falseNegatives = sum(cases.map((item) => item.falseNegatives.length));
   const cleanCases = cases.filter((item) => item.expectation === "clean");
-  const cleanAbstentions = cleanCases.filter((item) => item.emittedCodes.length === 0).length;
+  const cleanAbstentions = cleanCases.filter(
+    (item) => item.emittedCodes.length === 0
+  ).length;
   return {
     cases: cases.length,
     cleanCases: cleanCases.length,
@@ -351,7 +355,9 @@ if (corpusPath) {
   else console.log(json);
 } else if (check) {
   if (!existsSync(jsonPath) || !existsSync(markdownPath)) {
-    throw new Error("Brownfield benchmark artifacts are missing. Run npm run benchmark:brownfield.");
+    throw new Error(
+      "Brownfield benchmark artifacts are missing. Run npm run benchmark:brownfield."
+    );
   }
   if (readFileSync(jsonPath, "utf-8") !== json) {
     throw new Error("benchmarks/brownfield/latest.json is stale.");
@@ -368,7 +374,9 @@ if (report.cases.some((item) => !item.passed)) {
   throw new Error("Brownfield benchmark contains mislabeled or regressed cases.");
 }
 if (!report.thresholds.passed) {
-  throw new Error(`Brownfield benchmark threshold failure: ${report.thresholds.failures.join("; ")}`);
+  throw new Error(
+    `Brownfield benchmark threshold failure: ${report.thresholds.failures.join("; ")}`
+  );
 }
 
 console.log(

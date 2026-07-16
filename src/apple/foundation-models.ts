@@ -2,6 +2,7 @@ export interface FoundationModelsSessionScaffoldInput {
   profileName: string;
   tools?: string[];
   allowPrivateCloudCompute?: boolean;
+  samplingSeed?: number;
 }
 
 export interface EvaluationsScaffoldInput {
@@ -15,9 +16,23 @@ export function generateFoundationModelsSessionScaffold(
   const profileName = sanitizeSwiftIdentifier(input.profileName || "AxintProfile");
   const tools = input.tools?.map(sanitizeSwiftIdentifier) ?? [];
   const toolList = tools.length > 0 ? tools.map((tool) => `${tool}()`).join(", ") : "";
-  const modelLine = input.allowPrivateCloudCompute
-    ? `let fallbackModel = PrivateCloudComputeLanguageModel()`
-    : `// Private Cloud Compute fallback disabled for this scaffold.`;
+  const samplingSeed = Number.isInteger(input.samplingSeed) ? input.samplingSeed : 42;
+  const privateCloudHelper = input.allowPrivateCloudCompute
+    ? [
+        ``,
+        `    func makePrivateCloudSession() -> LanguageModelSession {`,
+        `        let model = PrivateCloudComputeLanguageModel()`,
+        `        return LanguageModelSession(model: model) {`,
+        `            "Follow the user's request and preserve the same tool-safety policy used on device."`,
+        `        }`,
+        `    }`,
+        ``,
+        `    func privateCloudGenerationOptions() -> GenerationOptions {`,
+        `        // iOS 27 Beta 3: PCC otherwise uses greedy decoding.`,
+        `        GenerationOptions(samplingMode: .randomThreshold(0.95, seed: ${samplingSeed}))`,
+        `    }`,
+      ]
+    : [``, `    // Private Cloud Compute fallback disabled for this scaffold.`];
 
   return [
     `// ${profileName}.swift`,
@@ -27,17 +42,14 @@ export function generateFoundationModelsSessionScaffold(
     ``,
     `struct ${profileName} {`,
     `    func makeSession() async throws -> LanguageModelSession {`,
-    `        #if targetEnvironment(simulator)`,
-    `        // iOS 27 Beta 3: verify Private Cloud Compute paths on a physical device.`,
-    `        #endif`,
     `        let onDeviceModel = SystemLanguageModel.default`,
-    `        ${modelLine}`,
     `        let tools = [${toolList}]`,
     `        _ = tools`,
     `        return LanguageModelSession(model: onDeviceModel) {`,
     `            "Follow the user's request, avoid unnecessary tool calls, and ask for confirmation before destructive actions."`,
     `        }`,
     `    }`,
+    ...privateCloudHelper,
     `}`,
     ``,
   ].join("\n");

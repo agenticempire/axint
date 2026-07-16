@@ -1,12 +1,12 @@
 # Axint Roadmap
 
-_Last updated: July 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.5.2](https://github.com/agenticempire/axint/releases/tag/v0.5.2)<!-- metrics:roadmap-release:end -->_
+_Last updated: July 2026 · Current release: <!-- metrics:roadmap-release:start -->[v0.6.0](https://github.com/agenticempire/axint/releases/tag/v0.6.0)<!-- metrics:roadmap-release:end -->_
 
 **Agents can write Swift. Axint makes them prove it.**
 
 Axint is the proof and repair layer for Apple coding agents. It checks the Swift an agent wrote, runs real Xcode build and test evidence, reconciles static findings with Apple tooling, and returns signed proof with the exact repairs to make next. The compiler, SDKs, MCP server, Registry, Team features, and Cloud all support that shared proof contract.
 
-<!-- metrics:roadmap-snapshot:start -->Current verified snapshot: 36 MCP tools + 5 prompts · 53 templates · 225 diagnostic codes · 1489 tests.<!-- metrics:roadmap-snapshot:end -->
+<!-- metrics:roadmap-snapshot:start -->Current verified snapshot: 36 MCP tools + 5 prompts · 53 templates · 235 diagnostic codes · 1512 tests.<!-- metrics:roadmap-snapshot:end -->
 
 ---
 
@@ -25,6 +25,10 @@ Axint is the proof and repair layer for Apple coding agents. It checks the Swift
 - TypeScript, Python, JSON schema mode, and preview `.axint` inputs compile into Apple-native Swift.
 - Supported surfaces include App Intents, SwiftUI views, WidgetKit widgets, app scaffolds, plist fragments, entitlements, and Apple metadata.
 - The validator covers compiler, intent, view, widget, app, Swift build, SwiftUI, accessibility, concurrency, Live Activity, and repair-loop rules.
+- iOS 27 beta 3 migration coverage includes the `@State` macro, SwiftUI
+  documents, visible tab selection, text-selection gestures, toolbar and text
+  field API changes, Background Assets, Foundation Models sampling, CoreAI
+  model compatibility, Siri/App Schema risks, and App Store Connect 4.4.1.
 - TypeScript and Python checks are both included in the generated public metrics snapshot above.
 
 ### Agent distribution
@@ -75,6 +79,8 @@ Goal: every marketplace should understand Axint as a low-risk, useful, well-docu
 - Keep runtime dependencies minimal.
 - Keep tool descriptions explicit: behavior, purpose, inputs, effects, and usage guidance.
 - Maintain Glama, Smithery, MCP Registry, and other marketplace metadata from the same version truth.
+- Keep legacy and `2026-07-28` stateless protocol checks green against the
+  hosted endpoint.
 
 ### 4. Expand Apple surface coverage
 
@@ -85,6 +91,9 @@ Goal: cover the annoying Apple edges that make agents break.
 - App Shortcuts catalog generation.
 - Control Widgets and Live Activities starter coverage.
 - Better Swift 6 actor isolation and concurrency repair rules.
+- Promote the Xcode 27, Swift 6.4, accessibility-label, and versioned App Store
+  metadata canaries to strict release gates when their upstream surfaces are
+  final.
 
 ### 5. Improve Registry composition
 

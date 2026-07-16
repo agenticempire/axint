@@ -2392,17 +2392,21 @@ function compactToolDescription(
   tool: (typeof TOOL_MANIFEST)[number],
   maxChars: number
 ): string {
-  // Each segment is compacted on its own so the Use/Effects markers
+  // Each segment is compacted on its own so the Use/Inputs/Effects markers
   // survive however small the budget gets.
   const effects = RUNTIME_TOOL_EFFECTS[tool.name] ?? defaultEffectSummary(tool);
   const guidance = RUNTIME_TOOL_GUIDANCE[tool.name];
+  const inputs = RUNTIME_TOOL_INPUTS[tool.name];
   const footerChars =
-    ` Effects: ${effects}`.length + (guidance ? ` Use: ${guidance}`.length : 0);
+    ` Effects: ${effects}`.length +
+    (guidance ? ` Use: ${guidance}`.length : 0) +
+    (inputs ? ` Inputs: ${inputs}`.length : 0);
   const summaryChars = Math.max(120, maxChars - footerChars - 2);
-  const detailChars = Math.max(48, Math.floor(Math.min(maxChars, 320) / 2));
+  const detailChars = Math.max(48, Math.floor(Math.min(maxChars, 360) / 3));
 
   const parts = [compactDescription(tool.description, summaryChars)];
   if (guidance) parts.push(`Use: ${compactDescription(guidance, detailChars)}`);
+  if (inputs) parts.push(`Inputs: ${compactDescription(inputs, detailChars)}`);
   parts.push(`Effects: ${compactDescription(effects, detailChars)}`);
   return parts.join(" ");
 }
@@ -2428,11 +2432,11 @@ const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
   "axint.status":
     "call first or after an MCP reload to prove the connected server version; do not use as an npm/PyPI lookup.",
   "axint.activate":
-    "call immediately after install or first MCP connection so the agent proves real Axint use beyond server start.",
+    "call immediately after install or first MCP connection; use validate or run for project checks.",
   "axint.upgrade":
     "call when axint.status shows a stale server; not for app dependency upgrades.",
   "axint.doctor":
-    "call when MCP wiring, package paths, Xcode setup, or project memory may be stale.",
+    "call when MCP wiring, package paths, Xcode setup, or project memory may be stale; use run for build proof.",
   "axint.xcode.guard":
     "call around long Xcode tasks, context recovery, broad Swift edits, or before claiming runtime proof; use workflow.check outside Xcode.",
   "axint.xcode.write":
@@ -2470,7 +2474,7 @@ const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
   "axint.repair":
     "use for existing app bugs with logs, UI symptoms, or runtime evidence; not for greenfield generation.",
   "axint.feedback.create":
-    "use when Axint output was weak and you need a privacy-safe issue packet; not for sending source.",
+    "create a privacy-safe issue packet when output was weak, or read the latest packet; never use it to send source.",
   "axint.agent.install":
     "use once per project to create local multi-agent coordination; not needed for one-off compile.",
   "axint.agent.advice":
@@ -2480,11 +2484,11 @@ const RUNTIME_TOOL_GUIDANCE: Record<string, string> = {
   "axint.agent.release":
     "use after finishing or abandoning claimed files; use agent.claim before edits and agent.advice for next steps.",
   "axint.run":
-    "use when the agent must prove Swift validation, Cloud Check, Xcode build/test, and runtime evidence.",
+    "use for the complete proof loop; use swift.validate, cloud.check, or fix-packet when only one stage is needed.",
   "axint.run.status":
-    "use after MCP timeouts or long builds to resume without guessing whether xcodebuild is still active.",
+    "use after MCP timeouts or long builds to inspect or rejoin; it does not start, rerun, or cancel work.",
   "axint.run.cancel":
-    "use only to stop an active Axint run or stuck child process group.",
+    "use only to stop an active run or stuck child process group; use run.status for read-only inspection.",
   "axint.tokens.ingest":
     "use before view/component generation when a design system should be preserved.",
   "axint.schema.compile":
@@ -2566,6 +2570,80 @@ const RUNTIME_TOOL_EFFECTS: Record<string, string> = {
     "read-only template metadata; writes no files and uses no network.",
   "axint.templates.get":
     "read-only template source; writes no files and uses no network.",
+};
+
+const RUNTIME_TOOL_INPUTS: Record<string, string> = {
+  "axint.status": "format changes rendering only; no project path is required.",
+  "axint.activate":
+    "format changes rendering only; the smoke test has no project inputs.",
+  "axint.upgrade":
+    "apply defaults false; targetVersion selects the install, while reinstallXcode and writeReport matter only when applying.",
+  "axint.doctor":
+    "cwd selects the project; expectedVersion turns a runtime mismatch into a blocker.",
+  "axint.xcode.guard":
+    "stage selects the gate; modifiedFiles and notes narrow drift checks; autoStartSession defaults true.",
+  "axint.xcode.write":
+    "path must remain inside cwd; createDirs, validateSwift, and cloudCheck default true.",
+  "axint.session.start":
+    "cwd scopes session files; prior token and context inputs preserve continuity after compaction.",
+  "axint.feature":
+    "description is the feature brief; kind and platform constrain the generated package.",
+  "axint.project.pack":
+    "cwd and projectName identify the project; host choices control generated integration files.",
+  "axint.project.index":
+    "changedFiles seed related-file discovery; dryRun returns the pack without writing .axint/context.",
+  "axint.project.syncVersion":
+    "cwd scopes Axint-owned files; targetVersion overrides running version; dryRun prevents writes.",
+  "axint.context.memory":
+    "cwd selects project memory; format changes rendering without changing content.",
+  "axint.context.docs":
+    "cwd selects project docs context; include sections only when the longer runbook is needed.",
+  "axint.suggest":
+    "prompt is the product brief; dir adds project context; Pro mode is used only when configured.",
+  "axint.registry.search":
+    "query drives ranking; kind and platform narrow results without changing the registry source.",
+  "axint.workflow.check":
+    "stage selects the gate; sessionToken proves continuity; allowNoSession is an explicit escape hatch.",
+  "axint.scaffold":
+    "name must be PascalCase; params define the starter contract; domain defaults to general.",
+  "axint.compile":
+    "source is TypeScript DSL text; options add sandbox, format, plist, or entitlement proof without writing files.",
+  "axint.validate":
+    "source is TypeScript DSL text; strictness options affect diagnostics only and never emit Swift.",
+  "axint.fix-packet":
+    "cwd and path locate an existing packet; latest selects the newest artifact and never reruns analysis.",
+  "axint.cloud.check":
+    "provide source or sourcePath, not both; evidence fields strengthen UI and runtime claims.",
+  "axint.repair":
+    "describe the observed bug and attach logs or evidence; modifiedFiles and project index narrow the plan.",
+  "axint.feedback.create":
+    "latest reads instead of creates; outcome and diagnostic fields stay source-free unless excerpts are explicit.",
+  "axint.agent.install":
+    "cwd scopes local coordination; projectName and hosts shape generated project-brain files.",
+  "axint.agent.advice":
+    "cwd selects local context; question and modifiedFiles focus the next-move recommendation.",
+  "axint.agent.claim":
+    "agentId and files identify the claim; ttlMinutes bounds ownership and force overrides stale claims.",
+  "axint.agent.release":
+    "agentId releases only its matching claims unless files narrow the release set.",
+  "axint.run":
+    "integration=minimal enforces local advisory no-fix behavior; background returns a job id; outputDir controls artifacts.",
+  "axint.run.status":
+    "jobId selects a background run; includeLogs changes returned detail without changing the job.",
+  "axint.run.cancel":
+    "jobId is required; signal and grace period control escalation before killing the process group.",
+  "axint.tokens.ingest":
+    "tokens accepts structured design values; enumName and accessLevel shape generated Swift names.",
+  "axint.schema.compile":
+    "schema kind selects intent, view, widget, or app output; options add companion metadata.",
+  "axint.swift.validate":
+    "source or sources provide Swift text; projectIndex enables cross-file checks; platform filters rules.",
+  "axint.swift.fix":
+    "source is required; codes limits mechanical rewrites; maxPasses bounds convergence attempts.",
+  "axint.templates.list":
+    "category and query filter metadata; call without filters to discover every valid id.",
+  "axint.templates.get":
+    "id must come from templates.list; format changes source versus metadata rendering.",
 };
 
 function withOutputSchemas<T extends { name: string }>(tools: readonly T[]) {

@@ -1,7 +1,7 @@
 {
   "name": "axint",
   "displayName": "Axint - Apple Proof and Repair",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "publisher": "agenticempire",
   "description": "Validate Swift, inspect repair evidence, browse templates, and generate Apple-native capabilities from VS Code.",
   "license": "Apache-2.0",

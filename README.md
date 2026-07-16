@@ -164,6 +164,11 @@ Axint ships an MCP server for standards-compatible hosts:
 Start a fresh tool session, then call `axint.status` and `axint.activate` to
 verify that the server and compiler are connected.
 
+The hosted endpoint at `https://mcp.axint.ai/mcp` supports both established MCP
+clients and the current stateless protocol generation. Compatibility is
+continuously checked with official SDK clients; see the
+[protocol compatibility contract](docs/MCP_2026_COMPATIBILITY.md).
+
 <details>
 <summary><strong>MCP tool and prompt inventory</strong></summary>
 
@@ -203,6 +208,13 @@ verify that the server and compiler are connected.
 - [Live product metrics](metrics.json) are regenerated from the codebase.
 - The real, CI-gated [brownfield benchmark](benchmarks/brownfield/README.md) publishes labeled precision, recall, and abstention cases.
 - [Coverage](docs/COVERAGE.md) maps supported surfaces to implementation, tests, and proof boundaries.
+- [Apple platform compatibility](docs/APPLE_27_COMPATIBILITY.md) tracks current
+  Xcode, Swift, Siri, App Intents, Foundation Models, SwiftUI, UIKit, and App
+  Store changes against implemented checks and canaries.
+- [Accessibility-label proof](docs/ACCESSIBILITY_LABELS.md) turns common-task
+  accessibility evidence into a reviewable App Store readiness report.
+- [MCP compatibility](docs/MCP_2026_COMPATIBILITY.md) documents the hosted
+  server's dual-era transport contract and verification path.
 - [Architecture](ARCHITECTURE.md) explains the compiler, proof, MCP, Python, and runtime boundaries.
 - [Release notes](docs/RELEASE_NOTES.md) record shipped behavior and compatibility changes.
 - [Security](SECURITY.md) documents reporting, supported releases, telemetry, and dependency policy.

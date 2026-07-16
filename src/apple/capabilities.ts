@@ -35,6 +35,9 @@ export type AppleCapabilityId =
   | "appintents.unionValue"
   | "appintents.viewAnnotations"
   | "appintentstesting.framework"
+  | "appstoreconnect.accessibilityLabels"
+  | "appstoreconnect.versionedCommerceMetadata"
+  | "backgroundassets.framework"
   | "backgroundtasks.continuedProcessingInference"
   | "coreai.framework"
   | "foundationmodels.dynamicProfiles"
@@ -42,6 +45,8 @@ export type AppleCapabilityId =
   | "foundationmodels.privateCloudCompute"
   | "metrickit.metricManager"
   | "swiftui.liquidGlass"
+  | "swiftui.document"
+  | "swiftui.stateMacro"
   | "widgetkit.systemExtraLargePortrait"
   | "xcode.agentPlugins";
 
@@ -157,6 +162,25 @@ export const APPLE_CAPABILITIES: readonly AppleCapability[] = [
     summary: "Out-of-process App Intents integration testing.",
   },
   {
+    id: "appstoreconnect.accessibilityLabels",
+    framework: "AppStoreConnect",
+    introduced: ALL_27_TARGETS,
+    summary: "Per-device accessibility declarations backed by common-task evidence.",
+  },
+  {
+    id: "appstoreconnect.versionedCommerceMetadata",
+    framework: "AppStoreConnectAPI",
+    introduced: ALL_27_TARGETS,
+    summary:
+      "Version-scoped in-app purchase, subscription, and subscription-group metadata.",
+  },
+  {
+    id: "backgroundassets.framework",
+    framework: "BackgroundAssets",
+    introduced: ALL_27_TARGETS,
+    summary: "Background asset downloads replacing On Demand Resources.",
+  },
+  {
     id: "backgroundtasks.continuedProcessingInference",
     framework: "BackgroundTasks",
     introduced: { ios27: true, ipados27: true },
@@ -202,6 +226,20 @@ export const APPLE_CAPABILITIES: readonly AppleCapability[] = [
     framework: "SwiftUI",
     introduced: ALL_27_TARGETS,
     summary: "Liquid Glass, toolbar, document, and resizability-era SwiftUI APIs.",
+  },
+  {
+    id: "swiftui.document",
+    framework: "SwiftUI",
+    introduced: ALL_27_TARGETS,
+    summary:
+      "ReadableDocument, WritableDocument, and Document with asynchronous URL-based I/O.",
+  },
+  {
+    id: "swiftui.stateMacro",
+    framework: "SwiftUI",
+    introduced: ALL_27_TARGETS,
+    summary: "Macro-based @State initialization with stable expression evaluation.",
+    volatile: true,
   },
   {
     id: "widgetkit.systemExtraLargePortrait",

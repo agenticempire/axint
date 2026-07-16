@@ -15,9 +15,14 @@ describe("Apple capability registry", () => {
     expect(getAppleCapability("foundationmodels.evaluations")?.framework).toBe(
       "Evaluations"
     );
+    expect(getAppleCapability("appstoreconnect.accessibilityLabels")?.framework).toBe(
+      "AppStoreConnect"
+    );
 
     expect(supportsAppleCapability("ios27", "appintents.unionValue")).toBe(true);
     expect(supportsAppleCapability("ios26", "appintents.unionValue")).toBe(false);
     expect(supportsAppleCapability("macos27", "xcode.agentPlugins")).toBe(true);
+    expect(supportsAppleCapability("ipadOS27", "swiftui.document")).toBe(false);
+    expect(supportsAppleCapability("ipados27", "swiftui.document")).toBe(true);
   });
 });

@@ -69,7 +69,15 @@ import type {
 } from "../../../src/core/types.js";
 import { isPrimitiveType, isSceneKind } from "../../../src/core/types.js";
 
-const VERSION = "0.5.2";
+const VERSION = "0.6.0";
+const MODERN_PROTOCOL_VERSION = "2026-07-28";
+const DEFAULT_LEGACY_PROTOCOL_VERSION = "2025-11-25";
+const SUPPORTED_PROTOCOL_VERSIONS = [
+  MODERN_PROTOCOL_VERSION,
+  DEFAULT_LEGACY_PROTOCOL_VERSION,
+  "2025-06-18",
+  "2025-03-26",
+] as const;
 
 const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
 
@@ -146,8 +154,9 @@ function corsHeaders(origin: string | null, env: Env): Record<string, string> {
   const allowed = resolveAllowedOrigin(origin, env);
   const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Accept, Mcp-Session-Id",
-    "Access-Control-Expose-Headers": "Mcp-Session-Id",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Accept, Mcp-Session-Id, MCP-Protocol-Version, Mcp-Method",
+    "Access-Control-Expose-Headers": "Mcp-Session-Id, MCP-Protocol-Version",
   };
   if (allowed) {
     headers["Access-Control-Allow-Origin"] = allowed;
@@ -613,11 +622,7 @@ function compileFromSchema(args: SchemaArgs) {
                   props,
                   state,
                   platform: args.platform as
-                    | "iOS"
-                    | "macOS"
-                    | "visionOS"
-                    | "all"
-                    | undefined,
+                    "iOS" | "macOS" | "visionOS" | "all" | undefined,
                   tokenNamespace: args.tokenNamespace,
                   componentKind: args.componentKind,
                 }) ?? "VStack {}",
@@ -914,12 +919,64 @@ export default {
       params?: Record<string, unknown>;
     };
     const { id, method, params } = body;
+    const requestedProtocolVersion =
+      request.headers.get("MCP-Protocol-Version") ?? readProtocolVersionFromMeta(params);
+    if (
+      requestedProtocolVersion &&
+      !SUPPORTED_PROTOCOL_VERSIONS.includes(
+        requestedProtocolVersion as (typeof SUPPORTED_PROTOCOL_VERSIONS)[number]
+      )
+    ) {
+      return jsonrpcError(
+        id,
+        -32602,
+        `Unsupported MCP protocol version: ${requestedProtocolVersion}`,
+        cors,
+        400
+      );
+    }
 
-    if (method === "initialize") {
+    if (requestedProtocolVersion) {
+      cors["MCP-Protocol-Version"] = requestedProtocolVersion;
+    }
+
+    if (method === "server/discover") {
       return jsonrpc(
         id,
         {
-          protocolVersion: "2025-03-26",
+          supportedVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+          capabilities: {
+            tools: { listChanged: false },
+            prompts: { listChanged: false },
+            resources: { subscribe: false, listChanged: false },
+          },
+          serverInfo: {
+            name: "axint",
+            title: "Axint",
+            version: VERSION,
+            websiteUrl: "https://axint.ai",
+            description: "Proof and repair for Apple coding agents through MCP.",
+          },
+          instructions:
+            "Call axint.status and axint.activate before editing Apple-native code.",
+        },
+        cors
+      );
+    }
+
+    if (method === "initialize") {
+      const legacyVersion =
+        typeof params?.protocolVersion === "string" &&
+        SUPPORTED_PROTOCOL_VERSIONS.includes(
+          params.protocolVersion as (typeof SUPPORTED_PROTOCOL_VERSIONS)[number]
+        ) &&
+        params.protocolVersion !== MODERN_PROTOCOL_VERSION
+          ? params.protocolVersion
+          : DEFAULT_LEGACY_PROTOCOL_VERSION;
+      return jsonrpc(
+        id,
+        {
+          protocolVersion: legacyVersion,
           capabilities: { tools: {}, prompts: {}, resources: {} },
           serverInfo: { name: "axint", version: VERSION },
         },
@@ -932,7 +989,15 @@ export default {
     }
 
     if (method === "tools/list") {
-      return jsonrpc(id, { tools: getRuntimeToolManifest(env) }, cors);
+      return jsonrpc(
+        id,
+        modernResult(
+          method,
+          { tools: getRuntimeToolManifest(env) },
+          requestedProtocolVersion
+        ),
+        cors
+      );
     }
 
     if (method === "tools/call") {
@@ -941,13 +1006,25 @@ export default {
         {}) as Record<string, unknown>;
       if (!toolName) return jsonrpcError(id, -32602, "Missing tool name", cors);
       try {
-        return jsonrpc(id, withStructuredText(handleTool(toolName, toolArgs)), cors);
+        return jsonrpc(
+          id,
+          modernResult(
+            method,
+            withStructuredText(handleTool(toolName, toolArgs)),
+            requestedProtocolVersion
+          ),
+          cors
+        );
       } catch (err) {
         return jsonrpc(
           id,
-          textResult(
-            `Tool error: ${err instanceof Error ? err.message : String(err)}`,
-            true
+          modernResult(
+            method,
+            textResult(
+              `Tool error: ${err instanceof Error ? err.message : String(err)}`,
+              true
+            ),
+            requestedProtocolVersion
           ),
           cors
         );
@@ -955,28 +1032,83 @@ export default {
     }
 
     if (method === "prompts/list") {
-      return jsonrpc(id, { prompts: PROMPT_MANIFEST }, cors);
+      return jsonrpc(
+        id,
+        modernResult(method, { prompts: PROMPT_MANIFEST }, requestedProtocolVersion),
+        cors
+      );
     }
 
     if (method === "prompts/get") {
       const promptName = (params as { name?: string })?.name;
       const promptArgs = (params as { arguments?: Record<string, string> })?.arguments;
       if (!promptName) return jsonrpcError(id, -32602, "Missing prompt name", cors);
-      return jsonrpc(id, getPromptMessages(promptName, promptArgs), cors);
+      return jsonrpc(
+        id,
+        modernResult(
+          method,
+          getPromptMessages(promptName, promptArgs),
+          requestedProtocolVersion
+        ),
+        cors
+      );
     }
 
     if (method === "resources/list") {
-      return jsonrpc(id, { resources: [] }, cors);
+      return jsonrpc(
+        id,
+        modernResult(method, { resources: [] }, requestedProtocolVersion),
+        cors
+      );
     }
 
     if (method === "resources/templates/list") {
-      return jsonrpc(id, { resourceTemplates: [] }, cors);
+      return jsonrpc(
+        id,
+        modernResult(method, { resourceTemplates: [] }, requestedProtocolVersion),
+        cors
+      );
     }
 
     if (method === "resources/read") {
-      return jsonrpc(id, { contents: [] }, cors);
+      return jsonrpc(
+        id,
+        modernResult(method, { contents: [] }, requestedProtocolVersion),
+        cors
+      );
     }
 
     return jsonrpcError(id, -32601, `Unknown method: ${method}`, cors);
   },
 };
+
+function readProtocolVersionFromMeta(
+  params: Record<string, unknown> | undefined
+): string | null {
+  const meta = params?._meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+  const values = meta as Record<string, unknown>;
+  const version =
+    values["io.modelcontextprotocol/protocolVersion"] ??
+    values["io.modelcontextprotocol/protocol-version"];
+  return typeof version === "string" ? version : null;
+}
+
+function modernResult<T extends Record<string, unknown>>(
+  method: string,
+  result: T,
+  protocolVersion: string | null
+): T | (T & { resultType: "complete"; ttlMs?: number; cacheScope?: "public" }) {
+  if (protocolVersion !== MODERN_PROTOCOL_VERSION) return result;
+  const cacheable = new Set([
+    "tools/list",
+    "prompts/list",
+    "resources/list",
+    "resources/templates/list",
+  ]);
+  return {
+    ...result,
+    resultType: "complete",
+    ...(cacheable.has(method) ? { ttlMs: 60_000, cacheScope: "public" as const } : {}),
+  };
+}

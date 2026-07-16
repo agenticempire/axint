@@ -72,6 +72,38 @@ export type {
 export { ejectIntent } from "./eject.js";
 export { buildToolContract, renderToolContractMarkdown } from "./tool-contract.js";
 export { generateAppIntentsTestingHarness } from "../apple-intelligence/appintents-testing.js";
+export {
+  ACCESSIBILITY_LABEL_FEATURES,
+  evaluateAccessibilityNutritionLabels,
+  renderAccessibilityNutritionLabelReport,
+} from "../apple/accessibility-labels.js";
+export type {
+  AccessibilityCommonTask,
+  AccessibilityDevice,
+  AccessibilityEvidenceStatus,
+  AccessibilityFeatureAssessment,
+  AccessibilityLabelFeature,
+  AccessibilityNutritionAssessment,
+  AccessibilityTaskEvidence,
+} from "../apple/accessibility-labels.js";
+export {
+  APP_STORE_CONNECT_4_4_1_CHANGES,
+  analyzeAppStoreConnect441Request,
+} from "../apple/app-store-connect-4-4-1.js";
+export type {
+  AppStoreConnect441Change,
+  AppStoreConnectMigrationFinding,
+} from "../apple/app-store-connect-4-4-1.js";
+export {
+  XCODE27_BETA3_CHANGES,
+  analyzeXcode27BuildConfiguration,
+  findDuplicateClangModuleNames,
+  swiftTestRepetitionArguments,
+} from "../apple/xcode27-beta3.js";
+export type {
+  Xcode27Beta3Change,
+  Xcode27CompatibilityFinding,
+} from "../apple/xcode27-beta3.js";
 export type {
   AxintToolContract,
   AxintToolContractConfidence,

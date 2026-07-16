@@ -117,7 +117,9 @@ describe("axint HTTP MCP transport", () => {
     expect(
       payload.result.tools.every((tool: { description?: string }) =>
         Boolean(
-          tool.description?.includes("Use:") && tool.description.includes("Effects:")
+          tool.description?.includes("Use:") &&
+          tool.description.includes("Inputs:") &&
+          tool.description.includes("Effects:")
         )
       )
     ).toBe(true);
