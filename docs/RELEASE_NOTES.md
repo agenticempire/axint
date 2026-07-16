@@ -319,7 +319,7 @@ Axint.
     produce real Axint output.
   - Gives terminal users a one-command proof path immediately after install.
 - `axint.activate`
-  - MCP equivalent for Claude, Cursor, Codex, VS Code, Xcode, and other MCP
+  - MCP equivalent for compatible coding agents, editors, Xcode, and other MCP
     hosts.
   - Lets an agent prove the server is not merely running, but actually useful.
 - Activation telemetry
@@ -427,7 +427,7 @@ run locally, and hand to an AI agent without extra setup.
   - Gives docs, demos, and launch content a single memorable command path.
 - Launchpad artifacts
   - `.axint/START_HERE.md` gives the agent a grounded proof loop before it edits anything.
-  - `.axint/agent-prompts/codex.md`, `claude.md`, and `cursor.md` give each AI tool the same Apple-native repair contract.
+  - Tool-specific files in `.axint/agent-prompts/` give each coding agent the same Apple-native repair contract.
   - `ios/App/DayDashboardView.swift` gives the starter a realistic SwiftUI mini app shell.
   - `ios/Preview/CalendarCommandCenter.swift` keeps a compact companion surface available for quick Xcode previews.
   - `share/built-with-axint.html` gives the user an interactive local proof preview with app shell, contracts, generated Swift, and Axint proof.
@@ -449,11 +449,11 @@ This release wave makes Axint feel more like a project brain for Apple-native ag
   - Initializes Axint inside an existing Apple/Xcode project.
   - Writes the project start pack and installs the local multi-agent brain in one command.
 - `axint run --agent <agent>`
-  - Starts the run with the active host lane: `codex`, `claude`, `cursor`, `cowork`, `xcode`, or `all`.
+  - Starts the run with the active supported coding-agent, cowork, Xcode, or all-host lane.
   - Returns host-safe repair guidance instead of generic “try this” instructions.
 - `axint.agent.*`
   - Installs `.axint/agent.json`, project context, local file claims, and a coordination ledger.
-  - Gives Codex, Claude, Cursor, Xcode, and humans one shared local truth layer.
+  - Gives coding agents, Xcode, and humans one shared local truth layer.
 - `axint memory index`
   - Writes `.axint/memory/latest.json` and `.axint/memory/latest.md` from project context, latest run proof, latest repair packet, and source-free learning packets.
   - Gives agents a compact project memory after context compaction or when multiple tools are working in the same project.
@@ -483,7 +483,7 @@ The first-use story is now clearer:
 
 1. Point Axint at an existing Apple project.
 2. Let Axint index the app and install the local project brain.
-3. Ask Codex, Claude, Cursor, Xcode, or terminal for the same repair loop.
+3. Ask any configured coding agent, Xcode, or the terminal for the same repair loop.
 4. Run focused proof and keep the result in `.axint/run/latest.*`.
 
 ## 2026-04-20 — Xcode repair loop and Apple coverage expansion

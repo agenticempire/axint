@@ -69,7 +69,7 @@ between stdio MCP and Xcode's internal XPC layer, exposing 20 tools:
 The flow is:
 
 ```
-External agent (Claude Code, Codex, Cursor)
+External MCP-compatible coding agent
     ↕ stdio MCP
 xcrun mcpbridge
     ↕ XPC
@@ -93,7 +93,7 @@ already ships one of these (PR #81).
 The leverage point isn't Xcode — it's the *agent*.
 
 Users of Xcode 26.3 have two independent MCP connections in their
-Claude Code / Codex config:
+coding-agent MCP configuration:
 
 1. `xcode` — via `xcrun mcpbridge` (file ops, build, test, diagnostics)
 2. `axint` — via `axint-mcp` (compile, validate, fix, eject)
@@ -115,7 +115,7 @@ to the agent.
 ## Concrete next steps
 
 1. **Ship an `axint xcode mcp-install` command** that writes both
-   entries to the user's Claude Code / Codex config at once:
+   entries to the user's coding-agent MCP configuration at once:
 
    ```json
    {
@@ -149,7 +149,7 @@ to the agent.
   plist or env var that Apple didn't advertise? The source isn't
   public. Worth a 30-min `strings` / `otool` dig before we write this
   off completely.
-- Does the Coding Assistant's built-in Claude/Codex adapter allow
+- Does the Coding Assistant's built-in provider adapter allow
   auto-discovering user-registered MCP servers and passing those tools
   through? Unclear from the docs. If yes, requirement (1) becomes
   cheaper.

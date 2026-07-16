@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "axint": {
-      "command": "npx",
-      "args": ["-y", "-p", "@axint/compiler", "axint-mcp"]
-    }
-  }
-}
