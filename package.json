@@ -87,6 +87,7 @@
     "gen:swift-fixer:check": "tsx scripts/gen-swift-fixer.ts --check",
     "versions:sync": "node scripts/sync-versions.mjs",
     "versions:check": "node scripts/check-versions.mjs",
+    "mcp:registry:check": "node scripts/check-mcp-registry-manifest.mjs",
     "release:check": "node scripts/check-release-parity.mjs",
     "release:notes": "tsx scripts/render-release-notes.ts",
     "install:gauntlet": "node scripts/install-gauntlet.mjs",
@@ -97,9 +98,9 @@
     "boundary:check": "node scripts/check-public-boundary.mjs",
     "docs:check": "node scripts/check-readme-mcp-docs.mjs && node scripts/sync-roadmap-metrics.mjs --check && node scripts/check-public-docs.mjs && node scripts/check-local-links.mjs",
     "roadmap:sync": "node scripts/sync-roadmap-metrics.mjs",
-    "quality:local": "npm run versions:check && npm run metrics:check && npm run benchmark:brownfield:check && npm run docs:check && npm run boundary:check && npm run gen:swift-fixer:check && npm run typecheck && npm run typecheck:examples && npm run lint && npm run build && npm run package:check && npm test && npm audit --audit-level=moderate",
+    "quality:local": "npm run versions:check && npm run mcp:registry:check && npm run metrics:check && npm run benchmark:brownfield:check && npm run docs:check && npm run boundary:check && npm run gen:swift-fixer:check && npm run typecheck && npm run typecheck:examples && npm run lint && npm run build && npm run package:check && npm test && npm audit --audit-level=moderate",
     "quality:production": "npm run quality:local && npm run install:gauntlet && npm run mcp:production:check",
-    "prepublishOnly": "npm run versions:check && npm run metrics:check && npm run docs:check && npm run clean && npm run build",
+    "prepublishOnly": "npm run versions:check && npm run mcp:registry:check && npm run metrics:check && npm run docs:check && npm run clean && npm run build",
     "prepare": "husky"
   },
   "lint-staged": {

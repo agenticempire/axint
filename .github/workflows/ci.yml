@@ -29,6 +29,7 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=moderate
       - run: npm run versions:check
+      - run: npm run mcp:registry:check
       - run: npm run metrics:check
       - run: npm run benchmark:brownfield:check
       - run: npm run docs:check
@@ -94,6 +95,7 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=moderate
       - run: npm run versions:check
+      - run: npm run mcp:registry:check
       - run: npm run typecheck
       - run: npm run build
       - run: npm run package:check
