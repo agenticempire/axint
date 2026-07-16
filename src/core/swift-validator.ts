@@ -111,6 +111,16 @@ export function validateSwiftSource(source: string, file: string): SwiftValidati
   checkMainActorStaticInDefaultValue(source, stripped, file, diagnostics);
   checkViewBuilderReturnType(source, stripped, file, diagnostics);
   checkTypeErasedProtocolMethods(source, stripped, file, diagnostics);
+  checkIOS27StateMacroInitializerConflict(decls, source, stripped, file, diagnostics);
+  checkIOS27StateMacroSynthesizedInitializer(decls, source, stripped, file, diagnostics);
+  checkIOS27DocumentMigration(source, stripped, file, diagnostics);
+  checkIOS27DocumentConcurrency(source, stripped, file, diagnostics);
+  checkIOS27ToolbarMinimizationRename(source, stripped, file, diagnostics);
+  checkIOS27TextFieldStyleMigration(source, stripped, file, diagnostics);
+  checkIOS27OnDemandResourcesMigration(source, stripped, file, diagnostics);
+  checkIOS27PrivateCloudSampling(source, stripped, file, diagnostics);
+  checkIOS27TextSelectionGestureConflict(source, stripped, file, diagnostics);
+  checkIOS27TabViewVisibleSelection(source, stripped, file, diagnostics);
 
   return { file, diagnostics };
 }
@@ -292,6 +302,258 @@ function checkInteractiveInputOverlayHitTesting(
         message: `${inputKind} has an overlay without .allowsHitTesting(false), which can block taps, focus, or text entry`,
         suggestion:
           "If the overlay is decorative or placeholder-only, add `.allowsHitTesting(false)` to the overlay content. Otherwise move the hit target so it does not sit on top of the text input.",
+      })
+    );
+  }
+}
+
+function checkIOS27StateMacroInitializerConflict(
+  decls: SwiftDeclaration[],
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  for (const decl of decls) {
+    if (!hasConformance(decl, "View")) continue;
+    const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+    const stateWithInitialValue =
+      /@State(?:\s*\([^)]*\))?\s+(?:private\s+|fileprivate\s+|internal\s+|public\s+)?var\s+([A-Za-z_][A-Za-z0-9_]*)[^=\n]*=/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = stateWithInitialValue.exec(body)) !== null) {
+      const name = match[1]!;
+      const assignment = new RegExp(
+        `\\b(?:self\\.${escapeRegex(name)}|_${escapeRegex(name)})\\s*=`
+      );
+      if (!/\binit\s*\(/.test(body) || !assignment.test(body)) continue;
+
+      diagnostics.push(
+        makeDiagnostic(
+          "AX861",
+          file,
+          1 + countNewlinesUpTo(source, decl.bodyStart + match.index),
+          {
+            message: `@State property '${name}' has a declaration-site initial value and is also assigned by an initializer; the Xcode 27 state macro can reject or discard the initializer assignment`,
+            suggestion: `Remove the declaration-site value from \`${name}\` and assign it explicitly in init, then verify the synthesized initializer shape with Xcode 27.`,
+          }
+        )
+      );
+    }
+  }
+}
+
+function checkIOS27StateMacroSynthesizedInitializer(
+  decls: SwiftDeclaration[],
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  for (const decl of decls) {
+    if (!hasConformance(decl, "View")) continue;
+    const body = stripped.slice(decl.bodyStart, decl.bodyEnd);
+    if (!/@State\b/.test(body)) continue;
+
+    const extensionPattern = new RegExp(
+      `\\bextension\\s+${escapeRegex(decl.name)}(?:\\s*:[^{]+)?\\s*\\{`,
+      "g"
+    );
+    let match: RegExpExecArray | null;
+    while ((match = extensionPattern.exec(stripped)) !== null) {
+      const openBrace = stripped.indexOf("{", match.index);
+      const closeBrace = findMatchingBrace(stripped, openBrace);
+      if (openBrace === -1 || closeBrace === -1) continue;
+      const extensionBody = stripped.slice(openBrace + 1, closeBrace);
+      if (!/\bself\.init\s*\(/.test(extensionBody)) continue;
+
+      diagnostics.push(
+        makeDiagnostic("AX862", file, 1 + countNewlinesUpTo(source, match.index), {
+          message: `Extension initializer for '${decl.name}' delegates to a synthesized memberwise initializer that the Xcode 27 @State macro can disable`,
+          suggestion:
+            "Assign every stored property explicitly in this initializer instead of delegating to self.init(...), then compile with Xcode 27.",
+        })
+      );
+    }
+  }
+}
+
+function checkIOS27DocumentMigration(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const conformance =
+    /\b(?:struct|class|actor)\s+[A-Za-z_][A-Za-z0-9_]*(?:\s*<[^>{}]+>)?\s*:\s*[^{\n]*(?:FileDocument|ReferenceFileDocument)\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = conformance.exec(stripped)) !== null) {
+    diagnostics.push(
+      makeDiagnostic("AX863", file, 1 + countNewlinesUpTo(source, match.index), {
+        message:
+          "FileDocument and ReferenceFileDocument are deprecated in the 27 SDK document model",
+        suggestion:
+          "Adopt ReadableDocument for read-only files or Document for read/write files, and migrate DocumentGroup to the matching initializer.",
+      })
+    );
+  }
+}
+
+function checkIOS27DocumentConcurrency(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  if (!/\b(?:DocumentReader|DocumentWriter)\b/.test(stripped)) return;
+  const nonisolatedMethod = /\bnonisolated\s+(?:func\s+)?(?:read|write)\s*\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = nonisolatedMethod.exec(stripped)) !== null) {
+    diagnostics.push(
+      makeDiagnostic("AX864", file, 1 + countNewlinesUpTo(source, match.index), {
+        message:
+          "DocumentReader and DocumentWriter requirements use @concurrent in the 27 SDK; nonisolated can still execute on MainActor under approachable concurrency",
+        suggestion:
+          "Replace nonisolated with @concurrent for read/write requirements and keep DocumentGroup factories on MainActor.",
+      })
+    );
+  }
+}
+
+function checkIOS27ToolbarMinimizationRename(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const oldModifier = /\.toolbarMinimizeBehavior\s*\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = oldModifier.exec(stripped)) !== null) {
+    diagnostics.push(
+      makeDiagnostic("AX865", file, 1 + countNewlinesUpTo(source, match.index), {
+        message:
+          "toolbarMinimizeBehavior was replaced by toolbarMinimizationBehavior in the 27 SDK",
+        suggestion: "Rename this modifier to `.toolbarMinimizationBehavior(...)`.",
+      })
+    );
+  }
+}
+
+function checkIOS27TextFieldStyleMigration(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const oldStyle = /\.textFieldStyle\s*\(\s*\.(?:squareBorder|roundedBorder)\s*\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = oldStyle.exec(stripped)) !== null) {
+    diagnostics.push(
+      makeDiagnostic("AX866", file, 1 + countNewlinesUpTo(source, match.index), {
+        message:
+          "squareBorder and roundedBorder text field styles are soft deprecated in the 27 SDK",
+        suggestion:
+          "Use `.textFieldStyle(.bordered)` and add `.textInputBorderShape(...)` when a specific shape is required.",
+      })
+    );
+  }
+}
+
+function checkIOS27OnDemandResourcesMigration(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const resourceRequest = /\bNSBundleResourceRequest\s*\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = resourceRequest.exec(stripped)) !== null) {
+    diagnostics.push(
+      makeDiagnostic("AX867", file, 1 + countNewlinesUpTo(source, match.index), {
+        message:
+          "NSBundleResourceRequest and On Demand Resources are deprecated in the 27 SDK",
+        suggestion:
+          "Move downloadable asset orchestration to Background Assets and retain a migration path for existing resource tags.",
+      })
+    );
+  }
+}
+
+function checkIOS27PrivateCloudSampling(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const model = /\bPrivateCloudComputeLanguageModel\s*\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = model.exec(stripped)) !== null) {
+    const nearby = stripped.slice(match.index, match.index + 2_000);
+    if (
+      /\bGenerationOptions\s*\([^)]*\bsamplingMode\s*:/.test(nearby) ||
+      /\bsamplingMode\s*:\s*\.(?:randomThreshold|randomTopK|randomTopP)\b/.test(stripped)
+    ) {
+      continue;
+    }
+
+    diagnostics.push(
+      makeDiagnostic("AX868", file, 1 + countNewlinesUpTo(source, match.index), {
+        message:
+          "PrivateCloudComputeLanguageModel uses greedy decoding in iOS 27 beta 3 unless generation options provide an explicit sampling mode",
+        suggestion:
+          "Pass a seeded sampling mode such as `GenerationOptions(samplingMode: .randomThreshold(0.95, seed: 42))` to the response call and cover it with deterministic evaluations.",
+      })
+    );
+  }
+}
+
+function checkIOS27TextSelectionGestureConflict(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const selection = /\.textSelection\s*\(\s*\.enabled\s*\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = selection.exec(stripped)) !== null) {
+    const nearbyStart = Math.max(0, match.index - 1_000);
+    const nearby = stripped.slice(nearbyStart, match.index + 1_000);
+    if (!/\.gesture\s*\(/.test(nearby) || /\.highPriorityGesture\s*\(/.test(nearby)) {
+      continue;
+    }
+
+    diagnostics.push(
+      makeDiagnostic("AX869", file, 1 + countNewlinesUpTo(source, match.index), {
+        message:
+          "Selectable Text gains system selection gestures in iOS 27, which can compete with the nearby custom gesture",
+        suggestion:
+          "Use `.highPriorityGesture(...)` when the custom gesture must supersede text selection, then test selection and the custom interaction together.",
+      })
+    );
+  }
+}
+
+function checkIOS27TabViewVisibleSelection(
+  source: string,
+  stripped: string,
+  file: string,
+  diagnostics: Diagnostic[]
+) {
+  const tabView = /\bTabView\s*\(\s*selection\s*:/g;
+  let match: RegExpExecArray | null;
+  while ((match = tabView.exec(stripped)) !== null) {
+    const openBrace = stripped.indexOf("{", match.index);
+    const closeBrace = findMatchingBrace(stripped, openBrace);
+    if (openBrace === -1 || closeBrace === -1) continue;
+    const body = stripped.slice(openBrace + 1, closeBrace);
+    if (!/\.hidden\s*\(\s*\)/.test(body)) continue;
+
+    diagnostics.push(
+      makeDiagnostic("AX870", file, 1 + countNewlinesUpTo(source, match.index), {
+        message:
+          "TabView selection must point to a visible tab in iOS and iPadOS 27; this selected TabView contains a hidden tab path",
+        suggestion:
+          "Before hiding or removing a selected tab, move selection to a visible fallback and add a regression test for the transition.",
       })
     );
   }

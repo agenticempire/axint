@@ -59,7 +59,9 @@ describe("axint/mcp import surface", () => {
     expect(
       compact.every((tool: { description?: string }) =>
         Boolean(
-          tool.description?.includes("Use:") && tool.description.includes("Effects:")
+          tool.description?.includes("Use:") &&
+          tool.description.includes("Inputs:") &&
+          tool.description.includes("Effects:")
         )
       )
     ).toBe(true);

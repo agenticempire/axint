@@ -8,7 +8,10 @@ export interface BrownfieldCase {
     | "widgetkit"
     | "concurrency"
     | "accessibility"
-    | "interaction";
+    | "interaction"
+    | "documents"
+    | "foundation-models"
+    | "background-assets";
   platform: "all" | "iOS" | "macOS" | "watchOS" | "visionOS";
   provenance: "hand-labeled-regression" | "anonymized-project-fixture";
   source: string;
@@ -251,7 +254,8 @@ struct SearchField: View {
     provenance: "hand-labeled-regression",
     expectation: "clean",
     expectedCodes: [],
-    rationale: "Valid frame overloads should not be confused with the mixed overload error.",
+    rationale:
+      "Valid frame overloads should not be confused with the mixed overload error.",
     source: `import SwiftUI
 
 struct ToolbarTitle: View {
@@ -286,7 +290,8 @@ struct ToolbarTitle: View {
     provenance: "hand-labeled-regression",
     expectation: "finding",
     expectedCodes: ["AX701"],
-    rationale: "An AppIntent without perform cannot satisfy its required execution contract.",
+    rationale:
+      "An AppIntent without perform cannot satisfy its required execution contract.",
     source: `import AppIntents
 
 struct ArchiveNoteIntent: AppIntent {
@@ -366,10 +371,348 @@ struct FocusEntry: TimelineEntry {
     provenance: "hand-labeled-regression",
     expectation: "finding",
     expectedCodes: ["AX726"],
-    rationale: "Task.detached should remain visible as a structured-concurrency advisory.",
+    rationale:
+      "Task.detached should remain visible as a structured-concurrency advisory.",
     source: `func refresh() {
     Task.detached {
         await loadRemoteState()
+    }
+}
+`,
+  },
+  {
+    id: "ios27-state-initializer-conflict",
+    title: "State macro declaration and init assignment conflict",
+    category: "swiftui",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "finding",
+    expectedCodes: ["AX861"],
+    rationale:
+      "Xcode 27 state macro migration should identify declaration-site initialization that conflicts with init assignment.",
+    source: `import SwiftUI
+
+struct StickerPageView: View {
+    @State private var page = StickerPage()
+
+    init(title: String) {
+        self.page = StickerPage(title: title)
+    }
+
+    var body: some View { Text("Page") }
+}
+`,
+  },
+  {
+    id: "clean-ios27-state-initializer",
+    title: "State macro initializer assigns uninitialized state",
+    category: "swiftui",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "clean",
+    expectedCodes: [],
+    rationale:
+      "The Xcode 27 migration pattern without a declaration-site value should abstain.",
+    source: `import SwiftUI
+
+struct StickerPageView: View {
+    @State private var page: StickerPage
+
+    init(title: String) {
+        self.page = StickerPage(title: title)
+    }
+
+    var body: some View { Text("Page") }
+}
+`,
+  },
+  {
+    id: "ios27-file-document",
+    title: "Deprecated FileDocument conformance",
+    category: "documents",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "finding",
+    expectedCodes: ["AX863"],
+    rationale: "The 27 SDK deprecates FileDocument in favor of Document protocols.",
+    source: `import SwiftUI
+import UniformTypeIdentifiers
+
+struct ProjectDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+}
+`,
+  },
+  {
+    id: "clean-ios27-document",
+    title: "Current Document conformance",
+    category: "documents",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "clean",
+    expectedCodes: [],
+    rationale: "A Document-based type should not receive legacy protocol advice.",
+    source: `import SwiftUI
+
+struct ProjectDocument: Document {
+}
+`,
+  },
+  {
+    id: "ios27-document-nonisolated",
+    title: "Legacy nonisolated document reader",
+    category: "documents",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "finding",
+    expectedCodes: ["AX864"],
+    rationale: "DocumentReader requirements use @concurrent in the 27 SDK.",
+    source: `import SwiftUI
+
+struct ProjectReader: DocumentReader {
+    nonisolated func read(from source: URL, progress: Progress) async throws {
+    }
+}
+`,
+  },
+  {
+    id: "clean-ios27-document-concurrent",
+    title: "Current concurrent document reader",
+    category: "documents",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "clean",
+    expectedCodes: [],
+    rationale: "The 27 SDK @concurrent requirement should abstain.",
+    source: `import SwiftUI
+
+struct ProjectReader: DocumentReader {
+    @concurrent
+    func read(from source: URL, progress: Progress) async throws {
+    }
+}
+`,
+  },
+  {
+    id: "ios27-toolbar-minimize",
+    title: "Pre-27 toolbar minimization spelling",
+    category: "swiftui",
+    platform: "iOS",
+    provenance: "hand-labeled-regression",
+    expectation: "finding",
+    expectedCodes: ["AX865"],
+    rationale: "The old modifier spelling has an exact 27 SDK replacement.",
+    source: `import SwiftUI
+
+struct LibraryView: View {
+    var body: some View {
+        Text("Library")
+            .toolbarMinimizeBehavior(.onScrollDown)
+    }
+}
+`,
+  },
+  {
+    id: "clean-ios27-toolbar-minimization",
+    title: "Current toolbar minimization spelling",
+    category: "swiftui",
+    platform: "iOS",
+    provenance: "hand-labeled-regression",
+    expectation: "clean",
+    expectedCodes: [],
+    rationale: "The current toolbar minimization API should abstain.",
+    source: `import SwiftUI
+
+struct LibraryView: View {
+    var body: some View {
+        Text("Library")
+            .toolbarMinimizationBehavior(.onScrollDown)
+    }
+}
+`,
+  },
+  {
+    id: "ios27-text-field-style",
+    title: "Soft-deprecated text field style",
+    category: "swiftui",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "finding",
+    expectedCodes: ["AX866"],
+    rationale: "The 27 SDK prefers the bordered text field style.",
+    source: `import SwiftUI
+
+struct NameField: View {
+    @State private var name = ""
+    var body: some View {
+        TextField("Name", text: $name)
+            .textFieldStyle(.roundedBorder)
+    }
+}
+`,
+  },
+  {
+    id: "clean-ios27-text-field-style",
+    title: "Current bordered text field style",
+    category: "swiftui",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "clean",
+    expectedCodes: [],
+    rationale: "The current bordered style should abstain.",
+    source: `import SwiftUI
+
+struct NameField: View {
+    @State private var name = ""
+    var body: some View {
+        TextField("Name", text: $name)
+            .textFieldStyle(.bordered)
+    }
+}
+`,
+  },
+  {
+    id: "ios27-on-demand-resources",
+    title: "Deprecated On Demand Resources request",
+    category: "background-assets",
+    platform: "iOS",
+    provenance: "hand-labeled-regression",
+    expectation: "finding",
+    expectedCodes: ["AX867"],
+    rationale: "NSBundleResourceRequest is deprecated in favor of Background Assets.",
+    source: `import Foundation
+
+let request = NSBundleResourceRequest(tags: ["starter-pack"])
+`,
+  },
+  {
+    id: "clean-ios27-background-assets",
+    title: "Background Assets download declaration",
+    category: "background-assets",
+    platform: "iOS",
+    provenance: "hand-labeled-regression",
+    expectation: "clean",
+    expectedCodes: [],
+    rationale: "Background Assets code should not receive On Demand Resources advice.",
+    source: `import BackgroundAssets
+
+let downloadIdentifier = "starter-pack"
+`,
+  },
+  {
+    id: "ios27-pcc-greedy-decoding",
+    title: "Private Cloud model without sampling options",
+    category: "foundation-models",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "finding",
+    expectedCodes: ["AX868"],
+    rationale:
+      "Beta 3 PCC defaults to greedy decoding without an explicit sampling mode.",
+    source: `import FoundationModels
+
+let model = PrivateCloudComputeLanguageModel()
+let session = LanguageModelSession(model: model)
+`,
+  },
+  {
+    id: "clean-ios27-pcc-sampling",
+    title: "Private Cloud model with seeded sampling",
+    category: "foundation-models",
+    platform: "all",
+    provenance: "hand-labeled-regression",
+    expectation: "clean",
+    expectedCodes: [],
+    rationale: "An explicit seeded sampling mode should satisfy the beta 3 guidance.",
+    source: `import FoundationModels
+
+let model = PrivateCloudComputeLanguageModel()
+let options = GenerationOptions(
+    samplingMode: .randomThreshold(0.95, seed: 42)
+)
+`,
+  },
+  {
+    id: "ios27-text-selection-gesture",
+    title: "Selectable text with competing gesture",
+    category: "interaction",
+    platform: "iOS",
+    provenance: "hand-labeled-regression",
+    expectation: "finding",
+    expectedCodes: ["AX869"],
+    rationale:
+      "iOS 27 text selection adds gestures that can compete with custom gestures.",
+    source: `import SwiftUI
+
+struct SelectableTitle: View {
+    var body: some View {
+        Text("Long title")
+            .gesture(TapGesture())
+            .textSelection(.enabled)
+    }
+}
+`,
+  },
+  {
+    id: "clean-ios27-text-selection-gesture",
+    title: "Selectable text with explicit high-priority gesture",
+    category: "interaction",
+    platform: "iOS",
+    provenance: "hand-labeled-regression",
+    expectation: "clean",
+    expectedCodes: [],
+    rationale: "An explicit high-priority gesture policy should abstain.",
+    source: `import SwiftUI
+
+struct SelectableTitle: View {
+    var body: some View {
+        Text("Long title")
+            .highPriorityGesture(TapGesture())
+            .textSelection(.enabled)
+    }
+}
+`,
+  },
+  {
+    id: "ios27-hidden-selected-tab",
+    title: "Selected TabView contains a hidden tab path",
+    category: "interaction",
+    platform: "iOS",
+    provenance: "hand-labeled-regression",
+    expectation: "finding",
+    expectedCodes: ["AX870"],
+    rationale: "iOS 27 requires TabView selection to point to a visible tab.",
+    source: `import SwiftUI
+
+struct RootTabs: View {
+    @State private var selection = 0
+    var body: some View {
+        TabView(selection: $selection) {
+            Text("Home").tag(0)
+            Text("Admin").tag(1).hidden()
+        }
+    }
+}
+`,
+  },
+  {
+    id: "clean-ios27-visible-tabs",
+    title: "Selected TabView contains only visible tabs",
+    category: "interaction",
+    platform: "iOS",
+    provenance: "hand-labeled-regression",
+    expectation: "clean",
+    expectedCodes: [],
+    rationale: "A selected TabView with visible tabs should abstain.",
+    source: `import SwiftUI
+
+struct RootTabs: View {
+    @State private var selection = 0
+    var body: some View {
+        TabView(selection: $selection) {
+            Text("Home").tag(0)
+            Text("Settings").tag(1)
+        }
     }
 }
 `,

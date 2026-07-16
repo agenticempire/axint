@@ -8,27 +8,30 @@
   },
   "corpus": {
     "name": "Axint curated brownfield regression corpus",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "scope": "Transparent rule-level fixtures across common Apple project surfaces. Private project manifests can be evaluated locally without publishing source.",
-    "cases": 20,
-    "cleanCases": 8,
-    "findingCases": 12,
+    "cases": 38,
+    "cleanCases": 17,
+    "findingCases": 21,
     "categories": [
       "accessibility",
       "app-intents",
+      "background-assets",
       "concurrency",
+      "documents",
+      "foundation-models",
       "interaction",
       "swiftui",
       "uikit",
       "widgetkit"
     ],
     "provenance": {
-      "hand-labeled-regression": 20
+      "hand-labeled-regression": 38
     }
   },
   "thresholds": {
-    "minimumCases": 20,
-    "minimumCategories": 6,
+    "minimumCases": 38,
+    "minimumCategories": 10,
     "precision": 0.95,
     "recall": 0.95,
     "cleanAbstentionRate": 0.95,
@@ -36,13 +39,13 @@
     "failures": []
   },
   "metrics": {
-    "cases": 20,
-    "cleanCases": 8,
-    "findingCases": 12,
+    "cases": 38,
+    "cleanCases": 17,
+    "findingCases": 21,
     "precision": 1,
     "recall": 1,
     "cleanAbstentionRate": 1,
-    "truePositives": 12,
+    "truePositives": 21,
     "falsePositives": 0,
     "falseNegatives": 0,
     "falsePositiveRate": 0,
@@ -69,6 +72,17 @@
         "falsePositives": 0,
         "falseNegatives": 0
       },
+      "background-assets": {
+        "cases": 2,
+        "cleanCases": 1,
+        "findingCases": 1,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      },
       "concurrency": {
         "cases": 6,
         "cleanCases": 3,
@@ -80,7 +94,18 @@
         "falsePositives": 0,
         "falseNegatives": 0
       },
-      "interaction": {
+      "documents": {
+        "cases": 4,
+        "cleanCases": 2,
+        "findingCases": 2,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      },
+      "foundation-models": {
         "cases": 2,
         "cleanCases": 1,
         "findingCases": 1,
@@ -91,14 +116,25 @@
         "falsePositives": 0,
         "falseNegatives": 0
       },
-      "swiftui": {
+      "interaction": {
         "cases": 6,
-        "cleanCases": 2,
-        "findingCases": 4,
+        "cleanCases": 3,
+        "findingCases": 3,
         "precision": 1,
         "recall": 1,
         "cleanAbstentionRate": 1,
-        "truePositives": 4,
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0
+      },
+      "swiftui": {
+        "cases": 12,
+        "cleanCases": 5,
+        "findingCases": 7,
+        "precision": 1,
+        "recall": 1,
+        "cleanAbstentionRate": 1,
+        "truePositives": 7,
         "falsePositives": 0,
         "falseNegatives": 0
       },
@@ -599,6 +635,411 @@
       "truePositives": [
         "AX726"
       ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "ios27-state-initializer-conflict",
+      "title": "State macro declaration and init assignment conflict",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "7c751d4caa88d2e56295bb483232c37bd311f71544093a8124b3d66884a36800",
+      "expectedCodes": [
+        "AX861"
+      ],
+      "emittedCodes": [
+        "AX861"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX861",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX861"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-ios27-state-initializer",
+      "title": "State macro initializer assigns uninitialized state",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "311f726c103a74e057cf09672064766da1a36f62e2e440532929e6f7673abcee",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "ios27-file-document",
+      "title": "Deprecated FileDocument conformance",
+      "category": "documents",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "bce727275815c73fa67ed911296f3322747d4c980e4a717948117d5591e7af89",
+      "expectedCodes": [
+        "AX863"
+      ],
+      "emittedCodes": [
+        "AX863"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX863",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX863"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-ios27-document",
+      "title": "Current Document conformance",
+      "category": "documents",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "5e64d9e912a9462442324116e68dc0f58c40c35d98dfc2e9ae0a726bb14e8976",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "ios27-document-nonisolated",
+      "title": "Legacy nonisolated document reader",
+      "category": "documents",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "7e17815d0e182ac71956a9a9f2cf4bf93dc69dc0ecde3dfa77eeb6582ba9baae",
+      "expectedCodes": [
+        "AX864"
+      ],
+      "emittedCodes": [
+        "AX864"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX864",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX864"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-ios27-document-concurrent",
+      "title": "Current concurrent document reader",
+      "category": "documents",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "95220fc47b69817ab359250cbefc4ec6500791e29d44e210e871fa8a4d37b16a",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "ios27-toolbar-minimize",
+      "title": "Pre-27 toolbar minimization spelling",
+      "category": "swiftui",
+      "platform": "iOS",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "573b05b9d4cacf02561fbd901008548dfa9a78272677fc76a12efcf2073b4aef",
+      "expectedCodes": [
+        "AX865"
+      ],
+      "emittedCodes": [
+        "AX865"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX865",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX865"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-ios27-toolbar-minimization",
+      "title": "Current toolbar minimization spelling",
+      "category": "swiftui",
+      "platform": "iOS",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "099b9d9fa41b06cec8406c61824bab83ed7585a2bac58ab6fa29980d758ed9e8",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "ios27-text-field-style",
+      "title": "Soft-deprecated text field style",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "4c3563f1ddcec143ac2b8962d182a0ba98fab40c11f2663f1acd927b01eec9ea",
+      "expectedCodes": [
+        "AX866"
+      ],
+      "emittedCodes": [
+        "AX866"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX866",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX866"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-ios27-text-field-style",
+      "title": "Current bordered text field style",
+      "category": "swiftui",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "227a29a0280f915255c90e309c73f13fe615083e038ff214e43db29fb11dad43",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "ios27-on-demand-resources",
+      "title": "Deprecated On Demand Resources request",
+      "category": "background-assets",
+      "platform": "iOS",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "b209d2565a8dda5750ccaf9e89a6986db96685ee32ab56cf0e7d03ef2b0ae206",
+      "expectedCodes": [
+        "AX867"
+      ],
+      "emittedCodes": [
+        "AX867"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX867",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX867"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-ios27-background-assets",
+      "title": "Background Assets download declaration",
+      "category": "background-assets",
+      "platform": "iOS",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "5416a9b6f5872df6e048bb81c47af73fbcb02e5e5ccaa0036dbb4216ca5be02d",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "ios27-pcc-greedy-decoding",
+      "title": "Private Cloud model without sampling options",
+      "category": "foundation-models",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "04863f5cac5b44b1112ffd6bf6440b92066ecc85b164033701a232781f43c7ff",
+      "expectedCodes": [
+        "AX868"
+      ],
+      "emittedCodes": [
+        "AX868"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX868",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX868"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-ios27-pcc-sampling",
+      "title": "Private Cloud model with seeded sampling",
+      "category": "foundation-models",
+      "platform": "all",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "0e82201a15018db45adf8a050a011761396a0520f37e704a121573e637a51525",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "ios27-text-selection-gesture",
+      "title": "Selectable text with competing gesture",
+      "category": "interaction",
+      "platform": "iOS",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "3b383f2b6e79ad1ab84df9c08f81202273ec1c9ce303231c483320b716095c22",
+      "expectedCodes": [
+        "AX869"
+      ],
+      "emittedCodes": [
+        "AX869"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX869",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX869"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-ios27-text-selection-gesture",
+      "title": "Selectable text with explicit high-priority gesture",
+      "category": "interaction",
+      "platform": "iOS",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "ec83694ce3891894a7fca38fe3b0d022fae338c01fc7e1ef378a86d3be42fa18",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "ios27-hidden-selected-tab",
+      "title": "Selected TabView contains a hidden tab path",
+      "category": "interaction",
+      "platform": "iOS",
+      "provenance": "hand-labeled-regression",
+      "expectation": "finding",
+      "sourceSha256": "fa2b06c6c046bd5073fcdfd2209d9b7a2ae8cdef29500e1c77048ae5036aeb62",
+      "expectedCodes": [
+        "AX870"
+      ],
+      "emittedCodes": [
+        "AX870"
+      ],
+      "emittedFindings": [
+        {
+          "code": "AX870",
+          "confidence": "advisory",
+          "status": "active",
+          "blocking": false
+        }
+      ],
+      "truePositives": [
+        "AX870"
+      ],
+      "falsePositives": [],
+      "falseNegatives": [],
+      "passed": true
+    },
+    {
+      "id": "clean-ios27-visible-tabs",
+      "title": "Selected TabView contains only visible tabs",
+      "category": "interaction",
+      "platform": "iOS",
+      "provenance": "hand-labeled-regression",
+      "expectation": "clean",
+      "sourceSha256": "9c92653b53340ceaff3553c05cfde25e5db9ed87a1e2e2ef94b891016cab5d98",
+      "expectedCodes": [],
+      "emittedCodes": [],
+      "emittedFindings": [],
+      "truePositives": [],
       "falsePositives": [],
       "falseNegatives": [],
       "passed": true

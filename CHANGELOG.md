@@ -6,6 +6,51 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-16
+
+### Added
+
+- **Current Apple platform compatibility** — added an evidence-aware iOS and
+  iPadOS 27 beta 3 catalog spanning Siri, Shortcuts, App Intents, Foundation
+  Models, CoreAI, SwiftUI, UIKit, Background Assets, and document APIs.
+- **Low-noise migration diagnostics** — added ten advisory Swift checks for
+  current Apple API and behavior changes, plus deterministic fixes for the
+  renamed SwiftUI toolbar and text-field APIs.
+- **Xcode and App Store readiness helpers** — added Xcode 27 beta 3 build
+  analysis, bounded test repetition, duplicate Clang module detection, App
+  Store Connect API migration analysis, and Accessibility Nutrition Label
+  common-task reports.
+- **Modern hosted MCP transport** — the production endpoint now supports both
+  established initialization flows and the current stateless protocol,
+  verified with official SDK clients.
+- **Expanded compatibility canaries** — CI now covers current Node and Python
+  releases plus forward-looking TypeScript, Python, Xcode, and MCP lanes.
+- **Brownfield benchmark v3** — the public benchmark now includes 38 paired
+  cases across ten categories with precision, recall, and clean-project
+  abstention gates.
+
+### Changed
+
+- **Artifact and dependency release gates** — npm package contents, every
+  Python optional surface, Python wheels/source distributions, and the hosted
+  Worker now receive explicit audit and publishability checks.
+- **Marketplace tool semantics** — all 36 compact MCP descriptions now preserve
+  explicit purpose, sibling-tool guidance, parameter interaction, defaults,
+  and read/write/network effects without exceeding the manifest budget.
+
+### Fixed
+
+- **Hosted runtime drift** — deployment and release workflows now verify that
+  the public MCP endpoint matches the package being released.
+- **Python MCP startup compatibility** — both Python console entrypoints now
+  use the stable SDK's `stdio_server()` and `Server.run(...)` contract instead
+  of removed transport and `.main()` helpers.
+- **Bounded Apple SDK scanning** — nightly WWDC monitoring no longer follows
+  compatibility symlink loops or walks SDK trees without limits.
+- **Beta guidance accuracy** — resolved simulator guidance is no longer emitted
+  as an active Foundation Models warning; the current sampling workaround is
+  generated instead.
+
 ## [0.5.2] — 2026-07-11
 
 ### Fixed

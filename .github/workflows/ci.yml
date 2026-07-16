@@ -73,9 +73,71 @@ jobs:
           fi
           npx tsx scripts/publish-cloud-report.ts
 
+      - name: Verify publishable npm artifact
+        run: npm run package:check
+
+  node-compatibility:
+    name: Node.js ${{ matrix.node-version }} compatibility
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.node-version == 26 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [24, 26]
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+      - run: npm run versions:check
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run package:check
+      - run: npx vitest run tests/core/compiler.test.ts tests/mcp/http-transport.test.ts tests/mcp/server.test.ts
+      - run: npm run install:gauntlet
+
+  typescript-next:
+    name: TypeScript 7 compatibility canary
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: "npm"
+      - run: npm ci
+      - name: Install TypeScript 7 without changing the lockfile
+        run: npm install --no-save --package-lock=false --ignore-scripts typescript@7.0.2
+      - run: npm run typecheck
+      - run: npx vitest run tests/core/parser.test.ts tests/core/compiler.test.ts
+
+  mcp-v2-canary:
+    name: MCP 2026-07-28 TypeScript client canary
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Test the hosted server with the split v2 beta client
+        run: |
+          set -euo pipefail
+          TEMP_DIR=$(mktemp -d)
+          cd "$TEMP_DIR"
+          npm init -y >/dev/null
+          npm install @modelcontextprotocol/client@2.0.0-beta.4
+          cp "$GITHUB_WORKSPACE/scripts/check-mcp-v2-canary.mjs" .
+          node check-mcp-v2-canary.mjs
+
   # ── Swift Sandbox (macOS) ─────────────────────────────────────────
   test-swift-sandbox:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
 
@@ -91,12 +153,39 @@ jobs:
       - name: Run sandbox tests (requires Xcode + AppIntents SDK)
         run: npx vitest run tests/core/sandbox.test.ts --reporter=verbose
 
+  xcode-27-canary:
+    name: Xcode 27 beta compatibility canary
+    runs-on: macos-26
+    continue-on-error: true
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: "npm"
+      - run: npm ci
+      - name: Select Xcode 27
+        run: |
+          set -euo pipefail
+          XCODE_PATH=$(find /Applications -maxdepth 1 -type d -name 'Xcode_27*.app' | sort -V | tail -1)
+          test -n "$XCODE_PATH" || {
+            echo "::error::The macos-26 image does not currently include Xcode 27."
+            exit 1
+          }
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version
+          swift --version
+      - run: npm run build
+      - run: npx vitest run tests/core/sandbox.test.ts tests/apple --reporter=verbose
+      - run: npx tsx scripts/wwdc-diff.ts --snapshot
+
   # ── Python SDK ───────────────────────────────────────────────────
   test-python:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     defaults:
       run:
@@ -111,7 +200,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e '.[dev]'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,mcp,registry]' build twine
+
+      - name: Audit installed Python dependencies
+        run: python -m pip_audit --local --skip-editable
 
       - name: Lint with ruff
         run: ruff check .
@@ -140,7 +234,48 @@ jobs:
           axint-py --version
           axint-py parse examples/create_event.py --json
 
+      - name: Verify publishable Python artifacts
+        if: matrix.python-version == '3.14'
+        run: |
+          python -m build
+          twine check dist/*
+
       - name: Check docs.axint.ai/python/install freshness
-        if: matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: matrix.python-version == '3.14' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         working-directory: .
         run: python scripts/check-docs-freshness.py
+
+  python-next:
+    name: Python 3.15 compatibility canary
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.15"
+          allow-prereleases: true
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,mcp,registry]'
+      - run: python -m pip_audit --local --skip-editable
+      - run: pytest -v --tb=short
+
+  python-mcp-v2-canary:
+    name: MCP 2026-07-28 Python SDK canary
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: pip install -e '.[dev]'
+      - run: pip install --pre 'mcp>=2.0.0b2,<3'
+      - run: pytest -v --tb=short tests/test_mcp_server.py

@@ -19,15 +19,17 @@
  *   npx tsx scripts/wwdc-diff.ts --sdk-path <path>  # Custom SDK path
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { resolve, basename, join } from "node:path";
-import { execSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
+import { execFileSync, execSync } from "node:child_process";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
 interface HeaderSymbol {
   name: string;
-  kind: "struct" | "class" | "protocol" | "enum" | "func" | "property" | "typealias" | "case";
+  kind:
+    "struct" | "class" | "protocol" | "enum" | "func" | "property" | "typealias" | "case";
   parent?: string;
   signature?: string;
   file: string;
@@ -43,7 +45,12 @@ interface DiffResult {
 
 interface AdapterRecommendation {
   symbol: HeaderSymbol;
-  action: "add-type" | "add-param-type" | "add-template" | "update-generator" | "update-validator";
+  action:
+    | "add-type"
+    | "add-param-type"
+    | "add-template"
+    | "update-generator"
+    | "update-validator";
   description: string;
   priority: "critical" | "high" | "medium" | "low";
 }
@@ -195,37 +202,84 @@ function getSDKVersion(sdkPath: string): string {
 
 // ─── Header Parser ──────────────────────────────────────────────────
 
-function findSwiftInterfaceFiles(sdkPath: string): string[] {
-  const files: string[] = [];
+export interface InterfaceDiscoveryOptions {
+  maxDepth?: number;
+  maxEntries?: number;
+  maxFiles?: number;
+}
+
+export function findSwiftInterfaceFiles(
+  sdkPath: string,
+  options: InterfaceDiscoveryOptions = {}
+): string[] {
+  const maxDepth = options.maxDepth ?? 8;
+  const maxEntries = options.maxEntries ?? 50_000;
+  const maxFiles = options.maxFiles ?? 2_000;
+  const files = new Set<string>();
+  let entriesVisited = 0;
 
   for (const framework of TARGET_FRAMEWORKS) {
     const candidates = [
-      join(sdkPath, "System/Library/Frameworks", `${framework}.framework`, "Modules", `${framework}.swiftmodule`),
+      join(
+        sdkPath,
+        "System/Library/Frameworks",
+        `${framework}.framework`,
+        "Modules",
+        `${framework}.swiftmodule`
+      ),
       join(sdkPath, "System/Library/Frameworks", `${framework}.framework`, "Headers"),
     ];
 
     for (const dir of candidates) {
       if (!existsSync(dir)) continue;
 
-      const walk = (d: string) => {
-        for (const entry of readdirSync(d)) {
-          const full = join(d, entry);
-          const stat = statSync(full);
-          if (stat.isDirectory()) {
-            walk(full);
-          } else if (entry.endsWith(".swiftinterface") || entry.endsWith(".h")) {
-            files.push(full);
+      const queue: Array<{ directory: string; depth: number }> = [
+        { directory: dir, depth: 0 },
+      ];
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (current.depth > maxDepth) continue;
+
+        for (const entry of readdirSync(current.directory, { withFileTypes: true })) {
+          entriesVisited += 1;
+          if (entriesVisited > maxEntries) {
+            throw new Error(
+              `SDK interface discovery exceeded ${maxEntries} entries. ` +
+                `Refusing to continue an unbounded scan under ${sdkPath}.`
+            );
+          }
+
+          // Xcode SDKs contain compatibility symlinks. Following them can
+          // revisit large framework trees and previously exhausted CI timeouts.
+          if (entry.isSymbolicLink()) continue;
+
+          const full = join(current.directory, entry.name);
+          if (entry.isDirectory()) {
+            queue.push({ directory: full, depth: current.depth + 1 });
+            continue;
+          }
+
+          if (
+            entry.isFile() &&
+            (entry.name.endsWith(".swiftinterface") || entry.name.endsWith(".h"))
+          ) {
+            files.add(full);
+            if (files.size > maxFiles) {
+              throw new Error(
+                `SDK interface discovery exceeded ${maxFiles} files under ${sdkPath}.`
+              );
+            }
           }
         }
-      };
-      walk(dir);
+      }
     }
   }
 
-  return files;
+  return [...files].sort();
 }
 
-function parseSwiftInterface(content: string, file: string): HeaderSymbol[] {
+export function parseSwiftInterface(content: string, file: string): HeaderSymbol[] {
   const symbols: HeaderSymbol[] = [];
   const lines = content.split("\n");
 
@@ -290,9 +344,7 @@ function parseSwiftInterface(content: string, file: string): HeaderSymbol[] {
       continue;
     }
 
-    const propMatch = line.match(
-      /^(?:public\s+)?(?:static\s+)?(?:var|let)\s+(\w+)\s*:/
-    );
+    const propMatch = line.match(/^(?:public\s+)?(?:static\s+)?(?:var|let)\s+(\w+)\s*:/);
     if (propMatch) {
       symbols.push({
         name: propMatch[1],
@@ -327,7 +379,7 @@ function parseSwiftInterface(content: string, file: string): HeaderSymbol[] {
   return symbols;
 }
 
-function parseObjCHeader(content: string, file: string): HeaderSymbol[] {
+export function parseObjCHeader(content: string, file: string): HeaderSymbol[] {
   const symbols: HeaderSymbol[] = [];
   const lines = content.split("\n");
 
@@ -351,7 +403,9 @@ function parseObjCHeader(content: string, file: string): HeaderSymbol[] {
       continue;
     }
 
-    const enumMatch = line.match(/typedef\s+(?:NS_ENUM|NS_OPTIONS)\s*\(\s*\w+\s*,\s*(\w+)/);
+    const enumMatch = line.match(
+      /typedef\s+(?:NS_ENUM|NS_OPTIONS)\s*\(\s*\w+\s*,\s*(\w+)/
+    );
     if (enumMatch) {
       symbols.push({ name: enumMatch[1], kind: "enum", file, line: lineNum });
       currentParent = enumMatch[1];
@@ -381,7 +435,7 @@ function parseObjCHeader(content: string, file: string): HeaderSymbol[] {
 
 // ─── Diff Engine ────────────────────────────────────────────────────
 
-function diffSymbols(
+export function diffSymbols(
   previous: HeaderSymbol[],
   current: HeaderSymbol[]
 ): DiffResult {
@@ -447,7 +501,10 @@ function generateRecommendations(diff: DiffResult): AdapterRecommendation[] {
     // New protocols that extend the App Intents surface
     if (sym.kind === "protocol") {
       const isTracked = TRACKED_PROTOCOLS.some(
-        (p) => sym.name.includes(p) || sym.name.endsWith("Intent") || sym.name.endsWith("Entity")
+        (p) =>
+          sym.name.includes(p) ||
+          sym.name.endsWith("Intent") ||
+          sym.name.endsWith("Entity")
       );
       recs.push({
         symbol: sym,
@@ -533,7 +590,9 @@ function formatReport(diff: DiffResult, recs: AdapterRecommendation[]): string {
   if (diff.added.length > 0) {
     lines.push("## New Symbols\n");
     for (const sym of diff.added) {
-      lines.push(`- **${sym.kind}** \`${sym.parent ? `${sym.parent}.` : ""}${sym.name}\``);
+      lines.push(
+        `- **${sym.kind}** \`${sym.parent ? `${sym.parent}.` : ""}${sym.name}\``
+      );
     }
     lines.push("");
   }
@@ -541,7 +600,9 @@ function formatReport(diff: DiffResult, recs: AdapterRecommendation[]): string {
   if (diff.removed.length > 0) {
     lines.push("## Removed Symbols\n");
     for (const sym of diff.removed) {
-      lines.push(`- ~~${sym.kind} \`${sym.parent ? `${sym.parent}.` : ""}${sym.name}\`~~`);
+      lines.push(
+        `- ~~${sym.kind} \`${sym.parent ? `${sym.parent}.` : ""}${sym.name}\`~~`
+      );
     }
     lines.push("");
   }
@@ -587,13 +648,19 @@ function createGitHubIssue(report: string, diff: DiffResult): void {
   const labels = "wwdc,automated,api-diff";
 
   try {
-    execSync(
-      `gh issue create --title "${title}" --body "${report.replace(/"/g, '\\"').replace(/\n/g, "\\n")}" --label "${labels}"`,
-      { encoding: "utf-8", stdio: "pipe" }
+    execFileSync(
+      "gh",
+      ["issue", "create", "--title", title, "--body", report, "--label", labels],
+      {
+        encoding: "utf-8",
+        stdio: "pipe",
+      }
     );
     console.log(`  \x1b[32m✓\x1b[0m GitHub issue created`);
   } catch (err) {
-    console.error(`  \x1b[33mwarning:\x1b[0m Could not create GitHub issue — ${(err as Error).message}`);
+    console.error(
+      `  \x1b[33mwarning:\x1b[0m Could not create GitHub issue — ${(err as Error).message}`
+    );
     console.error(`  \x1b[2mEnsure \`gh\` CLI is installed and authenticated\x1b[0m`);
   }
 }
@@ -619,7 +686,9 @@ async function main() {
     console.error(`  \x1b[31m✗\x1b[0m ${(err as Error).message}`);
     if (!isCI) {
       console.log();
-      console.log(`  \x1b[2mRunning in headerless mode — checking snapshot format only\x1b[0m`);
+      console.log(
+        `  \x1b[2mRunning in headerless mode — checking snapshot format only\x1b[0m`
+      );
       console.log();
       // In non-macOS environments, just validate the pipeline works
       mkdirSync(SNAPSHOT_DIR, { recursive: true });
@@ -711,7 +780,11 @@ async function main() {
   console.log(`  \x1b[32m✓\x1b[0m ${diff.summary}`);
   console.log();
 
-  if (diff.added.length === 0 && diff.removed.length === 0 && diff.modified.length === 0) {
+  if (
+    diff.added.length === 0 &&
+    diff.removed.length === 0 &&
+    diff.modified.length === 0
+  ) {
     console.log(`  \x1b[32m✓\x1b[0m No API changes detected. Axint is up to date.`);
     return;
   }
@@ -722,7 +795,9 @@ async function main() {
 
   const criticalCount = recs.filter((r) => r.priority === "critical").length;
   if (criticalCount > 0) {
-    console.log(`  \x1b[31m  ${criticalCount} CRITICAL — immediate attention required\x1b[0m`);
+    console.log(
+      `  \x1b[31m  ${criticalCount} CRITICAL — immediate attention required\x1b[0m`
+    );
   }
   console.log();
 
@@ -732,7 +807,11 @@ async function main() {
   writeFileSync(join(SNAPSHOT_DIR, "diff-report.md"), report);
   writeFileSync(
     REPORT_FILE,
-    JSON.stringify({ diff, recommendations: recs, timestamp: new Date().toISOString() }, null, 2)
+    JSON.stringify(
+      { diff, recommendations: recs, timestamp: new Date().toISOString() },
+      null,
+      2
+    )
   );
   console.log(`  \x1b[32m✓\x1b[0m Report saved to .wwdc/diff-report.md`);
 
@@ -753,7 +832,10 @@ async function main() {
   console.log();
 }
 
-main().catch((err) => {
-  console.error(`\x1b[31merror:\x1b[0m ${err.message}`);
-  process.exit(1);
-});
+const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : "";
+if (import.meta.url === invokedPath) {
+  main().catch((err) => {
+    console.error(`\x1b[31merror:\x1b[0m ${err.message}`);
+    process.exit(1);
+  });
+}

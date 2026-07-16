@@ -2,9 +2,9 @@
 
 This is a transparent labeled corpus, not a production-wide accuracy claim. Published artifacts contain fixture hashes, labels, and results, but no Swift source.
 
-- Corpus: Axint curated brownfield regression corpus 2.0.0
-- Cases: 20 (8 clean, 12 with labeled findings)
-- Categories: accessibility, app-intents, concurrency, interaction, swiftui, uikit, widgetkit
+- Corpus: Axint curated brownfield regression corpus 3.0.0
+- Cases: 38 (17 clean, 21 with labeled findings)
+- Categories: accessibility, app-intents, background-assets, concurrency, documents, foundation-models, interaction, swiftui, uikit, widgetkit
 - Precision: 100.0%
 - Recall: 100.0%
 - Clean-case abstention: 100.0%
@@ -17,9 +17,12 @@ This is a transparent labeled corpus, not a production-wide accuracy claim. Publ
 | --- | ---: | ---: | ---: | ---: |
 | accessibility | 1 | 100.0% | 100.0% | n/a |
 | app-intents | 2 | 100.0% | 100.0% | 100.0% |
+| background-assets | 2 | 100.0% | 100.0% | 100.0% |
 | concurrency | 6 | 100.0% | 100.0% | 100.0% |
-| interaction | 2 | 100.0% | 100.0% | 100.0% |
-| swiftui | 6 | 100.0% | 100.0% | 100.0% |
+| documents | 4 | 100.0% | 100.0% | 100.0% |
+| foundation-models | 2 | 100.0% | 100.0% | 100.0% |
+| interaction | 6 | 100.0% | 100.0% | 100.0% |
+| swiftui | 12 | 100.0% | 100.0% | 100.0% |
 | uikit | 1 | n/a | n/a | 100.0% |
 | widgetkit | 2 | 100.0% | 100.0% | n/a |
 
@@ -47,6 +50,24 @@ This is a transparent labeled corpus, not a production-wide accuracy claim. Publ
 | Timeline entry missing date | widgetkit | AX713 | AX713 | pass |
 | Unchecked Sendable reference type | concurrency | AX723 | AX723 | pass |
 | Detached task loses actor context | concurrency | AX726 | AX726 | pass |
+| State macro declaration and init assignment conflict | swiftui | AX861 | AX861 | pass |
+| State macro initializer assigns uninitialized state | swiftui | abstain | abstain | pass |
+| Deprecated FileDocument conformance | documents | AX863 | AX863 | pass |
+| Current Document conformance | documents | abstain | abstain | pass |
+| Legacy nonisolated document reader | documents | AX864 | AX864 | pass |
+| Current concurrent document reader | documents | abstain | abstain | pass |
+| Pre-27 toolbar minimization spelling | swiftui | AX865 | AX865 | pass |
+| Current toolbar minimization spelling | swiftui | abstain | abstain | pass |
+| Soft-deprecated text field style | swiftui | AX866 | AX866 | pass |
+| Current bordered text field style | swiftui | abstain | abstain | pass |
+| Deprecated On Demand Resources request | background-assets | AX867 | AX867 | pass |
+| Background Assets download declaration | background-assets | abstain | abstain | pass |
+| Private Cloud model without sampling options | foundation-models | AX868 | AX868 | pass |
+| Private Cloud model with seeded sampling | foundation-models | abstain | abstain | pass |
+| Selectable text with competing gesture | interaction | AX869 | AX869 | pass |
+| Selectable text with explicit high-priority gesture | interaction | abstain | abstain | pass |
+| Selected TabView contains a hidden tab path | interaction | AX870 | AX870 | pass |
+| Selected TabView contains only visible tabs | interaction | abstain | abstain | pass |
 
 ## Reproduce
 

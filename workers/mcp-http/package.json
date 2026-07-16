@@ -4,10 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && wrangler deploy --dry-run",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.0.0",
-    "wrangler": "^4.81.1"
+    "@cloudflare/workers-types": "^4.20260716.1",
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.111.0"
   }
 }

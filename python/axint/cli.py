@@ -608,11 +608,10 @@ def _cmd_mcp(args: argparse.Namespace) -> int:
     """Start the MCP server for AI coding assistants."""
     import asyncio
 
-    from .mcp_server import build_server
+    from .mcp_server import run_server
 
-    server = build_server()
     try:
-        asyncio.run(server.main())
+        asyncio.run(run_server())
         return 0
     except KeyboardInterrupt:
         return 0

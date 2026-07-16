@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
+from typing import Any
+
+import mcp.server.stdio
+import pytest
 
 from axint.mcp_server import (
     generate_feature_package,
@@ -17,6 +22,46 @@ from axint.mcp_server import (
 def test_console_entrypoint_wraps_the_async_server() -> None:
     assert not inspect.iscoroutinefunction(main)
     assert inspect.iscoroutinefunction(run_server)
+
+
+def test_run_server_uses_supported_stdio_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: dict[str, Any] = {}
+
+    class FakeTransport:
+        async def __aenter__(self) -> tuple[str, str]:
+            return ("read-stream", "write-stream")
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    class FakeServer:
+        def create_initialization_options(self) -> str:
+            return "initialization-options"
+
+        async def run(
+            self,
+            read_stream: str,
+            write_stream: str,
+            initialization_options: str,
+        ) -> None:
+            calls.update(
+                read_stream=read_stream,
+                write_stream=write_stream,
+                initialization_options=initialization_options,
+            )
+
+    monkeypatch.setattr(mcp.server.stdio, "stdio_server", FakeTransport)
+    monkeypatch.setattr("axint.mcp_server.build_server", FakeServer)
+
+    asyncio.run(run_server())
+
+    assert calls == {
+        "read_stream": "read-stream",
+        "write_stream": "write-stream",
+        "initialization_options": "initialization-options",
+    }
 
 
 def test_suggest_features_prefers_explicit_domain() -> None:
@@ -44,7 +89,7 @@ def test_scaffold_intent_uses_current_python_imports() -> None:
         ],
     )
 
-    assert 'from axint import define_intent, param' in source
+    assert "from axint import define_intent, param" in source
     assert 'domain="health"' in source
     assert '"ounces": param.int("Ounces")' in source
     assert '"cold": param.boolean("Whether it is cold")' in source

@@ -5,7 +5,7 @@ import {
 } from "../../src/apple/foundation-models.js";
 
 describe("Foundation Models scaffolds", () => {
-  it("generates availability guards for on-device and Private Cloud Compute paths", () => {
+  it("generates on-device and seeded Private Cloud Compute paths", () => {
     const swift = generateFoundationModelsSessionScaffold({
       profileName: "SearchAssistantProfile",
       tools: ["SpotlightSearchTool"],
@@ -14,7 +14,10 @@ describe("Foundation Models scaffolds", () => {
 
     expect(swift).toContain("import FoundationModels");
     expect(swift).toContain("PrivateCloudComputeLanguageModel");
-    expect(swift).toContain("#if targetEnvironment(simulator)");
+    expect(swift).toContain(
+      "GenerationOptions(samplingMode: .randomThreshold(0.95, seed: 42))"
+    );
+    expect(swift).not.toContain("targetEnvironment(simulator)");
     expect(swift).toContain("SpotlightSearchTool");
   });
 

@@ -1,6 +1,6 @@
 {
   "name": "@axint/compiler",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "mcpName": "io.github.agenticempire/axint",
   "publishConfig": {
     "access": "public"
@@ -90,11 +90,15 @@
     "release:check": "node scripts/check-release-parity.mjs",
     "release:notes": "tsx scripts/render-release-notes.ts",
     "install:gauntlet": "node scripts/install-gauntlet.mjs",
+    "package:check": "node scripts/check-package-artifact.mjs",
     "metrics:emit": "node scripts/emit-metrics.mjs",
     "metrics:check": "node scripts/check-metrics.mjs",
+    "mcp:production:check": "node scripts/check-mcp-production.mjs",
     "boundary:check": "node scripts/check-public-boundary.mjs",
     "docs:check": "node scripts/check-readme-mcp-docs.mjs && node scripts/sync-roadmap-metrics.mjs --check && node scripts/check-public-docs.mjs && node scripts/check-local-links.mjs",
     "roadmap:sync": "node scripts/sync-roadmap-metrics.mjs",
+    "quality:local": "npm run versions:check && npm run metrics:check && npm run benchmark:brownfield:check && npm run docs:check && npm run boundary:check && npm run gen:swift-fixer:check && npm run typecheck && npm run typecheck:examples && npm run lint && npm run build && npm run package:check && npm test && npm audit --audit-level=moderate",
+    "quality:production": "npm run quality:local && npm run install:gauntlet && npm run mcp:production:check",
     "prepublishOnly": "npm run versions:check && npm run metrics:check && npm run docs:check && npm run clean && npm run build",
     "prepare": "husky"
   },
@@ -112,7 +116,7 @@
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^26.0.0",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.2.1",
     "husky": "^9.0.0",
     "lint-staged": "^17.0.7",
@@ -120,8 +124,8 @@
     "tsup": "^8.5.0",
     "tsx": "^4.19.0",
     "typescript-eslint": "^8.64.0",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.9"
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "commander": "^15.0.0",
@@ -131,14 +135,14 @@
     "esbuild": "^0.28.1",
     "hono": "^4.12.25",
     "ip-address": "^10.2.0",
-    "vite": "^8.0.16"
+    "vite": "^8.1.5"
   },
   "pnpm": {
     "overrides": {
       "esbuild": "^0.28.1",
       "hono": "^4.12.25",
       "ip-address": "^10.2.0",
-      "vite": "^8.0.16"
+      "vite": "^8.1.5"
     }
   }
 }

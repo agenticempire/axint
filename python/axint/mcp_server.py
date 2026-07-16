@@ -1480,11 +1480,15 @@ async def run_server() -> None:
         print("error: mcp package not installed. Install with: pip install 'axint[mcp]'", file=sys.stderr)
         raise SystemExit(1)
 
-    from mcp.server.stdio import StdioServerTransport
+    from mcp.server.stdio import stdio_server
 
     server = build_server()
-    async with StdioServerTransport() as transport, server:
-        await server.connect(transport)
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(
+            read_stream,
+            write_stream,
+            server.create_initialization_options(),
+        )
 
 
 def main() -> None:

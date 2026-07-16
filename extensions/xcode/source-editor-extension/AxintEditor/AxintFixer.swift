@@ -122,6 +122,24 @@ enum AxintFixer {
             }
         }
 
+        // AX865 — toolbarMinimizeBehavior -> toolbarMinimizationBehavior
+        do {
+            let (next, count) = applyRegex(current, pattern: "\\.toolbarMinimizeBehavior\\s*\\(", template: ".toolbarMinimizationBehavior(")
+            if count > 0 {
+                current = next
+                applied.append(.init(code: "AX865", message: "toolbarMinimizeBehavior -> toolbarMinimizationBehavior"))
+            }
+        }
+
+        // AX866 — legacy text field border style -> bordered
+        do {
+            let (next, count) = applyRegex(current, pattern: "\\.textFieldStyle\\s*\\(\\s*\\.(?:squareBorder|roundedBorder)\\s*\\)", template: ".textFieldStyle(.bordered)")
+            if count > 0 {
+                current = next
+                applied.append(.init(code: "AX866", message: "legacy text field border style -> bordered"))
+            }
+        }
+
         // AX701 — inject perform() stub into AppIntent
         if let next = injectIntoStruct(
             current,

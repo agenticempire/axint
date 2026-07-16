@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   IOS27_BETA3_RULES,
+  activeIOS27Beta3Rules,
   findIOS27Beta3Rule,
   normalizeIOS27Beta3Schema,
 } from "../../src/apple/ios27-beta3.js";
@@ -15,6 +16,16 @@ describe("iOS 27 Beta 3 release-note rules", () => {
         "appintents.unionvalue.widget-configuration",
         "uikit.siri.drag-resource-loading",
         "coreai.background-neural-engine-entitlement",
+        "foundationmodels.pcc-greedy-decoding",
+        "appintents.relevantentities.workout-audio",
+        "shortcuts.use-model-on-device-output",
+        "siri.callkit-phone-start-call",
+        "siri.openintent-ambiguity",
+        "swiftui.state-macro-initialization",
+        "swiftui.tabview-visible-selection",
+        "swiftui.document-protocol-migration",
+        "backgroundassets.ondemandresources-deprecation",
+        "coreai.aot-recompile-beta3",
       ])
     );
   });
@@ -32,5 +43,17 @@ describe("iOS 27 Beta 3 release-note rules", () => {
     expect(
       findIOS27Beta3Rule("appintents.unionvalue.widget-configuration")?.workaround
     ).toContain("kind discriminator");
+  });
+
+  it("distinguishes resolved beta issues from active compatibility risks", () => {
+    expect(findIOS27Beta3Rule("foundationmodels.pcc-simulator")?.status).toBe("resolved");
+    expect(
+      activeIOS27Beta3Rules().some((rule) => rule.id === "foundationmodels.pcc-simulator")
+    ).toBe(false);
+    expect(
+      activeIOS27Beta3Rules().some(
+        (rule) => rule.id === "foundationmodels.pcc-greedy-decoding"
+      )
+    ).toBe(true);
   });
 });
