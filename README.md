@@ -32,7 +32,7 @@
 
 <p align="center">
   <a href="#prove-an-existing-project"><strong>Prove a project</strong></a> ·
-  <a href="https://cloud.axint.ai">Try in browser</a> ·
+  <a href="https://axint.ai/cloud/preview">Try Cloud Preview</a> ·
   <a href="#connect-your-agent">Connect an agent</a> ·
   <a href="https://docs.axint.ai">Docs</a> ·
   <a href="https://github.com/agenticempire/axint-examples">Examples</a> ·
@@ -225,7 +225,7 @@ continuously checked with official SDK clients; see the
 | --- | --- |
 | [npm](https://www.npmjs.com/package/@axint/compiler) | CLI, TypeScript SDK, compiler, proof runtime, and MCP server |
 | [PyPI](https://pypi.org/project/axint/) | Native Python authoring, validation, generation, and its focused MCP surface |
-| [Playground](https://cloud.axint.ai) | Compile and inspect output without a local install |
+| [Cloud Preview](https://axint.ai/cloud/preview) | Explore the remote proof and macOS build workflow from any operating system |
 | [Registry](https://registry.axint.ai) | Discover reusable Apple capability packages |
 | [Examples](https://github.com/agenticempire/axint-examples) | Inspect compact App Intent, SwiftUI, and WidgetKit generation examples |
 | [Editor integrations](extensions) | Connect Xcode, VS Code, Cursor, JetBrains, Neovim, and other hosts |
