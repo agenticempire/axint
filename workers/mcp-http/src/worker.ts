@@ -86,7 +86,7 @@ const SERVER_CARD = {
   name: "io.github.agenticempire/axint",
   title: "Axint",
   description:
-    "Compiler and repair loop for agent-built Apple-native software: App Intents, SwiftUI, WidgetKit, Cloud Check, Fix Packets, and Xcode agent workflow tools.",
+    "Proof and repair for Apple coding agents: validate Swift, run Xcode evidence, and repair failures.",
   repository: {
     url: "https://github.com/agenticempire/axint",
     source: "github",

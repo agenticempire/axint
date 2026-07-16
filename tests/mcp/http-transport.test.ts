@@ -8,6 +8,9 @@ import { PROMPT_MANIFEST } from "../../src/mcp/prompts.js";
 const packageVersion = JSON.parse(
   readFileSync(resolve(process.cwd(), "package.json"), "utf-8")
 ).version as string;
+const registryManifest = JSON.parse(
+  readFileSync(resolve(process.cwd(), "server.json"), "utf-8")
+) as { description: string };
 
 const env = {
   ALLOWED_ORIGINS: "https://axint.ai",
@@ -70,12 +73,14 @@ describe("axint HTTP MCP transport", () => {
       expect(response.status).toBe(200);
       expect(payload).toMatchObject({
         name: "io.github.agenticempire/axint",
+        description: registryManifest.description,
         version: packageVersion,
         capabilities: {
           tools: TOOL_MANIFEST.length,
           prompts: PROMPT_MANIFEST.length,
         },
       });
+      expect(payload.description.length).toBeLessThanOrEqual(100);
     }
   });
 
