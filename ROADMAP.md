@@ -6,7 +6,7 @@ _Last updated: July 2026 · Current release: <!-- metrics:roadmap-release:start 
 
 Axint is the proof and repair layer for Apple coding agents. It checks the Swift an agent wrote, runs real Xcode build and test evidence, reconciles static findings with Apple tooling, and returns signed proof with the exact repairs to make next. The compiler, SDKs, MCP server, Registry, Team features, and Cloud all support that shared proof contract.
 
-<!-- metrics:roadmap-snapshot:start -->Current verified snapshot: 36 MCP tools + 5 prompts · 53 templates · 235 diagnostic codes · 1511 tests.<!-- metrics:roadmap-snapshot:end -->
+<!-- metrics:roadmap-snapshot:start -->Current verified snapshot: 36 MCP tools + 5 prompts · 53 templates · 235 diagnostic codes · 1512 tests.<!-- metrics:roadmap-snapshot:end -->
 
 ---
 

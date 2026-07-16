@@ -10,6 +10,7 @@ import mcp.server.stdio
 import pytest
 
 from axint.mcp_server import (
+    build_server,
     generate_feature_package,
     handle_compile_from_schema,
     main,
@@ -17,6 +18,18 @@ from axint.mcp_server import (
     scaffold_intent,
     suggest_features,
 )
+
+
+def test_build_server_registers_list_and_call_tool_handlers() -> None:
+    server = build_server()
+    handlers = getattr(server, "request_handlers", None)
+    if handlers is None:
+        handlers = server._request_handlers
+
+    registered = {getattr(key, "__name__", str(key)) for key in handlers}
+    assert server.name == "axint"
+    assert any(name in registered for name in {"ListToolsRequest", "tools/list"})
+    assert any(name in registered for name in {"CallToolRequest", "tools/call"})
 
 
 def test_console_entrypoint_wraps_the_async_server() -> None:

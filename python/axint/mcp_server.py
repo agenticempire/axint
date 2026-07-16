@@ -32,14 +32,23 @@ from typing import Any, Literal
 
 try:
     from mcp.server import Server
-    from mcp.types import Tool, ToolAnnotations
 except ImportError as exc:  # pragma: no cover - exercised only without optional dep
     Server = Any  # type: ignore[assignment]
     Tool = Any  # type: ignore[assignment]
     ToolAnnotations = Any  # type: ignore[assignment]
     MCP_IMPORT_ERROR: Exception | None = exc
+    MCP_V2 = False
 else:
     MCP_IMPORT_ERROR = None
+    try:
+        from mcp.types import Tool, ToolAnnotations
+    except ImportError:
+        from mcp import Tool
+        from mcp_types import ToolAnnotations
+
+        MCP_V2 = True
+    else:
+        MCP_V2 = False
 
 from .generator import (
     generate_entitlements_fragment,
@@ -1213,8 +1222,6 @@ def build_server() -> Server:
     if MCP_IMPORT_ERROR is not None:  # pragma: no cover - exercised without optional dep
         raise RuntimeError("mcp package not installed. Install with: pip install 'axint[mcp]'")
 
-    server = Server("axint")
-
     tool_annotations = ToolAnnotations(
         readOnlyHint=True,
         destructiveHint=False,
@@ -1235,7 +1242,6 @@ def build_server() -> Server:
         "axint.templates.get": "axint_template",
     }
 
-    @server.list_tools()
     async def list_tools() -> list[Tool]:
         return [
             Tool(
@@ -1398,7 +1404,6 @@ def build_server() -> Server:
             ),
         ]
 
-    @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> str:
         name = aliases.get(name, name)
 
@@ -1472,7 +1477,38 @@ def build_server() -> Server:
 
         return f"Unknown tool: {name}"
 
-    return server
+    if not MCP_V2:
+        server = Server("axint")
+        server.list_tools()(list_tools)
+        server.call_tool()(call_tool)
+        return server
+
+    from mcp_types import (
+        CallToolRequestParams,
+        CallToolResult,
+        ListToolsResult,
+        PaginatedRequestParams,
+        TextContent,
+    )
+
+    async def list_tools_v2(
+        _context: Any,
+        _params: PaginatedRequestParams | None,
+    ) -> ListToolsResult:
+        return ListToolsResult(tools=await list_tools())
+
+    async def call_tool_v2(
+        _context: Any,
+        params: CallToolRequestParams,
+    ) -> CallToolResult:
+        output = await call_tool(params.name, dict(params.arguments or {}))
+        return CallToolResult(content=[TextContent(type="text", text=output)])
+
+    return Server(
+        "axint",
+        on_list_tools=list_tools_v2,
+        on_call_tool=call_tool_v2,
+    )
 
 
 async def run_server() -> None:

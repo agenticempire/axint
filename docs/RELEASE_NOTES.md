@@ -20,8 +20,10 @@
   reports.
 - Hosted MCP support for both legacy initialization and the stateless
   `2026-07-28` release candidate.
-- Node 24/26, Python 3.14/3.15, TypeScript 7, Xcode 27, and MCP v2
-  compatibility canaries.
+- Node 24/26, Python 3.14/3.15, Xcode 27, and MCP v2 compatibility canaries,
+  plus a TypeScript 7 compiler API canary that records the current upstream
+  package-entry migration blocker without weakening supported TypeScript 6
+  release gates.
 - Brownfield benchmark v3 with 38 paired cases across 10 categories.
 
 ### Changed
