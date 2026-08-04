@@ -154,6 +154,29 @@ so a caller can reconnect, inspect, or cancel without keeping the original
 request alive. Full logs remain on disk; MCP responses carry summaries and
 artifact references.
 
+## A2A boundary
+
+The A2A adapter exposes complete Apple check, diagnosis, proof, and
+repair-planning jobs to other agents. It is additive to MCP: MCP remains the
+fine-grained tool surface, while A2A owns durable task identity, streaming
+status, cancellation, owner-scoped persistence, and result artifacts.
+
+`src/a2a/` contains five explicit boundaries:
+
+1. Request parsing validates the structured contract and confines every local
+   path to the operator-selected project root.
+2. The service adapter calls existing cloud-check, repair, run, and proof
+   services without introducing a second implementation of product logic.
+3. Result shaping excludes source, raw logs, and absolute paths before an
+   artifact reaches the protocol layer.
+4. The task store scopes durable JSON by tenant and authenticated caller.
+5. The Express transport owns Agent Card discovery, bearer authentication,
+   body limits, rate limits, security headers, and A2A version negotiation.
+
+Cancellation reaches the existing Xcode runner through `AbortSignal` and stops
+the child process group. Automatic fixes, repository cloning, outbound agent
+delegation, and push notifications are intentionally outside this boundary.
+
 ## Distribution boundary
 
 The public repository ships the open-source compiler, TypeScript and Python
@@ -171,6 +194,7 @@ src/run/                  Resumable project jobs and Xcode evidence
 src/repair/               Fix Packets and project repair plans
 src/feedback/             Source-free finding review and feedback
 src/mcp/                  MCP server, manifest, and transports
+src/a2a/                  A2A Agent Card, task adapter, persistence, and HTTP transport
 src/cli/                  Command-line entry points
 python/axint/             Native Python parser, IR, validator, generator, MCP
 spm-plugin/               Xcode build and validation plugins
