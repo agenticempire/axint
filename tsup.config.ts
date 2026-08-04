@@ -43,6 +43,20 @@ export default defineConfig([
     target: "node22",
     noExternal: bundledMcpDependencies,
   },
+  // Importable A2A adapter and direct axint-a2a executable
+  {
+    entry: {
+      "a2a/index": "src/a2a/index.ts",
+    },
+    format: ["esm"],
+    dts: true,
+    splitting: false,
+    sourcemap: false,
+    target: "node22",
+    banner: {
+      js: "#!/usr/bin/env node",
+    },
+  },
   // MCP stdio binary (side-effectful axint-mcp entrypoint)
   {
     entry: {

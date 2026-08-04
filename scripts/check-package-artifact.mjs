@@ -37,6 +37,8 @@ const required = [
   "TRADEMARKS.md",
   "package.json",
   "dist/cli/index.js",
+  "dist/a2a/index.js",
+  "dist/a2a/index.d.ts",
   "dist/core/index.js",
   "dist/core/index.d.ts",
   "dist/mcp/index.js",
