@@ -102,6 +102,7 @@ export interface AxintRunInput {
   localOnly?: boolean;
   fix?: boolean;
   outputDir?: string;
+  signal?: AbortSignal;
 }
 
 const DEFAULT_CLOUD_SWEEP_LIMIT = 8;
@@ -432,6 +433,7 @@ export async function runAxintProject(
       dryRun: input.dryRun,
       job,
       artifactRoot: minimal ? (outputDirectory ?? false) : undefined,
+      signal: input.signal,
     });
     steps.push(stepFromCommand("Xcode build", commands.build));
   } else if (input.skipBuild) {
@@ -455,6 +457,7 @@ export async function runAxintProject(
       dryRun: input.dryRun,
       job,
       artifactRoot: minimal ? (outputDirectory ?? false) : undefined,
+      signal: input.signal,
     });
     steps.push(stepFromCommand("Xcode test", commands.test));
   } else if (input.skipTests) {
@@ -1420,10 +1423,41 @@ async function runCommand(
     dryRun?: boolean;
     job?: AxintRunJobRecord;
     artifactRoot?: string | false;
+    signal?: AbortSignal;
   }
 ): Promise<AxintRunCommandResult> {
   const started = Date.now();
   const commandId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  if (options.signal?.aborted) {
+    const resultBundlePath = expectedResultBundlePath(args);
+    markRunJobCommandStarted(options.job, {
+      id: commandId,
+      label,
+      command,
+      args,
+      cwd: options.cwd,
+      expectedResultBundlePath: resultBundlePath,
+    });
+    markRunJobCommandFinished(options.job, commandId, {
+      exitCode: null,
+      signal: "SIGTERM",
+      timedOut: false,
+      cancelled: true,
+    });
+    return {
+      command,
+      args,
+      cwd: options.cwd,
+      exitCode: null,
+      signal: "SIGTERM",
+      timedOut: false,
+      stdout: "",
+      stderr: "Execution canceled before the command started.",
+      durationMs: 0,
+      resultBundlePath,
+      cancelled: true,
+    };
+  }
   if (options.dryRun) {
     const resultBundlePath = expectedResultBundlePath(args);
     markRunJobCommandStarted(options.job, {
@@ -1458,7 +1492,9 @@ async function runCommand(
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let aborted = false;
     let settled = false;
+    let forceKillTimer: NodeJS.Timeout | undefined;
     let spawnError: Error | undefined;
     const resultBundlePath = expectedResultBundlePath(args);
     const logPath = commandLogPath(
@@ -1489,6 +1525,14 @@ async function runCommand(
       stdio: ["ignore", "pipe", "pipe"],
     });
 
+    const abort = () => {
+      aborted = true;
+      appendToCommandLog(
+        logPath,
+        "\n[axint] Cancellation requested; stopping command.\n"
+      );
+      stopProcessGroup(child.pid);
+    };
     markRunJobCommandStarted(options.job, {
       id: commandId,
       label,
@@ -1499,6 +1543,10 @@ async function runCommand(
       logPath,
       expectedResultBundlePath: resultBundlePath,
     });
+
+    options.signal?.addEventListener("abort", abort, { once: true });
+    // Close the gap between the pre-spawn check and listener registration.
+    if (options.signal?.aborted) abort();
 
     child.stdout?.on("data", (chunk: Buffer) => {
       const text = chunk.toString("utf-8");
@@ -1517,7 +1565,7 @@ async function runCommand(
         logPath,
         `\n[axint] Command timed out after ${options.timeoutSeconds}s; sending SIGTERM to child process group.\n`
       );
-      if (child.pid) killProcessGroup(child.pid, "SIGTERM");
+      stopProcessGroup(child.pid);
     }, options.timeoutSeconds * 1000);
 
     child.once("error", (error) => {
@@ -1536,7 +1584,9 @@ async function runCommand(
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      const cancelled = signal === "SIGTERM" && !timedOut;
+      if (forceKillTimer) clearTimeout(forceKillTimer);
+      options.signal?.removeEventListener("abort", abort);
+      const cancelled = aborted || (signal === "SIGTERM" && !timedOut);
       markRunJobCommandFinished(options.job, commandId, {
         exitCode: code,
         signal,
@@ -1559,6 +1609,22 @@ async function runCommand(
         resultBundlePath,
         cancelled,
       });
+    }
+
+    function stopProcessGroup(pid: number | undefined) {
+      if (!pid) return;
+      killProcessGroup(pid, "SIGTERM");
+      if (forceKillTimer) return;
+      forceKillTimer = setTimeout(() => {
+        if (!settled) {
+          appendToCommandLog(
+            logPath,
+            "\n[axint] Command did not exit after SIGTERM; sending SIGKILL.\n"
+          );
+          killProcessGroup(pid, "SIGKILL");
+        }
+      }, 5_000);
+      forceKillTimer.unref();
     }
   });
 }
@@ -1583,6 +1649,7 @@ async function runMacRuntimeProbe(
       timeoutSeconds: 90,
       job,
       artifactRoot: options.artifactRoot,
+      signal: input.signal,
     }
   );
   if (settings.exitCode !== 0) {
@@ -1603,7 +1670,8 @@ async function runMacRuntimeProbe(
     appPath,
     input.runtimeTimeoutSeconds ?? 8,
     job,
-    options
+    options,
+    input.signal
   );
   return {
     buildSettings: settings,
@@ -1617,7 +1685,8 @@ async function runRuntimeLaunchProbe(
   appPath: string,
   waitSeconds: number,
   job?: AxintRunJobRecord,
-  options: { artifactRoot?: string | false } = {}
+  options: { artifactRoot?: string | false } = {},
+  signal?: AbortSignal
 ): Promise<AxintRunCommandResult> {
   const started = Date.now();
   const appName = basename(appPath, ".app");
@@ -1626,11 +1695,12 @@ async function runRuntimeLaunchProbe(
     timeoutSeconds: 15,
     job,
     artifactRoot: options.artifactRoot,
+    signal,
   });
   if (openResult.exitCode !== 0) return openResult;
 
   const boundedWait = String(Math.min(Math.max(Math.round(waitSeconds), 1), 60));
-  await delay(Number(boundedWait) * 1000);
+  await delay(Number(boundedWait) * 1000, signal);
   const processCheck = await runCommand(
     "Runtime process check",
     "pgrep",
@@ -1640,6 +1710,7 @@ async function runRuntimeLaunchProbe(
       timeoutSeconds: 5,
       job,
       artifactRoot: options.artifactRoot,
+      signal,
     }
   );
   return {
@@ -2764,8 +2835,18 @@ function killProcessGroup(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timeout = setTimeout(finish, ms);
+    const abort = () => finish();
+    signal?.addEventListener("abort", abort, { once: true });
+    function finish() {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }
+  });
 }
 
 function summarizeStatus(

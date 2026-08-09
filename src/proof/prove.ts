@@ -42,6 +42,7 @@ export interface AxintProveInput {
   dryRun?: boolean;
   fix?: boolean;
   outputDir?: string;
+  signal?: AbortSignal;
 }
 
 export interface AxintProveReport {
@@ -95,6 +96,7 @@ export async function proveAxintProject(
     advisory: true,
     fix: false,
     outputDir: outputDirectory,
+    signal: input.signal,
   };
 
   let run = await runAxintProject(runInput);

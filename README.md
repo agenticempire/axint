@@ -58,11 +58,11 @@ identify leads; Xcode build and test output can confirm, contextualize, or
 suppress them. The result stays compact enough for the next agent turn while
 full logs and artifacts remain on disk.
 
-| Evidence class | What it means |
-| --- | --- |
-| **Confirmed** | Deterministic analysis or matching compiler, build, or test evidence supports the finding. |
-| **Probable** | Strong static evidence identifies a likely problem, but decisive Apple-tooling evidence is incomplete. |
-| **Advisory** | A heuristic identifies a quality, accessibility, privacy, interaction, design, or runtime concern for review. |
+| Evidence class | What it means                                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **Confirmed**  | Deterministic analysis or matching compiler, build, or test evidence supports the finding.                                  |
+| **Probable**   | Strong static evidence identifies a likely problem, but decisive Apple-tooling evidence is incomplete.                      |
+| **Advisory**   | A heuristic identifies a quality, accessibility, privacy, interaction, design, or runtime concern for review.               |
 | **Suppressed** | Stronger evidence or a project-local review contradicts the finding; it remains in the receipt without blocking the result. |
 
 ## Prove an existing project
@@ -101,13 +101,13 @@ signing key.
 Generate, Check, Run, Team, and Cloud are different entry points into the same
 contract: verdict, evidence, findings, next actions, and artifact paths.
 
-| Mode | Role in the proof loop |
-| --- | --- |
-| **Check** | Validate generated or existing Swift with evidence-aware diagnostics and appropriate abstention. |
-| **Run** | Orchestrate resumable build, test, runtime, and `.xcresult` evidence on a local or your own Mac runner. |
+| Mode         | Role in the proof loop                                                                                                            |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Check**    | Validate generated or existing Swift with evidence-aware diagnostics and appropriate abstention.                                  |
+| **Run**      | Orchestrate resumable build, test, runtime, and `.xcresult` evidence on a local or your own Mac runner.                           |
 | **Generate** | Compile smaller contracts into inspectable App Intents, SwiftUI views, widgets, Live Activities, app shells, metadata, and tests. |
-| **Team** | Preserve project context, sessions, file claims, repair packets, and handoffs across agents. |
-| **Cloud** | Run hosted checks and preserve shared proof history when local Apple tooling is unavailable. |
+| **Team**     | Preserve project context, sessions, file claims, repair packets, and handoffs across agents.                                      |
+| **Cloud**    | Run hosted checks and preserve shared proof history when local Apple tooling is unavailable.                                      |
 
 ## Generate when it helps
 
@@ -169,6 +169,19 @@ clients and the current stateless protocol generation. Compatibility is
 continuously checked with official SDK clients; see the
 [protocol compatibility contract](docs/MCP_2026_COMPATIBILITY.md).
 
+For orchestrators that delegate durable work between agents, Axint also ships
+an authenticated [A2A server](docs/A2A.md). MCP exposes individual tools; A2A
+exposes complete check, diagnosis, proof, and repair-planning tasks with status,
+streaming updates, cancellation, and source-free result artifacts.
+
+```bash
+npx -y -p @axint/compiler axint-a2a --project-root /path/to/MyApp
+```
+
+The Agent Card is served at `/.well-known/agent-card.json`. Loopback use works
+without setup; non-loopback deployments require bearer authentication by
+default.
+
 <details>
 <summary><strong>MCP tool and prompt inventory</strong></summary>
 
@@ -215,20 +228,22 @@ continuously checked with official SDK clients; see the
   accessibility evidence into a reviewable App Store readiness report.
 - [MCP compatibility](docs/MCP_2026_COMPATIBILITY.md) documents the hosted
   server's dual-era transport contract and verification path.
-- [Architecture](ARCHITECTURE.md) explains the compiler, proof, MCP, Python, and runtime boundaries.
+- [A2A](docs/A2A.md) documents durable agent-to-agent proof delegation,
+  authentication, task isolation, and the local execution boundary.
+- [Architecture](ARCHITECTURE.md) explains the compiler, proof, MCP, A2A, Python, and runtime boundaries.
 - [Release notes](docs/RELEASE_NOTES.md) record shipped behavior and compatibility changes.
 - [Security](SECURITY.md) documents reporting, supported releases, telemetry, and dependency policy.
 
 ## Ecosystem
 
-| Surface | Use it for |
-| --- | --- |
-| [npm](https://www.npmjs.com/package/@axint/compiler) | CLI, TypeScript SDK, compiler, proof runtime, and MCP server |
-| [PyPI](https://pypi.org/project/axint/) | Native Python authoring, validation, generation, and its focused MCP surface |
-| [Cloud Preview](https://axint.ai/cloud/preview) | Explore the remote proof and macOS build workflow from any operating system |
-| [Registry](https://registry.axint.ai) | Discover reusable Apple capability packages |
-| [Examples](https://github.com/agenticempire/axint-examples) | Inspect compact App Intent, SwiftUI, and WidgetKit generation examples |
-| [Editor integrations](extensions) | Connect Xcode, VS Code, Cursor, JetBrains, Neovim, and other hosts |
+| Surface                                                     | Use it for                                                                   |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [npm](https://www.npmjs.com/package/@axint/compiler)        | CLI, TypeScript SDK, compiler, proof runtime, MCP server, and A2A server     |
+| [PyPI](https://pypi.org/project/axint/)                     | Native Python authoring, validation, generation, and its focused MCP surface |
+| [Cloud Preview](https://axint.ai/cloud/preview)             | Explore the remote proof and macOS build workflow from any operating system  |
+| [Registry](https://registry.axint.ai)                       | Discover reusable Apple capability packages                                  |
+| [Examples](https://github.com/agenticempire/axint-examples) | Inspect compact App Intent, SwiftUI, and WidgetKit generation examples       |
+| [Editor integrations](extensions)                           | Connect Xcode, VS Code, Cursor, JetBrains, Neovim, and other hosts           |
 
 ## Contribute
 

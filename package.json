@@ -25,6 +25,8 @@
     "siri",
     "shortcuts",
     "ai-agents",
+    "a2a",
+    "agent2agent",
     "mcp",
     "code-generation",
     "model-context-protocol",
@@ -43,6 +45,7 @@
   "bin": {
     "axint": "dist/cli/index.js",
     "create-axint-app": "dist/cli/index.js",
+    "axint-a2a": "dist/a2a/index.js",
     "axint-mcp": "dist/mcp/register.js",
     "axint-mcp-http": "dist/mcp/http.js"
   },
@@ -60,6 +63,10 @@
     "./mcp": {
       "import": "./dist/mcp/index.js",
       "types": "./dist/mcp/index.d.ts"
+    },
+    "./a2a": {
+      "import": "./dist/a2a/index.js",
+      "types": "./dist/a2a/index.d.ts"
     }
   },
   "files": [
@@ -115,7 +122,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@types/express": "^5.0.3",
     "@types/node": "^26.0.0",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.2.1",
@@ -129,21 +137,21 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@a2a-js/sdk": "1.0.1",
     "commander": "^15.0.0",
+    "express": "^5.1.0",
     "typescript": "^6.0.3"
   },
   "overrides": {
+    "@hono/node-server": "2.0.12",
+    "body-parser": "2.3.0",
+    "brace-expansion": "5.0.9",
     "esbuild": "^0.28.1",
-    "hono": "^4.12.25",
-    "ip-address": "^10.2.0",
+    "fast-uri@>=3.0.0 <3.1.5": "3.1.5",
+    "hono": "4.12.34",
+    "ip-address": "^10.4.0",
+    "jose": "6.2.7",
+    "postcss": "8.5.25",
     "vite": "^8.1.5"
-  },
-  "pnpm": {
-    "overrides": {
-      "esbuild": "^0.28.1",
-      "hono": "^4.12.25",
-      "ip-address": "^10.2.0",
-      "vite": "^8.1.5"
-    }
   }
 }
