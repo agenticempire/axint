@@ -6,6 +6,22 @@ This project follows [Semantic Versioning](https://semver.org/) and the format i
 
 ## [Unreleased]
 
+### Added
+
+- **A2A proof and repair server** - added a discoverable A2A Agent Card and an
+  authenticated JSON-RPC server for Apple code checks, failure diagnosis,
+  project proof, and repair planning, with streaming status and cancellation.
+- **Durable isolated tasks** - A2A task state is stored atomically and scoped by
+  both tenant and authenticated caller, while original input content is omitted
+  from durable history.
+
+### Changed
+
+- **Cancelable Xcode execution** - proof cancellation now propagates to active
+  build, test, and runtime child process groups through `AbortSignal`.
+- **Dependency security floors** - refreshed npm and pnpm resolution policy for
+  patched transitive releases; the npm audit reports zero known vulnerabilities.
+
 ## [0.6.0] — 2026-07-16
 
 ### Added

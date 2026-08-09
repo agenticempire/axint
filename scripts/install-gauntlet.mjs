@@ -25,13 +25,23 @@ main();
 function main() {
   const distCli = resolve(ROOT, "dist/cli/index.js");
   if (!existsSync(distCli)) {
-    fail("dist/cli/index.js is missing. Run `npm run build` before the install gauntlet.");
+    fail(
+      "dist/cli/index.js is missing. Run `npm run build` before the install gauntlet."
+    );
   }
 
-  const localActivation = run("local dist activation", ["node", distCli, "activate", "--format", "json"], ROOT);
+  const localActivation = run(
+    "local dist activation",
+    ["node", distCli, "activate", "--format", "json"],
+    ROOT
+  );
   assertActivation(localActivation.stdout, "local dist activation");
 
-  const pack = run("npm pack", ["npm", "pack", "--json", "--pack-destination", TMP], ROOT);
+  const pack = run(
+    "npm pack",
+    ["npm", "pack", "--json", "--pack-destination", TMP],
+    ROOT
+  );
   const tarball = resolve(TMP, readPackedFilename(pack.stdout));
 
   const freshProject = mkdtempSync(join(TMP, "fresh-project-"));
@@ -39,19 +49,45 @@ function main() {
   run(
     "fresh tarball install",
     ["npm", "install", tarball, "--ignore-scripts", "--no-audit", "--no-fund"],
-    freshProject,
+    freshProject
   );
 
   const bin = resolve(freshProject, "node_modules/.bin/axint");
+  const a2aBin = resolve(freshProject, "node_modules/.bin/axint-a2a");
   const createBin = resolve(freshProject, "node_modules/.bin/create-axint-app");
-  const packedActivation = run("packed activation", [bin, "activate", "--format", "json"], freshProject);
+  const packedActivation = run(
+    "packed activation",
+    [bin, "activate", "--format", "json"],
+    freshProject
+  );
   assertActivation(packedActivation.stdout, "packed activation");
+  const a2aHelp = run("packed A2A executable", [a2aBin, "--help"], freshProject);
+  if (!a2aHelp.stdout.includes("Run Axint's A2A v1.0 proof and repair server")) {
+    fail("packed A2A executable did not print the expected help");
+  }
+  run(
+    "packed A2A import",
+    [
+      "node",
+      "--input-type=module",
+      "--eval",
+      "const api = await import('@axint/compiler/a2a'); if (typeof api.createAxintA2AApp !== 'function') process.exit(1);",
+    ],
+    freshProject
+  );
 
   const starterDir = resolve(freshProject, "apple-day-agent");
-  run("create-axint-app no-install", [createBin, "apple-day-agent", "--no-install"], freshProject);
+  run(
+    "create-axint-app no-install",
+    [createBin, "apple-day-agent", "--no-install"],
+    freshProject
+  );
   assertExists(resolve(starterDir, "package.json"), "starter package.json");
   assertExists(resolve(starterDir, ".axint/START_HERE.md"), "starter agent instructions");
-  assertExists(resolve(starterDir, "share/built-with-axint.html"), "starter proof preview");
+  assertExists(
+    resolve(starterDir, "share/built-with-axint.html"),
+    "starter proof preview"
+  );
 
   console.log("");
   console.log("install gauntlet passed");

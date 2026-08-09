@@ -162,6 +162,48 @@ describe("runAxintProject", () => {
     }
   });
 
+  it("propagates AbortSignal cancellation to the active Xcode process group", async () => {
+    const dir = makeFakeXcodeProject();
+    const binDir = join(dir, "bin");
+    const startedMarker = join(dir, "xcodebuild.started");
+    mkdirSync(binDir, { recursive: true });
+    const xcodebuild = join(binDir, "xcodebuild");
+    writeFileSync(
+      xcodebuild,
+      [
+        "#!/bin/sh",
+        'trap "exit 143" TERM',
+        `touch ${JSON.stringify(startedMarker)}`,
+        "sleep 30",
+        "",
+      ].join("\n")
+    );
+    chmodSync(xcodebuild, 0o755);
+
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${previousPath ?? ""}`;
+    try {
+      const controller = new AbortController();
+      const execution = runAxintProject({
+        cwd: dir,
+        writeReport: false,
+        signal: controller.signal,
+      });
+      for (let attempt = 0; attempt < 200 && !existsSync(startedMarker); attempt++) {
+        await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+      }
+      expect(existsSync(startedMarker)).toBe(true);
+      controller.abort();
+      const report = await execution;
+
+      expect(report.commands.build?.cancelled).toBe(true);
+      expect(report.commands.test?.cancelled).toBe(true);
+      expect(getRunJobStatus({ cwd: dir, id: report.id }).activePids).toEqual([]);
+    } finally {
+      process.env.PATH = previousPath;
+    }
+  }, 10_000);
+
   it("renders a repair prompt for agents", async () => {
     const dir = makeFakeXcodeProject();
     const report = await runAxintProject({

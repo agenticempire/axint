@@ -40,15 +40,12 @@ except ImportError as exc:  # pragma: no cover - exercised only without optional
     MCP_V2 = False
 else:
     MCP_IMPORT_ERROR = None
+    MCP_V2 = not hasattr(Server, "list_tools")
     try:
         from mcp.types import Tool, ToolAnnotations
     except ImportError:
         from mcp import Tool
         from mcp_types import ToolAnnotations
-
-        MCP_V2 = True
-    else:
-        MCP_V2 = False
 
 from .generator import (
     generate_entitlements_fragment,

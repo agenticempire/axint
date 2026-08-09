@@ -45,6 +45,23 @@ axint feedback opt-out
 
 Environment controls are also supported: `AXINT_TELEMETRY=off`, `AXINT_DISABLE_TELEMETRY=1`, `AXINT_FEEDBACK=off`, and `AXINT_DISABLE_FEEDBACK=1`.
 
+## A2A deployment security
+
+The packaged A2A server binds to loopback by default. Non-loopback deployments
+must configure named bearer tokens through `AXINT_A2A_TOKENS` unless the
+operator explicitly overrides the guard. Production deployments should use a
+TLS reverse proxy, unique tokens per caller, the narrowest possible
+`--project-root`, and encrypted operator-only storage for A2A state.
+
+A2A project and source paths are confined to the configured root after
+symbolic-link resolution. Request bodies, inline source, failure evidence, raw
+logs, authorization headers, and absolute paths are not persisted in task
+history or returned in result artifacts. Full proof logs remain only in the
+operator-controlled A2A state directory and can contain paths and command
+output. Durable tasks are scoped by both tenant and authenticated token
+identity. See [docs/A2A.md](docs/A2A.md) for the full operation and
+threat-boundary checklist.
+
 ## Dependency and audit policy
 
 - Dependabot version updates are configured in `.github/dependabot.yml` for npm,
@@ -58,7 +75,7 @@ Environment controls are also supported: `AXINT_TELEMETRY=off`, `AXINT_DISABLE_T
   post-deploy protocol verification. Release CI also requires the hosted
   runtime to report the package version being published.
 - The npm package manifest is checked before publication for required
-  executables and declarations, unexpected development files, sensitive file
+  executables and declarations, including A2A, unexpected development files, sensitive file
   patterns, and accidental size growth.
 - If an advisory must be temporarily tolerated, document the rationale in a
   visible pull request or follow-up issue instead of masking the audit step.
