@@ -137,7 +137,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@a2a-js/sdk": "1.0.1",
+    "@a2a-js/sdk": "1.2.0",
     "commander": "^15.0.0",
     "express": "^5.1.0",
     "typescript": "^6.0.3"
