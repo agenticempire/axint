@@ -72,7 +72,7 @@ runs:
         set -e
         if [[ ! -s "$output" ]]; then
           echo "Axint produced no JSON; CLI exit code: $code" >&2
-          exit "$code"
+          exit 1
         fi
         node - "$output" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" <<'NODE'
         const fs = require('node:fs');
