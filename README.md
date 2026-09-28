@@ -10,10 +10,10 @@
   </picture>
 </p>
 
-<h1 align="center">Agents can write Swift. Axint makes them prove it.</h1>
+<h1 align="center">AI wrote the Swift. Prove it builds before you merge.</h1>
 
 <p align="center">
-  <strong>The proof and repair layer for Apple coding agents.</strong>
+  <strong>A proof gate for AI-written Swift in your PR or CI pipeline.</strong>
 </p>
 
 <p align="center">
@@ -32,6 +32,7 @@
 
 <p align="center">
   <a href="#prove-an-existing-project"><strong>Prove a project</strong></a> ·
+  <a href="docs/GITHUB_ACTION.md">GitHub Actions setup</a> ·
   <a href="https://axint.ai/cloud/preview">Try Cloud Preview</a> ·
   <a href="#connect-your-agent">Connect an agent</a> ·
   <a href="https://docs.axint.ai">Docs</a> ·
@@ -95,6 +96,13 @@ Receipt verification checks payload integrity and the embedded Ed25519 signer.
 A locally signed receipt does not establish an externally trusted identity
 unless CI or the receiving team pins the signer fingerprint or a managed
 signing key.
+
+## Use it in a pull request
+
+Run `axint prove` on a macOS runner with Xcode. For a starter workflow and
+the signed-receipt output, see [GitHub Actions setup](docs/GITHUB_ACTION.md).
+A pass needs real Apple-tooling evidence; missing tests or an unavailable build
+are not silently reported as proof.
 
 ## One proof contract
 
@@ -241,7 +249,6 @@ default.
 | [npm](https://www.npmjs.com/package/@axint/compiler)        | CLI, TypeScript SDK, compiler, proof runtime, MCP server, and A2A server     |
 | [PyPI](https://pypi.org/project/axint/)                     | Native Python authoring, validation, generation, and its focused MCP surface |
 | [Cloud Preview](https://axint.ai/cloud/preview)             | Explore the remote proof and macOS build workflow from any operating system  |
-| [Registry](https://registry.axint.ai)                       | Discover reusable Apple capability packages                                  |
 | [Examples](https://github.com/agenticempire/axint-examples) | Inspect compact App Intent, SwiftUI, and WidgetKit generation examples       |
 | [Editor integrations](extensions)                           | Connect Xcode, VS Code, Cursor, JetBrains, Neovim, and other hosts           |
 
