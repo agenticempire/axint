@@ -1,0 +1,92 @@
+name: 'Axint proof gate'
+description: 'Run local Axint proof for an Apple project and expose its verdict and signed receipt.'
+author: 'Agentic Empire'
+branding:
+  icon: 'check-circle'
+  color: 'orange'
+inputs:
+  directory:
+    description: 'Path to the Apple project, relative to the workspace.'
+    required: false
+    default: '.'
+  version:
+    description: 'Published @axint/compiler version. Pin this for repeatable CI.'
+    required: false
+    default: '0.6.0'
+  scheme:
+    description: 'Optional Xcode scheme. Axint discovers one when omitted.'
+    required: false
+    default: ''
+  destination:
+    description: 'Optional xcodebuild destination (e.g. platform=macOS).'
+    required: false
+    default: ''
+  strict:
+    description: 'Fail on needs-review as well as failed proof.'
+    required: false
+    default: 'true'
+outputs:
+  status:
+    description: 'Axint proof status: pass, needs_review, or fail.'
+    value: ${{ steps.prove.outputs.status }}
+  verdict:
+    description: 'Axint proof gate decision (for example evidence_required).'
+    value: ${{ steps.prove.outputs.verdict }}
+  receipt:
+    description: 'Local path to the signed, source-free JSON receipt.'
+    value: ${{ steps.prove.outputs.receipt }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - name: Prove Apple project
+      id: prove
+      shell: bash
+      env:
+        AXINT_DIRECTORY: ${{ inputs.directory }}
+        AXINT_VERSION: ${{ inputs.version }}
+        AXINT_SCHEME: ${{ inputs.scheme }}
+        AXINT_DESTINATION: ${{ inputs.destination }}
+        AXINT_STRICT: ${{ inputs.strict }}
+      run: |
+        set -euo pipefail
+        if [[ ! "$AXINT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9.-]+)?$ ]]; then
+          echo 'version must be a published semver release' >&2
+          exit 2
+        fi
+        if [[ ! -d "$AXINT_DIRECTORY" ]]; then
+          echo 'directory does not exist' >&2
+          exit 2
+        fi
+        args=(prove --dir "$AXINT_DIRECTORY" --json)
+        if [[ -n "$AXINT_SCHEME" ]]; then args+=(--scheme "$AXINT_SCHEME"); fi
+        if [[ -n "$AXINT_DESTINATION" ]]; then args+=(--destination "$AXINT_DESTINATION"); fi
+        if [[ "$AXINT_STRICT" == true ]]; then args+=(--strict); fi
+        output="$(mktemp)"
+        set +e
+        npx -y -p "@axint/compiler@$AXINT_VERSION" axint "${args[@]}" > "$output"
+        code=$?
+        set -e
+        if [[ ! -s "$output" ]]; then
+          echo "Axint produced no JSON; CLI exit code: $code" >&2
+          exit "$code"
+        fi
+        node - "$output" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" <<'NODE'
+        const fs = require('node:fs');
+        const [output, actionOutput, summary] = process.argv.slice(2);
+        const report = JSON.parse(fs.readFileSync(output, 'utf8'));
+        if (!['pass', 'needs_review', 'fail'].includes(report.status) ||
+            typeof report.gate?.decision !== 'string' ||
+            typeof report.artifacts?.receipt?.json !== 'string') {
+          throw new Error('Axint returned an incomplete proof report');
+        }
+        fs.appendFileSync(actionOutput,
+          `status=${report.status}\nverdict=${report.gate.decision}\nreceipt=${report.artifacts.receipt.json}\n`);
+        fs.appendFileSync(summary,
+          `## Axint proof\n\nStatus: ${report.status}\n\nVerdict: ${report.gate.decision}\n\nReceipt: \`${report.artifacts.receipt.json}\`\n`);
+        NODE
+        cat "$output"
+        exit "$code"
