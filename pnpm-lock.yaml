@@ -21,8 +21,8 @@ importers:
   .:
     dependencies:
       '@a2a-js/sdk':
-        specifier: 1.2.0
-        version: 1.2.0(express@5.2.1(supports-color@7.2.0))
+        specifier: 1.2.1
+        version: 1.2.1(express@5.2.1(supports-color@7.2.0))
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -78,8 +78,8 @@ importers:
 
 packages:
 
-  '@a2a-js/sdk@1.2.0':
-    resolution: {integrity: sha512-zxjvBrxhPV4J/RN8QTbsYaUIu9Y9RvmR06IP5o42UdJX42A9I0m1StGVvqrcCQ3bdu3SzWHPm5CeC2FNHARvkw==}
+  '@a2a-js/sdk@1.2.1':
+    resolution: {integrity: sha512-czCgk8Hw5TKgL0y9peDcxhHV3gGlVE8cHwPMhDOKoGM1QMsDCP1G8Fma6Snnpnr7Ci/U/1f0bFHnCyd7YnmioA==}
     engines: {node: '>=20'}
     peerDependencies:
       '@bufbuild/protobuf': ^2.10.2
@@ -1977,7 +1977,7 @@ packages:
 
 snapshots:
 
-  '@a2a-js/sdk@1.2.0(express@5.2.1(supports-color@7.2.0))':
+  '@a2a-js/sdk@1.2.1(express@5.2.1(supports-color@7.2.0))':
     dependencies:
       jose: 6.2.7
     optionalDependencies:
