@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   fixture:
-    if: github.repository == 'agenticempire/axint' && github.event.before == 'bf971e917b6c77729bd0d36695f6531343a8fcd8'
+    if: github.repository == 'agenticempire/axint' && github.event.before == 'a3a759f95ad2aa3bb0830ecbcc89fcd31f9524e2'
     runs-on: macos-15
     timeout-minutes: 30
     steps:
