@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   fixture:
-    if: github.repository == 'agenticempire/axint' && github.event.before == '27684ebc1f48c606cb87ef95fe3a21a4a0a552ef'
+    if: github.repository == 'agenticempire/axint' && github.event.before == '778af73355c7e69f0fa01c6421358a879286cc2c'
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -94,9 +94,12 @@ jobs:
           node - "$RECEIPT" <<'NODE'
           const fs = require('fs');
           const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          if (!receipt.signature || !receipt.payload) throw Error('missing signed receipt');
-          console.log('receipt signature and payload present');
+          if (receipt.integrity?.algorithm !== 'Ed25519' || !receipt.integrity.signature || !receipt.payload) throw Error('missing Ed25519 signed receipt');
+          console.log('receipt integrity signature and payload present');
           NODE
+          verifier_root="$(mktemp -d)"
+          npm install --prefix "$verifier_root" --no-save --no-audit --no-fund '@axint/compiler@0.6.0'
+          "$verifier_root/node_modules/.bin/axint" receipt verify "$RECEIPT"
       - name: Hide test target to require review
         shell: bash
         run: |
