@@ -1,0 +1,154 @@
+name: Axint proof gate fixture (temporary)
+
+on:
+  push:
+    branches: [axint-proof-gate-review]
+    paths: [.github/workflows/axint-proof-fixture.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  fixture:
+    if: github.repository == 'agenticempire/axint' && github.event.before == 'bf971e917b6c77729bd0d36695f6531343a8fcd8'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout reviewed Action revision
+        uses: actions/checkout@v4
+        with:
+          ref: bf971e917b6c77729bd0d36695f6531343a8fcd8
+          persist-credentials: false
+      - name: Confirm immutable Action revision
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = bf971e917b6c77729bd0d36695f6531343a8fcd8
+          xcodebuild -version
+      - name: Set up Xcode fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          mkdir -p "$RUNNER_TEMP/ProofFixture/Sources" "$RUNNER_TEMP/ProofFixture/Tests"
+          cat > "$RUNNER_TEMP/ProofFixture/project.yml" <<'PROJECT'
+          name: ProofFixture
+          options:
+            bundleIdPrefix: ai.axint.fixture
+          targets:
+            ProofFixture:
+              type: application
+              platform: macOS
+              deploymentTarget: '13.0'
+              sources: [Sources]
+              settings:
+                base:
+                  GENERATE_INFOPLIST_FILE: YES
+                  CODE_SIGNING_ALLOWED: NO
+            ProofFixtureTests:
+              type: bundle.unit-test
+              platform: macOS
+              deploymentTarget: '13.0'
+              sources: [Tests]
+              dependencies: [ProofFixture]
+              settings:
+                base:
+                  GENERATE_INFOPLIST_FILE: YES
+                  CODE_SIGNING_ALLOWED: NO
+          PROJECT
+          cat > "$RUNNER_TEMP/ProofFixture/Sources/ProofFixtureApp.swift" <<'SWIFT'
+          import SwiftUI
+          @main
+          struct ProofFixtureApp: App {
+              var body: some Scene { WindowGroup { Text("Proof") } }
+          }
+          SWIFT
+          cat > "$RUNNER_TEMP/ProofFixture/Tests/ProofFixtureTests.swift" <<'SWIFT'
+          import XCTest
+          final class ProofFixtureTests: XCTestCase {
+              func testProof() { XCTAssertEqual(2 + 2, 4) }
+          }
+          SWIFT
+          (cd "$RUNNER_TEMP/ProofFixture" && xcodegen generate && xcodebuild -list -project ProofFixture.xcodeproj)
+      - name: Passing proof
+        id: pass
+        uses: ./
+        continue-on-error: true
+        with:
+          directory: ${{ runner.temp }}/ProofFixture
+          scheme: ProofFixture
+          destination: platform=macOS
+          strict: 'true'
+      - name: Check passing verdict and signed receipt
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.pass.outcome }}
+          STATUS: ${{ steps.pass.outputs.status }}
+          VERDICT: ${{ steps.pass.outputs.verdict }}
+          RECEIPT: ${{ steps.pass.outputs.receipt }}
+        run: |
+          set -euo pipefail
+          printf 'pass: outcome=%s status=%s verdict=%s receipt=%s\n' "$OUTCOME" "$STATUS" "$VERDICT" "$RECEIPT"
+          test "$OUTCOME" = success
+          test "$STATUS" = pass
+          test -s "$RECEIPT"
+          node - "$RECEIPT" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (!receipt.signature || !receipt.payload) throw Error('missing signed receipt');
+          console.log('receipt signature and payload present');
+          NODE
+      - name: Hide test target to require review
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R "$RUNNER_TEMP/ProofFixture" "$RUNNER_TEMP/NeedsReviewFixture"
+          sed -i '' '/^    ProofFixtureTests:/,$d' "$RUNNER_TEMP/NeedsReviewFixture/project.yml"
+          (cd "$RUNNER_TEMP/NeedsReviewFixture" && rm -rf ProofFixture.xcodeproj && xcodegen generate)
+      - name: Strict missing-test proof
+        id: needs_review
+        uses: ./
+        continue-on-error: true
+        with:
+          directory: ${{ runner.temp }}/NeedsReviewFixture
+          scheme: ProofFixture
+          destination: platform=macOS
+          strict: 'true'
+      - name: Check needs-review behavior
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.needs_review.outcome }}
+          STATUS: ${{ steps.needs_review.outputs.status }}
+          RECEIPT: ${{ steps.needs_review.outputs.receipt }}
+        run: |
+          set -euo pipefail
+          printf 'needs_review: outcome=%s status=%s receipt=%s\n' "$OUTCOME" "$STATUS" "$RECEIPT"
+          test "$OUTCOME" = failure
+          test "$STATUS" = needs_review
+          test -s "$RECEIPT"
+      - name: Introduce Swift build error
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R "$RUNNER_TEMP/ProofFixture" "$RUNNER_TEMP/FailFixture"
+          printf '\nthis is not Swift\n' >> "$RUNNER_TEMP/FailFixture/Sources/ProofFixtureApp.swift"
+      - name: Failing proof
+        id: fail
+        uses: ./
+        continue-on-error: true
+        with:
+          directory: ${{ runner.temp }}/FailFixture
+          scheme: ProofFixture
+          destination: platform=macOS
+          strict: 'true'
+      - name: Check fail behavior
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.fail.outcome }}
+          STATUS: ${{ steps.fail.outputs.status }}
+          RECEIPT: ${{ steps.fail.outputs.receipt }}
+        run: |
+          set -euo pipefail
+          printf 'fail: outcome=%s status=%s receipt=%s\n' "$OUTCOME" "$STATUS" "$RECEIPT"
+          test "$OUTCOME" = failure
+          test "$STATUS" = fail
+          test -s "$RECEIPT"
