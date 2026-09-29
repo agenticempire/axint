@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   fixture:
-    if: github.repository == 'agenticempire/axint' && github.event.before == '778af73355c7e69f0fa01c6421358a879286cc2c'
+    if: github.repository == 'agenticempire/axint' && github.event.before == 'a859a7b1d2c111458c0d2d9c30d4dcfcfd0d963e'
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -106,7 +106,9 @@ jobs:
           set -euo pipefail
           cp -R "$RUNNER_TEMP/ProofFixture" "$RUNNER_TEMP/NeedsReviewFixture"
           sed -i '' '/^    ProofFixtureTests:/,$d' "$RUNNER_TEMP/NeedsReviewFixture/project.yml"
-          (cd "$RUNNER_TEMP/NeedsReviewFixture" && rm -rf ProofFixture.xcodeproj && xcodegen generate)
+          (cd "$RUNNER_TEMP/NeedsReviewFixture" && rm -rf ProofFixture.xcodeproj && xcodegen generate && xcodebuild -list -project ProofFixture.xcodeproj)
+          if grep -q "ProofFixtureTests" "$RUNNER_TEMP/NeedsReviewFixture/project.yml"; then echo "test target still in spec" >&2; exit 1; fi
+          if grep -q "com.apple.product-type.bundle.unit-test" "$RUNNER_TEMP/NeedsReviewFixture/ProofFixture.xcodeproj/project.pbxproj"; then echo "test target still in generated project" >&2; exit 1; fi
       - name: Strict missing-test proof
         id: needs_review
         uses: ./
@@ -125,9 +127,13 @@ jobs:
         run: |
           set -euo pipefail
           printf 'needs_review: outcome=%s status=%s receipt=%s\n' "$OUTCOME" "$STATUS" "$RECEIPT"
-          test "$OUTCOME" = failure
-          test "$STATUS" = needs_review
           test -s "$RECEIPT"
+          node - "$RECEIPT" <<'NODE'
+          const r = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
+          console.log(JSON.stringify({receiptStatus:r.payload?.outcome, testSteps:r.payload?.evidence?.steps?.filter(x => /test/i.test(x.name)), commands:r.payload?.evidence?.commands?.filter(x => x.kind === "test")}, null, 2));
+          NODE
+          echo "NEEDS_REVIEW_OUTCOME=$OUTCOME" >> "$GITHUB_ENV"
+          echo "NEEDS_REVIEW_STATUS=$STATUS" >> "$GITHUB_ENV"
       - name: Introduce Swift build error
         shell: bash
         run: |
@@ -155,3 +161,5 @@ jobs:
           test "$OUTCOME" = failure
           test "$STATUS" = fail
           test -s "$RECEIPT"
+          test "$NEEDS_REVIEW_OUTCOME" = failure
+          test "$NEEDS_REVIEW_STATUS" = needs_review
