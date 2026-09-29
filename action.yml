@@ -65,9 +65,11 @@ runs:
         if [[ -n "$AXINT_SCHEME" ]]; then args+=(--scheme "$AXINT_SCHEME"); fi
         if [[ -n "$AXINT_DESTINATION" ]]; then args+=(--destination "$AXINT_DESTINATION"); fi
         if [[ "$AXINT_STRICT" == true ]]; then args+=(--strict); fi
+        tool_root="$(mktemp -d)"
+        npm install --prefix "$tool_root" --no-save --no-audit --no-fund "@axint/compiler@$AXINT_VERSION"
         output="$(mktemp)"
         set +e
-        npx -y -p "@axint/compiler@$AXINT_VERSION" axint "${args[@]}" > "$output"
+        "$tool_root/node_modules/.bin/axint" "${args[@]}" > "$output"
         code=$?
         set -e
         if [[ ! -s "$output" ]]; then
