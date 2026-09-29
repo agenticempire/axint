@@ -10,19 +10,19 @@ permissions:
 
 jobs:
   fixture:
-    if: github.repository == 'agenticempire/axint' && github.event.before == 'a3a759f95ad2aa3bb0830ecbcc89fcd31f9524e2'
+    if: github.repository == 'agenticempire/axint' && github.event.before == '27684ebc1f48c606cb87ef95fe3a21a4a0a552ef'
     runs-on: macos-15
     timeout-minutes: 30
     steps:
       - name: Checkout reviewed Action revision
         uses: actions/checkout@v4
         with:
-          ref: bf971e917b6c77729bd0d36695f6531343a8fcd8
+          ref: 27684ebc1f48c606cb87ef95fe3a21a4a0a552ef
           persist-credentials: false
       - name: Confirm immutable Action revision
         shell: bash
         run: |
-          test "$(git rev-parse HEAD)" = bf971e917b6c77729bd0d36695f6531343a8fcd8
+          test "$(git rev-parse HEAD)" = 27684ebc1f48c606cb87ef95fe3a21a4a0a552ef
           xcodebuild -version
       - name: Set up Xcode fixture
         shell: bash
