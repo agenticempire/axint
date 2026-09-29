@@ -49,7 +49,7 @@ jobs:
               platform: macOS
               deploymentTarget: '13.0'
               sources: [Tests]
-              dependencies: [ProofFixture]
+              dependencies: [{target: ProofFixture}]
               settings:
                 base:
                   GENERATE_INFOPLIST_FILE: YES
