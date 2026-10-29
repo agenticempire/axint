@@ -12,7 +12,7 @@ permissions:
 jobs:
   # ── TypeScript Compiler ──────────────────────────────────────────
   test-typescript:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     strategy:
       matrix:
         node-version: [22]
@@ -79,7 +79,7 @@ jobs:
 
   node-compatibility:
     name: Node.js ${{ matrix.node-version }} compatibility
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     continue-on-error: ${{ matrix.node-version == 26 }}
     strategy:
       fail-fast: false
@@ -104,7 +104,7 @@ jobs:
 
   typescript-next:
     name: TypeScript 7 compiler API canary
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -148,7 +148,7 @@ jobs:
 
   mcp-v2-canary:
     name: MCP 2026-07-28 TypeScript client canary
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -167,7 +167,7 @@ jobs:
 
   # ── Swift Sandbox (macOS) ─────────────────────────────────────────
   test-swift-sandbox:
-    runs-on: macos-15
+    runs-on: depot-macos-15
     steps:
       - uses: actions/checkout@v7
 
@@ -185,7 +185,7 @@ jobs:
 
   xcode-27-canary:
     name: Xcode 27 beta compatibility canary
-    runs-on: macos-26
+    runs-on: depot-macos-26
     continue-on-error: true
     timeout-minutes: 20
     steps:
@@ -218,7 +218,7 @@ jobs:
 
   # ── Python SDK ───────────────────────────────────────────────────
   test-python:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -284,7 +284,7 @@ jobs:
 
   python-next:
     name: Python 3.15 compatibility canary
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     defaults:
       run:
         working-directory: python
@@ -305,7 +305,7 @@ jobs:
 
   python-mcp-v2-canary:
     name: MCP 2026-07-28 Python SDK canary
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     continue-on-error: true
     defaults:
       run:
