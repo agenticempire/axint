@@ -38,7 +38,7 @@ importers:
         version: 10.0.1(eslint@10.9.1(supports-color@7.2.0))
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
-        version: 1.32.1(supports-color@7.2.0)(zod@4.4.3)
+        version: 1.32.2(supports-color@7.2.0)(zod@4.4.3)
       '@types/express':
         specifier: ^5.0.3
         version: 5.0.6
@@ -526,8 +526,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@modelcontextprotocol/sdk@1.32.1':
-    resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
+  '@modelcontextprotocol/sdk@1.32.2':
+    resolution: {integrity: sha512-SWsVtH/0vULSQStoZ6xxH2K09Li8fXYTMC64ZeogCdpZ3XSi1eCPOByV1OpuJxuI3OcmHhosDWYyii07tpPsLw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -2246,7 +2246,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@modelcontextprotocol/sdk@1.32.1(supports-color@7.2.0)(zod@4.4.3)':
+  '@modelcontextprotocol/sdk@1.32.2(supports-color@7.2.0)(zod@4.4.3)':
     dependencies:
       '@hono/node-server': 2.0.12(hono@4.12.34)
       ajv: 8.20.0
